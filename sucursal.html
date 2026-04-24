@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Terrapesca Radio — Sucursal</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=Inter:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0a0e1a;--surface:#151c30;--surface2:#1c2540;
+  --border:#252f4a;--accent:#00c9ff;--accent2:#0090bb;
+  --accent-glow:rgba(0,201,255,0.15);--gold:#f5c842;
+  --green:#2ecc8a;--red:#ff4d6d;
+  --text:#e8edf8;--text2:#8a9bbf;--text3:#4a5a7a;
+}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse 100% 60% at 50% 0%,rgba(0,201,255,0.07) 0%,transparent 65%);pointer-events:none}
+
+.setup-screen{position:fixed;inset:0;background:var(--bg);z-index:100;display:flex;align-items:center;justify-content:center}
+.setup-box{background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:36px;width:380px;text-align:center;box-shadow:0 24px 64px rgba(0,0,0,0.5)}
+.setup-box .icon{font-size:40px;margin-bottom:16px}
+.setup-box h2{font-family:'Syne',sans-serif;font-size:20px;font-weight:800;margin-bottom:6px}
+.setup-box p{font-size:13px;color:var(--text2);margin-bottom:24px}
+.inp{width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:10px;background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;font-size:13px;outline:none;margin-bottom:10px;transition:border-color .15s}
+.inp:focus{border-color:var(--accent)}.inp::placeholder{color:var(--text3)}
+.btn-connect{width:100%;padding:12px;background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;border-radius:10px;color:#000;font-family:'Inter',sans-serif;font-size:14px;font-weight:700;cursor:pointer;transition:all .2s}
+.btn-connect:hover{opacity:0.85}
+
+/* MAIN PLAYER */
+.player-wrap{width:100%;max-width:520px;padding:20px;position:relative;z-index:1}
+
+.logo-row{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:28px}
+.logo-ic{width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-size:20px;box-shadow:0 0 20px var(--accent-glow)}
+.logo-tx{font-family:'Syne',sans-serif;font-size:22px;font-weight:800}
+.logo-tx span{color:var(--accent)}
+
+.branch-tag{display:flex;align-items:center;justify-content:center;gap:6px;font-size:13px;color:var(--text2);margin-bottom:24px}
+.branch-tag strong{color:var(--text);font-weight:600}
+
+/* BIG NOW PLAYING */
+.now-card{background:var(--surface);border:1px solid var(--border);border-radius:20px;overflow:hidden;box-shadow:0 16px 48px rgba(0,0,0,0.4)}
+.np-hero{background:linear-gradient(160deg,#0d1a35,#091424);padding:32px 32px 0;text-align:center}
+.np-src{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;border-radius:20px;padding:4px 12px;margin-bottom:18px}
+.np-src.yt{background:rgba(255,80,80,0.15);color:#ff5050;border:1px solid rgba(255,80,80,0.2)}
+.np-src.mp3{background:rgba(0,201,255,0.1);color:var(--accent);border:1px solid rgba(0,201,255,0.2)}
+.np-src.spot{background:rgba(245,200,66,0.12);color:var(--gold);border:1px solid rgba(245,200,66,0.25)}
+.np-src.idle{background:var(--surface2);color:var(--text3);border:1px solid var(--border)}
+
+.np-title{font-family:'Syne',sans-serif;font-size:26px;font-weight:800;line-height:1.2;margin-bottom:6px;min-height:62px;display:flex;align-items:center;justify-content:center;text-align:center}
+.np-sub{font-size:13px;color:var(--text2);margin-bottom:24px}
+
+.viz{display:flex;align-items:flex-end;gap:3px;height:52px;padding-bottom:8px;justify-content:center}
+.vb{width:6px;border-radius:3px 3px 0 0;background:linear-gradient(to top,var(--accent),rgba(0,201,255,0.3));min-height:4px;animation:vd .6s ease-in-out infinite alternate}
+.vb:nth-child(2n){animation-delay:.15s}.vb:nth-child(3n){animation-delay:.3s}.vb:nth-child(4n){animation-delay:.45s}.vb:nth-child(5n){animation-delay:.05s}
+@keyframes vd{from{transform:scaleY(0.15);opacity:0.3}to{transform:scaleY(1);opacity:1}}
+.viz.paused .vb{animation-play-state:paused;transform:scaleY(0.12);opacity:0.2}
+.viz.spot-m .vb{background:linear-gradient(to top,var(--gold),rgba(245,200,66,0.3))}
+
+.ctrl-area{padding:24px 28px 28px}
+.prog-row{display:flex;align-items:center;gap:8px;margin-bottom:20px}
+.t{font-size:11px;color:var(--text3);min-width:30px}.t.e{text-align:right}
+.ptrack{flex:1;height:4px;background:var(--surface2);border-radius:2px}
+.pfill{height:100%;background:linear-gradient(to right,var(--accent),var(--accent2));border-radius:2px;width:0%;transition:width .3s linear}
+.pfill.spot{background:linear-gradient(to right,var(--gold),#e0a800)}
+
+.vol-row{display:flex;align-items:center;gap:12px;margin-bottom:16px}
+.vol-icon{font-size:18px;color:var(--text3)}
+input[type=range]{flex:1;-webkit-appearance:none;height:4px;background:var(--surface2);border-radius:2px;outline:none;cursor:pointer}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:var(--accent);cursor:pointer;box-shadow:0 0 8px var(--accent-glow)}
+.vol-pct{font-size:12px;color:var(--text2);min-width:35px;text-align:right}
+
+/* STATUS */
+.status-pill{display:flex;align-items:center;justify-content:center;gap:8px;padding:10px 18px;border-radius:20px;font-size:12px;font-weight:500;border:1px solid var(--border);background:var(--surface2);margin-top:14px}
+.status-dot{width:7px;height:7px;border-radius:50%;background:var(--text3)}
+.status-pill.ok .status-dot{background:var(--green);animation:pd 2s ease infinite}
+.status-pill.connecting .status-dot{background:var(--gold);animation:pd .8s ease infinite}
+.status-pill.error .status-dot{background:var(--red)}
+@keyframes pd{0%,100%{opacity:1}50%{opacity:0.2}}
+
+/* SPOT OVERLAY */
+.spot-overlay{position:fixed;inset:0;z-index:50;pointer-events:none;display:flex;align-items:flex-end;justify-content:center;padding:32px}
+.spot-banner{background:linear-gradient(135deg,rgba(245,200,66,0.15),rgba(245,200,66,0.05));border:1px solid rgba(245,200,66,0.4);border-radius:14px;padding:14px 22px;display:flex;align-items:center;gap:12px;font-size:13px;transform:translateY(80px);opacity:0;transition:all .5s cubic-bezier(.34,1.4,.64,1);max-width:480px;width:100%}
+.spot-banner.show{transform:translateY(0);opacity:1}
+.spot-banner-icon{font-size:22px}
+.spot-banner-text{flex:1;color:var(--gold);font-weight:500;line-height:1.4}
+
+#yt-container{display:none}
+#yt-container iframe{width:1px;height:1px;opacity:0;pointer-events:none;position:fixed;bottom:0;right:0}
+</style>
+</head>
+<body>
+
+<!-- SETUP -->
+<div class="setup-screen" id="setupScreen">
+  <div class="setup-box">
+    <div class="icon">📻</div>
+    <h2>Terrapesca Radio</h2>
+    <p>Ingresa la URL del servidor y el nombre de esta sucursal para comenzar a recibir la señal</p>
+    <select class="inp" id="setupBranch">
+      <option value="">— Selecciona sucursal —</option>
+      <option value="Culiacán">Culiacán</option>
+      <option value="Mazatlán">Mazatlán</option>
+      <option value="Los Mochis - Matriz">Los Mochis - Matriz</option>
+    </select>
+    <input class="inp" id="setupWs" placeholder="URL del servidor: wss://tu-app.railway.app"/>
+    <button class="btn-connect" onclick="connect()">Conectar a la señal 📡</button>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div class="player-wrap" style="display:none" id="mainPlayer">
+  <div class="logo-row">
+    <div class="logo-ic">📻</div>
+    <div class="logo-tx">Terrapesca <span>Radio</span></div>
+  </div>
+  <div class="branch-tag">📍 Sucursal <strong id="branchName">—</strong></div>
+
+  <div class="now-card">
+    <div class="np-hero">
+      <span class="np-src idle" id="srcTag">⏸ En espera</span>
+      <div class="np-title" id="npTitle">Esperando señal...</div>
+      <div class="np-sub" id="npSub">La música comenzará cuando Los Mochis inicie la transmisión</div>
+      <div id="yt-container"><div id="yt-player"></div></div>
+      <div class="viz paused" id="viz">
+        <div class="vb" style="height:16px"></div><div class="vb" style="height:28px"></div><div class="vb" style="height:12px"></div><div class="vb" style="height:36px"></div><div class="vb" style="height:20px"></div><div class="vb" style="height:34px"></div><div class="vb" style="height:14px"></div><div class="vb" style="height:26px"></div><div class="vb" style="height:18px"></div><div class="vb" style="height:40px"></div><div class="vb" style="height:13px"></div><div class="vb" style="height:31px"></div><div class="vb" style="height:24px"></div><div class="vb" style="height:38px"></div><div class="vb" style="height:17px"></div><div class="vb" style="height:29px"></div><div class="vb" style="height:22px"></div><div class="vb" style="height:33px"></div><div class="vb" style="height:15px"></div><div class="vb" style="height:25px"></div>
+      </div>
+    </div>
+    <div class="ctrl-area">
+      <div class="prog-row">
+        <span class="t" id="tC">0:00</span>
+        <div class="ptrack"><div class="pfill" id="pF"></div></div>
+        <span class="t e" id="tT">0:00</span>
+      </div>
+      <div class="vol-row">
+        <span class="vol-icon">🔉</span>
+        <input type="range" id="volS" min="0" max="100" value="80" oninput="setVol(this.value)"/>
+        <span class="vol-pct" id="volP">80%</span>
+      </div>
+      <div class="status-pill connecting" id="statusPill">
+        <div class="status-dot"></div>
+        <span id="statusLabel">Conectando al servidor...</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SPOT BANNER -->
+<div class="spot-overlay">
+  <div class="spot-banner" id="spotBanner">
+    <span class="spot-banner-icon">🎙️</span>
+    <span class="spot-banner-text" id="spotBannerText">Cargando spot...</span>
+  </div>
+</div>
+
+<script src="https://www.youtube.com/iframe_api"></script>
+<script>
+let ws=null, ytPlayer=null, ytReady=false, audioEl=null, progInt=null;
+let branch='', wsUrl='';
+
+function connect(){
+  branch=document.getElementById('setupBranch').value;
+  wsUrl=document.getElementById('setupWs').value.trim();
+  if(!branch){alert('Selecciona tu sucursal');return}
+  if(!wsUrl){alert('Ingresa la URL del servidor');return}
+  localStorage.setItem('suc_branch',branch);
+  localStorage.setItem('suc_ws',wsUrl);
+  document.getElementById('setupScreen').style.display='none';
+  document.getElementById('mainPlayer').style.display='block';
+  document.getElementById('branchName').textContent=branch;
+  initWS();
+}
+
+// Auto-reconnect if saved
+window.addEventListener('load',()=>{
+  const b=localStorage.getItem('suc_branch');
+  const w=localStorage.getItem('suc_ws');
+  if(b&&w){
+    branch=b; wsUrl=w;
+    document.getElementById('setupBranch').value=b;
+    document.getElementById('setupWs').value=w;
+    document.getElementById('setupScreen').style.display='none';
+    document.getElementById('mainPlayer').style.display='block';
+    document.getElementById('branchName').textContent=b;
+    initWS();
+  }
+});
+
+function initWS(){
+  const url=wsUrl.replace(/^http/,'ws');
+  try{
+    ws=new WebSocket(url);
+    setStatus('connecting','Conectando al servidor...');
+    ws.onopen=()=>setStatus('ok','🟢 Señal recibida de Los Mochis');
+    ws.onclose=()=>{setStatus('error','Sin señal — reintentando...');setTimeout(initWS,5000)};
+    ws.onerror=()=>setStatus('error','Error de conexión');
+    ws.onmessage=(e)=>{
+      try{handleMsg(JSON.parse(e.data))}catch(err){}
+    };
+  }catch(e){setStatus('error','URL inválida')}
+}
+
+function handleMsg(msg){
+  switch(msg.type){
+    case 'SYNC':
+      // Initial sync - just show current state
+      if(msg.state&&msg.state.currentTrack){
+        updateNP(msg.state.currentTrack, msg.state.isPlaying);
+      }
+      break;
+    case 'PLAY':
+      playRemote(msg.track, msg.position||0);
+      break;
+    case 'PAUSE':
+      pauseLocal();
+      break;
+    case 'RESUME':
+      resumeLocal();
+      break;
+    case 'VOLUME':
+      // Panel controls master volume, local volume is independent
+      break;
+    case 'SPOT':
+      playSpot(msg.track);
+      break;
+    case 'PLAYLIST_UPDATE':
+      // Just informational for sucursal
+      break;
+  }
+}
+
+function onYouTubeIframeAPIReady(){
+  ytPlayer=new YT.Player('yt-player',{
+    height:'1',width:'1',
+    playerVars:{autoplay:0,controls:0,modestbranding:1,rel:0},
+    events:{
+      onReady:()=>{ytReady=true},
+      onStateChange:(e)=>{
+        if(e.data===YT.PlayerState.PLAYING)setPlayUI(true);
+        if(e.data===YT.PlayerState.PAUSED)setPlayUI(false);
+        if(e.data===YT.PlayerState.ENDED)setPlayUI(false);
+      }
+    }
+  });
+}
+
+function playRemote(track, position){
+  stopLocal();
+  if(track.type==='yt'){
+    document.getElementById('yt-container').style.display='block';
+    if(ytReady){
+      ytPlayer.loadVideoById(track.ytId);
+      ytPlayer.setVolume(parseInt(document.getElementById('volS').value));
+      if(position>2)setTimeout(()=>ytPlayer.seekTo(position,true),1500);
+    }
+  } else if(track.type==='mp3'){
+    // MP3 from panel can't be streamed directly - show as playing
+    document.getElementById('yt-container').style.display='none';
+  }
+  updateNP(track, true);
+  startProg();
+}
+
+function playSpot(track){
+  stopLocal();
+  if(track.b64){
+    const blob=b64ToBlob(track.b64,'audio/mpeg');
+    const url=URL.createObjectURL(blob);
+    audioEl=new Audio(url);
+    audioEl.volume=parseInt(document.getElementById('volS').value)/100;
+    audioEl.play();
+    audioEl.addEventListener('ended',()=>{setPlayUI(false);hideSpotBanner()});
+    audioEl.addEventListener('timeupdate',updateProg);
+    audioEl.addEventListener('loadedmetadata',()=>{document.getElementById('tT').textContent=fmt(audioEl.duration)});
+    updateNP(track, true);
+    showSpotBanner(track.name);
+    startProg();
+  }
+}
+
+function b64ToBlob(b64, mime){
+  const bin=atob(b64);
+  const buf=new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++)buf[i]=bin.charCodeAt(i);
+  return new Blob([buf],{type:mime});
+}
+
+function pauseLocal(){
+  if(audioEl)audioEl.pause();
+  if(ytReady&&ytPlayer)try{ytPlayer.pauseVideo()}catch(e){}
+  setPlayUI(false);
+}
+function resumeLocal(){
+  if(audioEl)audioEl.play();
+  if(ytReady&&ytPlayer)try{ytPlayer.playVideo()}catch(e){}
+  setPlayUI(true);
+}
+function stopLocal(){
+  if(audioEl){audioEl.pause();audioEl.src='';audioEl=null}
+  if(ytReady&&ytPlayer)try{ytPlayer.stopVideo()}catch(e){}
+  clearInterval(progInt);
+  document.getElementById('pF').style.width='0%';
+  document.getElementById('tC').textContent='0:00';
+}
+function setVol(v){
+  document.getElementById('volP').textContent=v+'%';
+  if(audioEl)audioEl.volume=v/100;
+  if(ytReady&&ytPlayer)try{ytPlayer.setVolume(parseInt(v))}catch(e){}
+}
+function setPlayUI(p){
+  document.getElementById('viz').classList.toggle('paused',!p);
+}
+function startProg(){clearInterval(progInt);progInt=setInterval(updateProg,500)}
+function updateProg(){
+  let c=0,d=0;
+  if(audioEl){c=audioEl.currentTime;d=audioEl.duration||0}
+  else if(ytReady&&ytPlayer)try{c=ytPlayer.getCurrentTime()||0;d=ytPlayer.getDuration()||0}catch(e){}
+  document.getElementById('pF').style.width=(d>0?(c/d)*100:0)+'%';
+  document.getElementById('tC').textContent=fmt(c);
+  if(d)document.getElementById('tT').textContent=fmt(d);
+}
+function updateNP(track, playing){
+  document.getElementById('npTitle').textContent=track.name||'Sin título';
+  const tag=document.getElementById('srcTag');
+  if(track.type==='yt'){tag.textContent='▶ YouTube';tag.className='np-src yt'}
+  else if(track.type==='mp3'){tag.textContent='🎵 MP3';tag.className='np-src mp3'}
+  else if(track.type==='spot'){tag.textContent='🎙️ SPOT';tag.className='np-src spot'}
+  document.getElementById('npSub').textContent=playing?'🎶 Señal en vivo desde Los Mochis':'⏸ En pausa';
+  document.getElementById('viz').classList.toggle('paused',!playing);
+  document.getElementById('viz').classList.toggle('spot-m',track.type==='spot');
+}
+function showSpotBanner(name){
+  const text=name.replace('🎙️ SPOT — ','');
+  document.getElementById('spotBannerText').textContent='📣 Promoción especial: '+text;
+  document.getElementById('spotBanner').classList.add('show');
+}
+function hideSpotBanner(){
+  document.getElementById('spotBanner').classList.remove('show');
+}
+function setStatus(s,l){
+  const el=document.getElementById('statusPill');
+  el.className='status-pill '+s;
+  document.getElementById('statusLabel').textContent=l;
+}
+function fmt(s){if(!s||isNaN(s))return'0:00';const m=Math.floor(s/60),sc=Math.floor(s%60);return m+':'+(sc<10?'0':'')+sc}
+</script>
+</body>
+</html>
