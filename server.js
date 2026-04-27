@@ -184,14 +184,14 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // Google TTS — listar voces es-MX
+  // Google TTS — listar voces en español
   if (req.url === '/api/google-tts/voices') {
     try {
       const client = getGoogleTTSClient();
-      const [result] = await client.listVoices({ languageCode: 'es-MX' });
+      const [result] = await client.listVoices({});
       const voices = (result.voices || [])
-        .filter(v => v.languageCodes?.some(c => c.startsWith('es-MX')))
-        .map(v => ({ name: v.name, ssmlGender: v.ssmlGender, naturalSampleRateHertz: v.naturalSampleRateHertz }))
+        .filter(v => v.languageCodes?.some(c => c.startsWith('es')))
+        .map(v => ({ name: v.name, ssmlGender: v.ssmlGender, naturalSampleRateHertz: v.naturalSampleRateHertz, languageCodes: v.languageCodes }))
         .sort((a, b) => a.name.localeCompare(b.name));
       res.writeHead(200, { 'Content-Type': 'application/json;charset=utf-8' });
       res.end(JSON.stringify({ ok: true, voices }));
