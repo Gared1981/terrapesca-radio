@@ -6,6 +6,67 @@ const { WebSocketServer } = require('ws');
 
 const PORT = process.env.PORT || 3000;
 
+// Read POST body
+function readBody(req){
+  return new Promise((resolve,reject)=>{
+    let body='';
+    req.on('data',c=>body+=c.toString());
+    req.on('end',()=>{try{resolve(JSON.parse(body))}catch(e){resolve({})}});
+    req.on('error',reject);
+  });
+}
+
+// Strip HTML tags
+function stripHtml(h){
+  return h.replace(/<[^>]+>/g,'').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&nbsp;/g,' ').replace(/&#(\d+);/g,(_,n)=>String.fromCharCode(n)).replace(/\s+/g,' ').trim();
+}
+
+// Parse product data from HTML
+function parseProduct(html,url){
+  // 1. Try JSON-LD
+  const ldBlocks=html.match(/<script[^>]+type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi)||[];
+  for(const block of ldBlocks){
+    try{
+      const jsonStr=block.replace(/<script[^>]*>/i,'').replace(/<\/script>/i,'').trim();
+      let data=JSON.parse(jsonStr);
+      if(Array.isArray(data))data=data.find(d=>d['@type']==='Product')||data[0];
+      if(data&&(data['@type']==='Product'||data.name)){
+        const offer=Array.isArray(data.offers)?data.offers[0]:data.offers;
+        const features=[];
+        if(Array.isArray(data.additionalProperty))data.additionalProperty.slice(0,5).forEach(p=>features.push(p.name+': '+p.value));
+        return{
+          name:data.name||null,
+          description:data.description?stripHtml(data.description).slice(0,400):null,
+          price:offer?.price?`$${offer.price} ${offer.priceCurrency||'MXN'}`:null,
+          brand:data.brand?.name||data.brand||null,
+          category:data.category||null,
+          availability:offer?.availability?.includes('InStock')?'Disponible':null,
+          features,source:'json-ld'
+        };
+      }
+    }catch(e){}
+  }
+  // 2. Shopify product JSON
+  const shopifyM=html.match(/var\s+meta\s*=\s*(\{[\s\S]*?"product"[\s\S]*?\});/);
+  if(shopifyM){
+    try{
+      const d=JSON.parse(shopifyM[1]);
+      if(d.product){const p=d.product;return{name:p.title||null,description:p.description?stripHtml(p.description).slice(0,400):null,price:p.price_min?`$${(p.price_min/100).toFixed(2)} MXN`:null,brand:p.vendor||null,category:p.type||null,availability:null,features:[],source:'shopify'};}
+    }catch(e){}
+  }
+  // 3. Meta tags fallback
+  const getMeta=(attr,val)=>{
+    const m=html.match(new RegExp(`<meta[^>]+${attr}="[^"]*${val}[^"]*"[^>]+content="([^"]*)"[^>]*>`,'i'))||
+            html.match(new RegExp(`<meta[^>]+content="([^"]*)"[^>]+${attr}="[^"]*${val}[^"]*"[^>]*>`,'i'));
+    return m?m[1].trim():null;
+  };
+  const title=getMeta('property','og:title')||(html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)||[])[1]?.replace(/\s+/g,' ').trim()||null;
+  const desc=getMeta('property','og:description')||getMeta('name','description')||null;
+  const price=getMeta('property','product:price:amount')||getMeta('property','og:price:amount')||null;
+  const brand=getMeta('property','og:brand')||getMeta('property','product:brand')||null;
+  return{name:title,description:desc?desc.slice(0,400):null,price:price?`$${price} MXN`:null,brand,category:null,availability:null,features:[],source:'meta'};
+}
+
 let radioState = {
   currentTrack: null, isPlaying: false,
   position: 0, volume: 80, playlist: [], lastUpdate: Date.now()
@@ -80,6 +141,23 @@ const server = http.createServer(async (req, res) => {
     } catch(e) {
       res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
       res.end(JSON.stringify({ ok: false, error: e.message, mareas: [] }));
+    }
+    return;
+  }
+
+  if (req.url === '/api/scrape-product' && req.method === 'POST') {
+    try {
+      const body = await readBody(req);
+      const url = body.url||'';
+      if(!url.startsWith('http')){res.writeHead(200,{'Content-Type':'application/json;charset=utf-8'});res.end(JSON.stringify({ok:false,error:'URL inválida'}));return;}
+      const html = await httpGet(url);
+      const product = parseProduct(html, url);
+      if(!product.name){res.writeHead(200,{'Content-Type':'application/json;charset=utf-8'});res.end(JSON.stringify({ok:false,error:'No se pudo extraer el producto. Verifica el enlace o pega la descripción manualmente.'}));return;}
+      res.writeHead(200,{'Content-Type':'application/json;charset=utf-8'});
+      res.end(JSON.stringify({ok:true,product}));
+    }catch(e){
+      res.writeHead(200,{'Content-Type':'application/json;charset=utf-8'});
+      res.end(JSON.stringify({ok:false,error:e.message}));
     }
     return;
   }

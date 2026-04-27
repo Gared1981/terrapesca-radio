@@ -216,6 +216,35 @@ input:checked+.slider:before{transform:translateX(15px);background:#fff}
 .toast.error{border-color:rgba(255,77,109,0.4);color:var(--red)}
 .toast.info{border-color:rgba(245,135,31,0.3);color:var(--accent)}
 .toast.gold{border-color:rgba(245,200,66,0.4);color:var(--gold)}
+/* === PROD SPOT FROM URL === */
+.prod-spot-card{background:var(--surface);border:1px solid rgba(245,135,31,0.25);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow)}
+.url-row{display:flex;gap:6px;margin-bottom:10px}
+.btn-extract{padding:9px 13px;background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;border-radius:9px;color:#fff;font-family:'Inter',sans-serif;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0;transition:opacity .2s}
+.btn-extract:hover{opacity:.85}.btn-extract:disabled{opacity:.5;cursor:not-allowed}
+.prod-preview{background:var(--bg2);border:1px solid rgba(245,135,31,0.2);border-radius:9px;padding:10px 12px;margin-bottom:10px}
+.pv-name{font-weight:700;font-size:13px;color:var(--text);margin-bottom:3px}
+.pv-price{color:var(--gold);font-weight:600;font-size:12px;margin-bottom:4px}
+.pv-desc{color:var(--text2);font-size:11px;line-height:1.5}
+.pv-source{font-size:10px;color:var(--text3);margin-top:4px}
+.spot-opts{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px}
+.field-lbl{display:block;font-size:10px;font-weight:700;letter-spacing:1px;color:var(--text3);text-transform:uppercase;margin-bottom:4px}
+.voice-list-wrap{background:var(--bg2);border:1px solid var(--border);border-radius:9px;padding:8px;margin-bottom:8px;max-height:200px;overflow-y:auto}
+.voice-list-wrap::-webkit-scrollbar{width:3px}.voice-list-wrap::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+.voice-list-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.voice-list{display:flex;flex-direction:column;gap:4px}
+.voice-item{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:8px;background:var(--surface2);border:1px solid var(--border);cursor:pointer;transition:all .12s;font-size:12px}
+.voice-item:hover{border-color:var(--accent);background:var(--accent-glow)}
+.voice-item.selected{border-color:var(--accent);background:var(--accent-glow)}
+.voice-item.fav{border-color:rgba(245,200,66,0.25)}
+.vi-name{font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vi-tags{display:flex;gap:3px;flex-shrink:0}
+.vtag{font-size:9px;font-weight:700;background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:1px 5px;color:var(--text3);text-transform:capitalize}
+.vi-fav{background:none;border:none;cursor:pointer;font-size:13px;flex-shrink:0;padding:2px 4px;transition:transform .15s}
+.vi-fav:hover{transform:scale(1.25)}
+.google-opts{background:var(--bg2);border:1px solid var(--border);border-radius:9px;padding:10px 12px;margin-bottom:8px}
+.g-sliders{display:grid;grid-template-columns:80px 1fr 36px;align-items:center;gap:4px 8px;margin-top:6px;font-size:11px;color:var(--text2)}
+.btn-sm{padding:5px 10px;border:1px solid var(--border);border-radius:7px;background:var(--surface2);color:var(--text2);font-size:11px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;transition:all .15s}
+.btn-sm:hover{border-color:var(--accent);color:var(--accent)}
 @media(max-width:900px){.app{grid-template-columns:1fr;padding:10px}.pl-card{grid-row:auto;max-height:260px}}
 @keyframes dot-dance{from{height:4px}to{height:14px}}
 </style>
@@ -417,6 +446,96 @@ input:checked+.slider:before{transform:translateX(15px);background:#fff}
       <div id="djVariaciones"></div>
     </div>
 
+    <!-- SPOT DESDE ENLACE -->
+    <div class="prod-spot-card">
+      <div class="sec-lbl">🔗 Spot desde enlace de producto</div>
+      <div class="url-row">
+        <input class="inp" id="prodUrl" placeholder="https://terrapesca.com/products/..." style="font-size:12px;padding:8px 11px" oninput="clearProductPreview()" onblur="autoExtractProduct()"/>
+        <button class="btn-extract" id="btnExtract" onclick="extractProduct()">🔍 Extraer</button>
+      </div>
+      <div id="prodPreview" style="display:none" class="prod-preview">
+        <div class="pv-name" id="pvName"></div>
+        <div class="pv-price" id="pvPrice"></div>
+        <div class="pv-desc" id="pvDesc"></div>
+        <div class="pv-source" id="pvSource"></div>
+      </div>
+      <div class="spot-opts">
+        <div>
+          <span class="field-lbl">Estilo</span>
+          <select class="inp" id="prodStyle" style="font-size:12px;padding:7px 9px">
+            <option value="maxi">📻 Maxi Radio</option>
+            <option value="comercial">🎯 Comercial</option>
+            <option value="noticioso">📰 Noticioso</option>
+            <option value="urgente">🔥 Oferta urgente</option>
+            <option value="premium">✨ Premium</option>
+          </select>
+        </div>
+        <div>
+          <span class="field-lbl">Duración</span>
+          <select class="inp" id="prodDur" style="font-size:12px;padding:7px 9px">
+            <option value="15">⚡ 15 seg</option>
+            <option value="30" selected>🎙️ 30 seg</option>
+            <option value="45">🎚️ 45 seg</option>
+          </select>
+        </div>
+        <div>
+          <span class="field-lbl">Proveedor TTS</span>
+          <select class="inp" id="prodProvider" style="font-size:12px;padding:7px 9px" onchange="onProviderChange()">
+            <option value="elevenlabs">🎭 ElevenLabs</option>
+            <option value="google">🔵 Google TTS</option>
+          </select>
+        </div>
+        <div>
+          <span class="field-lbl">Voz</span>
+          <select class="inp" id="prodVoice" style="font-size:12px;padding:7px 9px">
+            <option value="auto">🤖 Auto según estilo</option>
+            <option value="male">👨 Masculina</option>
+            <option value="female">👩 Femenina</option>
+          </select>
+        </div>
+      </div>
+      <!-- ElevenLabs voice picker -->
+      <div id="elVoicePicker">
+        <div class="voice-list-hdr">
+          <span class="field-lbl" style="margin:0">Voces ElevenLabs disponibles</span>
+          <button class="btn-sm" onclick="loadELVoices()">↻ Cargar voces</button>
+        </div>
+        <div class="voice-list-wrap">
+          <div class="voice-list" id="elVoiceList">
+            <div style="font-size:11px;color:var(--text3);padding:8px;text-align:center">Haz clic en "↻ Cargar voces" para ver las disponibles</div>
+          </div>
+        </div>
+      </div>
+      <!-- Google TTS options -->
+      <div id="googleOptsProd" style="display:none" class="google-opts">
+        <div class="voice-list-hdr" style="margin-bottom:6px">
+          <span class="field-lbl" style="margin:0">Google TTS — es-MX</span>
+          <button class="btn-sm" onclick="loadGoogleVoices()">↻ Actualizar voces</button>
+        </div>
+        <select class="inp" id="googleVoiceSel" style="font-size:12px;padding:7px 9px;margin-bottom:6px">
+          <option value="es-MX-Neural2-B">es-MX-Neural2-B — Masculina</option>
+          <option value="es-MX-Neural2-A">es-MX-Neural2-A — Femenina</option>
+          <option value="es-MX-Wavenet-B">es-MX-Wavenet-B — Masculina HD</option>
+          <option value="es-MX-Wavenet-A">es-MX-Wavenet-A — Femenina HD</option>
+          <option value="es-MX-Wavenet-C">es-MX-Wavenet-C — Femenina alt</option>
+          <option value="es-MX-Standard-B">es-MX-Standard-B — Masculina estándar</option>
+          <option value="es-MX-Standard-A">es-MX-Standard-A — Femenina estándar</option>
+        </select>
+        <div class="g-sliders">
+          <span>Velocidad <b id="gRateV">1.00</b></span>
+          <input type="range" min="0.85" max="1.15" step="0.01" value="1.0" id="gRateS" oninput="document.getElementById('gRateV').textContent=parseFloat(this.value).toFixed(2)"/>
+          <span></span>
+          <span>Pitch <b id="gPitchV">0.0</b></span>
+          <input type="range" min="-3" max="3" step="0.1" value="0" id="gPitchS" oninput="document.getElementById('gPitchV').textContent=parseFloat(this.value).toFixed(1)"/>
+          <span></span>
+        </div>
+        <div style="font-size:10px;color:var(--text3);margin-top:6px">💡 Requiere API Key de Google TTS en ⚙️ Configuración</div>
+      </div>
+      <button class="btn-spot" id="btnProdSpot" onclick="generateProductSpot()" disabled>
+        🎙️ Generar spot desde producto
+      </button>
+    </div>
+
     <!-- HISTORIAL -->
     <div class="hist-card">
       <div class="hist-hdr" onclick="toggleHist()">
@@ -465,6 +584,10 @@ input:checked+.slider:before{transform:translateX(15px);background:#fff}
     <div class="field">
       <label>API Key de ElevenLabs</label>
       <input class="inp" id="cfgEl" placeholder="e1fb89..." type="password"/>
+    </div>
+    <div class="field">
+      <label>API Key de Google TTS (opcional)</label>
+      <input class="inp" id="cfgGoogle" placeholder="AIza..." type="password"/>
     </div>
     <div class="field">
       <label>Voz ElevenLabs</label>
@@ -783,6 +906,7 @@ let cfg = {
   ws: localStorage.getItem('tp_ws') || AUTO_WS,
   claudeKey: localStorage.getItem('tp_claude') || '',
   elKey: localStorage.getItem('tp_el') || DEFAULT_EL,
+  googleKey: localStorage.getItem('tp_google') || '',
   voice: localStorage.getItem('tp_voice') || 'pNInz6obpgDQGcFmaJgB',
   slogan: localStorage.getItem('tp_slogan') || 'La estación oficial de Terrapesca',
   autoSpot: localStorage.getItem('tp_autospot') !== 'false',
@@ -841,6 +965,7 @@ function openConfig(){
   document.getElementById('cfgWs').value=cfg.ws||AUTO_WS;
   document.getElementById('cfgClaude').value=cfg.claudeKey;
   document.getElementById('cfgEl').value=cfg.elKey||DEFAULT_EL;
+  document.getElementById('cfgGoogle').value=cfg.googleKey||'';
   document.getElementById('cfgVoice').value=cfg.voice;
   document.getElementById('cfgSl').value=cfg.slogan;
   document.getElementById('cfgModal').classList.add('open');
@@ -850,6 +975,8 @@ function saveConfig(){
   cfg.ws=document.getElementById('cfgWs').value.trim();
   cfg.claudeKey=document.getElementById('cfgClaude').value.trim();
   cfg.elKey=document.getElementById('cfgEl').value.trim();
+  cfg.googleKey=document.getElementById('cfgGoogle').value.trim();
+  localStorage.setItem('tp_google',cfg.googleKey);
   cfg.voice=document.getElementById('cfgVoice').value;
   cfg.slogan=document.getElementById('cfgSl').value.trim()||'La estación oficial de Terrapesca';
   localStorage.setItem('tp_ws',cfg.ws);
@@ -1823,6 +1950,272 @@ function hideStatus(){document.getElementById('statusBar').classList.remove('sho
 let toastT;
 function showToast(m,t='info'){const el=document.getElementById('toast');el.textContent=m;el.className='toast show '+t;clearTimeout(toastT);toastT=setTimeout(()=>el.classList.remove('show'),4000)}
 function fmt(s){if(!s||isNaN(s))return'0:00';const m=Math.floor(s/60),sc=Math.floor(s%60);return m+':'+(sc<10?'0':'')+sc}
+
+// === SPOT DESDE ENLACE DE PRODUCTO ===
+let extractedProduct=null;
+let elVoicesCache=null;
+
+// TTS voice presets por estilo
+const TTS_PRESETS={
+  maxi:   {stability:0.60,similarity_boost:0.85,style:0.35,use_speaker_boost:true,speed:1.05},
+  comercial:{stability:0.65,similarity_boost:0.85,style:0.30,use_speaker_boost:true,speed:1.02},
+  noticioso:{stability:0.80,similarity_boost:0.90,style:0.15,use_speaker_boost:true,speed:0.98},
+  urgente:{stability:0.55,similarity_boost:0.85,style:0.40,use_speaker_boost:true,speed:1.08},
+  premium:{stability:0.75,similarity_boost:0.88,style:0.20,use_speaker_boost:true,speed:0.97}
+};
+
+// Voice IDs por género/estilo
+const VOICE_PROFILES={
+  male_default:'TxGEqnHWrfWFTfGW9XjX',   // Josh
+  female_default:'AZnzlk1XvdvUeBnXmlld',  // Domi
+  male_premium:'VR6AewLTigWG4xSOukaG',    // Arnold
+  female_premium:'21m00Tcm4TlvDq8ikWAM',  // Rachel
+  male_maxi:'TxGEqnHWrfWFTfGW9XjX',      // Josh
+  female_maxi:'AZnzlk1XvdvUeBnXmlld'     // Domi
+};
+
+function getVoiceForStyle(style,gender){
+  if(cfg.voice&&cfg.voice!=='pNInz6obpgDQGcFmaJgB')return cfg.voice; // usa voz seleccionada manualmente
+  if(gender==='female'||gender==='auto'&&style==='premium')return VOICE_PROFILES['female_'+style]||VOICE_PROFILES.female_default;
+  return VOICE_PROFILES['male_'+style]||VOICE_PROFILES.male_default;
+}
+
+async function extractProduct(){
+  const url=document.getElementById('prodUrl').value.trim();
+  if(!url){showToast('⚠️ Ingresa una URL de producto','error');return;}
+  const btn=document.getElementById('btnExtract');
+  btn.textContent='⏳...';btn.disabled=true;
+  try{
+    const res=await fetch(getHttpBase()+'/api/scrape-product',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({url})
+    });
+    const data=await res.json();
+    if(!data.ok)throw new Error(data.error||'No se pudo extraer');
+    extractedProduct=data.product;
+    showProductPreview(extractedProduct);
+    document.getElementById('btnProdSpot').disabled=false;
+    showToast('✅ Producto extraído: '+extractedProduct.name,'success');
+  }catch(e){
+    showToast('❌ '+e.message,'error');
+    extractedProduct=null;
+  }finally{btn.textContent='🔍 Extraer';btn.disabled=false;}
+}
+
+function showProductPreview(p){
+  document.getElementById('pvName').textContent=p.name||'Sin nombre';
+  document.getElementById('pvPrice').textContent=p.price?'💰 '+p.price:'';
+  document.getElementById('pvDesc').textContent=p.description?(p.description.length>160?p.description.slice(0,157)+'...':p.description):'';
+  document.getElementById('pvSource').textContent='📋 Fuente: '+(p.source==='json-ld'?'Schema JSON-LD':p.source==='shopify'?'Shopify':'Meta tags')+(p.brand?' · Marca: '+p.brand:'')+(p.category?' · '+p.category:'');
+  document.getElementById('prodPreview').style.display='block';
+}
+
+function clearProductPreview(){
+  extractedProduct=null;
+  document.getElementById('prodPreview').style.display='none';
+  document.getElementById('btnProdSpot').disabled=true;
+}
+
+function autoExtractProduct(){
+  const url=document.getElementById('prodUrl').value.trim();
+  if(url.startsWith('http')&&!extractedProduct)extractProduct();
+}
+
+function onProviderChange(){
+  const p=document.getElementById('prodProvider').value;
+  document.getElementById('elVoicePicker').style.display=p==='elevenlabs'?'':'none';
+  document.getElementById('googleOptsProd').style.display=p==='google'?'':'none';
+}
+
+function buildProductSpotPrompt(p,style,dur){
+  const styleGuide={
+    maxi:`ESTILO MAXI RADIO: Energía ALTA, ritmo comercial potente, frases CORTAS e impactantes, juvenil-adulto. Comenzar con gancho inmediato tipo "¡Llegó a Terrapesca!" o "Pescadores, escuchen esto:"`,
+    comercial:`ESTILO COMERCIAL DIRECTO: Claro, convincente, beneficio en las primeras 3 palabras, cierre de venta contundente.`,
+    noticioso:`ESTILO NOTICIOSO: Tono informativo y confiable, como noticiero de radio, datos precisos, sin exageraciones.`,
+    urgente:`ESTILO OFERTA URGENTE: Urgencia real, precio destacado, tiempo limitado implícito, llamada a la acción INMEDIATA.`,
+    premium:`ESTILO ELEGANTE PREMIUM: Tono sofisticado, experiencia de calidad, ritmo pausado y profundo, cliente aspiracional.`
+  };
+  const words={15:35,30:75,45:115};
+  let ctx=`Producto: ${p.name}`;
+  if(p.price)ctx+=`\nPrecio: ${p.price}`;
+  if(p.brand)ctx+=`\nMarca: ${p.brand}`;
+  if(p.description)ctx+=`\nDescripción: ${p.description.slice(0,300)}`;
+  if(p.features?.length)ctx+=`\nCaracterísticas: ${p.features.slice(0,3).join(', ')}`;
+  if(p.availability)ctx+=`\nDisponibilidad: ${p.availability}`;
+  return `Eres el locutor de Terrapesca Radio, la estación de radio oficial de tiendas Terrapesca en Sinaloa, México — la tienda de pesca y deportes acuáticos más completa.
+
+PRODUCTO:
+${ctx}
+
+TAREA: Escribe un spot de radio de ~${words[dur]||75} palabras.
+${styleGuide[style]}
+
+REGLAS OBLIGATORIAS:
+- Empieza DIRECTO sin "Atención", "Bienvenidos" ni introducciones
+- Menciona el nombre del producto en las primeras 5 palabras
+- Si hay precio, inclúyelo de forma natural
+- Usa MAYÚSCULAS para énfasis de palabras clave
+- Usa comas para pausas naturales al hablar
+- Cierra con: "Terrapesca — equipa tu aventura."
+- Solo el texto del spot, sin títulos ni instrucciones
+
+SPOT:`;
+}
+
+async function generateProductSpot(){
+  if(!extractedProduct){showToast('⚠️ Primero extrae un producto con 🔍','error');return;}
+  if(!cfg.claudeKey){showToast('⚙️ Configura tu API Key de Claude','info');openConfig();return;}
+  const provider=document.getElementById('prodProvider').value;
+  if(provider==='elevenlabs'&&!cfg.elKey){showToast('⚙️ Configura tu API Key de ElevenLabs','info');openConfig();return;}
+  if(provider==='google'&&!cfg.googleKey){showToast('⚙️ Configura tu API Key de Google TTS en ⚙️','info');openConfig();return;}
+  const style=document.getElementById('prodStyle').value;
+  const dur=document.getElementById('prodDur').value;
+  const gender=document.getElementById('prodVoice').value;
+  const btn=document.getElementById('btnProdSpot');
+  btn.disabled=true;btn.textContent='⏳ Generando guión...';
+  showStatus('Generando guión con Claude...',10);
+  try{
+    // 1. Guión con Claude
+    const prompt=buildProductSpotPrompt(extractedProduct,style,dur);
+    const cr=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':cfg.claudeKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,messages:[{role:'user',content:prompt}]})
+    });
+    if(!cr.ok)throw new Error('Claude API error '+cr.status);
+    const cd=await cr.json();
+    const script=cd.content[0].text.trim();
+    showGeneratedScript(script);
+    btn.textContent='⏳ Generando audio...';
+    showStatus('Generando locución...',40);
+    // 2. Audio TTS
+    let voiceBlob;
+    if(provider==='google'){
+      voiceBlob=await generateGoogleTTS(script);
+    }else{
+      const preset=TTS_PRESETS[style]||TTS_PRESETS.comercial;
+      const voiceId=getVoiceForStyle(style,gender);
+      const ar=await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,{
+        method:'POST',
+        headers:{'Content-Type':'application/json','xi-api-key':cfg.elKey},
+        body:JSON.stringify({text:script,model_id:'eleven_multilingual_v2',voice_settings:{stability:preset.stability,similarity_boost:preset.similarity_boost,style:preset.style,use_speaker_boost:preset.use_speaker_boost,speed:preset.speed}})
+      });
+      if(!ar.ok)throw new Error('ElevenLabs error '+ar.status);
+      voiceBlob=await ar.blob();
+    }
+    if(!voiceBlob||voiceBlob.size<1000)throw new Error('Audio vacío — verifica tu API Key');
+    // 3. Mezcla con música
+    showStatus('Mezclando audio...',70);
+    const{blob:finalBlob,audioUrl}=await mixWithBgMusic(voiceBlob);
+    // 4. Añadir a playlist
+    const b64=await blobToB64(finalBlob);
+    const spotName='🔗 '+extractedProduct.name.slice(0,30);
+    const track={type:'spot',name:spotName,b64,url:audioUrl};
+    playlist.push(track);renderPlaylist();
+    sendWS({type:'SPOT',track});
+    markScriptAudioReady(b64,spotName+'.mp3');
+    saveToHistorial({nombre:spotName,script,b64,fecha:new Date().toLocaleString('es-MX',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'})});
+    renderHistorial();
+    showToast('✅ Spot listo: '+spotName,'success');
+    hideStatus();
+  }catch(e){
+    showToast('❌ '+e.message,'error');hideStatus();
+  }finally{
+    btn.disabled=false;btn.textContent='🎙️ Generar spot desde producto';
+  }
+}
+
+async function generateGoogleTTS(text){
+  if(!cfg.googleKey)throw new Error('Falta API Key de Google TTS');
+  const voiceName=document.getElementById('googleVoiceSel').value;
+  const speakingRate=parseFloat(document.getElementById('gRateS').value)||1.0;
+  const pitch=parseFloat(document.getElementById('gPitchS').value)||0;
+  const res=await fetch(`https://texttospeech.googleapis.com/v1/text:synthesize?key=${cfg.googleKey}`,{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+      input:{text},
+      voice:{languageCode:'es-MX',name:voiceName},
+      audioConfig:{audioEncoding:'MP3',speakingRate,pitch,volumeGainDb:0}
+    })
+  });
+  if(!res.ok){const e=await res.json();throw new Error('Google TTS: '+(e.error?.message||res.status));}
+  const data=await res.json();
+  if(!data.audioContent)throw new Error('Google TTS no devolvió audio');
+  const binary=atob(data.audioContent);
+  const bytes=new Uint8Array(binary.length);
+  for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);
+  return new Blob([bytes],{type:'audio/mpeg'});
+}
+
+async function loadGoogleVoices(){
+  if(!cfg.googleKey){showToast('⚙️ Configura tu API Key de Google TTS primero','info');openConfig();return;}
+  try{
+    const res=await fetch(`https://texttospeech.googleapis.com/v1/voices?languageCode=es-MX&key=${cfg.googleKey}`);
+    if(!res.ok)throw new Error('Error '+res.status);
+    const data=await res.json();
+    const voices=(data.voices||[]).filter(v=>v.languageCodes?.some(c=>c.startsWith('es-MX')));
+    const sel=document.getElementById('googleVoiceSel');
+    sel.innerHTML=voices.map(v=>`<option value="${v.name}">${v.name} (${v.ssmlGender})</option>`).join('');
+    showToast('✅ '+voices.length+' voces Google cargadas','success');
+  }catch(e){showToast('❌ '+e.message,'error');}
+}
+
+// ElevenLabs voice loader
+async function loadELVoices(){
+  if(!cfg.elKey){showToast('⚙️ Configura tu API Key de ElevenLabs primero','info');openConfig();return;}
+  const list=document.getElementById('elVoiceList');
+  list.innerHTML='<div style="font-size:11px;color:var(--text3);padding:8px;text-align:center">Cargando...</div>';
+  try{
+    const res=await fetch('https://api.elevenlabs.io/v1/voices',{headers:{'xi-api-key':cfg.elKey}});
+    if(!res.ok)throw new Error('Error '+res.status);
+    const data=await res.json();
+    elVoicesCache=data.voices||[];
+    renderELVoices(elVoicesCache);
+  }catch(e){
+    list.innerHTML=`<div style="color:var(--red);font-size:11px;padding:8px">❌ ${e.message}</div>`;
+  }
+}
+
+function renderELVoices(voices){
+  const list=document.getElementById('elVoiceList');
+  const favs=JSON.parse(localStorage.getItem('tp_fav_voices')||'[]');
+  // Priorizar españolas/favoritas, limitar a 30
+  const sorted=[...voices].sort((a,b)=>{
+    const aFav=favs.includes(a.voice_id)?-10:0;
+    const bFav=favs.includes(b.voice_id)?-10:0;
+    const aEs=(a.labels?.language||'').includes('spanish')||a.name.match(/es[-_]/i)?-2:0;
+    const bEs=(b.labels?.language||'').includes('spanish')||b.name.match(/es[-_]/i)?-2:0;
+    return (aFav+aEs)-(bFav+bEs);
+  }).slice(0,30);
+  list.innerHTML=sorted.map(v=>`
+    <div class="voice-item${favs.includes(v.voice_id)?' fav':''}${cfg.voice===v.voice_id?' selected':''}" onclick="selectELVoice('${v.voice_id}','${v.name.replace(/'/g,'')}')">
+      <div class="vi-name">${v.name}</div>
+      <div class="vi-tags">
+        ${v.labels?.gender?`<span class="vtag">${v.labels.gender}</span>`:''}
+        ${v.labels?.accent?`<span class="vtag">${v.labels.accent}</span>`:''}
+        ${v.category?`<span class="vtag">${v.category}</span>`:''}
+      </div>
+      <button class="vi-fav" onclick="toggleFavVoice(event,'${v.voice_id}')" title="Favorita">${favs.includes(v.voice_id)?'⭐':'☆'}</button>
+    </div>`).join('');
+}
+
+function selectELVoice(id,name){
+  cfg.voice=id;
+  localStorage.setItem('tp_voice',id);
+  document.getElementById('cfgVoice').value=id;
+  if(elVoicesCache)renderELVoices(elVoicesCache);
+  showToast('✅ Voz: '+name,'success');
+}
+
+function toggleFavVoice(e,id){
+  e.stopPropagation();
+  const favs=JSON.parse(localStorage.getItem('tp_fav_voices')||'[]');
+  const i=favs.indexOf(id);
+  if(i>=0)favs.splice(i,1);else favs.unshift(id);
+  localStorage.setItem('tp_fav_voices',JSON.stringify(favs));
+  if(elVoicesCache)renderELVoices(elVoicesCache);
+}
 
 // === INIT ===
 document.getElementById('chkAutoSpot').checked=cfg.autoSpot;
