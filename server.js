@@ -184,13 +184,13 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // Google TTS — listar voces en español
+  // Google TTS — listar voces mexicanas (es-US = español latinoamericano)
   if (req.url === '/api/google-tts/voices') {
     try {
       const client = getGoogleTTSClient();
-      const [result] = await client.listVoices({});
+      const [result] = await client.listVoices({ languageCode: 'es-US' });
       const voices = (result.voices || [])
-        .filter(v => v.languageCodes?.some(c => c.startsWith('es')))
+        .filter(v => v.languageCodes?.some(c => c.startsWith('es-US')))
         .map(v => ({ name: v.name, ssmlGender: v.ssmlGender, naturalSampleRateHertz: v.naturalSampleRateHertz, languageCodes: v.languageCodes }))
         .sort((a, b) => a.name.localeCompare(b.name));
       res.writeHead(200, { 'Content-Type': 'application/json;charset=utf-8' });
@@ -208,14 +208,17 @@ const server = http.createServer(async (req, res) => {
       const body = await readBody(req);
       const text = (body.text || '').trim();
       if (text.length < 3) throw new Error('Texto demasiado corto');
-      const voiceName   = body.voiceName || process.env.GOOGLE_TTS_DEFAULT_VOICE || 'es-MX-Wavenet-B';
+      const voiceName   = body.voiceName || process.env.GOOGLE_TTS_DEFAULT_VOICE || 'es-US-Neural2-B';
       const speakingRate = Math.min(Math.max(parseFloat(body.speakingRate) || 1.0, 0.5), 2.0);
       const pitch       = Math.min(Math.max(parseFloat(body.pitch) || 0, -10), 10);
       const volumeGainDb= parseFloat(body.volumeGainDb) || 0;
+      // Derivar languageCode del nombre de la voz (ej: "es-US-Neural2-B" → "es-US")
+      const langMatch = voiceName.match(/^([a-z]{2}-[A-Z]{2})/);
+      const languageCode = langMatch ? langMatch[1] : 'es-US';
       const client = getGoogleTTSClient();
       const [response] = await client.synthesizeSpeech({
         input: { text },
-        voice: { languageCode: 'es-MX', name: voiceName },
+        voice: { languageCode, name: voiceName },
         audioConfig: { audioEncoding: 'MP3', speakingRate, pitch, volumeGainDb }
       });
       if (!response.audioContent) throw new Error('Google TTS no devolvió audio');
