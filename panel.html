@@ -777,10 +777,12 @@ línea 3`
 };
 
 // === CONFIG ===
+const AUTO_WS = (location.protocol==='https:'?'wss://':'ws://')+location.host;
+const DEFAULT_EL = 'e1fb89174588c75eccc1d4c7da403f66e0279f5e33586ab9183ba595d9e6d996';
 let cfg = {
-  ws: localStorage.getItem('tp_ws') || '',
+  ws: localStorage.getItem('tp_ws') || AUTO_WS,
   claudeKey: localStorage.getItem('tp_claude') || '',
-  elKey: localStorage.getItem('tp_el') || '',
+  elKey: localStorage.getItem('tp_el') || DEFAULT_EL,
   voice: localStorage.getItem('tp_voice') || 'pNInz6obpgDQGcFmaJgB',
   slogan: localStorage.getItem('tp_slogan') || 'La estación oficial de Terrapesca',
   autoSpot: localStorage.getItem('tp_autospot') !== 'false',
@@ -836,9 +838,9 @@ function getHttpBase(){
 
 // === CONFIG MODAL ===
 function openConfig(){
-  document.getElementById('cfgWs').value=cfg.ws;
+  document.getElementById('cfgWs').value=cfg.ws||AUTO_WS;
   document.getElementById('cfgClaude').value=cfg.claudeKey;
-  document.getElementById('cfgEl').value=cfg.elKey;
+  document.getElementById('cfgEl').value=cfg.elKey||DEFAULT_EL;
   document.getElementById('cfgVoice').value=cfg.voice;
   document.getElementById('cfgSl').value=cfg.slogan;
   document.getElementById('cfgModal').classList.add('open');
@@ -1828,8 +1830,14 @@ document.getElementById('selSpotEvery').value=String(cfg.spotEvery);
 updateSpotCtr();
 updateFestivoBtn();
 renderHistorial();
-if(cfg.ws)connectWS();
-else{setWSStatus('error','Sin configurar');showToast('⚙️ Configura la URL del servidor primero','info')}
+// Guardar defaults en localStorage si no estaban guardados
+if(!localStorage.getItem('tp_ws'))localStorage.setItem('tp_ws',cfg.ws);
+if(!localStorage.getItem('tp_el'))localStorage.setItem('tp_el',cfg.elKey);
+connectWS();
+// Si no tiene Claude key, avisar una sola vez
+if(!cfg.claudeKey){
+  setTimeout(()=>showToast('⚙️ Ingresa tu API Key de Claude en Configuración (⚙️)','info'),1500);
+}
 </script>
 </body>
 </html>

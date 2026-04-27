@@ -96,7 +96,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
   <div class="setup-box">
     <img class="setup-logo" src="https://cdn.shopify.com/s/files/1/0205/5752/9188/files/Logo-Terrapesca-01_205270e5-d546-4e33-a8d1-db0a91f1e554.png?v=1700262873" alt="Terrapesca" onerror="this.style.display='none'">
     <h2>Terrapesca Radio</h2>
-    <p>Selecciona tu sucursal e ingresa la URL del servidor para recibir la señal</p>
+    <p>Selecciona tu sucursal para recibir la señal en vivo</p>
     <select class="inp" id="setupBranch">
       <option value="">— Selecciona sucursal —</option>
       <option value="Culiacán">Culiacán</option>
@@ -105,7 +105,6 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
       <option value="Guasave">Guasave</option>
       <option value="Guamúchil">Guamúchil</option>
     </select>
-    <input class="inp" id="setupWs" placeholder="URL del servidor: wss://tu-app.railway.app"/>
     <button class="btn-connect" onclick="connect()">Conectar a la señal 📡</button>
   </div>
 </div>
@@ -156,15 +155,13 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
 <script src="https://www.youtube.com/iframe_api"></script>
 <script>
 let ws=null, ytPlayer=null, ytReady=false, audioEl=null, progInt=null;
-let branch='', wsUrl='';
+let branch='';
+const AUTO_WS=(location.protocol==='https:'?'wss://':'ws://')+location.host;
 
 function connect(){
   branch=document.getElementById('setupBranch').value;
-  wsUrl=document.getElementById('setupWs').value.trim();
   if(!branch){alert('Selecciona tu sucursal');return}
-  if(!wsUrl){alert('Ingresa la URL del servidor');return}
   localStorage.setItem('suc_branch',branch);
-  localStorage.setItem('suc_ws',wsUrl);
   document.getElementById('setupScreen').style.display='none';
   document.getElementById('mainPlayer').style.display='block';
   document.getElementById('branchName').textContent=branch;
@@ -173,11 +170,9 @@ function connect(){
 
 window.addEventListener('load',()=>{
   const b=localStorage.getItem('suc_branch');
-  const w=localStorage.getItem('suc_ws');
-  if(b&&w){
-    branch=b; wsUrl=w;
+  if(b){
+    branch=b;
     document.getElementById('setupBranch').value=b;
-    document.getElementById('setupWs').value=w;
     document.getElementById('setupScreen').style.display='none';
     document.getElementById('mainPlayer').style.display='block';
     document.getElementById('branchName').textContent=b;
@@ -186,7 +181,7 @@ window.addEventListener('load',()=>{
 });
 
 function initWS(){
-  const url=wsUrl.replace(/^http/,'ws');
+  const url=AUTO_WS;
   try{
     ws=new WebSocket(url);
     setStatus('connecting','Conectando al servidor...');
