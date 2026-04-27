@@ -87,7 +87,6 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:13px;heigh
 .btn-mic.active{background:var(--red);color:#fff;animation:pulse-mic 1.2s ease infinite}
 @keyframes pulse-mic{0%,100%{box-shadow:0 0 0 0 rgba(255,77,109,0.5)}70%{box-shadow:0 0 0 12px rgba(255,77,109,0)}}
 
-.add-card,.inv-card,.spots-card,.hist-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow)}
 .sec-lbl{font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--text3);margin-bottom:12px}
 .tabs{display:flex;gap:6px;margin-bottom:12px}
 .tab{flex:1;padding:7px;border-radius:8px;border:1px solid var(--border);background:transparent;cursor:pointer;font-family:'Inter',sans-serif;font-size:12px;font-weight:600;color:var(--text2);transition:all .15s}
@@ -136,6 +135,24 @@ input:checked+.slider:before{transform:translateX(15px);background:#fff}
 .btn-special:hover{border-color:var(--accent);color:var(--text);background:var(--accent-glow)}
 .btn-special:hover small{color:var(--accent)}
 .btn-special:disabled{opacity:0.4;cursor:not-allowed}
+
+.add-card,.inv-card,.spots-card,.hist-card,.dj-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow)}
+.dj-card{border-color:rgba(140,120,255,0.2)}
+.dj-context{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px}
+.btn-dj{width:100%;margin-top:4px;padding:9px;background:linear-gradient(135deg,rgba(140,120,255,0.1),rgba(140,120,255,0.04));border:1px solid rgba(140,120,255,0.3);border-radius:10px;color:#a090ff;font-family:'Inter',sans-serif;font-size:13px;font-weight:600;cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:7px}
+.btn-dj:hover{background:rgba(140,120,255,0.18)}.btn-dj:disabled{opacity:0.4;cursor:not-allowed}
+.dj-var{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-top:7px}
+.dj-var-title{font-size:10px;font-weight:700;letter-spacing:1.5px;color:rgba(140,120,255,0.7);text-transform:uppercase;margin-bottom:8px}
+.dj-voices{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.dj-voice{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px 10px}
+.dj-voice-lbl{font-size:10px;color:var(--text3);font-weight:600;margin-bottom:5px}
+.dj-voice-text{font-size:12px;color:var(--text);line-height:1.6;margin-bottom:8px;white-space:pre-line;min-height:40px}
+.dj-btn-play{width:100%;padding:6px;background:rgba(140,120,255,0.08);border:1px solid rgba(140,120,255,0.25);border-radius:7px;color:#a090ff;font-size:11px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;transition:all .15s}
+.dj-btn-play:hover{background:rgba(140,120,255,0.2)}
+.dj-btn-play:disabled{opacity:0.5;cursor:not-allowed}
+.dj-btn-play.loading{opacity:0.6}
+.dj-btn-play.ondeck{background:var(--red);border-color:rgba(255,77,109,0.4);color:#fff;animation:pulse-mic 1.2s ease infinite}
+.dj-status{font-size:11px;color:var(--text3);text-align:center;padding:8px 0;display:none}
 
 .hist-card{padding:0;overflow:hidden}
 .hist-hdr{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;cursor:pointer;transition:background .15s}
@@ -375,6 +392,29 @@ input:checked+.slider:before{transform:translateX(15px);background:#fff}
           <small id="festivoLabel">—</small>
         </button>
       </div>
+    </div>
+
+    <!-- DJ OVERLAY -->
+    <div class="dj-card">
+      <div class="sec-lbl">🎙️ DJ Overlay — encima de la canción</div>
+      <div class="dj-context">
+        <input class="inp" id="djSucursal" placeholder="Sucursal" style="font-size:12px;padding:7px 10px"/>
+        <select class="inp" id="djMomento" style="font-size:12px;padding:7px 10px">
+          <option value="mañana">☀️ Mañana</option>
+          <option value="tarde" selected>🌤 Tarde</option>
+          <option value="noche">🌙 Noche</option>
+        </select>
+        <select class="inp" id="djTipo" style="font-size:12px;padding:7px 10px">
+          <option value="transición">🔄 Transición</option>
+          <option value="ambientación" selected>🎵 Ambientación</option>
+          <option value="promo suave">📢 Promo suave</option>
+        </select>
+        <input class="inp" id="djProductos" placeholder="Productos (opcional)" style="font-size:12px;padding:7px 10px"/>
+      </div>
+      <input class="inp" id="djPromo" placeholder="Promo activa (opcional)" style="font-size:12px;padding:7px 10px;margin-bottom:6px;width:100%"/>
+      <button class="btn-dj" id="btnDJ" onclick="generateDJOverlay()">🎙️ Generar 3 variaciones DJ</button>
+      <div class="dj-status" id="djStatus"></div>
+      <div id="djVariaciones"></div>
     </div>
 
     <!-- HISTORIAL -->
@@ -683,6 +723,57 @@ PARA TTS: frases de longitud variada, comas para respirar, MAYÚSCULAS para énf
 PROHIBIDO: "Atención", aperturas corporativas, empezar con "La tabla de mareas".
 ENTREGA: solo el texto. Sin comillas.`,
   ],
+
+  // ── DJ OVERLAY (7–12 s, encima de la canción) ────────────────────────────
+  djOverlay: [
+    (ctx) =>
+`Eres el locutor de Terrapesca Radio FM, cabina FM mexicana. Genera 3 variaciones de intervención de DJ que suena ENCIMA de la música actual (overlay).
+
+CONTEXTO:
+Sucursal: ${ctx.sucursal||'Terrapesca'}
+Momento del día: ${ctx.momento}
+Tipo de intervención: ${ctx.tipo}
+${ctx.productos?`Productos: ${ctx.productos}`:''}
+${ctx.promo?`Promo activa: ${ctx.promo}`:''}
+
+REGLAS:
+- 7–12 segundos de voz = 18–28 palabras por versión
+- 2–4 frases; CADA frase en su propia línea (pausa natural entre frases)
+- Español mexicano, energía media-alta controlada, tono cabina FM real
+- NO saludar, NO explicar, NO muletillas — entra directo
+- Mención de producto/promo en 1 frase máximo si aplica
+- Cierre corto con energía
+
+FORMATO EXACTO (sin texto adicional, sin títulos extra):
+
+VAR1
+[M]
+línea 1
+línea 2
+línea 3
+[F]
+línea 1
+línea 2
+línea 3
+
+VAR2
+[M]
+línea 1
+línea 2
+[F]
+línea 1
+línea 2
+
+VAR3
+[M]
+línea 1
+línea 2
+línea 3
+[F]
+línea 1
+línea 2
+línea 3`
+  ],
 };
 
 // === CONFIG ===
@@ -706,6 +797,10 @@ let micRecorder=null,micStream=null,micActive=false;
 let spotGenerating=false;
 let bgMusicFile=null,bgMusicName='';
 let lastSpot={b64:null,nombre:'spot-terrapesca'};
+// DJ Overlay
+let overlayCtx=null,musicGainNode=null,currentMediaSrc=null;
+let overlayActive=false,djGenerating=false;
+let djVariations=[]; // [{m,f,mAudio,fAudio}]
 
 // === WEBSOCKET ===
 function connectWS(){
@@ -1295,6 +1390,8 @@ function playTrack(idx){
     document.getElementById('yt-container').style.display='none';
     audioEl=new Audio(t.url);
     audioEl.volume=parseInt(document.getElementById('volS').value)/100;
+    connectAudioElToCtx(audioEl); // route through overlay AudioContext for ducking
+    if(overlayCtx&&overlayCtx.state==='suspended')overlayCtx.resume();
     audioEl.play();
     audioEl.addEventListener('ended',handleEnded);
     audioEl.addEventListener('timeupdate',updateProg);
@@ -1333,6 +1430,7 @@ function setPlayUI(p){
 }
 function stopAll(){
   if(audioEl){audioEl.pause();audioEl.src='';audioEl=null}
+  if(currentMediaSrc){try{currentMediaSrc.disconnect();}catch(e){}currentMediaSrc=null;musicGainNode=null;}
   if(ytReady&&ytPlayer)try{ytPlayer.stopVideo()}catch(e){}
   clearInterval(progInt);
   document.getElementById('pF').style.width='0%';
@@ -1495,6 +1593,207 @@ function toggleHist(){
   const shown=body.style.display!=='none';
   body.style.display=shown?'none':'block';
   if(chev)chev.textContent=shown?'▼':'▲';
+}
+
+// === DJ OVERLAY MODULE ===
+
+// Init a single AudioContext shared across all overlay operations
+function initOverlayCtx(){
+  if(overlayCtx)return overlayCtx;
+  try{overlayCtx=new AudioContext();}catch(e){console.warn('[DJ] AudioContext failed:',e);}
+  return overlayCtx;
+}
+
+// Route the current audio element through the AudioContext so we can duck it
+function connectAudioElToCtx(el){
+  const ctx=initOverlayCtx();if(!ctx)return;
+  // Detach previous source
+  if(currentMediaSrc){try{currentMediaSrc.disconnect();}catch(e){}currentMediaSrc=null;musicGainNode=null;}
+  try{
+    currentMediaSrc=ctx.createMediaElementSource(el);
+    musicGainNode=ctx.createGain();
+    musicGainNode.gain.value=1.0;
+    currentMediaSrc.connect(musicGainNode);
+    musicGainNode.connect(ctx.destination);
+  }catch(e){console.warn('[DJ] connect failed:',e);}
+}
+
+// Play a voice b64 blob on top of the current song with ducking
+async function playDJOverlay(b64,btnEl){
+  if(overlayActive){showToast('⏳ Overlay en curso, espera...','info');return;}
+  const ctx=initOverlayCtx();
+  if(!ctx){showToast('❌ AudioContext no disponible','error');return;}
+  if(ctx.state==='suspended')await ctx.resume();
+
+  // Mark button as playing
+  if(btnEl){btnEl.classList.add('ondeck');btnEl.textContent='🔴 Al aire';}
+  overlayActive=true;
+
+  try{
+    const bin=atob(b64),buf=new Uint8Array(bin.length);
+    for(let i=0;i<bin.length;i++)buf[i]=bin.charCodeAt(i);
+    const audioBuf=await ctx.decodeAudioData(buf.buffer.slice(0));
+    const voiceDur=audioBuf.duration;
+    const now=ctx.currentTime;
+    const DUCK_IN=0.15,DUCK_OUT=0.30;
+    const preDuck=musicGainNode?musicGainNode.gain.value:1;
+
+    // Duck HTML audio element
+    if(musicGainNode){
+      const g=musicGainNode.gain;
+      g.cancelScheduledValues(now);
+      g.setValueAtTime(preDuck,now);
+      g.linearRampToValueAtTime(preDuck*0.22,now+DUCK_IN);
+      g.setValueAtTime(preDuck*0.22,now+DUCK_IN+voiceDur);
+      g.linearRampToValueAtTime(preDuck,now+DUCK_IN+voiceDur+DUCK_OUT);
+    }
+    // Duck YouTube via setVolume
+    const curVol=parseInt(document.getElementById('volS').value);
+    if(playlist[curIdx]?.type==='yt'&&ytReady){
+      ytPlayer.setVolume(Math.round(curVol*0.22));
+      setTimeout(()=>{if(ytReady)ytPlayer.setVolume(curVol);},(DUCK_IN+voiceDur+DUCK_OUT)*1000);
+    }
+
+    // Voice node — slight boost, fade in/out
+    const src=ctx.createBufferSource();
+    src.buffer=audioBuf;
+    const vGain=ctx.createGain();
+    vGain.gain.setValueAtTime(0,now);
+    vGain.gain.linearRampToValueAtTime(1.15,now+0.05); // 50ms fade in
+    vGain.gain.setValueAtTime(1.15,now+voiceDur-0.08);
+    vGain.gain.linearRampToValueAtTime(0,now+voiceDur+0.05);
+    src.connect(vGain);vGain.connect(ctx.destination);
+    src.start(now);
+    src.onended=()=>{
+      overlayActive=false;
+      if(btnEl){btnEl.classList.remove('ondeck');btnEl.textContent='▶ Reproducir';}
+    };
+    showToast('🎙️ DJ Overlay activo','gold');
+  }catch(e){
+    overlayActive=false;
+    if(btnEl){btnEl.classList.remove('ondeck');btnEl.textContent='▶ Reproducir';}
+    showToast('❌ Overlay error: '+e.message,'error');
+    console.error('[playDJOverlay]',e);
+  }
+}
+
+// Generate ElevenLabs audio for a specific variation+gender, then play overlay
+async function generateDJAudio(varIdx,gender){
+  const v=djVariations[varIdx];if(!v)return;
+  const cKey=gender==='M'?'mAudio':'fAudio';
+  const btnId=`djPlay_${varIdx}_${gender}`;
+  const btn=document.getElementById(btnId);
+
+  // Cache hit — play directly
+  if(v[cKey]){await playDJOverlay(v[cKey],btn);return;}
+
+  // Generate TTS
+  const text=gender==='M'?v.m:v.f;
+  // Josh (masculine) or Domi (feminine) — controlled DJ voices
+  const voiceId=gender==='M'?'TxGEqnHWrfWFTfGW9XjX':'AZnzlk1XvdvUeBnXmlld';
+  if(btn){btn.textContent='⏳ Generando...';btn.disabled=true;btn.classList.add('loading');}
+
+  try{
+    const tr=await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json','xi-api-key':cfg.elKey},
+      body:JSON.stringify({
+        text,
+        model_id:'eleven_multilingual_v2',
+        voice_settings:{stability:0.47,similarity_boost:0.82,style:0.30,use_speaker_boost:true}
+      })
+    });
+    if(!tr.ok)throw new Error(`ElevenLabs error ${tr.status}`);
+    const blob=await tr.blob();
+    if(!blob||blob.size<300)throw new Error('Audio vacío');
+    v[cKey]=await blobToB64(blob);
+    if(btn){btn.textContent='▶ Reproducir';btn.disabled=false;btn.classList.remove('loading');}
+    await playDJOverlay(v[cKey],btn);
+  }catch(e){
+    if(btn){btn.textContent='▶ Reproducir';btn.disabled=false;btn.classList.remove('loading');}
+    showToast('❌ '+e.message,'error');
+  }
+}
+
+// Parse Claude's structured output into variation objects
+function parseDJVariations(text){
+  const vars=[];
+  const blocks=text.split(/VAR\d+/i).filter(s=>s.trim());
+  for(const block of blocks){
+    const mMatch=block.match(/\[M\]([\s\S]*?)(?=\[F\])/);
+    const fMatch=block.match(/\[F\]([\s\S]*?)$/);
+    if(mMatch&&fMatch){
+      vars.push({m:mMatch[1].trim(),f:fMatch[1].trim(),mAudio:null,fAudio:null});
+    }
+  }
+  return vars;
+}
+
+// Render variation cards
+function renderDJVariaciones(){
+  const container=document.getElementById('djVariaciones');
+  if(!container||!djVariations.length)return;
+  container.innerHTML=djVariations.map((v,i)=>`
+    <div class="dj-var">
+      <div class="dj-var-title">Variación ${i+1}</div>
+      <div class="dj-voices">
+        <div class="dj-voice">
+          <div class="dj-voice-lbl">🔵 Masculina · Josh</div>
+          <div class="dj-voice-text">${v.m}</div>
+          <button class="dj-btn-play" id="djPlay_${i}_M" onclick="generateDJAudio(${i},'M')">▶ Reproducir</button>
+        </div>
+        <div class="dj-voice">
+          <div class="dj-voice-lbl">🟣 Femenina · Domi</div>
+          <div class="dj-voice-text">${v.f}</div>
+          <button class="dj-btn-play" id="djPlay_${i}_F" onclick="generateDJAudio(${i},'F')">▶ Reproducir</button>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+// Main entry: call Claude → parse → render
+async function generateDJOverlay(){
+  if(!cfg.claudeKey){showToast('⚙️ Configura API Key de Claude','info');openConfig();return;}
+  if(!cfg.elKey){showToast('⚙️ Configura API Key de ElevenLabs','info');openConfig();return;}
+  if(djGenerating){showToast('⏳ Ya generando variaciones...','info');return;}
+  djGenerating=true;
+  const btn=document.getElementById('btnDJ');
+  if(btn){btn.disabled=true;}
+  const statusEl=document.getElementById('djStatus');
+  if(statusEl){statusEl.textContent='🤖 Generando guiones DJ con IA...';statusEl.style.display='block';}
+  document.getElementById('djVariaciones').innerHTML='';
+
+  const ctx={
+    sucursal:document.getElementById('djSucursal')?.value.trim()||'Terrapesca',
+    momento:document.getElementById('djMomento')?.value||'tarde',
+    tipo:document.getElementById('djTipo')?.value||'ambientación',
+    productos:document.getElementById('djProductos')?.value.trim(),
+    promo:document.getElementById('djPromo')?.value.trim(),
+  };
+
+  try{
+    const sr=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':cfg.claudeKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:700,messages:[{role:'user',content:PROMPT_VARIANTS.djOverlay[0](ctx)}]})
+    });
+    if(!sr.ok){const e=await sr.json().catch(()=>({}));throw new Error(e.error?.message||`Claude error ${sr.status}`);}
+    const sd=await sr.json();
+    const text=sd.content?.[0]?.text||'';
+    if(!text)throw new Error('Sin respuesta de Claude');
+    djVariations=parseDJVariations(text);
+    if(!djVariations.length)throw new Error('No se pudieron parsear las variaciones — respuesta: '+text.slice(0,200));
+    if(statusEl)statusEl.style.display='none';
+    renderDJVariaciones();
+    showToast(`✅ ${djVariations.length} variaciones listas — clic en ▶ para narrar y mezclar`,'gold');
+  }catch(e){
+    if(statusEl)statusEl.style.display='none';
+    showToast('❌ '+e.message,'error');
+    console.error('[generateDJOverlay]',e);
+  }finally{
+    djGenerating=false;
+    if(btn)btn.disabled=false;
+  }
 }
 
 // === DOWNLOAD / EXPORT ===
