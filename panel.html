@@ -529,7 +529,7 @@ input:checked+.slider:before{transform:translateX(15px);background:#fff}
           <input type="range" min="-3" max="3" step="0.1" value="0" id="gPitchS" oninput="document.getElementById('gPitchV').textContent=parseFloat(this.value).toFixed(1)"/>
           <span></span>
         </div>
-        <div style="font-size:10px;color:var(--text3);margin-top:6px">💡 Requiere API Key de Google TTS en ⚙️ Configuración</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:6px">💡 Requiere <code>credentials/google-tts.json</code> en el servidor (ver LEEME.md)</div>
       </div>
       <button class="btn-spot" id="btnProdSpot" onclick="generateProductSpot()" disabled>
         🎙️ Generar spot desde producto
@@ -584,10 +584,6 @@ input:checked+.slider:before{transform:translateX(15px);background:#fff}
     <div class="field">
       <label>API Key de ElevenLabs</label>
       <input class="inp" id="cfgEl" placeholder="e1fb89..." type="password"/>
-    </div>
-    <div class="field">
-      <label>API Key de Google TTS (opcional)</label>
-      <input class="inp" id="cfgGoogle" placeholder="AIza..." type="password"/>
     </div>
     <div class="field">
       <label>Voz ElevenLabs</label>
@@ -906,7 +902,6 @@ let cfg = {
   ws: localStorage.getItem('tp_ws') || AUTO_WS,
   claudeKey: localStorage.getItem('tp_claude') || '',
   elKey: localStorage.getItem('tp_el') || DEFAULT_EL,
-  googleKey: localStorage.getItem('tp_google') || '',
   voice: localStorage.getItem('tp_voice') || 'pNInz6obpgDQGcFmaJgB',
   slogan: localStorage.getItem('tp_slogan') || 'La estación oficial de Terrapesca',
   autoSpot: localStorage.getItem('tp_autospot') !== 'false',
@@ -965,7 +960,6 @@ function openConfig(){
   document.getElementById('cfgWs').value=cfg.ws||AUTO_WS;
   document.getElementById('cfgClaude').value=cfg.claudeKey;
   document.getElementById('cfgEl').value=cfg.elKey||DEFAULT_EL;
-  document.getElementById('cfgGoogle').value=cfg.googleKey||'';
   document.getElementById('cfgVoice').value=cfg.voice;
   document.getElementById('cfgSl').value=cfg.slogan;
   document.getElementById('cfgModal').classList.add('open');
@@ -975,8 +969,6 @@ function saveConfig(){
   cfg.ws=document.getElementById('cfgWs').value.trim();
   cfg.claudeKey=document.getElementById('cfgClaude').value.trim();
   cfg.elKey=document.getElementById('cfgEl').value.trim();
-  cfg.googleKey=document.getElementById('cfgGoogle').value.trim();
-  localStorage.setItem('tp_google',cfg.googleKey);
   cfg.voice=document.getElementById('cfgVoice').value;
   cfg.slogan=document.getElementById('cfgSl').value.trim()||'La estación oficial de Terrapesca';
   localStorage.setItem('tp_ws',cfg.ws);
@@ -2067,7 +2059,6 @@ async function generateProductSpot(){
   if(!cfg.claudeKey){showToast('⚙️ Configura tu API Key de Claude','info');openConfig();return;}
   const provider=document.getElementById('prodProvider').value;
   if(provider==='elevenlabs'&&!cfg.elKey){showToast('⚙️ Configura tu API Key de ElevenLabs','info');openConfig();return;}
-  if(provider==='google'&&!cfg.googleKey){showToast('⚙️ Configura tu API Key de Google TTS en ⚙️','info');openConfig();return;}
   const style=document.getElementById('prodStyle').value;
   const dur=document.getElementById('prodDur').value;
   const gender=document.getElementById('prodVoice').value;
@@ -2126,39 +2117,35 @@ async function generateProductSpot(){
 }
 
 async function generateGoogleTTS(text){
-  if(!cfg.googleKey)throw new Error('Falta API Key de Google TTS');
   const voiceName=document.getElementById('googleVoiceSel').value;
   const speakingRate=parseFloat(document.getElementById('gRateS').value)||1.0;
   const pitch=parseFloat(document.getElementById('gPitchS').value)||0;
-  const res=await fetch(`https://texttospeech.googleapis.com/v1/text:synthesize?key=${cfg.googleKey}`,{
+  // Llama al backend — las credenciales viven en el servidor, nunca en el browser
+  const res=await fetch(getHttpBase()+'/api/google-tts/synthesize',{
     method:'POST',
     headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({
-      input:{text},
-      voice:{languageCode:'es-MX',name:voiceName},
-      audioConfig:{audioEncoding:'MP3',speakingRate,pitch,volumeGainDb:0}
-    })
+    body:JSON.stringify({text,voiceName,speakingRate,pitch,volumeGainDb:0})
   });
-  if(!res.ok){const e=await res.json();throw new Error('Google TTS: '+(e.error?.message||res.status));}
   const data=await res.json();
-  if(!data.audioContent)throw new Error('Google TTS no devolvió audio');
-  const binary=atob(data.audioContent);
+  if(!data.ok)throw new Error('Google TTS: '+(data.error||'Error desconocido'));
+  const binary=atob(data.audioBase64);
   const bytes=new Uint8Array(binary.length);
   for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);
   return new Blob([bytes],{type:'audio/mpeg'});
 }
 
 async function loadGoogleVoices(){
-  if(!cfg.googleKey){showToast('⚙️ Configura tu API Key de Google TTS primero','info');openConfig();return;}
   try{
-    const res=await fetch(`https://texttospeech.googleapis.com/v1/voices?languageCode=es-MX&key=${cfg.googleKey}`);
-    if(!res.ok)throw new Error('Error '+res.status);
+    showToast('⏳ Cargando voces Google...','info');
+    const res=await fetch(getHttpBase()+'/api/google-tts/voices');
     const data=await res.json();
-    const voices=(data.voices||[]).filter(v=>v.languageCodes?.some(c=>c.startsWith('es-MX')));
+    if(!data.ok)throw new Error(data.error||'Error desconocido');
     const sel=document.getElementById('googleVoiceSel');
-    sel.innerHTML=voices.map(v=>`<option value="${v.name}">${v.name} (${v.ssmlGender})</option>`).join('');
-    showToast('✅ '+voices.length+' voces Google cargadas','success');
-  }catch(e){showToast('❌ '+e.message,'error');}
+    sel.innerHTML=data.voices.map(v=>`<option value="${v.name}">${v.name} — ${v.ssmlGender==='FEMALE'?'Femenina':'Masculina'}</option>`).join('');
+    showToast('✅ '+data.voices.length+' voces Google cargadas','success');
+  }catch(e){
+    showToast('❌ Google TTS: '+e.message+' — Verifica las credenciales en el servidor','error');
+  }
 }
 
 // ElevenLabs voice loader

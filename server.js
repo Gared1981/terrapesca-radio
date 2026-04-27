@@ -4,7 +4,46 @@ const fs = require('fs');
 const path = require('path');
 const { WebSocketServer } = require('ws');
 
+// Load .env.local for local development
+const envLocalPath = path.join(__dirname, '.env.local');
+if (fs.existsSync(envLocalPath)) {
+  fs.readFileSync(envLocalPath, 'utf8').split('\n').forEach(line => {
+    const m = line.match(/^([^#=]+)=(.*)$/);
+    if (m) process.env[m[1].trim()] = m[2].trim().replace(/^["']|["']$/g, '');
+  });
+}
+
 const PORT = process.env.PORT || 3000;
+
+// === GOOGLE TTS CLIENT (lazy init) ===
+let _googleTTSClient = null;
+function getGoogleTTSClient() {
+  if (_googleTTSClient) return _googleTTSClient;
+  const { TextToSpeechClient } = require('@google-cloud/text-to-speech');
+  // Opción 1: archivo JSON local (dev)
+  const credFile = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+  if (credFile) {
+    const absPath = path.isAbsolute(credFile) ? credFile : path.join(__dirname, credFile);
+    if (fs.existsSync(absPath)) {
+      _googleTTSClient = new TextToSpeechClient({ keyFilename: absPath });
+      console.log('[Google TTS] Usando credenciales desde archivo:', absPath);
+      return _googleTTSClient;
+    }
+  }
+  // Opción 2: variables de entorno (Railway producción)
+  const clientEmail = process.env.GOOGLE_TTS_CLIENT_EMAIL;
+  const privateKey  = (process.env.GOOGLE_TTS_PRIVATE_KEY || '').replace(/\\n/g, '\n');
+  const projectId   = process.env.GOOGLE_TTS_PROJECT_ID;
+  if (clientEmail && privateKey && projectId) {
+    _googleTTSClient = new TextToSpeechClient({
+      projectId,
+      credentials: { client_email: clientEmail, private_key: privateKey }
+    });
+    console.log('[Google TTS] Usando credenciales desde env vars');
+    return _googleTTSClient;
+  }
+  throw new Error('Google TTS: no se encontraron credenciales. Agrega credentials/google-tts.json o las variables GOOGLE_TTS_* en Railway.');
+}
 
 // Read POST body
 function readBody(req){
@@ -141,6 +180,52 @@ const server = http.createServer(async (req, res) => {
     } catch(e) {
       res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
       res.end(JSON.stringify({ ok: false, error: e.message, mareas: [] }));
+    }
+    return;
+  }
+
+  // Google TTS — listar voces es-MX
+  if (req.url === '/api/google-tts/voices') {
+    try {
+      const client = getGoogleTTSClient();
+      const [result] = await client.listVoices({ languageCode: 'es-MX' });
+      const voices = (result.voices || [])
+        .filter(v => v.languageCodes?.some(c => c.startsWith('es-MX')))
+        .map(v => ({ name: v.name, ssmlGender: v.ssmlGender, naturalSampleRateHertz: v.naturalSampleRateHertz }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+      res.writeHead(200, { 'Content-Type': 'application/json;charset=utf-8' });
+      res.end(JSON.stringify({ ok: true, voices }));
+    } catch(e) {
+      res.writeHead(200, { 'Content-Type': 'application/json;charset=utf-8' });
+      res.end(JSON.stringify({ ok: false, error: e.message }));
+    }
+    return;
+  }
+
+  // Google TTS — sintetizar voz
+  if (req.url === '/api/google-tts/synthesize' && req.method === 'POST') {
+    try {
+      const body = await readBody(req);
+      const text = (body.text || '').trim();
+      if (text.length < 3) throw new Error('Texto demasiado corto');
+      const voiceName   = body.voiceName || process.env.GOOGLE_TTS_DEFAULT_VOICE || 'es-MX-Wavenet-B';
+      const speakingRate = Math.min(Math.max(parseFloat(body.speakingRate) || 1.0, 0.5), 2.0);
+      const pitch       = Math.min(Math.max(parseFloat(body.pitch) || 0, -10), 10);
+      const volumeGainDb= parseFloat(body.volumeGainDb) || 0;
+      const client = getGoogleTTSClient();
+      const [response] = await client.synthesizeSpeech({
+        input: { text },
+        voice: { languageCode: 'es-MX', name: voiceName },
+        audioConfig: { audioEncoding: 'MP3', speakingRate, pitch, volumeGainDb }
+      });
+      if (!response.audioContent) throw new Error('Google TTS no devolvió audio');
+      const audioBase64 = Buffer.from(response.audioContent).toString('base64');
+      res.writeHead(200, { 'Content-Type': 'application/json;charset=utf-8' });
+      res.end(JSON.stringify({ ok: true, audioBase64, mimeType: 'audio/mpeg', voiceName, settings: { speakingRate, pitch, volumeGainDb } }));
+    } catch(e) {
+      console.error('[Google TTS synthesize]', e.message);
+      res.writeHead(200, { 'Content-Type': 'application/json;charset=utf-8' });
+      res.end(JSON.stringify({ ok: false, error: e.message }));
     }
     return;
   }
