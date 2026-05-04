@@ -46,6 +46,10 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
 .np-src.mp3{background:rgba(0,201,255,0.1);color:var(--accent);border:1px solid rgba(0,201,255,0.2)}
 .np-src.spot{background:rgba(245,200,66,0.12);color:var(--gold);border:1px solid rgba(245,200,66,0.25)}
 .np-src.idle{background:var(--surface2);color:var(--text3);border:1px solid var(--border)}
+.np-src.spotify{background:rgba(30,215,96,0.12);color:#1ed760;border:1px solid rgba(30,215,96,0.25)}
+.viz.spotify-m .vb{background:linear-gradient(to top,#1ed760,rgba(30,215,96,0.3))}
+.pfill.spotify{background:linear-gradient(to right,#1ed760,#17a34a)}
+.sp-auth-notice{margin-top:12px;padding:10px 14px;background:rgba(30,215,96,0.06);border:1px solid rgba(30,215,96,0.2);border-radius:10px;font-size:12px;color:#1ed760;text-align:center}
 
 .np-title{font-family:'Syne',sans-serif;font-size:26px;font-weight:800;line-height:1.2;margin-bottom:6px;min-height:62px;display:flex;align-items:center;justify-content:center;text-align:center}
 .np-sub{font-size:13px;color:var(--text2);margin-bottom:24px}
@@ -157,6 +161,55 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
 <script>
 let ws=null, ytPlayer=null, ytReady=false, audioEl=null, progInt=null;
 let branch='', wsUrl='';
+// Spotify state (sucursal)
+let sucSpotifyPlayer=null, sucSpotifyDeviceId=null;
+let sucSpToken=localStorage.getItem('suc_sp_token')||'';
+let sucSpRefresh=localStorage.getItem('suc_sp_refresh')||'';
+let sucSpExpires=parseInt(localStorage.getItem('suc_sp_expires')||'0');
+let sucSpClientId=localStorage.getItem('suc_sp_clientid')||'';
+const SUC_SP_SCOPES='streaming user-read-email user-read-private user-modify-playback-state';
+
+async function sucSpRefreshToken(){
+  if(!sucSpRefresh||!sucSpClientId)return false;
+  try{
+    const r=await fetch('https://accounts.spotify.com/api/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({client_id:sucSpClientId,grant_type:'refresh_token',refresh_token:sucSpRefresh})});
+    const d=await r.json();
+    if(d.access_token){sucSpToken=d.access_token;sucSpExpires=Date.now()+(d.expires_in||3600)*1000;if(d.refresh_token)sucSpRefresh=d.refresh_token;localStorage.setItem('suc_sp_token',sucSpToken);localStorage.setItem('suc_sp_refresh',sucSpRefresh);localStorage.setItem('suc_sp_expires',sucSpExpires);return true;}
+  }catch(e){}return false;
+}
+
+async function sucSpFetch(url,opts={}){
+  if(Date.now()>sucSpExpires-60000)await sucSpRefreshToken();
+  if(!sucSpToken)return null;
+  const headers={...opts.headers,'Authorization':'Bearer '+sucSpToken};
+  let r=await fetch(url,{...opts,headers});
+  if(r.status===401){await sucSpRefreshToken();r=await fetch(url,{...opts,headers:{...opts.headers,'Authorization':'Bearer '+sucSpToken}});}
+  return r;
+}
+
+window.onSpotifyWebPlaybackSDKReady=()=>{
+  if(!sucSpToken)return;
+  sucSpotifyPlayer=new Spotify.Player({
+    name:'Terrapesca Radio Sucursal',
+    getOAuthToken:cb=>{
+      if(Date.now()>sucSpExpires-60000){sucSpRefreshToken().then(()=>cb(sucSpToken));}else{cb(sucSpToken);}
+    },
+    volume:parseInt(document.getElementById('volS')?.value||'80')/100
+  });
+  sucSpotifyPlayer.addListener('ready',({device_id})=>{sucSpotifyDeviceId=device_id;});
+  sucSpotifyPlayer.addListener('not_ready',()=>{sucSpotifyDeviceId=null;});
+  sucSpotifyPlayer.connect();
+};
+
+function loadSucSpotifySDK(){
+  if(document.getElementById('suc-sp-sdk'))return;
+  const s=document.createElement('script');s.id='suc-sp-sdk';s.src='https://sdk.scdn.co/spotify-player.js';document.body.appendChild(s);
+}
+
+async function playSpotifyOnSucursal(spotifyUri){
+  if(!sucSpotifyDeviceId){console.warn('Sucursal Spotify: sin dispositivo');return;}
+  await sucSpFetch(`https://api.spotify.com/v1/me/player/play?device_id=${sucSpotifyDeviceId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({uris:[spotifyUri]})});
+}
 
 function connect(){
   branch=document.getElementById('setupBranch').value;
@@ -253,12 +306,62 @@ function playRemote(track, position){
       ytPlayer.setVolume(parseInt(document.getElementById('volS').value));
       if(position>2)setTimeout(()=>ytPlayer.seekTo(position,true),1500);
     }
+  } else if(track.type==='spotify'){
+    document.getElementById('yt-container').style.display='none';
+    if(sucSpotifyDeviceId&&track.spotifyUri){
+      playSpotifyOnSucursal(track.spotifyUri);
+    } else if(!sucSpToken){
+      // Show auth notice if not authenticated
+      showSucSpotifyNotice(track.name);
+    }
   } else if(track.type==='mp3'){
-    // MP3 from panel can't be streamed directly - show as playing
     document.getElementById('yt-container').style.display='none';
   }
   updateNP(track, true);
   startProg();
+}
+
+function showSucSpotifyNotice(trackName){
+  let notice=document.getElementById('spNotice');
+  if(!notice){
+    notice=document.createElement('div');
+    notice.id='spNotice';
+    notice.className='sp-auth-notice';
+    document.querySelector('.ctrl-area')?.appendChild(notice);
+  }
+  notice.innerHTML=`🟢 Spotify: <strong>${trackName}</strong> — <a href="#" onclick="initSucSpotify(event)" style="color:#1ed760">Conectar Spotify para escuchar</a>`;
+}
+
+async function initSucSpotify(e){
+  if(e)e.preventDefault();
+  const clientId=prompt('Ingresa tu Spotify Client ID:');
+  if(!clientId)return;
+  sucSpClientId=clientId;
+  localStorage.setItem('suc_sp_clientid',clientId);
+  const verifier=await sucSpGenVerifier();
+  const challenge=await sucSpGenChallenge(verifier);
+  localStorage.setItem('suc_sp_verifier',verifier);
+  const redirect=window.location.origin+window.location.pathname;
+  const params=new URLSearchParams({client_id:clientId,response_type:'code',redirect_uri:redirect,scope:SUC_SP_SCOPES,code_challenge_method:'S256',code_challenge:challenge});
+  window.location.href='https://accounts.spotify.com/authorize?'+params.toString();
+}
+
+async function sucSpGenVerifier(){const a=new Uint8Array(32);crypto.getRandomValues(a);return btoa(String.fromCharCode(...a)).replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_');}
+async function sucSpGenChallenge(v){const d=new TextEncoder().encode(v);const h=await crypto.subtle.digest('SHA-256',d);return btoa(String.fromCharCode(...new Uint8Array(h))).replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_');}
+
+async function sucSpotifyHandleCallback(){
+  const p=new URLSearchParams(window.location.search);
+  const code=p.get('code');if(!code)return;
+  window.history.replaceState({},'',window.location.pathname);
+  const verifier=localStorage.getItem('suc_sp_verifier');
+  sucSpClientId=localStorage.getItem('suc_sp_clientid')||'';
+  if(!verifier||!sucSpClientId)return;
+  const redirect=window.location.origin+window.location.pathname;
+  try{
+    const r=await fetch('https://accounts.spotify.com/api/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({client_id:sucSpClientId,grant_type:'authorization_code',code,redirect_uri:redirect,code_verifier:verifier})});
+    const d=await r.json();
+    if(d.access_token){sucSpToken=d.access_token;sucSpRefresh=d.refresh_token||'';sucSpExpires=Date.now()+(d.expires_in||3600)*1000;localStorage.setItem('suc_sp_token',sucSpToken);localStorage.setItem('suc_sp_refresh',sucSpRefresh);localStorage.setItem('suc_sp_expires',sucSpExpires);localStorage.removeItem('suc_sp_verifier');loadSucSpotifySDK();}
+  }catch(e){}
 }
 
 function playSpot(track){
@@ -288,16 +391,19 @@ function b64ToBlob(b64, mime){
 function pauseLocal(){
   if(audioEl)audioEl.pause();
   if(ytReady&&ytPlayer)try{ytPlayer.pauseVideo()}catch(e){}
+  if(sucSpotifyPlayer)try{sucSpotifyPlayer.pause()}catch(e){}
   setPlayUI(false);
 }
 function resumeLocal(){
   if(audioEl)audioEl.play();
   if(ytReady&&ytPlayer)try{ytPlayer.playVideo()}catch(e){}
+  if(sucSpotifyPlayer)try{sucSpotifyPlayer.resume()}catch(e){}
   setPlayUI(true);
 }
 function stopLocal(){
   if(audioEl){audioEl.pause();audioEl.src='';audioEl=null}
   if(ytReady&&ytPlayer)try{ytPlayer.stopVideo()}catch(e){}
+  if(sucSpotifyPlayer)try{sucSpotifyPlayer.pause()}catch(e){}
   clearInterval(progInt);
   document.getElementById('pF').style.width='0%';
   document.getElementById('tC').textContent='0:00';
@@ -306,6 +412,7 @@ function setVol(v){
   document.getElementById('volP').textContent=v+'%';
   if(audioEl)audioEl.volume=v/100;
   if(ytReady&&ytPlayer)try{ytPlayer.setVolume(parseInt(v))}catch(e){}
+  if(sucSpotifyPlayer)try{sucSpotifyPlayer.setVolume(parseInt(v)/100)}catch(e){}
 }
 function setPlayUI(p){
   document.getElementById('viz').classList.toggle('paused',!p);
@@ -325,9 +432,12 @@ function updateNP(track, playing){
   if(track.type==='yt'){tag.textContent='▶ YouTube';tag.className='np-src yt'}
   else if(track.type==='mp3'){tag.textContent='🎵 MP3';tag.className='np-src mp3'}
   else if(track.type==='spot'){tag.textContent='🎙️ SPOT';tag.className='np-src spot'}
+  else if(track.type==='spotify'){tag.textContent='🟢 Spotify';tag.className='np-src spotify'}
   document.getElementById('npSub').textContent=playing?'🎶 Señal en vivo desde Los Mochis':'⏸ En pausa';
   document.getElementById('viz').classList.toggle('paused',!playing);
   document.getElementById('viz').classList.toggle('spot-m',track.type==='spot');
+  document.getElementById('viz').classList.toggle('spotify-m',track.type==='spotify');
+  document.getElementById('pF').classList.toggle('spotify',track.type==='spotify');
 }
 function showSpotBanner(name){
   const text=name.replace('🎙️ SPOT — ','');
@@ -343,6 +453,10 @@ function setStatus(s,l){
   document.getElementById('statusLabel').textContent=l;
 }
 function fmt(s){if(!s||isNaN(s))return'0:00';const m=Math.floor(s/60),sc=Math.floor(s%60);return m+':'+(sc<10?'0':'')+sc}
+
+// Init Spotify on sucursal load
+sucSpotifyHandleCallback();
+if(sucSpToken) loadSucSpotifySDK();
 </script>
 </body>
 </html>
