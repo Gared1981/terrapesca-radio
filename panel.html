@@ -292,7 +292,11 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:13px;heigh
     </div>
     <div class="field">
       <label>API Key de ElevenLabs</label>
-      <input class="inp" id="cfgEl" placeholder="sk_xxxxxxxxxxxxxxxx" type="password"/>
+      <input class="inp" id="cfgEl" placeholder="sk_xxxxxxxxxxxxxxxx (ElevenLabs)" type="password"/>
+    </div>
+    <div class="field">
+      <label>API Key de Anthropic (Claude)</label>
+      <input class="inp" id="cfgAnt" placeholder="sk-ant-xxxxxxxx" type="password"/>
     </div>
     <div class="field">
       <label>Voz del spot</label>
@@ -319,6 +323,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:13px;heigh
 let cfg = {
   ws: localStorage.getItem('tp_ws') || '',
   apiKey: localStorage.getItem('tp_el') || '',
+  anthropicKey: localStorage.getItem('tp_ant') || '',
   voice: localStorage.getItem('tp_voice') || 'male',
   slogan: localStorage.getItem('tp_slogan') || 'La estación oficial de Terrapesca'
 };
@@ -373,6 +378,7 @@ function sendWS(data) {
 function openConfig() {
   document.getElementById('cfgWs').value = cfg.ws;
   document.getElementById('cfgEl').value = cfg.apiKey;
+  document.getElementById('cfgAnt').value = cfg.anthropicKey || '';
   document.getElementById('cfgSl').value = cfg.slogan;
   selV = cfg.voice; refreshVBtns();
   document.getElementById('cfgModal').classList.add('open');
@@ -389,8 +395,10 @@ function refreshVBtns() {
 function saveConfig() {
   cfg.ws=document.getElementById('cfgWs').value.trim();
   cfg.apiKey=document.getElementById('cfgEl').value.trim();
+  cfg.anthropicKey=document.getElementById('cfgAnt').value.trim();
   cfg.voice=selV; cfg.slogan=document.getElementById('cfgSl').value.trim();
   localStorage.setItem('tp_ws',cfg.ws);localStorage.setItem('tp_el',cfg.apiKey);
+  localStorage.setItem('tp_ant',cfg.anthropicKey);
   localStorage.setItem('tp_voice',cfg.voice);localStorage.setItem('tp_slogan',cfg.slogan);
   closeConfig(); connectWS();
   showToast('✅ Configuración guardada','success');
@@ -507,21 +515,23 @@ async function generateSpot(){
   const branch=document.getElementById('cfgWs').value?'Terrapesca':'Terrapesca';
   const top=products.filter(p=>p.priority).slice(0,3);
   const promo=top.map(p=>p.name+(p.price?' a $'+p.price.toFixed(0):'')).join(', ');
+  const baseUrl = cfg.ws.replace('wss://','https://').replace('ws://','http://').replace(/\/$/,'');
   try{
-    const sr=await fetch('https://api.anthropic.com/v1/messages',{
+    const sr=await fetch(`${baseUrl}/api/anthropic`,{
       method:'POST',
-      headers:{'Content-Type':'application/json'},
+      headers:{'Content-Type':'application/json','x-api-key':cfg.anthropicKey||''},
       body:JSON.stringify({
         model:'claude-sonnet-4-20250514',max_tokens:1000,
-        messages:[{role:'user',content:`Eres el locutor oficial de Terrapesca Radio, una estación de radio comercial profesional de México. Tu estilo es elegante, cálido y autoritario — como las grandes cadenas FM nacionales.\n\nGenera un spot publicitario de máximo 35 segundos (80-100 palabras) para:\nProductos: ${promo}\nEslogan de cierre: "${cfg.slogan}"\n\nUSA audio tags de ElevenLabs v3 para expresividad:\n- [pause] pausas dramáticas entre ideas\n- [excited] énfasis en precios y ofertas\n- [calm] para el cierre institucional\n\nTONO: Formal, elegante y profesional. Sin lenguaje coloquial. Sin exclamaciones exageradas. Estilo W Radio o XEW México.\n\nEstructura sugerida:\n1. Apertura formal con nombre de la tienda\n2. Productos con precio (tono [excited])\n3. [pause]\n4. Cierre institucional con eslogan ([calm])\n\nResponde ÚNICAMENTE con el texto del spot listo para narrar.`}]
+        messages:[{role:'user',content:`Eres el locutor oficial de Terrapesca Radio, una estación de radio comercial profesional de México. Tu estilo es elegante, cálido y autoritario — como las grandes cadenas FM nacionales.\n\nGenera un spot publicitario de máximo 35 segundos (80-100 palabras) para:\nProductos: ${promo}\nEslogan de cierre: "${cfg.slogan}"\n\nUSA audio tags de ElevenLabs v3:\n- [pause] para pausas dramáticas\n- [excited] para énfasis en precios\n- [calm] para el cierre institucional\n\nTONO: Formal, elegante, profesional. Estilo W Radio o XEW México. Sin lenguaje coloquial.\n\nResponde ÚNICAMENTE con el texto del spot listo para narrar, sin explicaciones.`}]
       })
     });
     const sd=await sr.json();
     const script=sd.content?.[0]?.text||'';
     if(!script)throw new Error('Sin respuesta de IA');
-    showStatus('🎙️ Narrando con ElevenLabs...',55);
-    const vid=cfg.voice==='male'?'pNInz6obpgDQGcFmaJgB':'21m00Tcm4TlvDq8ikWAM';
-    const tr=await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${vid}`,{
+    showStatus('🎙️ Narrando con ElevenLabs v3...',55);
+    // Voices compatibles con v3: Bill (masculina) y Aria (femenina)
+    const vid=cfg.voice==='male'?'pqHfZKP75CvOlQylNhV4':'9BWtsMINqrJLrRacOk9x';
+    const tr=await fetch(`${baseUrl}/api/elevenlabs/${vid}`,{
       method:'POST',
       headers:{'Content-Type':'application/json','xi-api-key':cfg.apiKey},
       body:JSON.stringify({text:script,model_id:'eleven_v3',voice_settings:{stability:0.35,similarity_boost:0.90,style:0.75,use_speaker_boost:true}})
