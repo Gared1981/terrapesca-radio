@@ -615,6 +615,7 @@ input[type=range]::-moz-range-thumb{
 <script>
 let ws=null, ytPlayer=null, ytReady=false, audioEl=null, progInt=null;
 let branch='', muted=false, lastVol=80, meterInt=null;
+let jingleB64=null, jingleAudio=null;
 const AUTO_WS=(location.protocol==='https:'?'wss://':'ws://')+location.host;
 
 // Clock
@@ -676,6 +677,7 @@ function handleMsg(msg){
     case 'RESUME': resumeLocal(); break;
     case 'SPOT': playSpot(msg.track); break;
     case 'MIC_SPOT': playMicSpot(msg.b64, msg.nombre); break;
+    case 'JINGLE_SET': jingleB64=msg.b64; break;
     case 'CLIENT_COUNT': break;
   }
 }
@@ -714,18 +716,35 @@ function playRemote(track, position){
 function playSpot(track){
   stopLocal();
   if(track.b64){
+    // actualizar jingle si viene en el mensaje
+    if(track.jingleB64)jingleB64=track.jingleB64;
+    // arrancar jingle de fondo
+    playJingle();
     const blob=b64ToBlob(track.b64,'audio/mpeg');
     const url=URL.createObjectURL(blob);
     audioEl=new Audio(url);
     audioEl.volume=parseInt(document.getElementById('volS').value)/100;
     audioEl.play();
-    audioEl.addEventListener('ended',()=>{setPlayUI(false);hideSpotBanner()});
+    audioEl.addEventListener('ended',()=>{setPlayUI(false);hideSpotBanner();stopJingle()});
     audioEl.addEventListener('timeupdate',updateProg);
     audioEl.addEventListener('loadedmetadata',()=>{document.getElementById('tT').textContent=fmt(audioEl.duration)});
     updateNP(track, true);
     showSpotBanner(track.name,'🎙️',false);
     startProg();
   }
+}
+function playJingle(){
+  if(!jingleB64)return;
+  stopJingle();
+  const blob=b64ToBlob(jingleB64,'audio/mpeg');
+  const url=URL.createObjectURL(blob);
+  jingleAudio=new Audio(url);
+  jingleAudio.volume=0.25;
+  jingleAudio.loop=true;
+  jingleAudio.play().catch(()=>{});
+}
+function stopJingle(){
+  if(jingleAudio){jingleAudio.pause();jingleAudio.currentTime=0;jingleAudio=null}
 }
 
 function playMicSpot(b64, nombre){
@@ -763,6 +782,7 @@ function resumeLocal(){
 function stopLocal(){
   if(audioEl){audioEl.pause();audioEl.src='';audioEl=null}
   if(ytReady&&ytPlayer)try{ytPlayer.stopVideo()}catch(e){}
+  stopJingle();
   clearInterval(progInt);clearInterval(meterInt);
   document.getElementById('pF').style.width='0%';
   document.getElementById('tC').textContent='0:00';

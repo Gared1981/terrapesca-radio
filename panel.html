@@ -648,6 +648,24 @@ input[type=range]::-moz-range-thumb{
       <button class="btn-spot" id="btnSpot" onclick="generateSpot()" disabled>
         🎙️ Generar spot con IA + ElevenLabs
       </button>
+
+      <!-- JINGLE DE FONDO -->
+      <div style="margin-top:12px;border-top:1px solid var(--border2);padding-top:12px">
+        <div class="sec-lbl" style="margin-bottom:8px">Jingle de fondo</div>
+        <div id="jingleZone" class="inv-zone" style="margin-bottom:0;padding:12px" onclick="document.getElementById('jingleF').click()">
+          <div class="ic" style="font-size:18px;margin-bottom:2px">🎵</div>
+          <p id="jingleLabel" style="font-size:11px">Sube un MP3 para sonar de fondo en los spots</p>
+          <input type="file" id="jingleF" accept="audio/*" style="display:none" onchange="loadJingle(event)"/>
+        </div>
+        <div id="jingleInfo" style="display:none;margin-top:8px;padding:8px 10px;background:var(--navy2);border:1px solid var(--border2);border-radius:7px;display:none;align-items:center;gap:8px">
+          <span style="font-size:14px">🎵</span>
+          <span id="jingleName" style="flex:1;font-size:11px;color:var(--text2);font-family:'Share Tech Mono',monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></span>
+          <label style="font-size:10px;color:var(--text3);font-family:'Share Tech Mono',monospace">VOL</label>
+          <input type="range" id="jingleVol" min="0" max="100" value="25" style="width:70px" oninput="setJingleVol(this.value)"/>
+          <span id="jingleVolPct" style="font-size:10px;color:var(--text2);min-width:28px;font-family:'Share Tech Mono',monospace">25%</span>
+          <button onclick="removeJingle()" style="background:transparent;border:none;color:var(--text3);cursor:pointer;font-size:12px;padding:2px 4px" title="Quitar jingle">✕</button>
+        </div>
+      </div>
     </div>
 
   </div><!-- /left-col -->
@@ -730,6 +748,7 @@ const SPOT_EVERY=3;
 let products=[];
 let ytPlayer=null,ytReady=false,audioEl=null,progInt=null;
 let ws=null,wsConnected=false;
+let jingleUrl=null,jingleB64=null,jingleAudio=null,jingleVolume=0.25;
 
 // ---- WEBSOCKET ----
 function connectWS() {
@@ -742,6 +761,7 @@ function connectWS() {
       wsConnected = true;
       setWSStatus('connected', 'Conectado');
       showToast('✅ Servidor conectado','success');
+      if(jingleB64)sendWS({type:'JINGLE_SET',b64:jingleB64});
     };
     ws.onclose = () => {
       wsConnected = false;
@@ -940,7 +960,7 @@ async function generateSpot(){
     const spotName='🎙️ SPOT — '+(top[0]?.name||'Terrapesca');
     playlist.push({type:'spot',name:spotName,url:audioUrl,b64,script});
     renderPlaylist();
-    sendWS({type:'SPOT',track:{type:'spot',name:spotName,b64}});
+    sendWS({type:'SPOT',track:{type:'spot',name:spotName,b64,jingleB64:jingleB64||null}});
     hideStatus();btn.disabled=false;
     showToast('🎙️ Spot listo y enviado a sucursales','gold');
   }catch(err){
@@ -967,7 +987,9 @@ function playTrack(idx){
     audioEl.addEventListener('timeupdate',updateProg);
     audioEl.addEventListener('loadedmetadata',()=>{document.getElementById('tT').textContent=fmt(audioEl.duration)});
     if(t.type==='spot' && t.b64){
-      sendWS({type:'SPOT',track:{type:'spot',name:t.name,b64:t.b64}});
+      playJingle();
+      audioEl.addEventListener('ended',stopJingle);
+      sendWS({type:'SPOT',track:{type:'spot',name:t.name,b64:t.b64,jingleB64:jingleB64||null}});
     }else{
       sendWS({type:'PLAY',track:{type:'mp3',name:t.name},position:0});
     }
@@ -1001,6 +1023,7 @@ function setPlayUI(p){
 function stopAll(){
   if(audioEl){audioEl.pause();audioEl.src='';audioEl=null}
   if(ytReady&&ytPlayer)try{ytPlayer.stopVideo()}catch(e){}
+  stopJingle();
   clearInterval(progInt);
   document.getElementById('pF').style.width='0%';
   document.getElementById('tC').textContent='0:00';
@@ -1088,6 +1111,48 @@ function renderPlaylist(){
       <button class="tr-del" onclick="event.stopPropagation();removeTrack(${i})">✕</button>
     </div>`;
   }).join('');
+}
+
+// ---- JINGLE ----
+function loadJingle(e){
+  const file=e.target.files[0];if(!file)return;
+  jingleUrl=URL.createObjectURL(file);
+  const reader=new FileReader();
+  reader.onload=(ev)=>{
+    jingleB64=ev.target.result.split(',')[1];
+    sendWS({type:'JINGLE_SET',b64:jingleB64});
+  };
+  reader.readAsDataURL(file);
+  document.getElementById('jingleLabel').textContent=file.name;
+  document.getElementById('jingleName').textContent=file.name;
+  document.getElementById('jingleInfo').style.display='flex';
+  document.getElementById('jingleZone').style.borderColor='var(--red)';
+  showToast('🎵 Jingle cargado','success');
+}
+function setJingleVol(v){
+  jingleVolume=parseInt(v)/100;
+  document.getElementById('jingleVolPct').textContent=v+'%';
+  if(jingleAudio)jingleAudio.volume=jingleVolume;
+}
+function removeJingle(){
+  jingleUrl=null;jingleB64=null;
+  if(jingleAudio){jingleAudio.pause();jingleAudio=null}
+  document.getElementById('jingleLabel').textContent='Sube un MP3 para sonar de fondo en los spots';
+  document.getElementById('jingleInfo').style.display='none';
+  document.getElementById('jingleZone').style.borderColor='';
+  document.getElementById('jingleF').value='';
+  showToast('Jingle eliminado','info');
+}
+function playJingle(){
+  if(!jingleUrl)return;
+  if(jingleAudio){jingleAudio.pause();jingleAudio=null}
+  jingleAudio=new Audio(jingleUrl);
+  jingleAudio.volume=jingleVolume;
+  jingleAudio.loop=true;
+  jingleAudio.play().catch(()=>{});
+}
+function stopJingle(){
+  if(jingleAudio){jingleAudio.pause();jingleAudio.currentTime=0;jingleAudio=null}
 }
 
 function showStatus(m,p){document.getElementById('sText').textContent=m;document.getElementById('sFill').style.width=p+'%';document.getElementById('statusBar').classList.add('show')}

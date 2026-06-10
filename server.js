@@ -133,6 +133,7 @@ function broadcast(data, excludeWs = null) {
 wss.on('connection', (ws) => {
   console.log('Cliente conectado. Total:', wss.clients.size);
   ws.send(JSON.stringify({ type: 'SYNC', state: radioState }));
+  if (radioState.jingleB64) ws.send(JSON.stringify({ type: 'JINGLE_SET', b64: radioState.jingleB64 }));
 
   ws.on('message', (raw) => {
     try {
@@ -170,6 +171,10 @@ wss.on('connection', (ws) => {
           radioState.position = 0;
           radioState.lastUpdate = Date.now();
           broadcast({ type: 'SPOT', track: msg.track }, ws);
+          break;
+        case 'JINGLE_SET':
+          radioState.jingleB64 = msg.b64;
+          broadcast({ type: 'JINGLE_SET', b64: msg.b64 }, ws);
           break;
       }
     } catch (e) {
