@@ -9,44 +9,45 @@
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --bg:#0a1220;--bg2:#0d1628;--surface:#111d30;--surface2:#192540;
-  --border:#1e3050;--accent:#f5871f;--accent2:#c96b0a;
-  --accent-glow:rgba(245,135,31,0.15);--gold:#f5c842;--green:#2ecc8a;
+  --bg:#0a0e1a;--bg2:#0f1528;--surface:#151c30;--surface2:#1c2540;
+  --border:#252f4a;--accent:#00c9ff;--accent2:#0090bb;
+  --accent-glow:rgba(0,201,255,0.15);--gold:#f5c842;--green:#2ecc8a;
   --red:#ff4d6d;--text:#e8edf8;--text2:#8a9bbf;--text3:#4a5a7a;
   --radius:14px;--shadow:0 8px 32px rgba(0,0,0,0.4);
 }
 body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
-body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse 80% 50% at 20% 0%,rgba(245,135,31,0.06) 0%,transparent 60%),radial-gradient(ellipse 60% 40% at 80% 100%,rgba(245,200,66,0.04) 0%,transparent 60%);pointer-events:none;z-index:0}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse 80% 50% at 20% 0%,rgba(0,201,255,0.06) 0%,transparent 60%),radial-gradient(ellipse 60% 40% at 80% 100%,rgba(245,200,66,0.04) 0%,transparent 60%);pointer-events:none;z-index:0}
 
-header{position:sticky;top:0;z-index:100;background:rgba(10,18,32,0.96);backdrop-filter:blur(16px);border-bottom:1px solid var(--border);padding:0 20px;height:62px;display:flex;align-items:center;justify-content:space-between}
+header{position:sticky;top:0;z-index:100;background:rgba(10,14,26,0.95);backdrop-filter:blur(16px);border-bottom:1px solid var(--border);padding:0 28px;height:60px;display:flex;align-items:center;justify-content:space-between}
 .logo{display:flex;align-items:center;gap:10px}
-.logo-img{height:38px;object-fit:contain;border-radius:6px}
-.logo-name{font-family:'Syne',sans-serif;font-size:17px;font-weight:800}
+.logo-icon{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-size:16px}
+.logo-name{font-family:'Syne',sans-serif;font-size:18px;font-weight:800}
 .logo-name span{color:var(--accent)}
-.logo-badge{font-size:9px;font-weight:700;letter-spacing:1.5px;background:rgba(245,200,66,0.12);color:var(--gold);border:1px solid rgba(245,200,66,0.25);border-radius:5px;padding:2px 7px;margin-left:4px}
+.logo-badge{font-size:10px;font-weight:700;letter-spacing:1.5px;background:rgba(245,200,66,0.15);color:var(--gold);border:1px solid rgba(245,200,66,0.3);border-radius:5px;padding:2px 7px;margin-left:6px}
 
 .ws-status{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:500;padding:5px 12px;border-radius:20px;border:1px solid var(--border);background:var(--surface2);cursor:pointer;transition:all .2s}
 .ws-dot{width:7px;height:7px;border-radius:50%;background:var(--text3)}
 .ws-status.connected .ws-dot{background:var(--green);animation:pulse-dot 2s ease infinite}
-.ws-status.connecting .ws-dot{background:var(--gold);animation:pulse-dot .8s ease infinite}
+.ws-status.connecting .ws-dot{background:var(--gold);animation:pulse-dot 0.8s ease infinite}
 .ws-status.error .ws-dot{background:var(--red)}
 @keyframes pulse-dot{0%,100%{opacity:1}50%{opacity:0.3}}
 
-.app{display:grid;grid-template-columns:1fr 340px;gap:14px;padding:14px 20px;max-width:1300px;margin:0 auto;position:relative;z-index:1}
+.app{display:grid;grid-template-columns:1fr 340px;gap:16px;padding:16px 24px;max-width:1280px;margin:0 auto;position:relative;z-index:1}
 
+/* PLAYER */
 .player-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow)}
-.player-hero{background:linear-gradient(160deg,#0d1a35 0%,#091424 100%);padding:22px 26px 0;position:relative}
-.player-hero::after{content:'';position:absolute;bottom:0;left:0;right:0;height:44px;background:linear-gradient(to bottom,transparent,var(--surface))}
-.on-air{display:flex;align-items:center;gap:8px;font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--accent);margin-bottom:10px}
-.now-title{font-family:'Syne',sans-serif;font-size:20px;font-weight:800;line-height:1.2;margin-bottom:4px}
-.now-sub{font-size:12px;color:var(--text2);margin-bottom:12px}
-.src-tag{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;border-radius:5px;padding:3px 8px;margin-bottom:14px}
+.player-hero{background:linear-gradient(160deg,#0d1a35 0%,#091424 100%);padding:24px 28px 0;position:relative}
+.player-hero::after{content:'';position:absolute;bottom:0;left:0;right:0;height:50px;background:linear-gradient(to bottom,transparent,var(--surface))}
+.on-air{display:flex;align-items:center;gap:8px;font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--accent);margin-bottom:12px}
+.now-title{font-family:'Syne',sans-serif;font-size:22px;font-weight:800;line-height:1.2;margin-bottom:4px}
+.now-sub{font-size:12px;color:var(--text2);margin-bottom:16px}
+.src-tag{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;border-radius:5px;padding:3px 8px;margin-bottom:16px}
 .src-tag.yt{background:rgba(255,80,80,0.15);color:#ff5050;border:1px solid rgba(255,80,80,0.2)}
-.src-tag.mp3{background:rgba(245,135,31,0.12);color:var(--accent);border:1px solid rgba(245,135,31,0.25)}
+.src-tag.mp3{background:rgba(0,201,255,0.1);color:var(--accent);border:1px solid rgba(0,201,255,0.2)}
 .src-tag.spot{background:rgba(245,200,66,0.12);color:var(--gold);border:1px solid rgba(245,200,66,0.25)}
 
 .viz{display:flex;align-items:flex-end;gap:3px;height:44px;padding-bottom:6px}
-.vb{flex:1;max-width:8px;border-radius:3px 3px 0 0;background:linear-gradient(to top,var(--accent),rgba(245,135,31,0.3));min-height:4px;animation:vdance .6s ease-in-out infinite alternate}
+.vb{flex:1;max-width:8px;border-radius:3px 3px 0 0;background:linear-gradient(to top,var(--accent),rgba(0,201,255,0.3));min-height:4px;animation:vdance .6s ease-in-out infinite alternate}
 .vb:nth-child(2n){animation-delay:.15s}.vb:nth-child(3n){animation-delay:.3s}.vb:nth-child(4n){animation-delay:.45s}.vb:nth-child(5n){animation-delay:.05s}
 @keyframes vdance{from{transform:scaleY(0.2);opacity:0.4}to{transform:scaleY(1);opacity:1}}
 .viz.paused .vb{animation-play-state:paused;transform:scaleY(0.15);opacity:0.3}
@@ -55,8 +56,8 @@ header{position:sticky;top:0;z-index:100;background:rgba(10,18,32,0.96);backdrop
 #yt-container{display:none;background:#000;aspect-ratio:16/9}
 #yt-container iframe{width:100%;height:100%;display:block}
 
-.controls{padding:16px 26px 20px}
-.prog-row{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.controls{padding:18px 28px 22px}
+.prog-row{display:flex;align-items:center;gap:8px;margin-bottom:14px}
 .t{font-size:11px;color:var(--text3);min-width:32px}.t.e{text-align:right}
 .prog-track{flex:1;height:4px;background:var(--surface2);border-radius:2px;cursor:pointer}
 .prog-track:hover{height:6px;margin:-1px 0}
@@ -66,116 +67,61 @@ header{position:sticky;top:0;z-index:100;background:rgba(10,18,32,0.96);backdrop
 .btn-row{display:flex;align-items:center;justify-content:center;gap:10px}
 .bc{width:38px;height:38px;border-radius:50%;border:1px solid var(--border);background:var(--surface2);color:var(--text2);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;transition:all .15s}
 .bc:hover{border-color:var(--accent);color:var(--accent)}.bc.active{border-color:var(--accent);color:var(--accent);background:var(--accent-glow)}
-.btn-play{width:52px;height:52px;font-size:20px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;color:#fff;cursor:pointer;font-weight:700;box-shadow:0 0 24px var(--accent-glow);transition:all .2s}
+.btn-play{width:52px;height:52px;font-size:20px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;color:#000;cursor:pointer;font-weight:700;box-shadow:0 0 24px var(--accent-glow);transition:all .2s}
 .btn-play:hover{transform:scale(1.06)}.btn-play.spot-m{background:linear-gradient(135deg,var(--gold),#e0a800)}
 
-.vol-row{display:flex;align-items:center;gap:10px;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)}
+.vol-row{display:flex;align-items:center;gap:10px;margin-top:14px;padding-top:14px;border-top:1px solid var(--border)}
 input[type=range]{flex:1;-webkit-appearance:none;height:3px;background:var(--surface2);border-radius:2px;outline:none;cursor:pointer}
 input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:13px;height:13px;border-radius:50%;background:var(--accent);cursor:pointer}
 .vol-pct{font-size:11px;color:var(--text3);min-width:30px;text-align:right}
 
-.spot-ctr{display:flex;align-items:center;justify-content:space-between;margin-top:10px;padding:8px 12px;background:var(--surface2);border-radius:9px;border:1px solid var(--border);font-size:12px}
+.spot-ctr{display:flex;align-items:center;justify-content:space-between;margin-top:12px;padding:10px 14px;background:var(--surface2);border-radius:10px;border:1px solid var(--border);font-size:12px}
 .sdots{display:flex;gap:5px;align-items:center}
 .sdot{width:8px;height:8px;border-radius:50%;background:var(--border)}
 .sdot.done{background:var(--accent)}.sdot.gold{background:var(--gold)}
 
-.clients-bar{display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--surface2);border-radius:9px;border:1px solid var(--border);font-size:12px;margin-top:8px}
-.client-dot{width:7px;height:7px;border-radius:50%;background:var(--green)}
+/* CLIENTS */
+.clients-bar{display:flex;align-items:center;gap:8px;padding:10px 14px;background:var(--surface2);border-radius:10px;border:1px solid var(--border);font-size:12px;margin-top:10px}
+.client-dot{width:8px;height:8px;border-radius:50%;background:var(--green)}
+.client-count{color:var(--text2)}
 
-.btn-mic{width:100%;margin-top:10px;padding:9px;border:1px solid var(--red);border-radius:9px;background:rgba(255,77,109,0.06);color:var(--red);font-family:'Inter',sans-serif;font-size:13px;font-weight:700;cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:7px}
-.btn-mic:hover{background:rgba(255,77,109,0.15)}
-.btn-mic.active{background:var(--red);color:#fff;animation:pulse-mic 1.2s ease infinite}
-@keyframes pulse-mic{0%,100%{box-shadow:0 0 0 0 rgba(255,77,109,0.5)}70%{box-shadow:0 0 0 12px rgba(255,77,109,0)}}
-
-.sec-lbl{font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--text3);margin-bottom:12px}
-.tabs{display:flex;gap:6px;margin-bottom:12px}
+/* CARDS */
+.add-card,.inv-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow)}
+.sec-lbl{font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--text3);margin-bottom:14px}
+.tabs{display:flex;gap:6px;margin-bottom:14px}
 .tab{flex:1;padding:7px;border-radius:8px;border:1px solid var(--border);background:transparent;cursor:pointer;font-family:'Inter',sans-serif;font-size:12px;font-weight:600;color:var(--text2);transition:all .15s}
 .tab.active{background:var(--accent-glow);border-color:var(--accent);color:var(--accent)}
 .add-form{display:flex;flex-direction:column;gap:8px}
 .inp{width:100%;padding:9px 13px;border:1px solid var(--border);border-radius:9px;background:var(--bg2);color:var(--text);font-family:'Inter',sans-serif;font-size:13px;outline:none;transition:border-color .15s}
 .inp:focus{border-color:var(--accent)}.inp::placeholder{color:var(--text3)}
 .inp-row{display:flex;gap:7px}
-.btn-add{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border:none;border-radius:9px;padding:9px 14px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap}
+.btn-add{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#000;border:none;border-radius:9px;padding:9px 14px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap}
 .btn-add:hover{opacity:0.85}
 
-.inv-zone{border:2px dashed var(--border);border-radius:10px;padding:16px;text-align:center;cursor:pointer;transition:all .2s;margin-bottom:10px}
+.inv-zone{border:2px dashed var(--border);border-radius:10px;padding:18px;text-align:center;cursor:pointer;transition:all .2s;margin-bottom:12px}
 .inv-zone:hover{border-color:var(--accent);background:var(--accent-glow)}
-.inv-zone .ic{font-size:24px;margin-bottom:4px}
+.inv-zone .ic{font-size:26px;margin-bottom:5px}
 .inv-zone p{font-size:12px;color:var(--text2)}.inv-zone span{color:var(--accent);font-weight:600}
-
-.inv-zone-sm{display:flex;align-items:center;gap:8px;padding:8px 12px;border:1px dashed var(--border);border-radius:8px;cursor:pointer;font-size:11px;color:var(--text3);transition:all .2s;margin-top:4px}
-.inv-zone-sm:hover{border-color:var(--accent);color:var(--text2);background:var(--accent-glow)}
-
-.prod-list{max-height:150px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;margin-bottom:8px}
+.prod-list{max-height:160px;overflow-y:auto;display:flex;flex-direction:column;gap:5px}
 .prod-list::-webkit-scrollbar{width:3px}
 .prod-list::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
-.prod-item{display:flex;align-items:center;gap:7px;padding:6px 10px;border-radius:8px;background:var(--bg2);border:1px solid var(--border);font-size:12px}
+.prod-item{display:flex;align-items:center;gap:7px;padding:7px 10px;border-radius:8px;background:var(--bg2);border:1px solid var(--border);font-size:12px}
 .prod-item.pri{border-color:rgba(245,200,66,0.3);background:rgba(245,200,66,0.04)}
-.prod-item.low-disp{border-color:rgba(255,77,109,0.3);background:rgba(255,77,109,0.04)}
-.pri-badge{font-size:9px;font-weight:700;background:rgba(245,200,66,0.15);color:var(--gold);border-radius:4px;padding:2px 5px;flex-shrink:0}
-.disp-badge{font-size:9px;font-weight:700;background:rgba(255,77,109,0.12);color:var(--red);border-radius:4px;padding:2px 5px;flex-shrink:0}
+.pri-badge{font-size:9px;font-weight:700;background:rgba(245,200,66,0.15);color:var(--gold);border-radius:4px;padding:2px 6px;flex-shrink:0}
 .prod-name{flex:1;font-weight:500}.prod-price{color:var(--text2);flex-shrink:0}
+.btn-spot{width:100%;margin-top:10px;padding:10px;background:linear-gradient(135deg,rgba(245,200,66,0.15),rgba(245,200,66,0.05));border:1px solid rgba(245,200,66,0.3);border-radius:10px;color:var(--gold);font-family:'Inter',sans-serif;font-size:13px;font-weight:600;cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:7px}
+.btn-spot:hover{background:rgba(245,200,66,0.2)}.btn-spot:disabled{opacity:0.4;cursor:not-allowed}
 
-.auto-spot-row{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text2);padding:8px 0;border-top:1px solid var(--border);margin-top:4px}
-.toggle{position:relative;display:inline-block;width:34px;height:19px;flex-shrink:0}
-.toggle input{opacity:0;width:0;height:0}
-.slider{position:absolute;cursor:pointer;inset:0;background:var(--border);border-radius:20px;transition:.3s}
-.slider:before{content:'';position:absolute;width:13px;height:13px;left:3px;bottom:3px;background:var(--text3);border-radius:50%;transition:.3s}
-input:checked+.slider{background:var(--accent)}
-input:checked+.slider:before{transform:translateX(15px);background:#fff}
-.inp-sm{padding:4px 7px;border:1px solid var(--border);border-radius:7px;background:var(--bg2);color:var(--text);font-size:12px;outline:none}
-
-.btn-spot{width:100%;margin-top:8px;padding:10px;background:linear-gradient(135deg,rgba(245,200,66,0.12),rgba(245,200,66,0.04));border:1px solid rgba(245,200,66,0.3);border-radius:10px;color:var(--gold);font-family:'Inter',sans-serif;font-size:13px;font-weight:600;cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:7px}
-.btn-spot:hover{background:rgba(245,200,66,0.18)}.btn-spot:disabled{opacity:0.4;cursor:not-allowed}
-
-.spots-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
-.btn-special{display:flex;flex-direction:column;align-items:center;gap:5px;padding:11px 6px;border:1px solid var(--border);border-radius:10px;background:var(--surface2);color:var(--text2);cursor:pointer;transition:all .2s;font-size:11px;text-align:center;line-height:1.3;font-family:'Inter',sans-serif;width:100%}
-.btn-special .bs-icon{font-size:20px}
-.btn-special small{font-size:10px;color:var(--text3);display:block}
-.btn-special:hover{border-color:var(--accent);color:var(--text);background:var(--accent-glow)}
-.btn-special:hover small{color:var(--accent)}
-.btn-special:disabled{opacity:0.4;cursor:not-allowed}
-
-.add-card,.inv-card,.spots-card,.hist-card,.dj-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow)}
-.dj-card{border-color:rgba(140,120,255,0.2)}
-.dj-context{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px}
-.btn-dj{width:100%;margin-top:4px;padding:9px;background:linear-gradient(135deg,rgba(140,120,255,0.1),rgba(140,120,255,0.04));border:1px solid rgba(140,120,255,0.3);border-radius:10px;color:#a090ff;font-family:'Inter',sans-serif;font-size:13px;font-weight:600;cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:7px}
-.btn-dj:hover{background:rgba(140,120,255,0.18)}.btn-dj:disabled{opacity:0.4;cursor:not-allowed}
-.dj-var{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-top:7px}
-.dj-var-title{font-size:10px;font-weight:700;letter-spacing:1.5px;color:rgba(140,120,255,0.7);text-transform:uppercase;margin-bottom:8px}
-.dj-voices{display:grid;grid-template-columns:1fr 1fr;gap:7px}
-.dj-voice{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px 10px}
-.dj-voice-lbl{font-size:10px;color:var(--text3);font-weight:600;margin-bottom:5px}
-.dj-voice-text{font-size:12px;color:var(--text);line-height:1.6;margin-bottom:8px;white-space:pre-line;min-height:40px}
-.dj-btn-play{width:100%;padding:6px;background:rgba(140,120,255,0.08);border:1px solid rgba(140,120,255,0.25);border-radius:7px;color:#a090ff;font-size:11px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;transition:all .15s}
-.dj-btn-play:hover{background:rgba(140,120,255,0.2)}
-.dj-btn-play:disabled{opacity:0.5;cursor:not-allowed}
-.dj-btn-play.loading{opacity:0.6}
-.dj-btn-play.ondeck{background:var(--red);border-color:rgba(255,77,109,0.4);color:#fff;animation:pulse-mic 1.2s ease infinite}
-.dj-status{font-size:11px;color:var(--text3);text-align:center;padding:8px 0;display:none}
-
-.hist-card{padding:0;overflow:hidden}
-.hist-hdr{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;cursor:pointer;transition:background .15s}
-.hist-hdr:hover{background:var(--surface2)}
-.hist-hdr .sec-lbl{margin:0}
-.hist-body{padding:0 14px 14px}
-.hist-item{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:9px;background:var(--bg2);border:1px solid var(--border);margin-bottom:5px;font-size:12px}
-.hist-info{flex:1;min-width:0}
-.hist-name{font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.hist-date{font-size:10px;color:var(--text3);margin-top:2px}
-.hist-btns{display:flex;gap:4px;flex-shrink:0}
-.hist-btn{width:26px;height:26px;border-radius:7px;border:1px solid var(--border);background:var(--surface2);color:var(--text2);cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center;transition:all .12s}
-.hist-btn:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-glow)}
-
-.pl-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow);display:flex;flex-direction:column;grid-row:1/span 6}
+/* PLAYLIST */
+.pl-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow);display:flex;flex-direction:column;grid-row:1/span 3}
 .pl-hdr{padding:14px 14px 10px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
 .pl-cnt{font-size:11px;color:var(--text3);background:var(--surface2);border-radius:20px;padding:2px 9px}
 .pl-list{flex:1;overflow-y:auto;padding:6px}
 .pl-list::-webkit-scrollbar{width:3px}
 .pl-list::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
 .tr{display:flex;align-items:center;gap:9px;padding:8px 9px;border-radius:9px;cursor:pointer;transition:background .12s;border:1px solid transparent}
-.tr:hover{background:var(--surface2)}.tr.active{background:var(--accent-glow);border-color:rgba(245,135,31,0.25)}
-.tr.spot-r{background:rgba(245,200,66,0.03)}.tr.spot-r.active{background:rgba(245,200,66,0.1);border-color:rgba(245,200,66,0.2)}
+.tr:hover{background:var(--surface2)}.tr.active{background:var(--accent-glow);border-color:rgba(0,201,255,0.2)}
+.tr.spot-r{background:rgba(245,200,66,0.04)}.tr.spot-r.active{background:rgba(245,200,66,0.1);border-color:rgba(245,200,66,0.2)}
 .tr-n{width:16px;text-align:center;font-size:11px;color:var(--text3);flex-shrink:0}
 .tr-ic{width:30px;height:30px;border-radius:7px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:12px}
 .tr-ic.yt{background:rgba(255,80,80,0.12)}.tr-ic.mp3{background:var(--accent-glow)}.tr-ic.spot{background:rgba(245,200,66,0.12)}
@@ -188,21 +134,21 @@ input:checked+.slider:before{transform:translateX(15px);background:#fff}
 .pl-empty{text-align:center;padding:36px 20px;color:var(--text3)}
 .pl-empty .ei{font-size:28px;margin-bottom:8px}.pl-empty p{font-size:12px}
 
+/* CONFIG */
 .modal-overlay{display:none;position:fixed;inset:0;z-index:200;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);align-items:center;justify-content:center}
 .modal-overlay.open{display:flex}
-.modal{background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:24px;width:420px;max-width:95vw;box-shadow:0 24px 64px rgba(0,0,0,0.5);max-height:90vh;overflow-y:auto}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:26px;width:400px;box-shadow:0 24px 64px rgba(0,0,0,0.5)}
 .modal h3{font-family:'Syne',sans-serif;font-size:17px;font-weight:800;margin-bottom:5px}
-.modal p.sub{font-size:12px;color:var(--text2);margin-bottom:16px}
-.field{margin-bottom:11px}
+.modal p.sub{font-size:12px;color:var(--text2);margin-bottom:18px}
+.field{margin-bottom:12px}
 .field label{display:block;font-size:10px;font-weight:700;letter-spacing:1px;color:var(--text2);text-transform:uppercase;margin-bottom:5px}
 .field-row{display:flex;gap:7px}
 .btn-m{flex:1;padding:9px;border-radius:9px;border:1px solid var(--border);background:var(--surface2);color:var(--text2);font-family:'Inter',sans-serif;font-size:13px;font-weight:500;cursor:pointer;transition:all .15s}
-.btn-m.primary{background:linear-gradient(135deg,var(--accent),var(--accent2));border-color:transparent;color:#fff;font-weight:700}
+.btn-m.primary{background:linear-gradient(135deg,var(--accent),var(--accent2));border-color:transparent;color:#000;font-weight:700}
 .btn-m:hover:not(.primary){border-color:var(--accent);color:var(--accent)}
 
-.script-box{font-size:13px;line-height:1.65;padding:12px;background:var(--bg2);border-radius:9px;border:1px solid var(--border);white-space:pre-wrap;max-height:260px;overflow-y:auto;color:var(--text)}
-
-.status-bar{position:fixed;bottom:0;left:0;right:0;z-index:150;background:rgba(10,18,32,0.96);backdrop-filter:blur(10px);border-top:1px solid var(--border);padding:10px 24px;display:flex;align-items:center;gap:12px;font-size:12px;color:var(--text2);transform:translateY(100%);transition:transform .3s}
+/* STATUS */
+.status-bar{position:fixed;bottom:0;left:0;right:0;z-index:150;background:rgba(10,14,26,0.96);backdrop-filter:blur(10px);border-top:1px solid var(--border);padding:10px 24px;display:flex;align-items:center;gap:12px;font-size:12px;color:var(--text2);transform:translateY(100%);transition:transform .3s}
 .status-bar.show{transform:translateY(0)}
 .s-icon{font-size:15px;animation:spin 1s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
@@ -210,53 +156,25 @@ input:checked+.slider:before{transform:translateX(15px);background:#fff}
 .s-prog{width:140px;height:4px;background:var(--surface2);border-radius:2px;overflow:hidden}
 .s-fill{height:100%;background:var(--accent);border-radius:2px;width:0%;transition:width .3s}
 
-.toast{position:fixed;top:70px;right:18px;z-index:300;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:11px 15px;font-size:13px;box-shadow:var(--shadow);transform:translateX(120%);opacity:0;transition:all .3s cubic-bezier(.34,1.56,.64,1);max-width:300px}
+/* TOAST */
+.toast{position:fixed;top:70px;right:18px;z-index:300;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:11px 15px;font-size:13px;box-shadow:var(--shadow);transform:translateX(120%);opacity:0;transition:all .3s cubic-bezier(.34,1.56,.64,1);max-width:280px}
 .toast.show{transform:translateX(0);opacity:1}
 .toast.success{border-color:rgba(46,204,138,0.4);color:var(--green)}
 .toast.error{border-color:rgba(255,77,109,0.4);color:var(--red)}
-.toast.info{border-color:rgba(245,135,31,0.3);color:var(--accent)}
+.toast.info{border-color:rgba(0,201,255,0.3);color:var(--accent)}
 .toast.gold{border-color:rgba(245,200,66,0.4);color:var(--gold)}
-/* === PROD SPOT FROM URL === */
-.prod-spot-card{background:var(--surface);border:1px solid rgba(245,135,31,0.25);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow)}
-.url-row{display:flex;gap:6px;margin-bottom:10px}
-.btn-extract{padding:9px 13px;background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;border-radius:9px;color:#fff;font-family:'Inter',sans-serif;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0;transition:opacity .2s}
-.btn-extract:hover{opacity:.85}.btn-extract:disabled{opacity:.5;cursor:not-allowed}
-.prod-preview{background:var(--bg2);border:1px solid rgba(245,135,31,0.2);border-radius:9px;padding:10px 12px;margin-bottom:10px}
-.pv-name{font-weight:700;font-size:13px;color:var(--text);margin-bottom:3px}
-.pv-price{color:var(--gold);font-weight:600;font-size:12px;margin-bottom:4px}
-.pv-desc{color:var(--text2);font-size:11px;line-height:1.5}
-.pv-source{font-size:10px;color:var(--text3);margin-top:4px}
-.spot-opts{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px}
-.field-lbl{display:block;font-size:10px;font-weight:700;letter-spacing:1px;color:var(--text3);text-transform:uppercase;margin-bottom:4px}
-.voice-list-wrap{background:var(--bg2);border:1px solid var(--border);border-radius:9px;padding:8px;margin-bottom:8px;max-height:200px;overflow-y:auto}
-.voice-list-wrap::-webkit-scrollbar{width:3px}.voice-list-wrap::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
-.voice-list-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
-.voice-list{display:flex;flex-direction:column;gap:4px}
-.voice-item{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:8px;background:var(--surface2);border:1px solid var(--border);cursor:pointer;transition:all .12s;font-size:12px}
-.voice-item:hover{border-color:var(--accent);background:var(--accent-glow)}
-.voice-item.selected{border-color:var(--accent);background:var(--accent-glow)}
-.voice-item.fav{border-color:rgba(245,200,66,0.25)}
-.vi-name{font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.vi-tags{display:flex;gap:3px;flex-shrink:0}
-.vtag{font-size:9px;font-weight:700;background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:1px 5px;color:var(--text3);text-transform:capitalize}
-.vi-fav{background:none;border:none;cursor:pointer;font-size:13px;flex-shrink:0;padding:2px 4px;transition:transform .15s}
-.vi-fav:hover{transform:scale(1.25)}
-.google-opts{background:var(--bg2);border:1px solid var(--border);border-radius:9px;padding:10px 12px;margin-bottom:8px}
-.g-sliders{display:grid;grid-template-columns:80px 1fr 36px;align-items:center;gap:4px 8px;margin-top:6px;font-size:11px;color:var(--text2)}
-.btn-sm{padding:5px 10px;border:1px solid var(--border);border-radius:7px;background:var(--surface2);color:var(--text2);font-size:11px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;transition:all .15s}
-.btn-sm:hover{border-color:var(--accent);color:var(--accent)}
-@media(max-width:900px){.app{grid-template-columns:1fr;padding:10px}.pl-card{grid-row:auto;max-height:260px}}
+@media(max-width:900px){.app{grid-template-columns:1fr;padding:12px}.pl-card{grid-row:auto;max-height:280px}}
 @keyframes dot-dance{from{height:4px}to{height:14px}}
 </style>
 </head>
 <body>
 <header>
   <div class="logo">
-    <img class="logo-img" src="https://cdn.shopify.com/s/files/1/0205/5752/9188/files/Logo-Terrapesca-01_205270e5-d546-4e33-a8d1-db0a91f1e554.png?v=1700262873" alt="Terrapesca" onerror="this.style.display='none'">
+    <div class="logo-icon">📻</div>
     <div class="logo-name">Terrapesca <span>Radio</span></div>
-    <span class="logo-badge">PANEL</span>
+    <span class="logo-badge">PANEL CONTROL</span>
   </div>
-  <div style="display:flex;align-items:center;gap:8px">
+  <div style="display:flex;align-items:center;gap:10px">
     <div class="ws-status connecting" id="wsStatus" onclick="openConfig()">
       <div class="ws-dot"></div>
       <span id="wsLabel">Conectando...</span>
@@ -266,9 +184,8 @@ input:checked+.slider:before{transform:translateX(15px);background:#fff}
 </header>
 
 <div class="app">
-  <div style="display:flex;flex-direction:column;gap:12px">
+  <div style="display:flex;flex-direction:column;gap:14px">
 
-    <!-- PLAYER -->
     <div class="player-card">
       <div class="player-hero">
         <div class="on-air">🔴 <span>Al aire</span></div>
@@ -305,13 +222,12 @@ input:checked+.slider:before{transform:translateX(15px);background:#fff}
         </div>
         <div class="clients-bar" id="clientsBar">
           <div class="client-dot"></div>
-          <span style="color:var(--text2)" id="clientCount">0 sucursales conectadas</span>
+          <span class="client-count" id="clientCount">0 sucursales conectadas</span>
+          <span style="margin-left:auto;font-size:11px;color:var(--text3)" id="clientList"></span>
         </div>
-        <button class="btn-mic" id="btnMic" onclick="toggleMic()">🎤 AL AIRE</button>
       </div>
     </div>
 
-    <!-- ADD SONG -->
     <div class="add-card">
       <div class="sec-lbl">+ Agregar canción</div>
       <div class="tabs">
@@ -334,284 +250,21 @@ input:checked+.slider:before{transform:translateX(15px);background:#fff}
       </div>
     </div>
 
-    <!-- INVENTORY + SPOT GENERATOR -->
     <div class="inv-card">
       <div class="sec-lbl">📦 Inventario para spots</div>
       <div class="inv-zone" onclick="document.getElementById('xlsF').click()">
         <div class="ic">📊</div>
-        <p>Sube catálogo Excel o <span>haz clic aquí</span></p>
-        <p style="font-size:10px;margin-top:2px;color:var(--text3)">Columnas: Producto, Precio, Stock</p>
+        <p>Sube tu Excel o <span>haz clic aquí</span></p>
+        <p style="font-size:11px;margin-top:3px;color:var(--text3)">Columnas: Producto, Precio</p>
         <input type="file" id="xlsF" accept=".xlsx,.xls,.csv" style="display:none" onchange="loadExcel(event)"/>
       </div>
       <div class="prod-list" id="prodList"></div>
-
-      <div>
-        <label style="font-size:10px;font-weight:700;letter-spacing:1px;color:var(--text3);text-transform:uppercase;display:block;margin-bottom:4px">📈 Reporte Ventas Dispro (opcional)</label>
-        <div class="inv-zone-sm" onclick="document.getElementById('disproF').click()">
-          <span>📊</span>
-          <span>Cargar reporte de ventas Dispro — <span style="color:var(--accent)">haz clic</span></span>
-          <input type="file" id="disproF" accept=".xlsx,.xls,.csv" style="display:none" onchange="loadSalesReport(event)"/>
-        </div>
-      </div>
-
-      <div style="margin-top:8px">
-        <label style="font-size:10px;font-weight:700;letter-spacing:1px;color:var(--text3);text-transform:uppercase;display:block;margin-bottom:4px">🎵 Mezcla de audio para spots</label>
-        <div class="inv-zone-sm" onclick="document.getElementById('bgMusicF').click()">
-          <span>🎵</span>
-          <span id="bgMusicLabel">Subir jingle o música de fondo — <span style="color:var(--accent)">haz clic</span></span>
-          <input type="file" id="bgMusicF" accept="audio/*" style="display:none" onchange="loadBgMusic(event)"/>
-        </div>
-        <div id="bgMusicControls" style="display:none;margin-top:8px;background:var(--bg2);border-radius:9px;padding:10px 12px;border:1px solid var(--border)">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:9px">
-            <span style="font-size:11px;color:var(--green);font-weight:500">🎵 <span id="bgMusicName"></span></span>
-            <button onclick="removeBgMusic()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:11px;padding:2px 6px;border-radius:5px;border:1px solid var(--border)">✕ Quitar</button>
-          </div>
-          <div style="display:grid;grid-template-columns:62px 1fr 34px;align-items:center;gap:5px 8px;font-size:11px;color:var(--text2)">
-            <span title="Volumen de la voz narrada">🎤 Voz</span>
-            <input type="range" id="voiceVolS" min="60" max="150" value="100" oninput="document.getElementById('voiceVolPct').textContent=this.value+'%'"/>
-            <span id="voiceVolPct" style="color:var(--text3);text-align:right;font-size:10px">100%</span>
-            <span title="Volumen música de fondo">🎵 Música</span>
-            <input type="range" id="bgVolS" min="5" max="65" value="25" oninput="document.getElementById('bgVolPct').textContent=this.value+'%'"/>
-            <span id="bgVolPct" style="color:var(--text3);text-align:right;font-size:10px">25%</span>
-          </div>
-          <div style="font-size:10px;color:var(--text3);margin-top:7px;display:flex;align-items:center;gap:5px">
-            <span style="width:7px;height:7px;background:var(--green);border-radius:50%;display:inline-block"></span>
-            Ducking automático — música baja cuando habla el locutor
-          </div>
-        </div>
-      </div>
-
-      <div class="auto-spot-row">
-        <span>Auto-spot</span>
-        <label class="toggle">
-          <input type="checkbox" id="chkAutoSpot" onchange="cfg.autoSpot=this.checked;localStorage.setItem('tp_autospot',this.checked);updateSpotCtr()">
-          <span class="slider"></span>
-        </label>
-        <select class="inp-sm" id="selSpotEvery" onchange="cfg.spotEvery=parseInt(this.value);localStorage.setItem('tp_spotevery',this.value);updateSpotCtr()">
-          <option value="2">cada 2</option>
-          <option value="3">cada 3</option>
-          <option value="4">cada 4</option>
-          <option value="5">cada 5</option>
-        </select>
-        <span>canciones</span>
-      </div>
-
-      <!-- Modo Cabina controls -->
-      <div class="cabina-controls" style="background:rgba(245,166,35,0.08);border:1px solid rgba(245,166,35,0.25);border-radius:10px;padding:12px;margin-bottom:10px">
-        <div style="font-size:11px;font-weight:700;color:#f5a623;margin-bottom:8px;letter-spacing:1px">🎙️ MODO CABINA</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
-          <div>
-            <div style="font-size:10px;color:#94a3b8;margin-bottom:3px">Locutores</div>
-            <select class="inp" id="cabinaLoc" style="font-size:11px;padding:5px 7px">
-              <option value="1">1 Locutor</option>
-              <option value="2" selected>2 Locutores ⭐</option>
-            </select>
-          </div>
-          <div>
-            <div style="font-size:10px;color:#94a3b8;margin-bottom:3px">Energía</div>
-            <select class="inp" id="cabinaEnergia" style="font-size:11px;padding:5px 7px">
-              <option value="relajado">Relajado</option>
-              <option value="medio" selected>Medio</option>
-              <option value="activo">Activo</option>
-            </select>
-          </div>
-          <div>
-            <div style="font-size:10px;color:#94a3b8;margin-bottom:3px">Tipo</div>
-            <select class="inp" id="cabinaTipo" style="font-size:11px;padding:5px 7px">
-              <option value="recomendacion" selected>Recomendación</option>
-              <option value="conversacion">Conversación</option>
-              <option value="dj">DJ Break</option>
-            </select>
-          </div>
-        </div>
-      </div>
       <button class="btn-spot" id="btnSpot" onclick="generateSpot()" disabled>
         🎙️ Generar spot con IA + ElevenLabs
       </button>
     </div>
-
-    <!-- SPOTS ESPECIALES -->
-    <div class="spots-card">
-      <div class="sec-lbl">📡 Spots especiales</div>
-      <div class="spots-grid">
-        <button class="btn-special" onclick="generateNewsSpot('bigfish')">
-          <span class="bs-icon">📰</span>
-          <span>Noticias Pesca</span>
-          <small>BigFish MX</small>
-        </button>
-        <button class="btn-special" onclick="generateNewsSpot('mareas')">
-          <span class="bs-icon">🌊</span>
-          <span>Tabla de Mareas</span>
-          <small>Sinaloa</small>
-        </button>
-        <button class="btn-special" id="btnFestivo" onclick="generateFestivoSpot()">
-          <span class="bs-icon">🎉</span>
-          <span>Spot Festivo</span>
-          <small id="festivoLabel">—</small>
-        </button>
-      </div>
-    </div>
-
-    <!-- DJ OVERLAY -->
-    <div class="dj-card">
-      <div class="sec-lbl">🎙️ DJ Overlay — encima de la canción</div>
-      <div class="dj-context">
-        <input class="inp" id="djSucursal" placeholder="Sucursal" style="font-size:12px;padding:7px 10px"/>
-        <select class="inp" id="djMomento" style="font-size:12px;padding:7px 10px">
-          <option value="mañana">☀️ Mañana</option>
-          <option value="tarde" selected>🌤 Tarde</option>
-          <option value="noche">🌙 Noche</option>
-        </select>
-        <select class="inp" id="djTipo" style="font-size:12px;padding:7px 10px">
-          <option value="transición">🔄 Transición</option>
-          <option value="ambientación" selected>🎵 Ambientación</option>
-          <option value="promo suave">📢 Promo suave</option>
-        </select>
-        <input class="inp" id="djProductos" placeholder="Productos (opcional)" style="font-size:12px;padding:7px 10px"/>
-      </div>
-      <input class="inp" id="djPromo" placeholder="Promo activa (opcional)" style="font-size:12px;padding:7px 10px;margin-bottom:6px;width:100%"/>
-      <button class="btn-dj" id="btnDJ" onclick="generateDJOverlay()">🎙️ Generar 3 variaciones DJ</button>
-      <div class="dj-status" id="djStatus"></div>
-      <div id="djVariaciones"></div>
-    </div>
-
-    <!-- SPOT DESDE ENLACE -->
-    <div class="prod-spot-card">
-      <div class="sec-lbl">🔗 Spot desde enlace de producto</div>
-      <div class="url-row">
-        <input class="inp" id="prodUrl" placeholder="https://terrapesca.com/products/..." style="font-size:12px;padding:8px 11px" oninput="clearProductPreview()" onblur="autoExtractProduct()"/>
-        <button class="btn-extract" id="btnExtract" onclick="extractProduct()">🔍 Extraer</button>
-      </div>
-      <div id="prodPreview" style="display:none" class="prod-preview">
-        <div class="pv-name" id="pvName"></div>
-        <div class="pv-price" id="pvPrice"></div>
-        <div class="pv-desc" id="pvDesc"></div>
-        <div class="pv-source" id="pvSource"></div>
-      </div>
-      <div class="spot-opts">
-        <div>
-          <span class="field-lbl">Estilo</span>
-          <select class="inp" id="prodStyle" style="font-size:12px;padding:7px 9px">
-            <option value="maxi">📻 Maxi Radio</option>
-            <option value="comercial">🎯 Comercial</option>
-            <option value="noticioso">📰 Noticioso</option>
-            <option value="urgente">🔥 Oferta urgente</option>
-            <option value="premium">✨ Premium</option>
-          </select>
-        </div>
-        <div>
-          <span class="field-lbl">Duración</span>
-          <select class="inp" id="prodDur" style="font-size:12px;padding:7px 9px">
-            <option value="15">⚡ 15 seg</option>
-            <option value="30" selected>🎙️ 30 seg</option>
-            <option value="45">🎚️ 45 seg</option>
-          </select>
-        </div>
-        <div>
-          <span class="field-lbl">Proveedor TTS</span>
-          <select class="inp" id="prodProvider" style="font-size:12px;padding:7px 9px" onchange="onProviderChange()">
-            <option value="elevenlabs">🎭 ElevenLabs</option>
-            <option value="google">🔵 Google TTS</option>
-          </select>
-        </div>
-        <div>
-          <span class="field-lbl">Voz</span>
-          <select class="inp" id="prodVoice" style="font-size:12px;padding:7px 9px">
-            <option value="auto">🤖 Auto según estilo</option>
-            <option value="male">👨 Masculina</option>
-            <option value="female">👩 Femenina</option>
-          </select>
-        </div>
-      </div>
-      <!-- ElevenLabs voice picker -->
-      <div id="elVoicePicker">
-        <div class="voice-list-hdr">
-          <span class="field-lbl" style="margin:0">Voces ElevenLabs disponibles</span>
-          <button class="btn-sm" onclick="loadELVoices()">↻ Cargar voces</button>
-        </div>
-        <div class="voice-list-wrap">
-          <div class="voice-list" id="elVoiceList">
-            <div style="font-size:11px;color:var(--text3);padding:8px;text-align:center">Haz clic en "↻ Cargar voces" para ver las disponibles</div>
-          </div>
-        </div>
-      </div>
-      <!-- Google TTS options -->
-      <div id="googleOptsProd" style="display:none" class="google-opts">
-        <div class="voice-list-hdr" style="margin-bottom:6px">
-          <span class="field-lbl" style="margin:0">Google TTS — Voces Latinoamericanas</span>
-          <button class="btn-sm" onclick="loadGoogleVoices()">↻ Actualizar voces</button>
-        </div>
-        <select class="inp" id="googleVoiceSel" style="font-size:12px;padding:7px 9px;margin-bottom:6px">
-          <option value="es-US-Neural2-B">es-US-Neural2-B — Masculina Neural ⭐</option>
-          <option value="es-US-Neural2-A">es-US-Neural2-A — Femenina Neural ⭐</option>
-          <option value="es-US-Neural2-C">es-US-Neural2-C — Femenina Neural alt</option>
-          <option value="es-US-Neural2-D">es-US-Neural2-D — Masculina Neural alt</option>
-          <option value="es-US-Chirp3-HD-Charon">es-US-Chirp3-HD-Charon — Masculina Chirp HD</option>
-          <option value="es-US-Chirp3-HD-Aoede">es-US-Chirp3-HD-Aoede — Femenina Chirp HD</option>
-          <option value="es-US-Wavenet-B">es-US-Wavenet-B — Masculina WaveNet</option>
-          <option value="es-US-Wavenet-A">es-US-Wavenet-A — Femenina WaveNet</option>
-          <option value="es-US-Standard-B">es-US-Standard-B — Masculina estándar</option>
-          <option value="es-US-Standard-A">es-US-Standard-A — Femenina estándar</option>
-        </select>
-        <div class="g-sliders">
-          <span>Velocidad <b id="gRateV">1.00</b></span>
-          <input type="range" min="0.85" max="1.15" step="0.01" value="1.0" id="gRateS" oninput="document.getElementById('gRateV').textContent=parseFloat(this.value).toFixed(2)"/>
-          <span></span>
-          <span>Pitch <b id="gPitchV">0.0</b></span>
-          <input type="range" min="-3" max="3" step="0.1" value="0" id="gPitchS" oninput="document.getElementById('gPitchV').textContent=parseFloat(this.value).toFixed(1)"/>
-          <span></span>
-        </div>
-        <div style="font-size:10px;color:var(--text3);margin-top:6px">💡 Requiere <code>credentials/google-tts.json</code> en el servidor (ver LEEME.md)</div>
-      </div>
-      <!-- Modo Cabina controls — Producto -->
-      <div class="cabina-controls" style="background:rgba(245,166,35,0.08);border:1px solid rgba(245,166,35,0.25);border-radius:10px;padding:12px;margin-bottom:10px">
-        <div style="font-size:11px;font-weight:700;color:#f5a623;margin-bottom:8px;letter-spacing:1px">🎙️ MODO CABINA</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
-          <div>
-            <div style="font-size:10px;color:#94a3b8;margin-bottom:3px">Locutores</div>
-            <select class="inp" id="cabinaLocProd" style="font-size:11px;padding:5px 7px">
-              <option value="1">1 Locutor</option>
-              <option value="2" selected>2 Locutores ⭐</option>
-            </select>
-          </div>
-          <div>
-            <div style="font-size:10px;color:#94a3b8;margin-bottom:3px">Energía</div>
-            <select class="inp" id="cabinaEnergiaProd" style="font-size:11px;padding:5px 7px">
-              <option value="relajado">Relajado</option>
-              <option value="medio" selected>Medio</option>
-              <option value="activo">Activo</option>
-            </select>
-          </div>
-          <div>
-            <div style="font-size:10px;color:#94a3b8;margin-bottom:3px">Tipo</div>
-            <select class="inp" id="cabinaTipoProd" style="font-size:11px;padding:5px 7px">
-              <option value="recomendacion" selected>Recomendación</option>
-              <option value="conversacion">Conversación</option>
-              <option value="dj">DJ Break</option>
-            </select>
-          </div>
-        </div>
-      </div>
-      <button class="btn-spot" id="btnProdSpot" onclick="generateProductSpot()" disabled>
-        🎙️ Generar spot desde producto
-      </button>
-    </div>
-
-    <!-- HISTORIAL -->
-    <div class="hist-card">
-      <div class="hist-hdr" onclick="toggleHist()">
-        <div class="sec-lbl" style="margin:0">📼 Historial de spots <span class="pl-cnt" id="histCount" style="margin-left:6px">0</span></div>
-        <span id="histChev" style="font-size:13px;color:var(--text3)">▼</span>
-      </div>
-      <div class="hist-body" id="histBody" style="display:none">
-        <div class="hist-list" id="histList"></div>
-        <button onclick="clearHistorial()" style="width:100%;margin-top:6px;padding:6px;background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--text3);font-size:11px;cursor:pointer;font-family:'Inter',sans-serif">🗑 Limpiar historial</button>
-      </div>
-    </div>
-
   </div>
 
-  <!-- PLAYLIST -->
   <div class="pl-card">
     <div class="pl-hdr">
       <div class="sec-lbl" style="margin:0">Playlist</div>
@@ -629,58 +282,32 @@ input:checked+.slider:before{transform:translateX(15px);background:#fff}
   <div class="s-prog"><div class="s-fill" id="sFill"></div></div>
 </div>
 
-<!-- CONFIG MODAL -->
 <div class="modal-overlay" id="cfgModal">
   <div class="modal">
     <h3>⚙️ Configuración</h3>
-    <p class="sub">Conecta el servidor y configura tus API Keys</p>
+    <p class="sub">Configura la conexión al servidor y ElevenLabs</p>
     <div class="field">
       <label>URL del servidor (Railway)</label>
       <input class="inp" id="cfgWs" placeholder="wss://tu-app.railway.app"/>
     </div>
     <div class="field">
-      <label>API Key de Claude (Anthropic)</label>
-      <input class="inp" id="cfgClaude" placeholder="sk-ant-api03-..." type="password"/>
-    </div>
-    <div class="field">
       <label>API Key de ElevenLabs</label>
-      <input class="inp" id="cfgEl" placeholder="e1fb89..." type="password"/>
+      <input class="inp" id="cfgEl" placeholder="sk_xxxxxxxxxxxxxxxx" type="password"/>
     </div>
     <div class="field">
-      <label>Voz ElevenLabs</label>
-      <select class="inp" id="cfgVoice">
-        <option value="pNInz6obpgDQGcFmaJgB">Adam — Masculina (Estándar)</option>
-        <option value="TxGEqnHWrfWFTfGW9XjX">Josh — Locutor</option>
-        <option value="VR6AewLTigWG4xSOukaG">Arnold — Voz grave</option>
-        <option value="21m00Tcm4TlvDq8ikWAM">Rachel — Femenina (Estándar)</option>
-        <option value="AZnzlk1XvdvUeBnXmlld">Domi — Dinámica</option>
-        <option value="EXAVITQu4vr4xnSDxMaL">Bella — Suave</option>
-        <option value="yoZ06aMxZJJ28mfd3POQ">Sam — Masculina suave</option>
-      </select>
+      <label>Voz del spot</label>
+      <div class="field-row">
+        <button class="btn-m" id="vB1" onclick="selVoice('male')">🎙️ Masculina</button>
+        <button class="btn-m" id="vB2" onclick="selVoice('female')">🎤 Femenina</button>
+      </div>
     </div>
     <div class="field">
       <label>Eslogan de la radio</label>
-      <input class="inp" id="cfgSl" placeholder="La estación oficial de Terrapesca"/>
+      <input class="inp" id="cfgSl" value="La estación oficial de Terrapesca"/>
     </div>
-    <div class="field-row" style="margin-top:16px">
+    <div class="field-row" style="margin-top:18px">
       <button class="btn-m" onclick="closeConfig()">Cancelar</button>
       <button class="btn-m primary" onclick="saveConfig()">Guardar y conectar</button>
-    </div>
-  </div>
-</div>
-
-<!-- SCRIPT MODAL -->
-<div class="modal-overlay" id="scriptModal">
-  <div class="modal" style="max-width:460px">
-    <h3>📝 Guión generado por IA</h3>
-    <p class="sub">Texto que narrará ElevenLabs en el spot</p>
-    <div class="script-box" id="scriptText"></div>
-    <div id="scriptDlRow" style="display:none;margin-top:10px;padding:10px 12px;background:rgba(46,204,138,0.06);border:1px solid rgba(46,204,138,0.2);border-radius:9px;align-items:center;justify-content:space-between;font-size:12px">
-      <span style="color:var(--green)">✅ Audio listo</span>
-      <button class="btn-m" style="padding:6px 14px;font-size:12px" onclick="downloadLastSpot()">⬇ Descargar audio</button>
-    </div>
-    <div class="field-row" style="margin-top:14px">
-      <button class="btn-m primary" onclick="closeScript()">Cerrar</button>
     </div>
   </div>
 </div>
@@ -688,376 +315,88 @@ input:checked+.slider:before{transform:translateX(15px);background:#fff}
 <div class="toast" id="toast"></div>
 <script src="https://www.youtube.com/iframe_api"></script>
 <script>
-// === CONSTANTS ===
-const VOCES = [
-  {id:'pNInz6obpgDQGcFmaJgB',name:'Adam'},
-  {id:'TxGEqnHWrfWFTfGW9XjX',name:'Josh'},
-  {id:'VR6AewLTigWG4xSOukaG',name:'Arnold'},
-  {id:'21m00Tcm4TlvDq8ikWAM',name:'Rachel'},
-  {id:'AZnzlk1XvdvUeBnXmlld',name:'Domi'},
-  {id:'EXAVITQu4vr4xnSDxMaL',name:'Bella'},
-  {id:'yoZ06aMxZJJ28mfd3POQ',name:'Sam'},
-];
-const FESTIVOS = [
-  {mes:1,dia:1,nombre:'Año Nuevo',tip:'artículos de temporada, planes de pesca para el año'},
-  {mes:2,dia:14,nombre:'San Valentín',tip:'experiencias en pareja, accesorios, combos especiales'},
-  {mes:4,dia:30,nombre:'Día del Niño',tip:'calzado acuático, combos infantiles, visores, gorras, lentes de sol'},
-  {mes:5,dia:10,nombre:'Día de la Madre',tip:'sets de regalo, accesorios finos, experiencias de pesca'},
-  {mes:9,dia:16,nombre:'Independencia',tip:'descuentos especiales, promociones patrióticas'},
-  {mes:11,dia:2,nombre:'Día de Muertos',tip:'temporada de otoño, equipos especiales'},
-  {mes:12,dia:12,nombre:'Guadalupe-Reyes',tip:'kits de regalo, combos navideños, equipos completos'},
-  {mes:12,dia:25,nombre:'Navidad',tip:'regalos especiales, kits de pesca, combos familiares'},
-];
-
-// === PROMPT VARIANTS — 3 styles per spot type ===
-const PROMPT_VARIANTS = {
-
-  // ── SPOT COMERCIAL ──────────────────────────────────────────────────────────
-  comercial: [
-    // V1: Experiencia sensorial — arranca con el momento, no el producto
-    (promo, festivoCtx, slogan) =>
-`Eres el locutor estrella de Terrapesca Radio FM, México. Escribe un spot de radio de EXACTAMENTE 30 segundos para Terrapesca.
-
-Productos: ${promo}${festivoCtx}
-Eslogan: "${slogan}"
-
-ESTILO — Arranca en el MOMENTO (sensación, imagen visual):
-Empieza con 2-3 palabras que ubiquen al oyente en acción: el anzuelo, el agua, la madrugada, el barco. Luego entra al producto de golpe. Alterna frases MUY cortas (3-4 palabras) con una frase más larga para dar ritmo de locutor. Palabras en MAYÚSCULAS donde necesites énfasis vocal. Termina con el eslogan integrado en la última oración, no como etiqueta aparte.
-
-PARA QUE SUENE NATURAL en TTS: usa comas (,) para pausas cortas, puntos (...) para pausas dramáticas, MAYÚSCULAS para énfasis. 65-75 palabras.
-
-PROHIBIDO comenzar con: "Atención", "Hola", "Si buscas", "¿Buscas", "Buenos", "En Terrapesca", "Ven a", el nombre de la tienda.
-ENTREGA: solo el texto del spot. Sin comillas. Sin encabezado. Sin notas.`,
-
-    // V2: Voz del pescador — "tú" directo, prueba social sinaloense
-    (promo, festivoCtx, slogan) =>
-`Eres el locutor estrella de Terrapesca Radio FM, México. Escribe un spot de radio de EXACTAMENTE 30 segundos para Terrapesca.
-
-Productos: ${promo}${festivoCtx}
-Eslogan: "${slogan}"
-
-ESTILO — Habla directo al pescador (tuteo coloquial sinaloense):
-Empieza como si hablaras con alguien que ya conoce el tema — no expliques, comenta. Usa "tú sabes", "ya lo saben", referencias a Sinaloa, Mazatlán, la temporada. Menciona el producto y precio de forma natural, como lo haría un amigo experto. Ritmo conversacional pero con energía de radio. Cierra con el eslogan dentro de la última frase, no al final suelto.
-
-PARA QUE SUENE NATURAL en TTS: comas para pausas, MAYÚSCULAS para énfasis, frases de longitud variada. 65-75 palabras.
-
-PROHIBIDO comenzar con: "Atención", "Hola", "Si buscas", introducciones corporativas genéricas.
-ENTREGA: solo el texto del spot. Sin comillas. Sin encabezado. Sin notas.`,
-
-    // V3: Golpe de número o pregunta — impacto inmediato
-    (promo, festivoCtx, slogan) =>
-`Eres el locutor estrella de Terrapesca Radio FM, México. Escribe un spot de radio de EXACTAMENTE 30 segundos para Terrapesca.
-
-Productos: ${promo}${festivoCtx}
-Eslogan: "${slogan}"
-
-ESTILO — Arranca con un DATO, PRECIO o PREGUNTA de golpe:
-Primera frase: un número sorprendente, un precio específico, o una pregunta que no tiene respuesta obvia. Sin preámbulo. Después: frases cortísimas seguidas de una más larga (ritmo 3-3-8 palabras). Usa puntos suspensivos (...) para pausa dramática en el momento de mayor tensión. El eslogan como cierre de impacto, no como despedida educada.
-
-PARA QUE SUENE NATURAL en TTS: comas, puntos, MAYÚSCULAS para énfasis. 65-75 palabras.
-
-PROHIBIDO: cualquier intro blanda. La primera palabra debe ser el dato o la pregunta.
-ENTREGA: solo el texto del spot. Sin comillas. Sin encabezado. Sin notas.`,
-  ],
-
-  // ── SPOT FESTIVO ────────────────────────────────────────────────────────────
-  festivo: [
-    // V1: Celebración con urgencia
-    (promo, festNombre, festTip, slogan) =>
-`Eres el locutor estrella de Terrapesca Radio FM, México. Escribe un spot festivo de EXACTAMENTE 30 segundos para Terrapesca.
-
-Fecha especial: ${festNombre}
-Productos ideales: ${promo}
-Ideas temáticas: ${festTip}
-Eslogan: "${slogan}"
-
-ESTILO — Celebración urgente:
-Abre con la fecha especial de forma inesperada — no como saludo, sino como contexto de oportunidad. Conecta la festividad directamente con los productos sin forzarlo. Transmite urgencia emocional, no de oferta. Frases cortas con energía festiva. Cierra con el eslogan tejido en la última oración.
-
-PARA TTS: comas, MAYÚSCULAS, puntos suspensivos (...) para efecto. 65-75 palabras.
-PROHIBIDO: "Atención", intros genéricas, empezar con el nombre de la tienda.
-ENTREGA: solo el texto. Sin comillas. Sin notas.`,
-
-    // V2: Desde la perspectiva del regalo/detalle
-    (promo, festNombre, festTip, slogan) =>
-`Eres el locutor estrella de Terrapesca Radio FM, México. Escribe un spot festivo de EXACTAMENTE 30 segundos para Terrapesca.
-
-Fecha especial: ${festNombre}
-Productos ideales: ${promo}
-Ideas temáticas: ${festTip}
-Eslogan: "${slogan}"
-
-ESTILO — Ángulo del regalo o el detalle especial:
-Empieza desde la perspectiva de quien va a dar o recibir — sin nombrar la tienda primero. Crea una imagen mental del momento (quién lo recibe, cómo reacciona). Los productos son el puente. Ritmo emotivo pero rápido, no sentimental al exceso. El eslogan integrado al cierre, no pegado al final.
-
-PARA TTS: comas, MAYÚSCULAS para énfasis, variación de longitud de frases. 65-75 palabras.
-PROHIBIDO: "Atención", "Hola", "Si buscas", aperturas corporativas.
-ENTREGA: solo el texto. Sin comillas. Sin notas.`,
-
-    // V3: Cuenta regresiva / urgencia de temporada
-    (promo, festNombre, festTip, slogan) =>
-`Eres el locutor estrella de Terrapesca Radio FM, México. Escribe un spot festivo de EXACTAMENTE 30 segundos para Terrapesca.
-
-Fecha especial: ${festNombre}
-Productos ideales: ${promo}
-Ideas temáticas: ${festTip}
-Eslogan: "${slogan}"
-
-ESTILO — Urgencia de temporada:
-Abre con un sentido de tiempo que se acaba — la fecha está cerca, la oportunidad es ahora. No de oferta, sino de momento que no se repite. Los productos son la solución perfecta para ese momento. Ritmo acelerado con una pausa dramática (...) antes del cierre. El eslogan como remate final de impacto.
-
-PARA TTS: comas, MAYÚSCULAS, puntos suspensivos para dramatismo. 65-75 palabras.
-PROHIBIDO: "Atención", aperturas blandas.
-ENTREGA: solo el texto. Sin comillas. Sin notas.`,
-  ],
-
-  // ── SPOT BIGFISH (NOTICIAS DE PESCA) ────────────────────────────────────────
-  bigfish: [
-    // V1: Flash urgente estilo noticiero
-    (titulos, fecha, slogan) =>
-`Eres el locutor de noticias de Terrapesca Radio FM. Escribe un flash informativo de EXACTAMENTE 30 segundos sobre pesca en México.
-
-Fecha: ${fecha} | Fuente: BigFish MX
-Noticias:
-${titulos}
-
-ESTILO — Flash urgente de noticiero de radio:
-Arranca con la noticia MÁS impactante como si fuera breaking news — sin introducción. Presenta 2-3 noticias brevemente con ritmo de despacho informativo. Frases cortas tipo telegrama. Termina con un comentario local sinaloense y el eslogan: "${slogan}"
-
-PARA TTS: comas para respirar, MAYÚSCULAS para énfasis, puntos para cortes limpios. 65-75 palabras.
-PROHIBIDO: "Atención", "Buenos días", "Hola", cualquier apertura que no sea la noticia misma.
-ENTREGA: solo el texto. Sin comillas. Sin encabezado.`,
-
-    // V2: Tips del día para el pescador
-    (titulos, fecha, slogan) =>
-`Eres el locutor de noticias de Terrapesca Radio FM. Escribe un flash informativo de EXACTAMENTE 30 segundos sobre pesca en México.
-
-Fecha: ${fecha} | Fuente: BigFish MX
-Noticias:
-${titulos}
-
-ESTILO — Consejos prácticos del experto local:
-Empieza como alguien que comparte información valiosa sin preámbulos — "Lo que necesitas saber hoy..." o similar pero directo. Convierte cada noticia en un tip útil para el pescador sinaloense. Tono de experto amigable que habla de igual a igual. Cierra con el eslogan: "${slogan}"
-
-PARA TTS: comas para pausas naturales, MAYÚSCULAS para énfasis, frases de longitud variada. 65-75 palabras.
-PROHIBIDO: "Atención", "Hola", aperturas genéricas.
-ENTREGA: solo el texto. Sin comillas. Sin encabezado.`,
-
-    // V3: Narrativa local conectada a Sinaloa
-    (titulos, fecha, slogan) =>
-`Eres el locutor de noticias de Terrapesca Radio FM. Escribe un flash informativo de EXACTAMENTE 30 segundos sobre pesca en México.
-
-Fecha: ${fecha} | Fuente: BigFish MX
-Noticias:
-${titulos}
-
-ESTILO — Narrativa local con impacto sinaloense:
-Empieza situando al oyente en contexto sinaloense — qué significa esta noticia para los pescadores de Mazatlán, Topolobampo o Altata. Conecta las noticias nacionales con el día a día local. Lenguaje coloquial con autoridad informativa. Cierra con el eslogan: "${slogan}"
-
-PARA TTS: comas, MAYÚSCULAS para énfasis, puntos para cortes. 65-75 palabras.
-PROHIBIDO: "Atención", "Hola", aperturas corporativas.
-ENTREGA: solo el texto. Sin comillas. Sin encabezado.`,
-  ],
-
-  // ── SPOT MAREAS ─────────────────────────────────────────────────────────────
-  mareas: [
-    // V1: Alerta de boletín — datos primero
-    (tabla, fecha, slogan) =>
-`Eres el locutor de Terrapesca Radio FM. Escribe el boletín de mareas de EXACTAMENTE 30 segundos para pescadores sinaloenses.
-
-Mareas — ${fecha}:
-${tabla}
-
-ESTILO — Boletín de alerta, datos al frente:
-Arranca DIRECTAMENTE con el horario más importante del día — sin presentación. Formato compacto de noticiero: hora, zona, altura. Menciona Mazatlán, Topolobampo o Altata según los datos. Dos o tres mareas clave. Cierra con consejo breve de pesca y el eslogan: "${slogan}"
-
-PARA TTS: comas entre datos, MAYÚSCULAS para énfasis horario, ritmo rápido. 65-75 palabras.
-PROHIBIDO: "Atención", "Buenos días", cualquier apertura que no sea el dato inmediato.
-ENTREGA: solo el texto. Sin comillas.`,
-
-    // V2: Guía práctica del pescador
-    (tabla, fecha, slogan) =>
-`Eres el locutor de Terrapesca Radio FM. Escribe el boletín de mareas de EXACTAMENTE 30 segundos para pescadores sinaloenses.
-
-Mareas — ${fecha}:
-${tabla}
-
-ESTILO — Guía práctica, voz de experto:
-Empieza con una recomendación concreta: cuándo salir, cuándo esperar. Convierte los datos de marea en acción práctica — no solo leas la tabla, interpreta qué significa para la pesca del día. Incluye una mención de zona específica. Cierra con el eslogan: "${slogan}"
-
-PARA TTS: comas para pausas naturales, MAYÚSCULAS para horas o zonas clave. 65-75 palabras.
-PROHIBIDO: Aperturas genéricas, "Atención", "Hola".
-ENTREGA: solo el texto. Sin comillas.`,
-
-    // V3: Historia del día en el agua
-    (tabla, fecha, slogan) =>
-`Eres el locutor de Terrapesca Radio FM. Escribe el boletín de mareas de EXACTAMENTE 30 segundos para pescadores sinaloenses.
-
-Mareas — ${fecha}:
-${tabla}
-
-ESTILO — Narrativa del pescador que conoce el agua:
-Empieza describiendo el momento del día ("Con el sol todavía bajo...", "Esta madrugada en Sinaloa..."). Convierte los datos en una historia práctica — el pescador entiende el mar a través de imágenes, no de tablas. Coloquial pero preciso. Cierra con el eslogan: "${slogan}"
-
-PARA TTS: frases de longitud variada, comas para respirar, MAYÚSCULAS para énfasis. 65-75 palabras.
-PROHIBIDO: "Atención", aperturas corporativas, empezar con "La tabla de mareas".
-ENTREGA: solo el texto. Sin comillas.`,
-  ],
-
-  // ── DJ OVERLAY (7–12 s, encima de la canción) ────────────────────────────
-  djOverlay: [
-    (ctx) =>
-`Eres el locutor de Terrapesca Radio FM, cabina FM mexicana. Genera 3 variaciones de intervención de DJ que suena ENCIMA de la música actual (overlay).
-
-CONTEXTO:
-Sucursal: ${ctx.sucursal||'Terrapesca'}
-Momento del día: ${ctx.momento}
-Tipo de intervención: ${ctx.tipo}
-${ctx.productos?`Productos: ${ctx.productos}`:''}
-${ctx.promo?`Promo activa: ${ctx.promo}`:''}
-
-REGLAS:
-- 7–12 segundos de voz = 18–28 palabras por versión
-- 2–4 frases; CADA frase en su propia línea (pausa natural entre frases)
-- Español mexicano, energía media-alta controlada, tono cabina FM real
-- NO saludar, NO explicar, NO muletillas — entra directo
-- Mención de producto/promo en 1 frase máximo si aplica
-- Cierre corto con energía
-
-FORMATO EXACTO (sin texto adicional, sin títulos extra):
-
-VAR1
-[M]
-línea 1
-línea 2
-línea 3
-[F]
-línea 1
-línea 2
-línea 3
-
-VAR2
-[M]
-línea 1
-línea 2
-[F]
-línea 1
-línea 2
-
-VAR3
-[M]
-línea 1
-línea 2
-línea 3
-[F]
-línea 1
-línea 2
-línea 3`
-  ],
-};
-
-// === CONFIG ===
-const AUTO_WS = (location.protocol==='https:'?'wss://':'ws://')+location.host;
-const DEFAULT_EL = 'e1fb89174588c75eccc1d4c7da403f66e0279f5e33586ab9183ba595d9e6d996';
+// CONFIG
 let cfg = {
-  ws: localStorage.getItem('tp_ws') || AUTO_WS,
-  claudeKey: localStorage.getItem('tp_claude') || '',
-  elKey: localStorage.getItem('tp_el') || DEFAULT_EL,
-  voice: localStorage.getItem('tp_voice') || 'pNInz6obpgDQGcFmaJgB',
-  slogan: localStorage.getItem('tp_slogan') || 'La estación oficial de Terrapesca',
-  autoSpot: localStorage.getItem('tp_autospot') !== 'false',
-  spotEvery: parseInt(localStorage.getItem('tp_spotevery') || '3'),
+  ws: localStorage.getItem('tp_ws') || '',
+  apiKey: localStorage.getItem('tp_el') || '',
+  voice: localStorage.getItem('tp_voice') || 'male',
+  slogan: localStorage.getItem('tp_slogan') || 'La estación oficial de Terrapesca'
 };
+let selV = cfg.voice;
 
-// === STATE ===
+// STATE
 let playlist=[],curIdx=-1,isPlaying=false,isShuffle=false,isRepeat=false;
 let songsSinceSpot=0;
-let products=[],salesData=[];
+const SPOT_EVERY=3;
+let products=[];
 let ytPlayer=null,ytReady=false,audioEl=null,progInt=null;
 let ws=null,wsConnected=false;
-let micRecorder=null,micStream=null,micActive=false;
-let spotGenerating=false;
-let bgMusicFile=null,bgMusicName='';
-let lastSpot={b64:null,nombre:'spot-terrapesca'};
-// DJ Overlay
-let overlayCtx=null,musicGainNode=null,currentMediaSrc=null;
-let overlayActive=false,djGenerating=false;
-let djVariations=[]; // [{m,f,mAudio,fAudio}]
 
-// === WEBSOCKET ===
-function connectWS(){
-  if(!cfg.ws)return;
-  const url=cfg.ws.replace(/^http/,'ws');
-  try{
-    ws=new WebSocket(url);
+// ---- WEBSOCKET ----
+function connectWS() {
+  if (!cfg.ws) return;
+  const url = cfg.ws.replace(/^http/, 'ws');
+  try {
+    ws = new WebSocket(url);
     setWSStatus('connecting','Conectando...');
-    ws.onopen=()=>{wsConnected=true;setWSStatus('connected','Conectado');showToast('✅ Servidor conectado','success')};
-    ws.onclose=()=>{wsConnected=false;setWSStatus('error','Sin conexión');setTimeout(connectWS,5000)};
-    ws.onerror=()=>setWSStatus('error','Error de conexión');
-    ws.onmessage=(e)=>{
-      try{
-        const msg=JSON.parse(e.data);
-        if(msg.type==='CLIENT_COUNT')document.getElementById('clientCount').textContent=msg.count+' sucursal'+(msg.count!==1?'es':'')+' conectada'+(msg.count!==1?'s':'');
-      }catch(err){}
+    ws.onopen = () => {
+      wsConnected = true;
+      setWSStatus('connected', 'Conectado');
+      showToast('✅ Servidor conectado','success');
     };
-  }catch(e){setWSStatus('error','URL inválida')}
+    ws.onclose = () => {
+      wsConnected = false;
+      setWSStatus('error','Sin conexión');
+      setTimeout(connectWS, 5000);
+    };
+    ws.onerror = () => setWSStatus('error','Error de conexión');
+    ws.onmessage = (e) => {
+      try {
+        const msg = JSON.parse(e.data);
+        if (msg.type === 'SYNC') {
+          document.getElementById('clientCount').textContent = (ws ? 1 : 0) + ' sucursales conectadas';
+        }
+      } catch(err){}
+    };
+  } catch(e) { setWSStatus('error','URL inválida'); }
 }
-function setWSStatus(state,label){
-  const el=document.getElementById('wsStatus');
-  el.className='ws-status '+state;
-  document.getElementById('wsLabel').textContent=label;
+function setWSStatus(state, label) {
+  const el = document.getElementById('wsStatus');
+  el.className = 'ws-status ' + state;
+  document.getElementById('wsLabel').textContent = label;
 }
-function sendWS(data){
-  if(ws&&ws.readyState===WebSocket.OPEN)ws.send(JSON.stringify(data));
-}
-function getHttpBase(){
-  if(cfg.ws)return cfg.ws.replace(/^ws:/,'http:').replace(/^wss:/,'https:').split('/').slice(0,3).join('/');
-  // Fallback: same origin (works when panel is served by the Railway/Node server)
-  return window.location.origin;
+function sendWS(data) {
+  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(data));
 }
 
-// === CONFIG MODAL ===
-function openConfig(){
-  document.getElementById('cfgWs').value=cfg.ws||AUTO_WS;
-  document.getElementById('cfgClaude').value=cfg.claudeKey;
-  document.getElementById('cfgEl').value=cfg.elKey||DEFAULT_EL;
-  document.getElementById('cfgVoice').value=cfg.voice;
-  document.getElementById('cfgSl').value=cfg.slogan;
+// ---- CONFIG ----
+function openConfig() {
+  document.getElementById('cfgWs').value = cfg.ws;
+  document.getElementById('cfgEl').value = cfg.apiKey;
+  document.getElementById('cfgSl').value = cfg.slogan;
+  selV = cfg.voice; refreshVBtns();
   document.getElementById('cfgModal').classList.add('open');
 }
-function closeConfig(){document.getElementById('cfgModal').classList.remove('open')}
-function saveConfig(){
+function closeConfig() { document.getElementById('cfgModal').classList.remove('open'); }
+function selVoice(v) { selV=v; refreshVBtns(); }
+function refreshVBtns() {
+  ['male','female'].forEach((v,i)=>{
+    const b=document.getElementById('vB'+(i+1));
+    b.style.borderColor=selV===v?'var(--accent)':'var(--border)';
+    b.style.color=selV===v?'var(--accent)':'var(--text2)';
+  });
+}
+function saveConfig() {
   cfg.ws=document.getElementById('cfgWs').value.trim();
-  cfg.claudeKey=document.getElementById('cfgClaude').value.trim();
-  cfg.elKey=document.getElementById('cfgEl').value.trim();
-  cfg.voice=document.getElementById('cfgVoice').value;
-  cfg.slogan=document.getElementById('cfgSl').value.trim()||'La estación oficial de Terrapesca';
-  localStorage.setItem('tp_ws',cfg.ws);
-  localStorage.setItem('tp_claude',cfg.claudeKey);
-  localStorage.setItem('tp_el',cfg.elKey);
-  localStorage.setItem('tp_voice',cfg.voice);
-  localStorage.setItem('tp_slogan',cfg.slogan);
-  closeConfig();connectWS();
+  cfg.apiKey=document.getElementById('cfgEl').value.trim();
+  cfg.voice=selV; cfg.slogan=document.getElementById('cfgSl').value.trim();
+  localStorage.setItem('tp_ws',cfg.ws);localStorage.setItem('tp_el',cfg.apiKey);
+  localStorage.setItem('tp_voice',cfg.voice);localStorage.setItem('tp_slogan',cfg.slogan);
+  closeConfig(); connectWS();
   showToast('✅ Configuración guardada','success');
 }
-function closeScript(){document.getElementById('scriptModal').classList.remove('open')}
-function showGeneratedScript(script){
-  document.getElementById('scriptText').textContent=script;
-  // Hide download row until audio is ready
-  const dlRow=document.getElementById('scriptDlRow');
-  if(dlRow)dlRow.style.display='none';
-  document.getElementById('scriptModal').classList.add('open');
-}
-function markScriptAudioReady(b64,nombre){
-  lastSpot={b64,nombre};
-  const dlRow=document.getElementById('scriptDlRow');
-  if(dlRow)dlRow.style.display='flex';
-}
-function downloadLastSpot(){
-  downloadAudio(lastSpot.b64,lastSpot.nombre);
-}
 
-// === YOUTUBE ===
+// ---- YOUTUBE ----
 function onYouTubeIframeAPIReady(){
   ytPlayer=new YT.Player('yt-player',{
     height:'100%',width:'100%',
@@ -1074,7 +413,7 @@ function onYouTubeIframeAPIReady(){
 }
 function getYTId(u){const m=u.match(/(?:youtu\.be\/|v=|\/embed\/)([A-Za-z0-9_-]{11})/);return m?m[1]:null}
 
-// === TRACKS ===
+// ---- TRACKS ----
 function switchTab(t){
   document.getElementById('tabYT').classList.toggle('active',t==='yt');
   document.getElementById('tabMP3').classList.toggle('active',t==='mp3');
@@ -1085,11 +424,11 @@ function addYT(){
   const url=document.getElementById('ytU').value.trim();
   const name=document.getElementById('ytN').value.trim();
   if(!url){showToast('⚠️ Ingresa un link','error');return}
-  const id=getYTId(url);if(!id){showToast('❌ Link no válido','error');return}
+  const id=getYTId(url); if(!id){showToast('❌ Link no válido','error');return}
   const n=name||'YouTube '+(playlist.filter(t=>t.type!=='spot').length+1);
   playlist.push({type:'yt',name:n,ytId:id});
   document.getElementById('ytU').value='';document.getElementById('ytN').value='';
-  renderPlaylist();sendWS({type:'PLAYLIST_UPDATE',playlist:getPublicPlaylist()});
+  renderPlaylist(); sendWS({type:'PLAYLIST_UPDATE',playlist:getPublicPlaylist()});
   showToast('🎵 Canción agregada','success');
   if(curIdx===-1)playTrack(0);
 }
@@ -1101,7 +440,7 @@ function addMP3(){
   const n=name||file.name.replace(/\.[^/.]+$/,'');
   playlist.push({type:'mp3',name:n,url});
   document.getElementById('mp3F').value='';document.getElementById('mp3N').value='';
-  renderPlaylist();sendWS({type:'PLAYLIST_UPDATE',playlist:getPublicPlaylist()});
+  renderPlaylist(); sendWS({type:'PLAYLIST_UPDATE',playlist:getPublicPlaylist()});
   showToast('🎵 Canción agregada','success');
   if(curIdx===-1)playTrack(0);
 }
@@ -1115,7 +454,7 @@ function getPublicPlaylist(){
   return playlist.map(t=>({type:t.type,name:t.name,ytId:t.ytId||null}));
 }
 
-// === EXCEL CATALOG ===
+// ---- EXCEL ----
 function loadExcel(e){
   const file=e.target.files[0];if(!file)return;
   const reader=new FileReader();
@@ -1136,7 +475,7 @@ function loadExcel(e){
         const name=String(row[nc]||'').trim();
         const price=row[pc]?parseFloat(row[pc]):null;
         const stock=row[sc]?parseFloat(row[sc]):null;
-        if(name)products.push({name,price,stock,priority:false,lowDisp:false});
+        if(name)products.push({name,price,stock,priority:false});
       }
       const avg=products.reduce((a,p)=>a+(p.stock||0),0)/(products.length||1);
       products.forEach(p=>{p.priority=(p.stock&&p.stock>avg*1.5)||!p.price||p.price===0});
@@ -1144,424 +483,75 @@ function loadExcel(e){
       renderProducts();
       document.getElementById('btnSpot').disabled=false;
       showToast('📊 '+products.length+' productos cargados','success');
-    }catch(err){showToast('❌ Error al leer Excel: '+err.message,'error')}
+    }catch(err){showToast('❌ Error al leer Excel','error')}
   };
   reader.readAsBinaryString(file);
 }
-
-// === EXCEL DISPRO VENTAS ===
-function loadSalesReport(e){
-  const file=e.target.files[0];if(!file)return;
-  const reader=new FileReader();
-  reader.onload=(ev)=>{
-    try{
-      const wb=XLSX.read(ev.target.result,{type:'binary'});
-      const ws2=wb.Sheets[wb.SheetNames[0]];
-      const rows=XLSX.utils.sheet_to_json(ws2,{header:1});
-      salesData=[];
-      let hr=0;
-      for(let i=0;i<Math.min(5,rows.length);i++){if(rows[i]&&rows[i].length>=2){hr=i;break}}
-      const hdrs=rows[hr].map(h=>String(h||'').toLowerCase());
-      const nc=hdrs.findIndex(h=>h.includes('product')||h.includes('articul')||h.includes('nombre')||h.includes('desc'));
-      const vc=hdrs.findIndex(h=>h.includes('venta')||h.includes('vendido')||h.includes('salida')||h.includes('despacho')||h.includes('movim'));
-      const sc=hdrs.findIndex(h=>h.includes('stock')||h.includes('exist')||h.includes('cant'));
-      for(let i=hr+1;i<rows.length;i++){
-        const row=rows[i];if(!row||!row[nc])continue;
-        const name=String(row[nc]||'').trim();
-        const ventas=vc>=0?Math.abs(parseFloat(row[vc])||0):0;
-        const stock=sc>=0?parseFloat(row[sc])||0:0;
-        const despl=ventas>0?stock/ventas:stock*999;
-        if(name)salesData.push({name,ventas,stock,despl});
-      }
-      // Flag low-displacement in products
-      if(salesData.length>0){
-        salesData.sort((a,b)=>b.despl-a.despl);
-        const threshold=salesData[Math.floor(salesData.length*0.3)]?.despl||999;
-        products.forEach(p=>{
-          const match=salesData.find(s=>
-            s.name.toLowerCase().includes(p.name.toLowerCase().substring(0,8))||
-            p.name.toLowerCase().includes(s.name.toLowerCase().substring(0,8))
-          );
-          p.lowDisp=match?match.despl>=threshold:false;
-          if(p.lowDisp)p.priority=true;
-        });
-        products.sort((a,b)=>(b.lowDisp?2:0)+(b.priority?1:0)-((a.lowDisp?2:0)+(a.priority?1:0)));
-        renderProducts();
-      }
-      showToast('📈 '+salesData.length+' productos Dispro cargados — bajo desplazamiento marcado','success');
-    }catch(err){showToast('❌ Error al leer reporte: '+err.message,'error')}
-  };
-  reader.readAsBinaryString(file);
-}
-
 function renderProducts(){
   const list=document.getElementById('prodList');
   if(!products.length){list.innerHTML='';return}
-  list.innerHTML=products.slice(0,10).map(p=>`
-    <div class="prod-item ${p.lowDisp?'low-disp':p.priority?'pri':''}">
-      ${p.lowDisp?'<span class="disp-badge">↓ BAJO DESP.</span>':p.priority?'<span class="pri-badge">★ PRIORIDAD</span>':''}
+  list.innerHTML=products.slice(0,8).map(p=>`
+    <div class="prod-item ${p.priority?'pri':''}">
+      ${p.priority?'<span class="pri-badge">★ PRIORIDAD</span>':''}
       <span class="prod-name">${p.name}</span>
       <span class="prod-price">${p.price?'$'+p.price.toFixed(0):'—'}</span>
     </div>`).join('');
 }
 
-// === BACKGROUND MUSIC ===
-function loadBgMusic(e){
-  const file=e.target.files[0];if(!file)return;
-  bgMusicFile=file;bgMusicName=file.name;
-  document.getElementById('bgMusicLabel').innerHTML=`<span style="color:var(--green)">✓ ${file.name}</span> — <span style="color:var(--accent)">cambiar</span>`;
-  document.getElementById('bgMusicName').textContent=file.name;
-  document.getElementById('bgMusicControls').style.display='block';
-  showToast('🎵 Jingle cargado — ducking automático activado','success');
-}
-function removeBgMusic(){
-  bgMusicFile=null;bgMusicName='';
-  document.getElementById('bgMusicF').value='';
-  document.getElementById('bgMusicLabel').innerHTML='Subir jingle o música de fondo — <span style="color:var(--accent)">haz clic</span>';
-  document.getElementById('bgMusicControls').style.display='none';
-  showToast('🎵 Música de fondo eliminada','info');
-}
-
-// Convert AudioBuffer to WAV Blob
-function audioBufferToWav(buf){
-  const numCh=buf.numberOfChannels,sr=buf.sampleRate,len=buf.length;
-  const dataSize=len*numCh*2;
-  const ab=new ArrayBuffer(44+dataSize);
-  const v=new DataView(ab);
-  const wr=(o,s)=>{for(let i=0;i<s.length;i++)v.setUint8(o+i,s.charCodeAt(i))};
-  wr(0,'RIFF');v.setUint32(4,36+dataSize,true);wr(8,'WAVE');wr(12,'fmt ');
-  v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,numCh,true);
-  v.setUint32(24,sr,true);v.setUint32(28,sr*numCh*2,true);
-  v.setUint16(32,numCh*2,true);v.setUint16(34,16,true);
-  wr(36,'data');v.setUint32(40,dataSize,true);
-  let off=44;
-  for(let i=0;i<len;i++){
-    for(let ch=0;ch<numCh;ch++){
-      const s=Math.max(-1,Math.min(1,buf.getChannelData(ch)[i]));
-      v.setInt16(off,s<0?s*0x8000:s*0x7FFF,true);off+=2;
-    }
-  }
-  return new Blob([ab],{type:'audio/wav'});
-}
-
-// === AUDIO MIX MODULE ===
-// Voice + background music with ducking, fade in/out, compressor
-async function mixWithBgMusic(voiceBlob){
-  if(!bgMusicFile){
-    return{blob:voiceBlob,audioUrl:URL.createObjectURL(voiceBlob)};
-  }
-  try{
-    // Read sliders (voice 60-150%, music 5-65%)
-    const vVolPct=Math.min(parseInt(document.getElementById('voiceVolS')?.value||'100'),150)/100;
-    const bgVolPct=Math.min(parseInt(document.getElementById('bgVolS')?.value||'25'),65)/100;
-
-    // Decode both buffers using a temporary AudioContext
-    const tmpCtx=new AudioContext();
-    const [voiceArr,musicArr]=await Promise.all([voiceBlob.arrayBuffer(),bgMusicFile.arrayBuffer()]);
-    const [voiceBuf,musicBuf]=await Promise.all([
-      tmpCtx.decodeAudioData(voiceArr),
-      tmpCtx.decodeAudioData(musicArr)
-    ]);
-    tmpCtx.close();
-
-    // Timeline constants
-    const INTRO=0.8;            // music-only intro before voice
-    const VOICE_FADEIN=0.1;     // voice fade-in ramp
-    const VOICE_FADEOUT=0.2;    // voice fade-out ramp
-    const DUCK_ATTACK=0.15;     // how fast music ducks (seconds)
-    const DUCK_RELEASE=0.55;    // how fast music recovers after voice
-    const TAIL=2.0;             // music tail after voice ends
-    const vDur=voiceBuf.duration;
-    const totalDur=INTRO+vDur+TAIL;
-
-    const numCh=Math.max(voiceBuf.numberOfChannels,musicBuf.numberOfChannels);
-    const sr=voiceBuf.sampleRate;
-    const offCtx=new OfflineAudioContext(numCh,Math.ceil(totalDur*sr),sr);
-
-    // Master dynamics compressor — prevents clipping on loud mixes
-    const comp=offCtx.createDynamicsCompressor();
-    comp.threshold.value=-14;
-    comp.knee.value=6;
-    comp.ratio.value=5;
-    comp.attack.value=0.003;
-    comp.release.value=0.15;
-    comp.connect(offCtx.destination);
-
-    // ── VOICE node ────────────────────────────────────────────────────────────
-    const vSrc=offCtx.createBufferSource();
-    vSrc.buffer=voiceBuf;
-    const vGain=offCtx.createGain();
-    // Fade in at INTRO, hold, fade out near end
-    vGain.gain.setValueAtTime(0,0);
-    vGain.gain.setValueAtTime(0,INTRO);
-    vGain.gain.linearRampToValueAtTime(vVolPct,INTRO+VOICE_FADEIN);
-    vGain.gain.setValueAtTime(vVolPct,INTRO+vDur-VOICE_FADEOUT);
-    vGain.gain.linearRampToValueAtTime(0,INTRO+vDur+VOICE_FADEOUT);
-    vSrc.connect(vGain);
-    vGain.connect(comp);
-    vSrc.start(INTRO);
-
-    // ── MUSIC node — loop + ducking curve ────────────────────────────────────
-    const mSrc=offCtx.createBufferSource();
-    mSrc.buffer=musicBuf;
-    mSrc.loop=true;
-    const mGain=offCtx.createGain();
-    const DUCK_FLOOR=Math.max(0.0001,bgVolPct*0.12); // duck to 12% of bg vol
-    // Fade in from silence
-    mGain.gain.setValueAtTime(0,0);
-    mGain.gain.linearRampToValueAtTime(bgVolPct,Math.min(0.5,INTRO*0.6));
-    // Hold at full until just before voice
-    mGain.gain.setValueAtTime(bgVolPct,INTRO-DUCK_ATTACK);
-    // Fast exponential duck when voice begins
-    mGain.gain.exponentialRampToValueAtTime(DUCK_FLOOR,INTRO+DUCK_ATTACK);
-    // Hold ducked through entire voice
-    mGain.gain.setValueAtTime(DUCK_FLOOR,INTRO+vDur-0.05);
-    // Restore after voice fades out
-    mGain.gain.linearRampToValueAtTime(bgVolPct*0.8,INTRO+vDur+DUCK_RELEASE);
-    // Gentle final fade out
-    mGain.gain.setValueAtTime(bgVolPct*0.8,totalDur-1.2);
-    mGain.gain.linearRampToValueAtTime(0,totalDur-0.05);
-    mSrc.connect(mGain);
-    mGain.connect(comp);
-    mSrc.start(0);
-
-    const rendered=await offCtx.startRendering();
-    const wavBlob=audioBufferToWav(rendered);
-    return{blob:wavBlob,audioUrl:URL.createObjectURL(wavBlob)};
-  }catch(e){
-    console.warn('[mixWithBgMusic] fallback voz sola:',e);
-    return{blob:voiceBlob,audioUrl:URL.createObjectURL(voiceBlob)};
-  }
-}
-
-// === FESTIVOS ===
-function getFestivoActual(){
-  const hoy=new Date();
-  const mes=hoy.getMonth()+1;
-  const dia=hoy.getDate();
-  return FESTIVOS.find(f=>f.mes===mes&&Math.abs(f.dia-dia)<=7)||null;
-}
-function updateFestivoBtn(){
-  const f=getFestivoActual();
-  const label=document.getElementById('festivoLabel');
-  if(label)label.textContent=f?f.nombre:'Sin festivo próximo';
-}
-
-// === UTILS ===
-function blobToB64(blob){
-  return new Promise(res=>{
-    const fr=new FileReader();
-    fr.onload=()=>res(fr.result.split(',')[1]);
-    fr.readAsDataURL(blob);
-  });
-}
-function b64ToBlob(b64,mime='audio/mpeg'){
-  const bin=atob(b64);
-  const buf=new Uint8Array(bin.length);
-  for(let i=0;i<bin.length;i++)buf[i]=bin.charCodeAt(i);
-  return new Blob([buf],{type:mime});
-}
-
-// === GENERATE SPOT (CATALOG) ===
-async function generateSpot(opts={}){
-  if(!cfg.claudeKey){showToast('⚙️ Configura la API Key de Claude','info');openConfig();return}
-  if(!cfg.elKey){showToast('⚙️ Configura la API Key de ElevenLabs','info');openConfig();return}
-  if(!products.length){showToast('⚠️ Carga el inventario primero','error');return}
-  if(spotGenerating){showToast('⏳ Ya hay un spot generándose...','info');return}
-  spotGenerating=true;
-  const btn=document.getElementById('btnSpot');if(btn)btn.disabled=true;
+// ---- GENERATE SPOT ----
+async function generateSpot(){
+  if(!cfg.apiKey){showToast('⚙️ Configura tu API Key','info');openConfig();return}
+  if(!products.length){showToast('⚠️ Carga el inventario','error');return}
+  const btn=document.getElementById('btnSpot');btn.disabled=true;
   showStatus('🤖 Generando guión con IA...',20);
-
-  const festivo=getFestivoActual();
-  const topProds=(salesData.length>0
-    ?[...products].sort((a,b)=>(b.lowDisp?2:0)+(b.priority?1:0)-((a.lowDisp?2:0)+(a.priority?1:0)))
-    :products.filter(p=>p.priority)
-  ).slice(0,3);
-  if(!topProds.length)topProds.push(...products.slice(0,3));
-
-  const promo=topProds.map(p=>p.name+(p.price?' a $'+p.price.toFixed(0):'')).join(', ');
-  const festivoCtx=festivo?`\nFecha especial próxima: ${festivo.nombre}. Tip: ${festivo.tip}.`:'';
-  const productosCtx=promo+(festivoCtx||'');
-
-  // Cabina settings
-  const numLoc=parseInt(document.getElementById('cabinaLoc')?.value||'1');
-  const energia=document.getElementById('cabinaEnergia')?.value||'medio';
-  const tipo=document.getElementById('cabinaTipo')?.value||'recomendacion';
-
+  const branch=document.getElementById('cfgWs').value?'Terrapesca':'Terrapesca';
+  const top=products.filter(p=>p.priority).slice(0,3);
+  const promo=top.map(p=>p.name+(p.price?' a $'+p.price.toFixed(0):'')).join(', ');
   try{
-    const prompt=buildCabinaPrompt(productosCtx, numLoc, energia, tipo, cfg.slogan);
     const sr=await fetch('https://api.anthropic.com/v1/messages',{
       method:'POST',
-      headers:{'Content-Type':'application/json','x-api-key':cfg.claudeKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-      body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:900,messages:[{role:'user',content:prompt}]})
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        model:'claude-sonnet-4-20250514',max_tokens:1000,
+        messages:[{role:'user',content:`Eres el locutor oficial de Terrapesca Radio, una estación de radio comercial profesional de México. Tu estilo es elegante, cálido y autoritario — como las grandes cadenas FM nacionales.\n\nGenera un spot publicitario de máximo 35 segundos (80-100 palabras) para:\nProductos: ${promo}\nEslogan de cierre: "${cfg.slogan}"\n\nUSA audio tags de ElevenLabs v3 para expresividad:\n- [pause] pausas dramáticas entre ideas\n- [excited] énfasis en precios y ofertas\n- [calm] para el cierre institucional\n\nTONO: Formal, elegante y profesional. Sin lenguaje coloquial. Sin exclamaciones exageradas. Estilo W Radio o XEW México.\n\nEstructura sugerida:\n1. Apertura formal con nombre de la tienda\n2. Productos con precio (tono [excited])\n3. [pause]\n4. Cierre institucional con eslogan ([calm])\n\nResponde ÚNICAMENTE con el texto del spot listo para narrar.`}]
+      })
     });
-    if(!sr.ok){const e=await sr.json().catch(()=>({}));throw new Error(e.error?.message||`Claude error ${sr.status}`)}
     const sd=await sr.json();
     const script=sd.content?.[0]?.text||'';
-    if(!script)throw new Error('Sin respuesta de Claude');
-    showGeneratedScript(script);
+    if(!script)throw new Error('Sin respuesta de IA');
+    showStatus('🎙️ Narrando con ElevenLabs...',55);
+    const vid=cfg.voice==='male'?'pNInz6obpgDQGcFmaJgB':'21m00Tcm4TlvDq8ikWAM';
+    const tr=await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${vid}`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json','xi-api-key':cfg.apiKey},
+      body:JSON.stringify({text:script,model_id:'eleven_v3',voice_settings:{stability:0.35,similarity_boost:0.90,style:0.75,use_speaker_boost:true}})
+    });
+    if(!tr.ok){const er=await tr.json().catch(()=>({}));throw new Error(er.detail?.message||'Error ElevenLabs')}
+    showStatus('📡 Procesando audio...',80);
+    const blob=await tr.blob();
+    const audioUrl=URL.createObjectURL(blob);
 
-    // Audio generation
-    let voiceBlob;
-    const segments=parseCabinaScript(script);
-    if(numLoc===2&&segments.length>1){
-      showStatus('🎙️ Generando cabina con 2 locutores...',50);
-      voiceBlob=await generateCabinaAudio(segments);
-    }else{
-      showStatus('🎙️ Narrando con ElevenLabs...',55);
-      const cleanScript=segments.map(s=>s.text).join(' ');
-      const tr=await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${CABINA_VOICES.male}`,{
-        method:'POST',
-        headers:{'Content-Type':'application/json','xi-api-key':cfg.elKey},
-        body:JSON.stringify({text:cleanScript,model_id:'eleven_multilingual_v2',voice_settings:CABINA_PRESET})
-      });
-      if(!tr.ok){const e=await tr.json().catch(()=>({}));throw new Error(e.detail?.message||`ElevenLabs error ${tr.status}`)}
-      voiceBlob=await tr.blob();
-    }
-    if(!voiceBlob||voiceBlob.size<500)throw new Error('ElevenLabs devolvió audio vacío — revisa tu API Key o cuota');
+    // Convert to base64 to send via WebSocket
+    const b64=await new Promise(res=>{
+      const reader=new FileReader();
+      reader.onload=()=>res(reader.result.split(',')[1]);
+      reader.readAsDataURL(blob);
+    });
 
-    showStatus('📡 Mezclando audio...',82);
-    const{blob,audioUrl}=await mixWithBgMusic(voiceBlob);
-    const b64=await blobToB64(blob);
-
-    const spotName='🎙️ SPOT — '+(topProds[0]?.name||'Terrapesca')+(festivo?` · ${festivo.nombre}`:'');
-    const spotObj={type:'spot',name:spotName,url:audioUrl,b64,script};
-    playlist.push(spotObj);
+    const spotName='🎙️ SPOT — '+(top[0]?.name||'Terrapesca');
+    playlist.push({type:'spot',name:spotName,url:audioUrl,b64,script});
     renderPlaylist();
-    saveToHistorial({nombre:spotName,script,b64,fecha:new Date().toLocaleString('es-MX',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'})});
+    // Send spot to sucursales
     sendWS({type:'SPOT',track:{type:'spot',name:spotName,b64}});
-    markScriptAudioReady(b64,spotName);
-    hideStatus();
-    showToast('🎙️ Spot Cabina generado y enviado a sucursales','gold');
-    if(opts.auto&&!isPlaying)playTrack(playlist.length-1);
+    hideStatus();btn.disabled=false;
+    showToast('🎙️ Spot listo y enviado a sucursales','gold');
   }catch(err){
-    hideStatus();
-    showToast('❌ '+err.message,'error');
-    console.error('[generateSpot]',err);
-  }finally{
-    spotGenerating=false;
-    if(btn)btn.disabled=!products.length;
+    hideStatus();btn.disabled=false;
+    showToast('❌ '+(err.message||'Error al generar'),'error');
   }
 }
 
-// === NEWS SPOTS ===
-async function generateNewsSpot(type){
-  if(!cfg.claudeKey){showToast('⚙️ Configura API Key de Claude','info');openConfig();return}
-  if(!cfg.elKey){showToast('⚙️ Configura API Key de ElevenLabs','info');openConfig();return}
-  if(spotGenerating){showToast('⏳ Ya hay un spot generándose...','info');return}
-  spotGenerating=true;
-
-  const label=type==='bigfish'?'noticias de pesca':'tabla de mareas';
-  showStatus(`📡 Obteniendo ${label}...`,15);
-  const base=getHttpBase();
-
-  try{
-    const resp=await fetch(`${base}/api/${type}`).then(r=>r.json());
-    let ctx='',nombre='',prompt='';
-
-    const _nvi=Math.floor(Math.random()*3);
-    if(type==='bigfish'){
-      if(!resp.titulos?.length)throw new Error('No se obtuvieron noticias de BigFish MX');
-      ctx=resp.titulos.map((t,i)=>`${i+1}. ${t}`).join('\n');
-      nombre='📰 Noticias de Pesca — '+resp.fecha;
-      prompt=PROMPT_VARIANTS.bigfish[_nvi](ctx,resp.fecha,cfg.slogan);
-    } else {
-      if(!resp.mareas?.length)throw new Error('No se obtuvo tabla de mareas de Sinaloa');
-      const tabla=resp.mareas.map(m=>`${m.hora} — ${m.altura}m${m.tipo?' ('+m.tipo+')':''}`).join(' | ');
-      nombre='🌊 Mareas Sinaloa — '+resp.fecha;
-      prompt=PROMPT_VARIANTS.mareas[_nvi](tabla,resp.fecha,cfg.slogan);
-    }
-
-    showStatus('🤖 Generando guión informativo...',38);
-    const sr=await fetch('https://api.anthropic.com/v1/messages',{
-      method:'POST',
-      headers:{'Content-Type':'application/json','x-api-key':cfg.claudeKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-      body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:700,messages:[{role:'user',content:prompt}]})
-    });
-    if(!sr.ok)throw new Error(`Claude error ${sr.status}`);
-    const sd=await sr.json();
-    const script=sd.content?.[0]?.text||'';
-    if(!script)throw new Error('Sin respuesta de Claude');
-
-    showGeneratedScript(script);
-    showStatus('🎙️ Narrando con ElevenLabs...',62);
-    const tr=await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${cfg.voice}`,{
-      method:'POST',
-      headers:{'Content-Type':'application/json','xi-api-key':cfg.elKey},
-      body:JSON.stringify({text:script,model_id:'eleven_multilingual_v2',voice_settings:{stability:0.22,similarity_boost:0.72,style:0.92,use_speaker_boost:true}})
-    });
-    if(!tr.ok)throw new Error(`ElevenLabs error ${tr.status}`);
-
-    showStatus('📡 Mezclando audio...',85);
-    const voiceBlob2=await tr.blob();
-    if(!voiceBlob2||voiceBlob2.size<1000)throw new Error('ElevenLabs devolvió audio vacío — revisa tu API Key o cuota');
-    const {blob,audioUrl}=await mixWithBgMusic(voiceBlob2);
-    const b64=await blobToB64(blob);
-    const spotObj={type:'spot',name:nombre,url:audioUrl,b64,script};
-    playlist.push(spotObj);
-    renderPlaylist();
-    saveToHistorial({nombre,script,b64,fecha:new Date().toLocaleString('es-MX',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'})});
-    sendWS({type:'SPOT',track:{type:'spot',name:nombre,b64}});
-    markScriptAudioReady(b64,nombre);
-    hideStatus();
-    showToast(`✅ ${type==='bigfish'?'Noticias de pesca':'Mareas'} generado y enviado`,'gold');
-  }catch(err){
-    hideStatus();
-    showToast('❌ '+err.message,'error');
-    console.error('[generateNewsSpot]',err);
-  }finally{spotGenerating=false}
-}
-
-function generateFestivoSpot(){
-  if(!cfg.claudeKey||!cfg.elKey){showToast('⚙️ Configura tus API Keys primero','info');openConfig();return}
-  if(!products.length){showToast('⚠️ Carga el inventario primero','error');return}
-  const f=getFestivoActual();
-  if(!f){showToast('ℹ️ No hay festivo en los próximos 7 días','info');return}
-  showToast(`🎉 Generando spot de ${f.nombre}...`,'gold');
-  generateSpot({festivo:true});
-}
-
-// === MICROPHONE ===
-async function toggleMic(){
-  if(micActive){stopMic();return}
-  await startMic();
-}
-async function startMic(){
-  try{
-    micStream=await navigator.mediaDevices.getUserMedia({audio:true,video:false});
-    const chunks=[];
-    const mimeType=MediaRecorder.isTypeSupported('audio/webm;codecs=opus')?'audio/webm;codecs=opus':'audio/webm';
-    micRecorder=new MediaRecorder(micStream,{mimeType});
-    micRecorder.ondataavailable=e=>{if(e.data.size>0)chunks.push(e.data)};
-    micRecorder.onstop=async()=>{
-      const blob=new Blob(chunks,{type:mimeType});
-      const b64=await blobToB64(blob);
-      const nombre='🎤 Locutor en vivo — '+new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'});
-      sendWS({type:'MIC_SPOT',b64,nombre});
-      const url=URL.createObjectURL(blob);
-      playlist.push({type:'spot',name:nombre,url,b64});
-      renderPlaylist();
-      showToast('📡 Mensaje enviado a sucursales','success');
-    };
-    micRecorder.start();
-    micActive=true;
-    const btn=document.getElementById('btnMic');
-    btn.textContent='⏹ Detener transmisión';
-    btn.classList.add('active');
-    showToast('🔴 Micrófono activo — habla ahora','error');
-  }catch(e){
-    showToast('❌ Sin acceso al micrófono: '+e.message,'error');
-  }
-}
-function stopMic(){
-  if(micRecorder&&micRecorder.state!=='inactive')micRecorder.stop();
-  if(micStream){micStream.getTracks().forEach(t=>t.stop());micStream=null}
-  micActive=false;
-  const btn=document.getElementById('btnMic');
-  if(btn){btn.textContent='🎤 AL AIRE';btn.classList.remove('active')}
-}
-
-// === PLAYBACK ===
+// ---- PLAYBACK ----
 function playTrack(idx){
   if(idx<0||idx>=playlist.length)return;
   stopAll();curIdx=idx;
@@ -1574,13 +564,11 @@ function playTrack(idx){
     document.getElementById('yt-container').style.display='none';
     audioEl=new Audio(t.url);
     audioEl.volume=parseInt(document.getElementById('volS').value)/100;
-    connectAudioElToCtx(audioEl); // route through overlay AudioContext for ducking
-    if(overlayCtx&&overlayCtx.state==='suspended')overlayCtx.resume();
     audioEl.play();
     audioEl.addEventListener('ended',handleEnded);
     audioEl.addEventListener('timeupdate',updateProg);
     audioEl.addEventListener('loadedmetadata',()=>{document.getElementById('tT').textContent=fmt(audioEl.duration)});
-    if(t.type==='spot'&&t.b64){
+    if(t.type==='spot' && t.b64){
       sendWS({type:'SPOT',track:{type:'spot',name:t.name,b64:t.b64}});
     }else{
       sendWS({type:'PLAY',track:{type:'mp3',name:t.name},position:0});
@@ -1614,7 +602,6 @@ function setPlayUI(p){
 }
 function stopAll(){
   if(audioEl){audioEl.pause();audioEl.src='';audioEl=null}
-  if(currentMediaSrc){try{currentMediaSrc.disconnect();}catch(e){}currentMediaSrc=null;musicGainNode=null;}
   if(ytReady&&ytPlayer)try{ytPlayer.stopVideo()}catch(e){}
   clearInterval(progInt);
   document.getElementById('pF').style.width='0%';
@@ -1624,13 +611,9 @@ function handleEnded(){
   const t=playlist[curIdx];
   if(t&&t.type!=='spot'){
     songsSinceSpot++;updateSpotCtr();
-    if(cfg.autoSpot&&songsSinceSpot>=cfg.spotEvery&&!spotGenerating){
+    if(songsSinceSpot>=SPOT_EVERY){
       const si=playlist.findIndex((x,i)=>i>curIdx&&x.type==='spot');
       if(si!==-1){songsSinceSpot=0;playTrack(si);return}
-      if(cfg.claudeKey&&cfg.elKey&&products.length>0){
-        songsSinceSpot=0;
-        generateSpot({auto:true});
-      }
     }
   }
   if(isRepeat&&curIdx>=0){playTrack(curIdx);return}
@@ -1683,12 +666,11 @@ function updateNP(t){
   document.getElementById('npSub').textContent=t.type==='spot'?'📻 '+cfg.slogan:'🎶 Reproduciendo en todas las sucursales...';
 }
 function updateSpotCtr(){
-  const r=cfg.spotEvery-songsSinceSpot;
-  const label=document.getElementById('scl');
-  if(label)label.textContent=cfg.autoSpot?(r+' canción'+(r!==1?'es':'')):'desactivado';
+  const r=SPOT_EVERY-songsSinceSpot;
+  document.getElementById('scl').textContent=r+' canción'+(r!==1?'es':'');
   for(let i=0;i<3;i++){
     const d=document.getElementById('sd'+i);
-    if(d)d.className='sdot'+(i<songsSinceSpot?' done':'')+(i===cfg.spotEvery-1&&songsSinceSpot>=cfg.spotEvery?' gold':'');
+    d.className='sdot'+(i<songsSinceSpot?' done':'')+(i===2&&songsSinceSpot>=3?' gold':'');
   }
 }
 function renderPlaylist(){
@@ -1701,7 +683,7 @@ function renderPlaylist(){
   list.innerHTML=playlist.map((t,i)=>{
     const act=i===curIdx;
     const num=act&&isPlaying?`<div style="display:flex;gap:2px;align-items:flex-end;height:12px"><span style="width:3px;background:var(--accent);border-radius:1px;animation:dot-dance .6s ease-in-out infinite alternate"></span><span style="width:3px;background:var(--accent);border-radius:1px;animation:dot-dance .6s .2s ease-in-out infinite alternate"></span><span style="width:3px;background:var(--accent);border-radius:1px;animation:dot-dance .6s .4s ease-in-out infinite alternate"></span></div>`:(i+1);
-    return`<div class="tr ${act?'active':''} ${t.type==='spot'?'spot-r':''}" onclick="playTrack(${i})">
+    return `<div class="tr ${act?'active':''} ${t.type==='spot'?'spot-r':''}" onclick="playTrack(${i})">
       <span class="tr-n">${num}</span>
       <div class="tr-ic ${t.type}">${ic[t.type]||'🎵'}</div>
       <div class="tr-info"><div class="tr-nm">${t.name}</div><div class="tr-tp">${t.type==='yt'?'YouTube':t.type==='mp3'?'MP3':'Spot IA'}</div></div>
@@ -1710,698 +692,16 @@ function renderPlaylist(){
   }).join('');
 }
 
-// === HISTORIAL ===
-function saveToHistorial(item){
-  try{
-    const h=JSON.parse(localStorage.getItem('tp_historial')||'[]');
-    h.unshift({...item,id:Date.now()});
-    localStorage.setItem('tp_historial',JSON.stringify(h.slice(0,5)));
-    renderHistorial();
-  }catch(e){console.warn('Historial lleno:',e.message)}
-}
-function loadHistorial(){try{return JSON.parse(localStorage.getItem('tp_historial')||'[]')}catch(e){return[]}}
-function renderHistorial(){
-  const h=loadHistorial();
-  const el=document.getElementById('histList');
-  const cnt=document.getElementById('histCount');
-  if(cnt)cnt.textContent=h.length;
-  if(!el)return;
-  if(!h.length){el.innerHTML='<p style="text-align:center;color:var(--text3);font-size:12px;padding:12px 0">Sin spots guardados aún</p>';return}
-  el.innerHTML=h.map(item=>`
-    <div class="hist-item">
-      <div class="hist-info">
-        <div class="hist-name">${item.nombre}</div>
-        <div class="hist-date">${item.fecha}</div>
-      </div>
-      <div class="hist-btns">
-        ${item.b64?`<button class="hist-btn" onclick="replayHist(${item.id})" title="Reproducir">▶</button>`:''}
-        ${item.b64?`<button class="hist-btn" onclick="resendHist(${item.id})" title="Reenviar a sucursales">📡</button>`:''}
-        <button class="hist-btn" onclick="viewHistScript(${item.id})" title="Ver guión">📄</button>
-        ${item.b64?`<button class="hist-btn" onclick="downloadHist(${item.id})" title="Descargar audio">⬇</button>`:''}
-      </div>
-    </div>`).join('');
-}
-function replayHist(id){
-  const item=loadHistorial().find(x=>x.id===id);
-  if(!item?.b64)return;
-  const blob=b64ToBlob(item.b64,'audio/webm');
-  const url=URL.createObjectURL(blob);
-  playlist.push({type:'spot',name:item.nombre,url,b64:item.b64,script:item.script});
-  renderPlaylist();
-  playTrack(playlist.length-1);
-  showToast('▶ Reproduciendo del historial','info');
-}
-function resendHist(id){
-  const item=loadHistorial().find(x=>x.id===id);
-  if(!item?.b64)return;
-  sendWS({type:'SPOT',track:{type:'spot',name:item.nombre,b64:item.b64}});
-  showToast('📡 Spot reenviado a sucursales','gold');
-}
-function viewHistScript(id){
-  const item=loadHistorial().find(x=>x.id===id);
-  if(item?.script)showGeneratedScript(item.script);
-}
-function downloadHist(id){
-  const item=loadHistorial().find(x=>x.id===id);
-  if(item?.b64)downloadAudio(item.b64,item.nombre);
-  else showToast('⚠️ No hay audio guardado para este spot','error');
-}
-function clearHistorial(){
-  localStorage.removeItem('tp_historial');
-  renderHistorial();
-  showToast('🗑 Historial limpiado','info');
-}
-function toggleHist(){
-  const body=document.getElementById('histBody');
-  const chev=document.getElementById('histChev');
-  const shown=body.style.display!=='none';
-  body.style.display=shown?'none':'block';
-  if(chev)chev.textContent=shown?'▼':'▲';
-}
-
-// === DJ OVERLAY MODULE ===
-
-// Init a single AudioContext shared across all overlay operations
-function initOverlayCtx(){
-  if(overlayCtx)return overlayCtx;
-  try{overlayCtx=new AudioContext();}catch(e){console.warn('[DJ] AudioContext failed:',e);}
-  return overlayCtx;
-}
-
-// Route the current audio element through the AudioContext so we can duck it
-function connectAudioElToCtx(el){
-  const ctx=initOverlayCtx();if(!ctx)return;
-  // Detach previous source
-  if(currentMediaSrc){try{currentMediaSrc.disconnect();}catch(e){}currentMediaSrc=null;musicGainNode=null;}
-  try{
-    currentMediaSrc=ctx.createMediaElementSource(el);
-    musicGainNode=ctx.createGain();
-    musicGainNode.gain.value=1.0;
-    currentMediaSrc.connect(musicGainNode);
-    musicGainNode.connect(ctx.destination);
-  }catch(e){console.warn('[DJ] connect failed:',e);}
-}
-
-// Play a voice b64 blob on top of the current song with ducking
-async function playDJOverlay(b64,btnEl){
-  if(overlayActive){showToast('⏳ Overlay en curso, espera...','info');return;}
-  const ctx=initOverlayCtx();
-  if(!ctx){showToast('❌ AudioContext no disponible','error');return;}
-  if(ctx.state==='suspended')await ctx.resume();
-
-  // Mark button as playing
-  if(btnEl){btnEl.classList.add('ondeck');btnEl.textContent='🔴 Al aire';}
-  overlayActive=true;
-
-  try{
-    const bin=atob(b64),buf=new Uint8Array(bin.length);
-    for(let i=0;i<bin.length;i++)buf[i]=bin.charCodeAt(i);
-    const audioBuf=await ctx.decodeAudioData(buf.buffer.slice(0));
-    const voiceDur=audioBuf.duration;
-    const now=ctx.currentTime;
-    const DUCK_IN=0.15,DUCK_OUT=0.30;
-    const preDuck=musicGainNode?musicGainNode.gain.value:1;
-
-    // Duck HTML audio element
-    if(musicGainNode){
-      const g=musicGainNode.gain;
-      g.cancelScheduledValues(now);
-      g.setValueAtTime(preDuck,now);
-      g.linearRampToValueAtTime(preDuck*0.22,now+DUCK_IN);
-      g.setValueAtTime(preDuck*0.22,now+DUCK_IN+voiceDur);
-      g.linearRampToValueAtTime(preDuck,now+DUCK_IN+voiceDur+DUCK_OUT);
-    }
-    // Duck YouTube via setVolume
-    const curVol=parseInt(document.getElementById('volS').value);
-    if(playlist[curIdx]?.type==='yt'&&ytReady){
-      ytPlayer.setVolume(Math.round(curVol*0.22));
-      setTimeout(()=>{if(ytReady)ytPlayer.setVolume(curVol);},(DUCK_IN+voiceDur+DUCK_OUT)*1000);
-    }
-
-    // Voice node — slight boost, fade in/out
-    const src=ctx.createBufferSource();
-    src.buffer=audioBuf;
-    const vGain=ctx.createGain();
-    vGain.gain.setValueAtTime(0,now);
-    vGain.gain.linearRampToValueAtTime(1.15,now+0.05); // 50ms fade in
-    vGain.gain.setValueAtTime(1.15,now+voiceDur-0.08);
-    vGain.gain.linearRampToValueAtTime(0,now+voiceDur+0.05);
-    src.connect(vGain);vGain.connect(ctx.destination);
-    src.start(now);
-    src.onended=()=>{
-      overlayActive=false;
-      if(btnEl){btnEl.classList.remove('ondeck');btnEl.textContent='▶ Reproducir';}
-    };
-    showToast('🎙️ DJ Overlay activo','gold');
-  }catch(e){
-    overlayActive=false;
-    if(btnEl){btnEl.classList.remove('ondeck');btnEl.textContent='▶ Reproducir';}
-    showToast('❌ Overlay error: '+e.message,'error');
-    console.error('[playDJOverlay]',e);
-  }
-}
-
-// Generate ElevenLabs audio for a specific variation+gender, then play overlay
-async function generateDJAudio(varIdx,gender){
-  const v=djVariations[varIdx];if(!v)return;
-  const cKey=gender==='M'?'mAudio':'fAudio';
-  const btnId=`djPlay_${varIdx}_${gender}`;
-  const btn=document.getElementById(btnId);
-
-  // Cache hit — play directly
-  if(v[cKey]){await playDJOverlay(v[cKey],btn);return;}
-
-  // Generate TTS
-  const text=gender==='M'?v.m:v.f;
-  // Josh (masculine) or Domi (feminine) — controlled DJ voices
-  const voiceId=gender==='M'?'TxGEqnHWrfWFTfGW9XjX':'AZnzlk1XvdvUeBnXmlld';
-  if(btn){btn.textContent='⏳ Generando...';btn.disabled=true;btn.classList.add('loading');}
-
-  try{
-    const tr=await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,{
-      method:'POST',
-      headers:{'Content-Type':'application/json','xi-api-key':cfg.elKey},
-      body:JSON.stringify({
-        text,
-        model_id:'eleven_multilingual_v2',
-        voice_settings:{stability:0.47,similarity_boost:0.82,style:0.30,use_speaker_boost:true}
-      })
-    });
-    if(!tr.ok)throw new Error(`ElevenLabs error ${tr.status}`);
-    const blob=await tr.blob();
-    if(!blob||blob.size<300)throw new Error('Audio vacío');
-    v[cKey]=await blobToB64(blob);
-    if(btn){btn.textContent='▶ Reproducir';btn.disabled=false;btn.classList.remove('loading');}
-    await playDJOverlay(v[cKey],btn);
-  }catch(e){
-    if(btn){btn.textContent='▶ Reproducir';btn.disabled=false;btn.classList.remove('loading');}
-    showToast('❌ '+e.message,'error');
-  }
-}
-
-// Parse Claude's structured output into variation objects
-function parseDJVariations(text){
-  const vars=[];
-  const blocks=text.split(/VAR\d+/i).filter(s=>s.trim());
-  for(const block of blocks){
-    const mMatch=block.match(/\[M\]([\s\S]*?)(?=\[F\])/);
-    const fMatch=block.match(/\[F\]([\s\S]*?)$/);
-    if(mMatch&&fMatch){
-      vars.push({m:mMatch[1].trim(),f:fMatch[1].trim(),mAudio:null,fAudio:null});
-    }
-  }
-  return vars;
-}
-
-// Render variation cards
-function renderDJVariaciones(){
-  const container=document.getElementById('djVariaciones');
-  if(!container||!djVariations.length)return;
-  container.innerHTML=djVariations.map((v,i)=>`
-    <div class="dj-var">
-      <div class="dj-var-title">Variación ${i+1}</div>
-      <div class="dj-voices">
-        <div class="dj-voice">
-          <div class="dj-voice-lbl">🔵 Masculina · Josh</div>
-          <div class="dj-voice-text">${v.m}</div>
-          <button class="dj-btn-play" id="djPlay_${i}_M" onclick="generateDJAudio(${i},'M')">▶ Reproducir</button>
-        </div>
-        <div class="dj-voice">
-          <div class="dj-voice-lbl">🟣 Femenina · Domi</div>
-          <div class="dj-voice-text">${v.f}</div>
-          <button class="dj-btn-play" id="djPlay_${i}_F" onclick="generateDJAudio(${i},'F')">▶ Reproducir</button>
-        </div>
-      </div>
-    </div>`).join('');
-}
-
-// Main entry: call Claude → parse → render
-async function generateDJOverlay(){
-  if(!cfg.claudeKey){showToast('⚙️ Configura API Key de Claude','info');openConfig();return;}
-  if(!cfg.elKey){showToast('⚙️ Configura API Key de ElevenLabs','info');openConfig();return;}
-  if(djGenerating){showToast('⏳ Ya generando variaciones...','info');return;}
-  djGenerating=true;
-  const btn=document.getElementById('btnDJ');
-  if(btn){btn.disabled=true;}
-  const statusEl=document.getElementById('djStatus');
-  if(statusEl){statusEl.textContent='🤖 Generando guiones DJ con IA...';statusEl.style.display='block';}
-  document.getElementById('djVariaciones').innerHTML='';
-
-  const ctx={
-    sucursal:document.getElementById('djSucursal')?.value.trim()||'Terrapesca',
-    momento:document.getElementById('djMomento')?.value||'tarde',
-    tipo:document.getElementById('djTipo')?.value||'ambientación',
-    productos:document.getElementById('djProductos')?.value.trim(),
-    promo:document.getElementById('djPromo')?.value.trim(),
-  };
-
-  try{
-    const sr=await fetch('https://api.anthropic.com/v1/messages',{
-      method:'POST',
-      headers:{'Content-Type':'application/json','x-api-key':cfg.claudeKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-      body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:700,messages:[{role:'user',content:PROMPT_VARIANTS.djOverlay[0](ctx)}]})
-    });
-    if(!sr.ok){const e=await sr.json().catch(()=>({}));throw new Error(e.error?.message||`Claude error ${sr.status}`);}
-    const sd=await sr.json();
-    const text=sd.content?.[0]?.text||'';
-    if(!text)throw new Error('Sin respuesta de Claude');
-    djVariations=parseDJVariations(text);
-    if(!djVariations.length)throw new Error('No se pudieron parsear las variaciones — respuesta: '+text.slice(0,200));
-    if(statusEl)statusEl.style.display='none';
-    renderDJVariaciones();
-    showToast(`✅ ${djVariations.length} variaciones listas — clic en ▶ para narrar y mezclar`,'gold');
-  }catch(e){
-    if(statusEl)statusEl.style.display='none';
-    showToast('❌ '+e.message,'error');
-    console.error('[generateDJOverlay]',e);
-  }finally{
-    djGenerating=false;
-    if(btn)btn.disabled=false;
-  }
-}
-
-// === DOWNLOAD / EXPORT ===
-function downloadAudio(b64,filename){
-  if(!b64){showToast('⚠️ No hay audio para descargar','error');return}
-  try{
-    const bin=atob(b64),buf=new Uint8Array(bin.length);
-    for(let i=0;i<bin.length;i++)buf[i]=bin.charCodeAt(i);
-    // Detect format from first bytes: WAV starts with RIFF, MP3/webm otherwise
-    const mime=bin.slice(0,4)==='RIFF'?'audio/wav':bin.charCodeAt(0)===0x1A&&bin.charCodeAt(1)===0x45?'audio/webm':'audio/mpeg';
-    const blob=new Blob([buf],{type:mime});
-    const ext=mime.includes('wav')?'wav':mime.includes('webm')?'webm':'mp3';
-    const a=document.createElement('a');
-    a.href=URL.createObjectURL(blob);
-    a.download=(filename||'spot-terrapesca').replace(/[^\w\s-]/g,'').trim()+'.'+ext;
-    a.click();
-    setTimeout(()=>URL.revokeObjectURL(a.href),5000);
-    showToast('⬇ Descargando '+a.download,'success');
-  }catch(e){showToast('❌ Error al descargar: '+e.message,'error')}
-}
-
-// === STATUS & TOAST ===
 function showStatus(m,p){document.getElementById('sText').textContent=m;document.getElementById('sFill').style.width=p+'%';document.getElementById('statusBar').classList.add('show')}
 function hideStatus(){document.getElementById('statusBar').classList.remove('show')}
 let toastT;
-function showToast(m,t='info'){const el=document.getElementById('toast');el.textContent=m;el.className='toast show '+t;clearTimeout(toastT);toastT=setTimeout(()=>el.classList.remove('show'),4000)}
+function showToast(m,t='info'){const el=document.getElementById('toast');el.textContent=m;el.className='toast show '+t;clearTimeout(toastT);toastT=setTimeout(()=>el.classList.remove('show'),3500)}
 function fmt(s){if(!s||isNaN(s))return'0:00';const m=Math.floor(s/60),sc=Math.floor(s%60);return m+':'+(sc<10?'0':'')+sc}
 
-// === SPOT DESDE ENLACE DE PRODUCTO ===
-let extractedProduct=null;
-let elVoicesCache=null;
-
-// TTS voice presets por estilo
-const TTS_PRESETS={
-  maxi:   {stability:0.60,similarity_boost:0.85,style:0.35,use_speaker_boost:true,speed:1.05},
-  comercial:{stability:0.65,similarity_boost:0.85,style:0.30,use_speaker_boost:true,speed:1.02},
-  noticioso:{stability:0.80,similarity_boost:0.90,style:0.15,use_speaker_boost:true,speed:0.98},
-  urgente:{stability:0.55,similarity_boost:0.85,style:0.40,use_speaker_boost:true,speed:1.08},
-  premium:{stability:0.75,similarity_boost:0.88,style:0.20,use_speaker_boost:true,speed:0.97}
-};
-
-// Voice IDs por género/estilo
-const VOICE_PROFILES={
-  male_default:'TxGEqnHWrfWFTfGW9XjX',   // Josh
-  female_default:'AZnzlk1XvdvUeBnXmlld',  // Domi
-  male_premium:'VR6AewLTigWG4xSOukaG',    // Arnold
-  female_premium:'21m00Tcm4TlvDq8ikWAM',  // Rachel
-  male_maxi:'TxGEqnHWrfWFTfGW9XjX',      // Josh
-  female_maxi:'AZnzlk1XvdvUeBnXmlld'     // Domi
-};
-
-function getVoiceForStyle(style,gender){
-  if(cfg.voice&&cfg.voice!=='pNInz6obpgDQGcFmaJgB')return cfg.voice; // usa voz seleccionada manualmente
-  if(gender==='female'||gender==='auto'&&style==='premium')return VOICE_PROFILES['female_'+style]||VOICE_PROFILES.female_default;
-  return VOICE_PROFILES['male_'+style]||VOICE_PROFILES.male_default;
-}
-
-// === MODO CABINA ===
-const CABINA_VOICES = {
-  male: 'TxGEqnHWrfWFTfGW9XjX',   // Josh
-  female: 'AZnzlk1XvdvUeBnXmlld',  // Domi
-};
-const CABINA_PRESET = {
-  stability:0.45, similarity_boost:0.80, style:0.25, use_speaker_boost:true, speed:0.95
-};
-
-async function extractProduct(){
-  const url=document.getElementById('prodUrl').value.trim();
-  if(!url){showToast('⚠️ Ingresa una URL de producto','error');return;}
-  const btn=document.getElementById('btnExtract');
-  btn.textContent='⏳...';btn.disabled=true;
-  try{
-    const res=await fetch(getHttpBase()+'/api/scrape-product',{
-      method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({url})
-    });
-    const data=await res.json();
-    if(!data.ok)throw new Error(data.error||'No se pudo extraer');
-    extractedProduct=data.product;
-    showProductPreview(extractedProduct);
-    document.getElementById('btnProdSpot').disabled=false;
-    showToast('✅ Producto extraído: '+extractedProduct.name,'success');
-  }catch(e){
-    showToast('❌ '+e.message,'error');
-    extractedProduct=null;
-  }finally{btn.textContent='🔍 Extraer';btn.disabled=false;}
-}
-
-function showProductPreview(p){
-  document.getElementById('pvName').textContent=p.name||'Sin nombre';
-  document.getElementById('pvPrice').textContent=p.price?'💰 '+p.price:'';
-  document.getElementById('pvDesc').textContent=p.description?(p.description.length>160?p.description.slice(0,157)+'...':p.description):'';
-  document.getElementById('pvSource').textContent='📋 Fuente: '+(p.source==='json-ld'?'Schema JSON-LD':p.source==='shopify'?'Shopify':'Meta tags')+(p.brand?' · Marca: '+p.brand:'')+(p.category?' · '+p.category:'');
-  document.getElementById('prodPreview').style.display='block';
-}
-
-function clearProductPreview(){
-  extractedProduct=null;
-  document.getElementById('prodPreview').style.display='none';
-  document.getElementById('btnProdSpot').disabled=true;
-}
-
-function autoExtractProduct(){
-  const url=document.getElementById('prodUrl').value.trim();
-  if(url.startsWith('http')&&!extractedProduct)extractProduct();
-}
-
-function onProviderChange(){
-  const p=document.getElementById('prodProvider').value;
-  document.getElementById('elVoicePicker').style.display=p==='elevenlabs'?'':'none';
-  document.getElementById('googleOptsProd').style.display=p==='google'?'':'none';
-}
-
-function buildProductSpotPrompt(p,style,dur){
-  const styleGuide={
-    maxi:`ESTILO MAXI RADIO: Energía ALTA, ritmo comercial potente, frases CORTAS e impactantes, juvenil-adulto. Comenzar con gancho inmediato tipo "¡Llegó a Terrapesca!" o "Pescadores, escuchen esto:"`,
-    comercial:`ESTILO COMERCIAL DIRECTO: Claro, convincente, beneficio en las primeras 3 palabras, cierre de venta contundente.`,
-    noticioso:`ESTILO NOTICIOSO: Tono informativo y confiable, como noticiero de radio, datos precisos, sin exageraciones.`,
-    urgente:`ESTILO OFERTA URGENTE: Urgencia real, precio destacado, tiempo limitado implícito, llamada a la acción INMEDIATA.`,
-    premium:`ESTILO ELEGANTE PREMIUM: Tono sofisticado, experiencia de calidad, ritmo pausado y profundo, cliente aspiracional.`
-  };
-  const words={15:35,30:75,45:115};
-  let ctx=`Producto: ${p.name}`;
-  if(p.price)ctx+=`\nPrecio: ${p.price}`;
-  if(p.brand)ctx+=`\nMarca: ${p.brand}`;
-  if(p.description)ctx+=`\nDescripción: ${p.description.slice(0,300)}`;
-  if(p.features?.length)ctx+=`\nCaracterísticas: ${p.features.slice(0,3).join(', ')}`;
-  if(p.availability)ctx+=`\nDisponibilidad: ${p.availability}`;
-  return `Eres el locutor de Terrapesca Radio, la estación de radio oficial de tiendas Terrapesca en Sinaloa, México — la tienda de pesca y deportes acuáticos más completa.
-
-PRODUCTO:
-${ctx}
-
-TAREA: Escribe un spot de radio de ~${words[dur]||75} palabras.
-${styleGuide[style]}
-
-REGLAS OBLIGATORIAS:
-- Empieza DIRECTO sin "Atención", "Bienvenidos" ni introducciones
-- Menciona el nombre del producto en las primeras 5 palabras
-- Si hay precio, inclúyelo de forma natural
-- Usa MAYÚSCULAS para énfasis de palabras clave
-- Usa comas para pausas naturales al hablar
-- Cierra con: "Terrapesca — equipa tu aventura."
-- Solo el texto del spot, sin títulos ni instrucciones
-
-SPOT:`;
-}
-
-function buildCabinaPrompt(productosCtx, numLoc, energia, tipo, slogan){
-  const estiloMap={
-    recomendacion:'Recomendación natural como vendedor que conoce el producto.',
-    conversacion:'Conversación entre compañeros de tienda, uno menciona y el otro confirma.',
-    dj:'Intervención tipo DJ: break natural sobre la música, cómodo y fluido.'
-  };
-  const energiaMap={
-    relajado:'Ritmo tranquilo, pausas largas, voz calmada y segura.',
-    medio:'Ritmo normal de conversación, natural, sin apuro.',
-    activo:'Ritmo ligeramente más dinámico, entusiasta pero sin sonar a comercial.'
-  };
-  const formato = numLoc===2
-    ? `LOCUTOR 1:\n(texto natural del locutor principal)\n\nLOCUTOR 2:\n(respuesta o confirmación real)\n\nLOCUTOR 1:\n(cierre natural)`
-    : `LOCUTOR:\n(texto completo, natural y fluido)`;
-  return `Eres el generador de guiones de Terrapesca Radio — estación de radio de tiendas Terrapesca en Sinaloa, México.
-
-MODO: CABINA EN VIVO — ${numLoc===2?'DOS LOCUTORES':'UN LOCUTOR'}
-TIPO: ${tipo.toUpperCase()} — ${estiloMap[tipo]||estiloMap.recomendacion}
-ENERGÍA: ${energiaMap[energia]||energiaMap.medio}
-
-CONTEXTO/PRODUCTOS:
-${productosCtx}
-
-SLOGAN: ${slogan}
-
-INSTRUCCIONES CRÍTICAS:
-- Estilo 100% natural, fluido — como vendedores reales platicando, NUNCA como comercial
-- Español mexicano con ligero toque sinaloense sin exagerar
-- Frases naturales: "la neta", "te digo algo", "este sí jala", "ya lo calamos", "la verdad"
-- Duración: 15-25 segundos de locución real
-- PROHIBIDO: "gran oportunidad", "increíble", "¡escuchen!", lenguaje publicitario clásico
-- Cierra mencionando Terrapesca de forma natural
-
-FORMATO DE SALIDA — EXACTAMENTE así (sin nada antes ni después):
-[MUSIC UP 100%]
-[MUSIC DUCK 25%]
-
-${formato}
-
-[MUSIC UP 100%]`;
-}
-
-function parseCabinaScript(script){
-  const segments=[];
-  let current=null;
-  for(const line of script.split('\n')){
-    const t=line.trim();
-    if(!t||t.startsWith('[MUSIC'))continue;
-    const m1=t.match(/^LOCUTOR\s*1\s*:\s*(.*)/i);
-    const m2=t.match(/^LOCUTOR\s*2\s*:\s*(.*)/i);
-    const mx=t.match(/^LOCUTOR\s*:\s*(.*)/i);
-    if(m1){if(current)segments.push(current);current={speaker:1,text:m1[1]};}
-    else if(m2){if(current)segments.push(current);current={speaker:2,text:m2[1]};}
-    else if(mx){if(current)segments.push(current);current={speaker:1,text:mx[1]};}
-    else if(current)current.text+=' '+t;
-  }
-  if(current)segments.push(current);
-  return segments.filter(s=>s.text.trim().length>2);
-}
-
-async function concatVoiceBlobs(blobs){
-  if(blobs.length===1)return blobs[0];
-  const tmpCtx=new AudioContext();
-  const bufs=await Promise.all(blobs.map(b=>b.arrayBuffer().then(ab=>tmpCtx.decodeAudioData(ab))));
-  await tmpCtx.close();
-  const GAP=0.25,sr=bufs[0].sampleRate,gapSmp=Math.floor(GAP*sr);
-  const total=bufs.reduce((s,b)=>s+b.length,0)+gapSmp*(bufs.length-1);
-  const offCtx=new OfflineAudioContext(1,total,sr);
-  let offset=0;
-  for(let i=0;i<bufs.length;i++){
-    const src=offCtx.createBufferSource();src.buffer=bufs[i];
-    src.connect(offCtx.destination);src.start(offset/sr);
-    offset+=bufs[i].length+(i<bufs.length-1?gapSmp:0);
-  }
-  const rendered=await offCtx.startRendering();
-  return audioBufferToWav(rendered);
-}
-
-async function generateCabinaAudio(segments){
-  const blobs=[];
-  for(let i=0;i<segments.length;i++){
-    const seg=segments[i];
-    const voiceId=seg.speaker===2?CABINA_VOICES.female:CABINA_VOICES.male;
-    showStatus(`🎙️ Narrando locutor ${seg.speaker}… (${i+1}/${segments.length})`,40+Math.floor((i/segments.length)*30));
-    const r=await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,{
-      method:'POST',
-      headers:{'Content-Type':'application/json','xi-api-key':cfg.elKey},
-      body:JSON.stringify({text:seg.text,model_id:'eleven_multilingual_v2',voice_settings:CABINA_PRESET})
-    });
-    if(!r.ok)throw new Error('ElevenLabs error en segmento '+(i+1));
-    const blob=await r.blob();
-    if(!blob||blob.size<200)throw new Error('Audio vacío en segmento '+(i+1));
-    blobs.push(blob);
-  }
-  return await concatVoiceBlobs(blobs);
-}
-
-async function generateProductSpot(){
-  if(!extractedProduct){showToast('⚠️ Primero extrae un producto con 🔍','error');return;}
-  if(!cfg.claudeKey){showToast('⚙️ Configura tu API Key de Claude','info');openConfig();return;}
-  const provider=document.getElementById('prodProvider').value;
-  if(provider==='elevenlabs'&&!cfg.elKey){showToast('⚙️ Configura tu API Key de ElevenLabs','info');openConfig();return;}
-  const style=document.getElementById('prodStyle').value;
-  const dur=document.getElementById('prodDur').value;
-  const gender=document.getElementById('prodVoice').value;
-  const btn=document.getElementById('btnProdSpot');
-  btn.disabled=true;btn.textContent='⏳ Generando guión...';
-  showStatus('Generando guión con Claude...',10);
-
-  // Cabina settings for product spot
-  const numLocProd=parseInt(document.getElementById('cabinaLocProd')?.value||'1');
-  const energiaProd=document.getElementById('cabinaEnergiaProd')?.value||'medio';
-  const tipoProd=document.getElementById('cabinaTipoProd')?.value||'recomendacion';
-
-  try{
-    // 1. Guión con Claude
-    const ctx=extractedProduct.name+(extractedProduct.price?' a $'+extractedProduct.price:'')+
-      (extractedProduct.description?'\n'+extractedProduct.description.slice(0,200):'');
-    const prompt=buildCabinaPrompt(ctx, numLocProd, energiaProd, tipoProd, cfg.slogan);
-    const cr=await fetch('https://api.anthropic.com/v1/messages',{
-      method:'POST',
-      headers:{'Content-Type':'application/json','x-api-key':cfg.claudeKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-      body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:900,messages:[{role:'user',content:prompt}]})
-    });
-    if(!cr.ok)throw new Error('Claude API error '+cr.status);
-    const cd=await cr.json();
-    const script=cd.content[0].text.trim();
-    showGeneratedScript(script);
-    btn.textContent='⏳ Generando audio...';
-    showStatus('Generando locución...',40);
-    // 2. Audio TTS
-    let voiceBlob;
-    if(provider==='google'){
-      const segments=parseCabinaScript(script);
-      const cleanScript=segments.map(s=>s.text).join(' ');
-      voiceBlob=await generateGoogleTTS(cleanScript);
-    }else{
-      const segments=parseCabinaScript(script);
-      if(numLocProd===2&&segments.length>1){
-        showStatus('🎙️ Generando cabina con 2 locutores...',50);
-        voiceBlob=await generateCabinaAudio(segments);
-      }else{
-        const cleanScript=segments.map(s=>s.text).join(' ');
-        const ar=await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${CABINA_VOICES.male}`,{
-          method:'POST',
-          headers:{'Content-Type':'application/json','xi-api-key':cfg.elKey},
-          body:JSON.stringify({text:cleanScript,model_id:'eleven_multilingual_v2',voice_settings:CABINA_PRESET})
-        });
-        if(!ar.ok)throw new Error('ElevenLabs error '+ar.status);
-        voiceBlob=await ar.blob();
-      }
-    }
-    if(!voiceBlob||voiceBlob.size<500)throw new Error('Audio vacío — verifica tu API Key');
-    // 3. Mezcla con música
-    showStatus('Mezclando audio...',70);
-    const{blob:finalBlob,audioUrl}=await mixWithBgMusic(voiceBlob);
-    // 4. Añadir a playlist
-    const b64=await blobToB64(finalBlob);
-    const spotName='🔗 '+extractedProduct.name.slice(0,30);
-    const track={type:'spot',name:spotName,b64,url:audioUrl};
-    playlist.push(track);renderPlaylist();
-    sendWS({type:'SPOT',track});
-    markScriptAudioReady(b64,spotName+'.mp3');
-    saveToHistorial({nombre:spotName,script,b64,fecha:new Date().toLocaleString('es-MX',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'})});
-    renderHistorial();
-    showToast('✅ Spot listo: '+spotName,'success');
-    hideStatus();
-  }catch(e){
-    showToast('❌ '+e.message,'error');hideStatus();
-  }finally{
-    btn.disabled=false;btn.textContent='🎙️ Generar spot desde producto';
-  }
-}
-
-async function generateGoogleTTS(text){
-  const voiceName=document.getElementById('googleVoiceSel').value;
-  const speakingRate=parseFloat(document.getElementById('gRateS').value)||1.0;
-  const pitch=parseFloat(document.getElementById('gPitchS').value)||0;
-  // Llama al backend — las credenciales viven en el servidor, nunca en el browser
-  const res=await fetch(getHttpBase()+'/api/google-tts/synthesize',{
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({text,voiceName,speakingRate,pitch,volumeGainDb:0})
-  });
-  const data=await res.json();
-  if(!data.ok)throw new Error('Google TTS: '+(data.error||'Error desconocido'));
-  const binary=atob(data.audioBase64);
-  const bytes=new Uint8Array(binary.length);
-  for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);
-  return new Blob([bytes],{type:'audio/mpeg'});
-}
-
-async function loadGoogleVoices(){
-  try{
-    showToast('⏳ Cargando voces Google...','info');
-    const res=await fetch(getHttpBase()+'/api/google-tts/voices');
-    const data=await res.json();
-    if(!data.ok)throw new Error(data.error||'Error desconocido');
-    const sel=document.getElementById('googleVoiceSel');
-    sel.innerHTML=data.voices.map(v=>`<option value="${v.name}">${v.name} — ${v.ssmlGender==='FEMALE'?'Femenina':'Masculina'}</option>`).join('');
-    showToast('✅ '+data.voices.length+' voces Google cargadas','success');
-  }catch(e){
-    showToast('❌ Google TTS: '+e.message+' — Verifica las credenciales en el servidor','error');
-  }
-}
-
-// ElevenLabs voice loader
-async function loadELVoices(){
-  if(!cfg.elKey){showToast('⚙️ Configura tu API Key de ElevenLabs primero','info');openConfig();return;}
-  const list=document.getElementById('elVoiceList');
-  list.innerHTML='<div style="font-size:11px;color:var(--text3);padding:8px;text-align:center">Cargando...</div>';
-  try{
-    const res=await fetch('https://api.elevenlabs.io/v1/voices',{headers:{'xi-api-key':cfg.elKey}});
-    if(!res.ok)throw new Error('Error '+res.status);
-    const data=await res.json();
-    elVoicesCache=data.voices||[];
-    renderELVoices(elVoicesCache);
-  }catch(e){
-    list.innerHTML=`<div style="color:var(--red);font-size:11px;padding:8px">❌ ${e.message}</div>`;
-  }
-}
-
-function renderELVoices(voices){
-  const list=document.getElementById('elVoiceList');
-  const favs=JSON.parse(localStorage.getItem('tp_fav_voices')||'[]');
-  // Priorizar españolas/favoritas, limitar a 30
-  const sorted=[...voices].sort((a,b)=>{
-    const aFav=favs.includes(a.voice_id)?-10:0;
-    const bFav=favs.includes(b.voice_id)?-10:0;
-    const aEs=(a.labels?.language||'').includes('spanish')||a.name.match(/es[-_]/i)?-2:0;
-    const bEs=(b.labels?.language||'').includes('spanish')||b.name.match(/es[-_]/i)?-2:0;
-    return (aFav+aEs)-(bFav+bEs);
-  }).slice(0,30);
-  list.innerHTML=sorted.map(v=>`
-    <div class="voice-item${favs.includes(v.voice_id)?' fav':''}${cfg.voice===v.voice_id?' selected':''}" onclick="selectELVoice('${v.voice_id}','${v.name.replace(/'/g,'')}')">
-      <div class="vi-name">${v.name}</div>
-      <div class="vi-tags">
-        ${v.labels?.gender?`<span class="vtag">${v.labels.gender}</span>`:''}
-        ${v.labels?.accent?`<span class="vtag">${v.labels.accent}</span>`:''}
-        ${v.category?`<span class="vtag">${v.category}</span>`:''}
-      </div>
-      <button class="vi-fav" onclick="toggleFavVoice(event,'${v.voice_id}')" title="Favorita">${favs.includes(v.voice_id)?'⭐':'☆'}</button>
-    </div>`).join('');
-}
-
-function selectELVoice(id,name){
-  cfg.voice=id;
-  localStorage.setItem('tp_voice',id);
-  document.getElementById('cfgVoice').value=id;
-  if(elVoicesCache)renderELVoices(elVoicesCache);
-  showToast('✅ Voz: '+name,'success');
-}
-
-function toggleFavVoice(e,id){
-  e.stopPropagation();
-  const favs=JSON.parse(localStorage.getItem('tp_fav_voices')||'[]');
-  const i=favs.indexOf(id);
-  if(i>=0)favs.splice(i,1);else favs.unshift(id);
-  localStorage.setItem('tp_fav_voices',JSON.stringify(favs));
-  if(elVoicesCache)renderELVoices(elVoicesCache);
-}
-
-// === INIT ===
-document.getElementById('chkAutoSpot').checked=cfg.autoSpot;
-document.getElementById('selSpotEvery').value=String(cfg.spotEvery);
-updateSpotCtr();
-updateFestivoBtn();
-renderHistorial();
-// Guardar defaults en localStorage si no estaban guardados
-if(!localStorage.getItem('tp_ws'))localStorage.setItem('tp_ws',cfg.ws);
-if(!localStorage.getItem('tp_el'))localStorage.setItem('tp_el',cfg.elKey);
-connectWS();
-// Si no tiene Claude key, avisar una sola vez
-if(!cfg.claudeKey){
-  setTimeout(()=>showToast('⚙️ Ingresa tu API Key de Claude en Configuración (⚙️)','info'),1500);
-}
+// INIT
+updateSpotCtr();refreshVBtns();
+if(cfg.ws)connectWS();
+else{setWSStatus('error','Sin configurar');showToast('⚙️ Configura la URL del servidor primero','info')}
 </script>
 </body>
 </html>
