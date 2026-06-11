@@ -590,6 +590,42 @@ input:checked + .toggle-slider::before{background:var(--red);transform:translate
 .btn-mix:hover{background:rgba(212,32,32,0.2);border-color:rgba(212,32,32,0.5)}
 .btn-mix:disabled{opacity:0.3;cursor:not-allowed}
 
+/* ── PERSISTENCE ── */
+.save-ind{
+  font-family:'Share Tech Mono',monospace;font-size:9px;color:transparent;
+  letter-spacing:.4px;transition:color .4s;white-space:nowrap;max-width:150px;overflow:hidden;text-overflow:ellipsis;
+}
+.save-ind.saving{color:rgba(212,32,32,0.6)}
+.save-ind.saved{color:rgba(0,200,100,0.65)}
+.save-ind.restored{color:rgba(0,200,100,0.65)}
+.save-ind.error{color:rgba(212,32,32,0.9)}
+.restore-banner{
+  position:fixed;top:62px;left:50%;transform:translateX(-50%);z-index:999;
+  background:linear-gradient(135deg,rgba(10,18,32,0.97),rgba(15,24,44,0.97));
+  border:1px solid rgba(0,200,100,0.22);border-radius:11px;
+  padding:11px 16px;display:none;align-items:center;gap:10px;
+  box-shadow:0 8px 28px rgba(0,0,0,0.55);
+  font-family:'Inter',sans-serif;font-size:12px;color:var(--text2);
+  max-width:92vw;
+  animation:rBannerIn .3s ease;
+}
+@keyframes rBannerIn{from{opacity:0;transform:translateX(-50%) translateY(-12px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+.rb-btn{
+  padding:5px 11px;border-radius:6px;cursor:pointer;font-size:11px;
+  font-family:'Inter',sans-serif;white-space:nowrap;transition:all .15s;
+}
+.rb-btn.primary{background:rgba(0,200,100,0.12);border:1px solid rgba(0,200,100,0.3);color:rgba(0,200,100,.9)}
+.rb-btn.primary:hover{background:rgba(0,200,100,0.22)}
+.rb-btn.secondary{background:transparent;border:1px solid var(--border2);color:var(--text3)}
+.rb-btn.secondary:hover{color:var(--text2);border-color:var(--border)}
+.btn-export{
+  width:100%;padding:9px;margin-top:6px;
+  background:var(--navy2);border:1px solid var(--border2);border-radius:7px;
+  color:var(--text2);font-family:'Inter',sans-serif;font-size:11px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;gap:6px;transition:border-color .2s;
+}
+.btn-export:hover{border-color:var(--border)}
+
 /* ── THUMBNAILS ── */
 .np-thumb-wrap{
   width:100%;aspect-ratio:16/9;background:var(--navy3);
@@ -627,6 +663,7 @@ input:checked + .toggle-slider::before{background:var(--red);transform:translate
     <span class="logo-badge">Panel Control</span>
   </div>
   <div class="header-right">
+    <span class="save-ind" id="saveInd"></span>
     <div class="ws-status connecting" id="wsStatus" onclick="openConfig()">
       <div class="ws-dot"></div>
       <span id="wsLabel">Conectando...</span>
@@ -634,6 +671,14 @@ input:checked + .toggle-slider::before{background:var(--red);transform:translate
     <button class="btn-cfg" onclick="openConfig()" title="Configuración">⚙️</button>
   </div>
 </header>
+
+<!-- RESTORE BANNER -->
+<div class="restore-banner" id="restoreBanner">
+  <span style="font-size:15px">↺</span>
+  <span id="restoreBannerMsg" style="flex:1">Sesión restaurada. ¿Reanudar radio?</span>
+  <button class="rb-btn primary" onclick="resumeFromRestore()">▶ Reanudar</button>
+  <button class="rb-btn secondary" onclick="dismissRestoreBanner()">✕</button>
+</div>
 
 <div class="app">
   <div class="left-col">
@@ -994,7 +1039,17 @@ input:checked + .toggle-slider::before{background:var(--red);transform:translate
       <label>Eslogan de la radio</label>
       <input class="inp" id="cfgSl" value="La estación oficial de Terrapesca"/>
     </div>
-    <div class="field-row" style="margin-top:18px">
+    <div style="margin-top:16px;border-top:1px solid var(--border2);padding-top:14px">
+      <p class="sub" style="margin-bottom:8px">Respaldo de sesión</p>
+      <div style="display:flex;gap:8px">
+        <button class="btn-export" style="flex:1" onclick="StorageService.exportBackup()">📦 Exportar respaldo JSON</button>
+        <label class="btn-export" style="flex:1;cursor:pointer">
+          📥 Importar respaldo
+          <input type="file" id="importFile" accept=".json" style="display:none" onchange="handleImportFile(event)"/>
+        </label>
+      </div>
+    </div>
+    <div class="field-row" style="margin-top:14px">
       <button class="btn-m" onclick="closeConfig()">Cancelar</button>
       <button class="btn-m primary" onclick="saveConfig()">Guardar y conectar</button>
     </div>
@@ -1180,6 +1235,7 @@ async function addYT(){
   document.getElementById('ytPreviewBox').style.display='none';
   renderPlaylist(); sendWS({type:'PLAYLIST_UPDATE',playlist:getPublicPlaylist()});
   showToast('🎵 Canción agregada','success');
+  triggerSave();
   if(curIdx===-1)playTrack(0);
   // Background title fetch if not yet cached
   if(!nameInput&&!cached){
@@ -1193,23 +1249,26 @@ async function addYT(){
     }).catch(()=>{});
   }
 }
-function addMP3(){
+async function addMP3(){
   const file=document.getElementById('mp3F').files[0];
   const name=document.getElementById('mp3N').value.trim();
   if(!file){showToast('⚠️ Selecciona un archivo','error');return}
   const url=URL.createObjectURL(file);
+  const audioData=await file.arrayBuffer();
   const n=name||file.name.replace(/\.[^/.]+$/,'');
-  playlist.push({type:'mp3',name:n,url});
+  playlist.push({type:'mp3',name:n,url,audioData});
   document.getElementById('mp3F').value='';document.getElementById('mp3N').value='';
   renderPlaylist(); sendWS({type:'PLAYLIST_UPDATE',playlist:getPublicPlaylist()});
   showToast('🎵 Canción agregada','success');
   if(curIdx===-1)playTrack(0);
+  triggerSave();
 }
 function removeTrack(i){
   if(i===curIdx){stopAll();curIdx=-1;resetPlayer()}
   else if(i<curIdx)curIdx--;
   playlist.splice(i,1);renderPlaylist();
   sendWS({type:'PLAYLIST_UPDATE',playlist:getPublicPlaylist()});
+  triggerSave();
 }
 function getPublicPlaylist(){
   return playlist.map(t=>({type:t.type,name:t.name,ytId:t.ytId||null}));
@@ -1504,6 +1563,7 @@ function playTrack(idx){
     sendWS({type:'PLAY',track:{type:'yt',name:t.name,ytId:t.ytId},position:0});
   }else{
     document.getElementById('yt-container').style.display='none';
+    ensureTrackUrl(t); // recreate blob URL from stored data if needed
     audioEl=new Audio(t.url);
     audioEl.volume=parseInt(document.getElementById('volS').value)/100;
     audioEl.play();
@@ -1519,6 +1579,7 @@ function playTrack(idx){
     }
   }
   updateNP(t);setPlayUI(true);renderPlaylist();startProg();
+  triggerSave(); // save current track index
 }
 function togglePlay(){
   if(curIdx===-1){if(playlist.length)playTrack(0);return}
@@ -1575,8 +1636,8 @@ function handleEnded(){
 }
 function nextTrack(){if(!playlist.length)return;const n=isShuffle?Math.floor(Math.random()*playlist.length):(curIdx+1)%playlist.length;playTrack(n)}
 function prevTrack(){if(!playlist.length)return;playTrack(curIdx<=0?playlist.length-1:curIdx-1)}
-function toggleShuffle(){isShuffle=!isShuffle;document.getElementById('btnSh').classList.toggle('active',isShuffle)}
-function toggleRepeat(){isRepeat=!isRepeat;document.getElementById('btnRp').classList.toggle('active',isRepeat)}
+function toggleShuffle(){isShuffle=!isShuffle;document.getElementById('btnSh').classList.toggle('active',isShuffle);triggerSave()}
+function toggleRepeat(){isRepeat=!isRepeat;document.getElementById('btnRp').classList.toggle('active',isRepeat);triggerSave()}
 function startProg(){clearInterval(progInt);progInt=setInterval(updateProg,500)}
 function updateProg(){
   let c=0,d=0;
@@ -1599,6 +1660,7 @@ function setVolume(v){
   if(audioEl)audioEl.volume=v/100;
   if(ytReady&&ytPlayer)try{ytPlayer.setVolume(parseInt(v))}catch(e){}
   sendWS({type:'VOLUME',volume:parseInt(v)});
+  triggerSave();
 }
 function resetPlayer(){
   document.getElementById('npTitle').textContent='Sin reproducción';
@@ -1665,6 +1727,7 @@ function onDrop(e,i){
   dragSrcIdx=null;
   renderPlaylist();
   sendWS({type:'PLAYLIST_UPDATE',playlist:getPublicPlaylist()});
+  triggerSave();
 }
 function onDragEnd(e){
   dragSrcIdx=null;
@@ -1735,6 +1798,14 @@ function removeJingle(){
   showToast('Jingle eliminado','info');
 }
 function playJingle(){
+  // Recreate blob URL from b64 if URL is gone (e.g., after page restore)
+  if(!jingleUrl&&jingleB64){
+    try{
+      const bin=atob(jingleB64),arr=new Uint8Array(bin.length);
+      for(let i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i);
+      jingleUrl=URL.createObjectURL(new Blob([arr],{type:'audio/mpeg'}));
+    }catch(e){return}
+  }
   if(!jingleUrl)return;
   if(jingleAudio){jingleAudio.pause();jingleAudio=null}
   jingleAudio=new Audio(jingleUrl);
@@ -1751,6 +1822,229 @@ function hideStatus(){document.getElementById('statusBar').classList.remove('sho
 let toastT;
 function showToast(m,t='info'){const el=document.getElementById('toast');el.textContent=m;el.className='toast show '+t;clearTimeout(toastT);toastT=setTimeout(()=>el.classList.remove('show'),3500)}
 function fmt(s){if(!s||isNaN(s))return'0:00';const m=Math.floor(s/60),sc=Math.floor(s%60);return m+':'+(sc<10?'0':'')+sc}
+
+// ---- STORAGE / PERSISTENCE ----
+const IDB_NAME='TerrapescaRadio',IDB_VER=2;
+let idb=null;
+
+function openDB(){
+  return new Promise((res,rej)=>{
+    const req=indexedDB.open(IDB_NAME,IDB_VER);
+    req.onupgradeneeded=e=>{
+      const d=e.target.result;
+      if(!d.objectStoreNames.contains('playlist')) d.createObjectStore('playlist',{keyPath:'key'});
+      if(!d.objectStoreNames.contains('session'))  d.createObjectStore('session', {keyPath:'key'});
+    };
+    req.onsuccess=e=>{idb=e.target.result;res(idb)};
+    req.onerror=e=>rej(e.target.error);
+  });
+}
+function idbPut(store,val){
+  return new Promise((res,rej)=>{
+    if(!idb){res();return}
+    const tx=idb.transaction([store],'readwrite');
+    tx.objectStore(store).put(val).onsuccess=()=>res();
+    tx.onerror=e=>rej(e.target.error);
+  });
+}
+function idbGet(store,key){
+  return new Promise((res,rej)=>{
+    if(!idb){res(null);return}
+    const tx=idb.transaction([store],'readonly');
+    const r=tx.objectStore(store).get(key);
+    r.onsuccess=()=>res(r.result||null);
+    r.onerror=e=>rej(e.target.error);
+  });
+}
+
+// Binary helpers for JSON export
+function ab2b64(ab){
+  const b=new Uint8Array(ab);let s='';
+  for(let i=0;i<b.length;i+=8192) s+=String.fromCharCode(...b.subarray(i,i+8192));
+  return btoa(s);
+}
+function b642ab(b64){
+  const s=atob(b64),b=new Uint8Array(s.length);
+  for(let i=0;i<s.length;i++) b[i]=s.charCodeAt(i);
+  return b.buffer;
+}
+
+// Strip ephemeral blob URLs before storing
+function serializeItem(t){
+  const {url,...rest}=t; return rest; // url is ephemeral blob, not storable
+}
+function itemToExportJSON(t){
+  const s=serializeItem(t);
+  if(s.audioData instanceof ArrayBuffer){
+    const{audioData,...r}=s; return{...r,audioDataB64:ab2b64(audioData)};
+  }
+  return s;
+}
+function itemFromExportJSON(t){
+  if(t.audioDataB64){
+    const{audioDataB64,...r}=t; return{...r,audioData:b642ab(audioDataB64)};
+  }
+  return t;
+}
+
+// Recreate blob URL on demand when playing a restored track
+function ensureTrackUrl(t){
+  if(t.url) return;
+  try{
+    if(t.type==='mp3'&&t.audioData){
+      t.url=URL.createObjectURL(new Blob([t.audioData],{type:'audio/mpeg'}));
+    }else if(t.type==='spot'&&t.b64){
+      const bin=atob(t.b64),arr=new Uint8Array(bin.length);
+      for(let i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i);
+      t.url=URL.createObjectURL(new Blob([arr],{type:'audio/mpeg'}));
+    }
+  }catch(e){}
+}
+
+const StorageService={
+  async savePlaylist(items){
+    await idbPut('playlist',{key:'main',items:items.map(serializeItem),savedAt:Date.now()});
+  },
+  async getPlaylist(){
+    const d=await idbGet('playlist','main'); return d?d.items:null;
+  },
+  async saveSession(s){
+    await idbPut('session',{key:'current',...s,savedAt:Date.now()});
+  },
+  async getSession(){
+    return idbGet('session','current');
+  },
+  async exportBackup(){
+    const items=(await this.getPlaylist())||[];
+    const session=await this.getSession();
+    const backup={
+      version:2,stationName:'Terrapesca Radio',
+      exportedAt:new Date().toISOString(),
+      playlist:items.map(itemToExportJSON),
+      session,cfg:{ws:cfg.ws,slogan:cfg.slogan}
+    };
+    const blob=new Blob([JSON.stringify(backup,null,2)],{type:'application/json'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;a.download=`radio-terrapesca-backup-${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(a);a.click();document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast('📦 Respaldo exportado','success');
+  },
+  async importBackup(file){
+    const text=await file.text();
+    const backup=JSON.parse(text);
+    if(!backup.version||!Array.isArray(backup.playlist)) throw new Error('Formato inválido');
+    const items=backup.playlist.map(itemFromExportJSON);
+    await this.savePlaylist(items);
+    if(backup.session) await this.saveSession(backup.session);
+    return items;
+  }
+};
+
+// ---- AUTOSAVE ----
+let saveTimer=null;
+async function doAutoSave(){
+  try{
+    await StorageService.savePlaylist(playlist);
+    await StorageService.saveSession({
+      curIdx,isShuffle,isRepeat,
+      volume:parseInt(document.getElementById('volS').value),
+      songsSinceSpot,
+      jingleB64,jingleVolume,
+      jingleName:document.getElementById('jingleName')?.textContent||'',
+    });
+    updateSaveInd('saved');
+  }catch(e){updateSaveInd('error')}
+}
+function triggerSave(){
+  updateSaveInd('saving');
+  clearTimeout(saveTimer);
+  saveTimer=setTimeout(doAutoSave,1200);
+}
+function updateSaveInd(state){
+  const el=document.getElementById('saveInd');if(!el)return;
+  const now=new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'});
+  if(state==='saving'){el.textContent='💾 Guardando...';el.className='save-ind saving'}
+  else if(state==='saved'){el.textContent='✓ '+now;el.className='save-ind saved';setTimeout(()=>{if(el.classList.contains('saved'))el.textContent=''},6000)}
+  else if(state==='restored'){el.textContent='↺ Restaurado';el.className='save-ind restored';setTimeout(()=>el.textContent='',6000)}
+  else if(state==='error'){el.textContent='⚠ Error al guardar';el.className='save-ind error'}
+}
+
+// Periodic save during playback (every 10s)
+setInterval(()=>{if(isPlaying&&playlist.length)triggerSave()},10000);
+
+// ---- RESTORE SESSION ----
+let restoreReady=false;
+async function restoreSession(){
+  try{
+    const items=await StorageService.getPlaylist();
+    if(!items?.length) return;
+    playlist=items;
+    renderPlaylist();
+    const session=await StorageService.getSession();
+    if(session){
+      isShuffle=!!session.isShuffle;
+      isRepeat=!!session.isRepeat;
+      songsSinceSpot=session.songsSinceSpot||0;
+      // Restore volume
+      const vol=session.volume||80;
+      document.getElementById('volS').value=vol;
+      document.getElementById('volP').textContent=vol+'%';
+      // Restore jingle b64 (URL recreated lazily in playJingle)
+      if(session.jingleB64){
+        jingleB64=session.jingleB64;
+        jingleVolume=session.jingleVolume||0.25;
+        const jn=session.jingleName||'Jingle (restaurado)';
+        document.getElementById('jingleName').textContent=jn;
+        document.getElementById('jingleLabel').textContent=jn+' — resubir para remezclar';
+        document.getElementById('jingleInfo').style.display='flex';
+        document.getElementById('jingleZone').style.borderColor='var(--red)';
+        document.getElementById('jingleVol').value=Math.round(jingleVolume*100);
+        document.getElementById('jingleVolPct').textContent=Math.round(jingleVolume*100)+'%';
+      }
+      // Restore playback position (paused)
+      const idx=(typeof session.curIdx==='number'&&session.curIdx>=0&&session.curIdx<playlist.length)?session.curIdx:-1;
+      curIdx=idx;
+      document.getElementById('btnSh').classList.toggle('active',isShuffle);
+      document.getElementById('btnRp').classList.toggle('active',isRepeat);
+      updateSpotCtr();
+      if(idx>=0){
+        const t=playlist[idx];
+        if(t){updateNP(t);setPlayUI(false);}
+      }
+    }
+    updateSaveInd('restored');
+    if(playlist.length){
+      const t=curIdx>=0?playlist[curIdx]:null;
+      const msg=t?`Sesión restaurada — "${t.name.substring(0,35)}" — ¿Reanudar?`:'Sesión restaurada. ¿Iniciar radio?';
+      document.getElementById('restoreBannerMsg').textContent=msg;
+      document.getElementById('restoreBanner').style.display='flex';
+      setTimeout(dismissRestoreBanner,40000);
+    }
+  }catch(e){console.error('Restore error:',e)}
+}
+function dismissRestoreBanner(){document.getElementById('restoreBanner').style.display='none'}
+function resumeFromRestore(){
+  dismissRestoreBanner();
+  if(curIdx>=0&&playlist.length) playTrack(curIdx);
+  else if(playlist.length) playTrack(0);
+}
+
+async function handleImportFile(e){
+  const file=e.target.files[0];if(!file)return;
+  try{
+    const items=await StorageService.importBackup(file);
+    playlist=items;renderPlaylist();
+    showToast(`✅ ${items.length} pistas restauradas desde respaldo`,'success');
+    updateSaveInd('restored');
+    if(items.length&&curIdx===-1){curIdx=0;updateNP(items[0]);setPlayUI(false);}
+    document.getElementById('restoreBannerMsg').textContent=`Respaldo importado — ${items.length} pistas`;
+    document.getElementById('restoreBanner').style.display='flex';
+    setTimeout(dismissRestoreBanner,20000);
+  }catch(err){showToast('❌ '+err.message,'error')}
+  e.target.value='';
+}
 
 // ---- CÁPSULA DE HORA ----
 let capsulaSongCounter=0;
@@ -2097,6 +2391,8 @@ function audioBufferToWAV(buf){
 
 // INIT
 updateSpotCtr();refreshVBtns();
+// Open IndexedDB and restore last session
+openDB().then(()=>restoreSession()).catch(e=>console.error('DB open failed:',e));
 // Wire URL preview
 setTimeout(()=>{
   const ytU=document.getElementById('ytU');
