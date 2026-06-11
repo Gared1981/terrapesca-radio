@@ -637,14 +637,53 @@ input[type=range]::-moz-range-thumb{
 
     <!-- INVENTORY -->
     <div class="inv-card">
-      <div class="sec-lbl">Inventario para spots</div>
-      <div class="inv-zone" onclick="document.getElementById('xlsF').click()">
-        <div class="ic">📊</div>
-        <p>Sube tu Excel o <span>haz clic aquí</span></p>
-        <p style="font-size:10px;margin-top:3px;color:var(--text3);font-family:'Share Tech Mono',monospace">Columnas: Producto · Precio</p>
-        <input type="file" id="xlsF" accept=".xlsx,.xls,.csv" style="display:none" onchange="loadExcel(event)"/>
+      <div class="sec-lbl">Generador de spots</div>
+
+      <!-- Tabs de modo -->
+      <div class="tabs" style="margin-bottom:12px">
+        <button class="tab active" id="tabExcel" onclick="switchSpotTab('excel')">📊 Inventario Excel</button>
+        <button class="tab" id="tabTexto" onclick="switchSpotTab('texto')">✏️ Texto libre</button>
       </div>
-      <div class="prod-list" id="prodList"></div>
+
+      <!-- Panel Excel -->
+      <div id="spotPanelExcel">
+        <div class="inv-zone" onclick="document.getElementById('xlsF').click()">
+          <div class="ic">📊</div>
+          <p>Sube tu Excel o <span>haz clic aquí</span></p>
+          <p style="font-size:10px;margin-top:3px;color:var(--text3);font-family:'Share Tech Mono',monospace">Columnas: Producto · Precio</p>
+          <input type="file" id="xlsF" accept=".xlsx,.xls,.csv" style="display:none" onchange="loadExcel(event)"/>
+        </div>
+        <div class="prod-list" id="prodList"></div>
+      </div>
+
+      <!-- Panel Texto libre -->
+      <div id="spotPanelTexto" style="display:none">
+        <textarea id="spotTextoInput" class="inp" rows="5"
+          placeholder="Escribe aquí el brief del spot. Ejemplo:&#10;&#10;Terrapesca tiene caña de pesca Shimano al 40% de descuento, lunes y martes solamente. También hay liquidación de trajes de buceo. Precio especial para miembros del club."
+          style="resize:vertical;font-size:12px;line-height:1.5"></textarea>
+        <div style="margin-top:6px;display:flex;gap:6px;align-items:center">
+          <select id="spotEstilo" class="inp" style="margin-bottom:0;font-size:11px;padding:7px 10px">
+            <option value="eufórico">🔥 Eufórico (Ke Buena)</option>
+            <option value="dinámico">⚡ Dinámico (Exa FM)</option>
+            <option value="elegante">🎙️ Elegante (W Radio)</option>
+            <option value="urgente">⏱️ Urgente (oferta limitada)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Voz para este spot -->
+      <div style="margin-top:10px;padding:8px 10px;background:var(--navy2);border:1px solid var(--border2);border-radius:7px;display:flex;align-items:center;gap:8px">
+        <span style="font-size:10px;color:var(--text3);font-family:'Share Tech Mono',monospace;white-space:nowrap">VOZ:</span>
+        <select id="spotVozSelect" class="inp" style="margin-bottom:0;font-size:11px;padding:5px 8px;flex:1">
+          <option value="auto">🔄 Auto (rotar voces)</option>
+          <option value="bill">🎙️ Bill — Masculina profunda</option>
+          <option value="charlie">🎙️ Charlie — Masculina joven</option>
+          <option value="callum">🎙️ Callum — Masculina dramática</option>
+          <option value="aria">🎤 Aria — Femenina</option>
+          <option value="matilda">🎤 Matilda — Femenina energética</option>
+        </select>
+      </div>
+
       <button class="btn-spot" id="btnSpot" onclick="generateSpot()" disabled>
         🎙️ Generar spot con IA + ElevenLabs
       </button>
@@ -709,13 +748,6 @@ input[type=range]::-moz-range-thumb{
     <div class="field">
       <label>API Key de Anthropic (Claude)</label>
       <input class="inp" id="cfgAnt" placeholder="sk-ant-xxxxxxxx" type="password"/>
-    </div>
-    <div class="field">
-      <label>Voz del spot</label>
-      <div class="field-row">
-        <button class="btn-m" id="vB1" onclick="selVoice('male')">🎙️ Masculina</button>
-        <button class="btn-m" id="vB2" onclick="selVoice('female')">🎤 Femenina</button>
-      </div>
     </div>
     <div class="field">
       <label>Eslogan de la radio</label>
@@ -798,14 +830,8 @@ function openConfig() {
   document.getElementById('cfgModal').classList.add('open');
 }
 function closeConfig() { document.getElementById('cfgModal').classList.remove('open'); }
-function selVoice(v) { selV=v; refreshVBtns(); }
-function refreshVBtns() {
-  ['male','female'].forEach((v,i)=>{
-    const b=document.getElementById('vB'+(i+1));
-    b.style.borderColor=selV===v?'var(--red)':'var(--border)';
-    b.style.color=selV===v?'var(--red)':'var(--text2)';
-  });
-}
+function selVoice(v) { selV=v; }
+function refreshVBtns() {}
 function saveConfig() {
   cfg.ws=document.getElementById('cfgWs').value.trim();
   cfg.apiKey=document.getElementById('cfgEl').value.trim();
@@ -920,33 +946,118 @@ function renderProducts(){
     </div>`).join('');
 }
 
+// ---- SPOT TAB SWITCHER ----
+let spotMode='excel'; // 'excel' | 'texto'
+function switchSpotTab(t){
+  spotMode=t;
+  document.getElementById('tabExcel').classList.toggle('active',t==='excel');
+  document.getElementById('tabTexto').classList.toggle('active',t==='texto');
+  document.getElementById('spotPanelExcel').style.display=t==='excel'?'':'none';
+  document.getElementById('spotPanelTexto').style.display=t==='texto'?'':'none';
+  document.getElementById('btnSpot').disabled=(t==='excel'&&!products.length)||(t==='texto'&&!document.getElementById('spotTextoInput').value.trim());
+}
+// enable button as user types
+setTimeout(()=>{
+  document.getElementById('spotTextoInput').addEventListener('input',e=>{
+    if(spotMode==='texto') document.getElementById('btnSpot').disabled=!e.target.value.trim();
+  });
+},500);
+
+// Voices pool
+const VOICES={
+  bill:  {id:'pqHfZKP75CvOlQylNhV4', label:'Bill'},
+  charlie:{id:'IKne3meq5aSn9XLyUdCD', label:'Charlie'},
+  callum:{id:'N2lVS1w4EtoT3dr4eOWO', label:'Callum'},
+  aria:  {id:'9BWtsMINqrJLrRacOk9x', label:'Aria'},
+  matilda:{id:'XrExE9yKIg1WjnnlVkGX', label:'Matilda'},
+};
+const VOICE_ROTATION=['bill','charlie','aria','callum','matilda'];
+let voiceRotIdx=0;
+function pickVoiceId(){
+  const sel=document.getElementById('spotVozSelect').value;
+  if(sel==='auto'){
+    const v=VOICES[VOICE_ROTATION[voiceRotIdx%VOICE_ROTATION.length]];
+    voiceRotIdx++;
+    return v;
+  }
+  return VOICES[sel]||VOICES.bill;
+}
+
+// Prompt builder
+function buildPrompt(contenido, estilo){
+  const estiloMap={
+    'eufórico':`SUPER EUFÓRICO, DINÁMICO Y ENERGÉTICO — estilo Ke Buena / La Mera Mera México. Frases cortas y poderosas. Exclamaciones. Ritmo acelerado. Mucha emoción y urgencia. Como si el locutor estuviera emocionadísimo. USA [excited] frecuentemente, [fast] para partes de lista y [pause] breve para respirar.`,
+    'dinámico':`DINÁMICO Y FRESCO — estilo Exa FM / Los 40 Principales México. Energético pero fluido. Mezcla emoción con datos. Frases de impacto. USA [excited] en ofertas, [fast] en listas, tono juvenil y moderno.`,
+    'elegante':`ELEGANTE Y PROFESIONAL — estilo W Radio / XEW México. Voz autoridad, cálido pero formal. Pausas bien colocadas. Comunica prestigio y confianza. USA [calm] para cierres institucionales, [pause] para énfasis.`,
+    'urgente':`URGENTE Y DE OFERTA LIMITADA — como spot de remate de fin de semana. Transmite que es HOY, que se acaba, que no puede perderse. Frases cortas, mucha urgencia, usa [excited] y [fast]. Como anuncio de liquidación masiva.`,
+  };
+  const tono=estiloMap[estilo]||estiloMap['eufórico'];
+  return `Eres el locutor estrella de Terrapesca Radio, la estación oficial de Terrapesca Marine & Outdoors en México.
+
+TONO: ${tono}
+
+Genera un spot publicitario radial de máximo 35 segundos (85-110 palabras) basándote en este contenido:
+---
+${contenido}
+---
+Eslogan de cierre: "${cfg.slogan}"
+
+REGLAS:
+- USA audio tags de ElevenLabs v3 para máximo impacto: [excited], [fast], [pause], [calm], [emphasis]
+- Comienza con una frase de gancho que capture atención INMEDIATAMENTE
+- Menciona precios o descuentos de forma entusiasta si los hay
+- Cierra con el eslogan de forma memorable
+- NUNCA menciones "Terrapesca Radio" en el spot (es implícito)
+- Sin muletillas ni frases genéricas aburridas
+
+Responde ÚNICAMENTE con el texto del spot listo para narrar, sin explicaciones ni comillas externas.`;
+}
+
 // ---- GENERATE SPOT ----
 async function generateSpot(){
-  if(!cfg.apiKey){showToast('⚙️ Configura tu API Key','info');openConfig();return}
-  if(!products.length){showToast('⚠️ Carga el inventario','error');return}
+  if(!cfg.apiKey){showToast('⚙️ Configura tu API Key de ElevenLabs','info');openConfig();return}
+  if(!cfg.anthropicKey){showToast('⚙️ Configura tu API Key de Anthropic','info');openConfig();return}
+
+  let contenido='', spotLabel='Terrapesca';
+  if(spotMode==='excel'){
+    if(!products.length){showToast('⚠️ Carga el inventario primero','error');return}
+    const top=products.filter(p=>p.priority).slice(0,3);
+    contenido=top.map(p=>p.name+(p.price?' — $'+p.price.toFixed(0):'')).join('\n');
+    spotLabel=top[0]?.name||'Terrapesca';
+  }else{
+    contenido=document.getElementById('spotTextoInput').value.trim();
+    if(!contenido){showToast('⚠️ Escribe el contenido del spot','error');return}
+    spotLabel=contenido.split(/\s+/).slice(0,4).join(' ');
+  }
+
+  const estilo=document.getElementById('spotEstilo')?.value||'eufórico';
+  const voz=pickVoiceId();
   const btn=document.getElementById('btnSpot');btn.disabled=true;
-  showStatus('🤖 Generando guión con IA...',20);
-  const top=products.filter(p=>p.priority).slice(0,3);
-  const promo=top.map(p=>p.name+(p.price?' a $'+p.price.toFixed(0):'')).join(', ');
-  const baseUrl = cfg.ws.replace('wss://','https://').replace('ws://','http://').replace(/\/$/,'');
+  showStatus(`🤖 Generando guión (${estilo})...`,20);
+  const baseUrl=cfg.ws.replace('wss://','https://').replace('ws://','http://').replace(/\/$/,'');
+
   try{
     const sr=await fetch(`${baseUrl}/api/anthropic`,{
       method:'POST',
-      headers:{'Content-Type':'application/json','x-api-key':cfg.anthropicKey||''},
+      headers:{'Content-Type':'application/json','x-api-key':cfg.anthropicKey},
       body:JSON.stringify({
-        model:'claude-sonnet-4-20250514',max_tokens:1000,
-        messages:[{role:'user',content:`Eres el locutor oficial de Terrapesca Radio, una estación de radio comercial profesional de México. Tu estilo es elegante, cálido y autoritario — como las grandes cadenas FM nacionales.\n\nGenera un spot publicitario de máximo 35 segundos (80-100 palabras) para:\nProductos: ${promo}\nEslogan de cierre: "${cfg.slogan}"\n\nUSA audio tags de ElevenLabs v3:\n- [pause] para pausas dramáticas\n- [excited] para énfasis en precios\n- [calm] para el cierre institucional\n\nTONO: Formal, elegante, profesional. Estilo W Radio o XEW México. Sin lenguaje coloquial.\n\nResponde ÚNICAMENTE con el texto del spot listo para narrar, sin explicaciones.`}]
+        model:'claude-sonnet-4-20250514',max_tokens:1200,
+        messages:[{role:'user',content:buildPrompt(contenido,estilo)}]
       })
     });
     const sd=await sr.json();
     const script=sd.content?.[0]?.text||'';
     if(!script)throw new Error('Sin respuesta de IA');
-    showStatus('🎙️ Narrando con ElevenLabs v3...',55);
-    const vid=cfg.voice==='male'?'pqHfZKP75CvOlQylNhV4':'9BWtsMINqrJLrRacOk9x';
-    const tr=await fetch(`${baseUrl}/api/elevenlabs/${vid}`,{
+
+    showStatus(`🎙️ Narrando con ${voz.label}...`,55);
+    const tr=await fetch(`${baseUrl}/api/elevenlabs/${voz.id}`,{
       method:'POST',
       headers:{'Content-Type':'application/json','xi-api-key':cfg.apiKey},
-      body:JSON.stringify({text:script,model_id:'eleven_v3',voice_settings:{stability:0.35,similarity_boost:0.90,style:0.75,use_speaker_boost:true}})
+      body:JSON.stringify({
+        text:script,
+        model_id:'eleven_v3',
+        voice_settings:{stability:0.25,similarity_boost:0.88,style:0.90,use_speaker_boost:true}
+      })
     });
     if(!tr.ok){const er=await tr.json().catch(()=>({}));throw new Error(er.detail?.message||'Error ElevenLabs')}
     showStatus('📡 Procesando audio...',80);
@@ -957,12 +1068,12 @@ async function generateSpot(){
       reader.onload=()=>res(reader.result.split(',')[1]);
       reader.readAsDataURL(blob);
     });
-    const spotName='🎙️ SPOT — '+(top[0]?.name||'Terrapesca');
+    const spotName=`🎙️ SPOT [${voz.label}] — ${spotLabel.substring(0,30)}`;
     playlist.push({type:'spot',name:spotName,url:audioUrl,b64,script});
     renderPlaylist();
     sendWS({type:'SPOT',track:{type:'spot',name:spotName,b64,jingleB64:jingleB64||null}});
     hideStatus();btn.disabled=false;
-    showToast('🎙️ Spot listo y enviado a sucursales','gold');
+    showToast(`🎙️ Spot [${voz.label}] listo y enviado!`,'gold');
   }catch(err){
     hideStatus();btn.disabled=false;
     showToast('❌ '+(err.message||'Error al generar'),'error');
