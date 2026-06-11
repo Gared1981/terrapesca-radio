@@ -589,6 +589,31 @@ input:checked + .toggle-slider::before{background:var(--red);transform:translate
 }
 .btn-mix:hover{background:rgba(212,32,32,0.2);border-color:rgba(212,32,32,0.5)}
 .btn-mix:disabled{opacity:0.3;cursor:not-allowed}
+
+/* ── THUMBNAILS ── */
+.np-thumb-wrap{
+  width:100%;aspect-ratio:16/9;background:var(--navy3);
+  border-radius:10px;overflow:hidden;margin-bottom:10px;
+  display:none;position:relative;flex-shrink:0;
+}
+.np-thumb{width:100%;height:100%;object-fit:cover;display:block}
+.np-thumb-overlay{
+  position:absolute;bottom:0;left:0;right:0;height:48px;
+  background:linear-gradient(to top,rgba(8,14,26,0.9),transparent);pointer-events:none;
+}
+.pl-thumb{
+  width:48px;height:36px;object-fit:cover;border-radius:5px;
+  background:var(--navy3);flex-shrink:0;
+}
+.yt-preview-box{
+  margin-top:8px;padding:9px 10px;background:var(--navy2);
+  border:1px solid var(--border2);border-radius:8px;
+  gap:10px;align-items:center;
+}
+.yt-preview-thumb{
+  width:80px;height:60px;object-fit:cover;border-radius:6px;
+  background:var(--navy3);flex-shrink:0;
+}
 </style>
 </head>
 <body>
@@ -617,6 +642,10 @@ input:checked + .toggle-slider::before{background:var(--red);transform:translate
     <div class="player-card">
       <div class="player-hero">
         <div class="on-air"><div class="on-air-dot"></div>Al aire</div>
+        <div class="np-thumb-wrap" id="npThumbWrap">
+          <img class="np-thumb" id="npThumb" src="" alt="">
+          <div class="np-thumb-overlay"></div>
+        </div>
         <div class="now-title" id="npTitle">Sin reproducción</div>
         <div class="now-sub" id="npSub">Agrega canciones a la playlist</div>
         <span class="src-tag mp3" id="srcTag">— —</span>
@@ -690,10 +719,18 @@ input:checked + .toggle-slider::before{background:var(--red);transform:translate
         <button class="tab" id="tabMP3" onclick="switchTab('mp3')">🎵 MP3</button>
       </div>
       <div id="fYT" class="add-form">
-        <input class="inp" id="ytN" placeholder="Nombre (opcional)"/>
+        <input class="inp" id="ytN" placeholder="Nombre (opcional — se detecta automático)"/>
         <div class="inp-row">
-          <input class="inp" id="ytU" placeholder="Link de YouTube..."/>
+          <input class="inp" id="ytU" placeholder="Link de YouTube o YouTube Music..."/>
           <button class="btn-add" onclick="addYT()">+ Add</button>
+        </div>
+        <div class="yt-preview-box" id="ytPreviewBox" style="display:none">
+          <img class="yt-preview-thumb" id="ytPreviewThumb" src="" alt="">
+          <div style="flex:1;min-width:0">
+            <div id="ytPreviewTitle" style="font-size:11px;color:var(--text2);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:'Inter',sans-serif">Detectando...</div>
+            <div id="ytPreviewChannel" style="font-size:10px;color:var(--text3);font-family:'Share Tech Mono',monospace;margin-top:2px"></div>
+            <div id="ytPreviewVid" style="font-size:9px;color:rgba(255,255,255,0.25);font-family:'Share Tech Mono',monospace;margin-top:2px"></div>
+          </div>
         </div>
       </div>
       <div id="fMP3" class="add-form" style="display:none">
@@ -1050,6 +1087,61 @@ function saveConfig() {
   showToast('✅ Configuración guardada','success');
 }
 
+// ---- THUMBNAILS ----
+const TP_LOGO='https://cdn.shopify.com/s/files/1/0205/5752/9188/files/Logo-Terrapesca-01_205270e5-d546-4e33-a8d1-db0a91f1e554.png?v=1700262873';
+function ytThumbFallbacks(id){
+  return[
+    `https://img.youtube.com/vi/${id}/maxresdefault.jpg`,
+    `https://img.youtube.com/vi/${id}/hqdefault.jpg`,
+    `https://img.youtube.com/vi/${id}/mqdefault.jpg`,
+    `https://img.youtube.com/vi/${id}/default.jpg`,
+    TP_LOGO,
+  ];
+}
+function setThumb(img,videoId){
+  const fb=ytThumbFallbacks(videoId);let i=0;
+  img.onerror=()=>{i++;if(i<fb.length)img.src=fb[i];else{img.onerror=null}};
+  img.src=fb[0];
+}
+
+const ytMetaCache={};
+let ytPreviewTimer=null;
+function onYTUrlInput(){
+  const url=document.getElementById('ytU').value.trim();
+  const id=getYTId(url);
+  const box=document.getElementById('ytPreviewBox');
+  if(!id){box.style.display='none';return}
+  setThumb(document.getElementById('ytPreviewThumb'),id);
+  document.getElementById('ytPreviewTitle').textContent='⏳ Detectando título...';
+  document.getElementById('ytPreviewChannel').textContent='';
+  document.getElementById('ytPreviewVid').textContent='ID: '+id;
+  box.style.display='flex';
+  if(ytMetaCache[id]){applyPreviewMeta(ytMetaCache[id]);return}
+  clearTimeout(ytPreviewTimer);
+  ytPreviewTimer=setTimeout(()=>fetchYTMeta(id),500);
+}
+function applyPreviewMeta(data){
+  document.getElementById('ytPreviewTitle').textContent=data.title||'Video de YouTube';
+  document.getElementById('ytPreviewChannel').textContent=data.author_name||'';
+  if(!document.getElementById('ytN').value.trim()&&data.title)
+    document.getElementById('ytN').value=data.title;
+}
+async function fetchYTMeta(videoId){
+  if(ytMetaCache[videoId]){applyPreviewMeta(ytMetaCache[videoId]);return ytMetaCache[videoId]}
+  try{
+    const baseUrl=cfg.ws.replace('wss://','https://').replace('ws://','http://').replace(/\/$/,'');
+    const res=await fetch(`${baseUrl}/api/ytmeta/${videoId}`);
+    if(!res.ok) throw new Error();
+    const data=await res.json();
+    if(data.title) ytMetaCache[videoId]=data;
+    applyPreviewMeta(data);
+    return data;
+  }catch(e){
+    document.getElementById('ytPreviewTitle').textContent='Video de YouTube';
+    return null;
+  }
+}
+
 // ---- YOUTUBE ----
 function onYouTubeIframeAPIReady(){
   ytPlayer=new YT.Player('yt-player',{
@@ -1074,17 +1166,32 @@ function switchTab(t){
   document.getElementById('fYT').style.display=t==='yt'?'':'none';
   document.getElementById('fMP3').style.display=t==='mp3'?'':'none';
 }
-function addYT(){
+async function addYT(){
   const url=document.getElementById('ytU').value.trim();
-  const name=document.getElementById('ytN').value.trim();
+  const nameInput=document.getElementById('ytN').value.trim();
   if(!url){showToast('⚠️ Ingresa un link','error');return}
   const id=getYTId(url); if(!id){showToast('❌ Link no válido','error');return}
-  const n=name||'YouTube '+(playlist.filter(t=>t.type!=='spot').length+1);
-  playlist.push({type:'yt',name:n,ytId:id});
+  const cached=ytMetaCache[id];
+  let n=nameInput||(cached?.title)||('YouTube '+(playlist.filter(t=>t.type!=='spot').length+1));
+  let channelTitle=cached?.author_name||'';
+  const trackIdx=playlist.length;
+  playlist.push({type:'yt',name:n,ytId:id,thumbnail:`https://img.youtube.com/vi/${id}/hqdefault.jpg`,channelTitle});
   document.getElementById('ytU').value='';document.getElementById('ytN').value='';
+  document.getElementById('ytPreviewBox').style.display='none';
   renderPlaylist(); sendWS({type:'PLAYLIST_UPDATE',playlist:getPublicPlaylist()});
   showToast('🎵 Canción agregada','success');
   if(curIdx===-1)playTrack(0);
+  // Background title fetch if not yet cached
+  if(!nameInput&&!cached){
+    fetchYTMeta(id).then(meta=>{
+      if(meta?.title&&playlist[trackIdx]?.ytId===id){
+        playlist[trackIdx].name=meta.title;
+        playlist[trackIdx].channelTitle=meta.author_name||'';
+        renderPlaylist();
+        if(curIdx===trackIdx)updateNP(playlist[trackIdx]);
+      }
+    }).catch(()=>{});
+  }
 }
 function addMP3(){
   const file=document.getElementById('mp3F').files[0];
@@ -1510,7 +1617,20 @@ function updateNP(t){
   if(t.type==='yt'){tag.textContent='▶ YouTube';tag.className='src-tag yt'}
   else if(t.type==='mp3'){tag.textContent='♪ MP3';tag.className='src-tag mp3'}
   else{tag.textContent='★ SPOT';tag.className='src-tag spot'}
-  document.getElementById('npSub').textContent=t.type==='spot'?'📻 '+cfg.slogan:'🎶 Reproduciendo en todas las sucursales...';
+  document.getElementById('npSub').textContent=
+    t.type==='spot'?'📻 '+cfg.slogan:
+    t.channelTitle?'🎶 '+t.channelTitle:
+    '🎶 Reproduciendo en todas las sucursales...';
+  // Thumbnail
+  const wrap=document.getElementById('npThumbWrap');
+  const img=document.getElementById('npThumb');
+  if(t.type==='yt'&&t.ytId){
+    wrap.style.display='block';
+    setThumb(img,t.ytId);
+  }else{
+    wrap.style.display='none';
+    img.src='';img.onerror=null;
+  }
 }
 function updateSpotCtr(){
   const r=SPOT_EVERY-songsSinceSpot;
@@ -1563,6 +1683,10 @@ function renderPlaylist(){
   list.innerHTML=playlist.map((t,i)=>{
     const act=i===curIdx;
     const num=act&&isPlaying?`<div style="display:flex;gap:2px;align-items:flex-end;height:12px"><span style="width:3px;background:var(--red);border-radius:1px;animation:dot-dance .6s ease-in-out infinite alternate"></span><span style="width:3px;background:var(--red);border-radius:1px;animation:dot-dance .6s .2s ease-in-out infinite alternate"></span><span style="width:3px;background:var(--red);border-radius:1px;animation:dot-dance .6s .4s ease-in-out infinite alternate"></span></div>`:(i+1);
+    const thumbEl=t.type==='yt'&&t.ytId
+      ?`<img class="pl-thumb" src="https://img.youtube.com/vi/${t.ytId}/default.jpg" onerror="this.src='${TP_LOGO}'" alt="" loading="lazy">`
+      :`<div class="tr-ic ${t.type}">${ic[t.type]||'🎵'}</div>`;
+    const sub=t.type==='yt'?('YouTube'+(t.channelTitle?' · '+t.channelTitle:'')):t.type==='mp3'?'MP3':'Spot IA';
     return `<div class="tr ${act?'active':''} ${t.type==='spot'?'spot-r':''}"
       draggable="true"
       onclick="playTrack(${i})"
@@ -1572,8 +1696,8 @@ function renderPlaylist(){
       ondrop="onDrop(event,${i})"
       ondragend="onDragEnd(event)">
       <span class="tr-n" style="cursor:grab;color:var(--text3);font-size:10px">⠿</span>
-      <div class="tr-ic ${t.type}">${ic[t.type]||'🎵'}</div>
-      <div class="tr-info"><div class="tr-nm">${t.name}</div><div class="tr-tp">${t.type==='yt'?'YouTube':t.type==='mp3'?'MP3':'Spot IA'}</div></div>
+      ${thumbEl}
+      <div class="tr-info"><div class="tr-nm">${t.name}</div><div class="tr-tp">${sub}</div></div>
       <button class="tr-del" onclick="event.stopPropagation();removeTrack(${i})">✕</button>
     </div>`;
   }).join('');
@@ -1973,6 +2097,14 @@ function audioBufferToWAV(buf){
 
 // INIT
 updateSpotCtr();refreshVBtns();
+// Wire URL preview
+setTimeout(()=>{
+  const ytU=document.getElementById('ytU');
+  if(ytU){
+    ytU.addEventListener('input',onYTUrlInput);
+    ytU.addEventListener('paste',()=>setTimeout(onYTUrlInput,0));
+  }
+},200);
 setTimeout(()=>{
   const el=document.getElementById('horaPreview');
   if(el) el.textContent=getHoraRadio()||'';

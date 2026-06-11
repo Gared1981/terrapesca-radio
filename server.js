@@ -101,6 +101,32 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // Proxy YouTube oEmbed (no API key needed, returns title + author)
+  if (req.url.startsWith('/api/ytmeta/') && req.method === 'GET') {
+    const videoId = req.url.replace('/api/ytmeta/', '').split('?')[0].trim();
+    const oembedPath = `/oembed?url=https://www.youtube.com/watch?v=${encodeURIComponent(videoId)}&format=json`;
+    const oReq = https.request({
+      hostname: 'www.youtube.com',
+      path: oembedPath,
+      method: 'GET',
+      headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json' }
+    }, (apiRes) => {
+      let raw = '';
+      apiRes.on('data', chunk => raw += chunk);
+      apiRes.on('end', () => {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.writeHead(apiRes.statusCode, { 'Content-Type': 'application/json' });
+        res.end(raw);
+      });
+    });
+    oReq.on('error', (e) => {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: e.message }));
+    });
+    oReq.end();
+    return;
+  }
+
   // Serve HTML files
   let filePath = null;
   if (req.url === '/' || req.url === '/panel' || req.url === '/panel.html') {
