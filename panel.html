@@ -650,7 +650,7 @@ input[type=range]::-moz-range-thumb{
         <div class="inv-zone" onclick="document.getElementById('xlsF').click()">
           <div class="ic">📊</div>
           <p>Sube tu Excel o <span>haz clic aquí</span></p>
-          <p style="font-size:10px;margin-top:3px;color:var(--text3);font-family:'Share Tech Mono',monospace">Columnas: Producto · Precio</p>
+          <p style="font-size:10px;margin-top:3px;color:var(--text3);font-family:'Share Tech Mono',monospace">Columnas: Modelo · Descripción · Cantidad</p>
           <input type="file" id="xlsF" accept=".xlsx,.xls,.csv" style="display:none" onchange="loadExcel(event)"/>
         </div>
         <div class="prod-list" id="prodList"></div>
@@ -659,7 +659,7 @@ input[type=range]::-moz-range-thumb{
       <!-- Panel Texto libre -->
       <div id="spotPanelTexto" style="display:none">
         <textarea id="spotTextoInput" class="inp" rows="5"
-          placeholder="Escribe aquí el brief del spot. Ejemplo:&#10;&#10;Terrapesca tiene caña de pesca Shimano al 40% de descuento, lunes y martes solamente. También hay liquidación de trajes de buceo. Precio especial para miembros del club."
+          placeholder="Escribe aquí los modelos o productos. Ejemplo:&#10;&#10;Carrete Shimano Stradic FL 3000&#10;Caña Penn Rampage 7ft&#10;Traje de neoprene Cressi 5mm&#10;&#10;La IA buscará las características reales de cada modelo."
           style="resize:vertical;font-size:12px;line-height:1.5"></textarea>
         <div style="margin-top:6px;display:flex;gap:6px;align-items:center">
           <select id="spotEstilo" class="inp" style="margin-bottom:0;font-size:11px;padding:7px 10px">
@@ -915,18 +915,20 @@ function loadExcel(e){
       let hr=0;
       for(let i=0;i<Math.min(5,rows.length);i++){if(rows[i]&&rows[i].length>=2){hr=i;break}}
       const hdrs=rows[hr].map(h=>String(h||'').toLowerCase());
-      const nc=hdrs.findIndex(h=>h.includes('product')||h.includes('articul')||h.includes('nombre')||h.includes('desc'));
-      const pc=hdrs.findIndex(h=>h.includes('precio')||h.includes('price')||h.includes('costo')||h.includes('venta'));
-      const sc=hdrs.findIndex(h=>h.includes('stock')||h.includes('exist')||h.includes('cant'));
+      // Columnas nuevas: Modelo, Descripción, Cantidad
+      const mc=hdrs.findIndex(h=>h.includes('modelo')||h.includes('model')||h.includes('product')||h.includes('articul')||h.includes('nombre'));
+      const dc=hdrs.findIndex(h=>h.includes('desc')||h.includes('detalle')||h.includes('caracterist')||h.includes('especif'));
+      const sc=hdrs.findIndex(h=>h.includes('cant')||h.includes('stock')||h.includes('exist'));
       for(let i=hr+1;i<rows.length;i++){
-        const row=rows[i];if(!row||!row[nc])continue;
-        const name=String(row[nc]||'').trim();
-        const price=row[pc]?parseFloat(row[pc]):null;
-        const stock=row[sc]?parseFloat(row[sc]):null;
-        if(name)products.push({name,price,stock,priority:false});
+        const row=rows[i];if(!row||!row[mc])continue;
+        const name=String(row[mc]||'').trim();
+        const desc=dc>=0&&row[dc]?String(row[dc]).trim():'';
+        const stock=sc>=0&&row[sc]?parseFloat(row[sc]):null;
+        if(name)products.push({name,desc,stock,priority:false});
       }
+      // Priorizar por mayor stock (más hay → más se debe vender)
       const avg=products.reduce((a,p)=>a+(p.stock||0),0)/(products.length||1);
-      products.forEach(p=>{p.priority=(p.stock&&p.stock>avg*1.5)||!p.price||p.price===0});
+      products.forEach(p=>{p.priority=p.stock&&p.stock>=avg});
       products.sort((a,b)=>(b.priority?1:0)-(a.priority?1:0));
       renderProducts();
       document.getElementById('btnSpot').disabled=false;
@@ -940,9 +942,9 @@ function renderProducts(){
   if(!products.length){list.innerHTML='';return}
   list.innerHTML=products.slice(0,8).map(p=>`
     <div class="prod-item ${p.priority?'pri':''}">
-      ${p.priority?'<span class="pri-badge">★ PRIO</span>':''}
+      ${p.priority?'<span class="pri-badge">★ DESTACADO</span>':''}
       <span class="prod-name">${p.name}</span>
-      <span class="prod-price">${p.price?'$'+p.price.toFixed(0):'—'}</span>
+      ${p.desc?`<span class="prod-price" style="font-size:9px;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${p.desc}">${p.desc.substring(0,20)}…</span>`:''}
     </div>`).join('');
 }
 
@@ -986,31 +988,48 @@ function pickVoiceId(){
 // Prompt builder
 function buildPrompt(contenido, estilo){
   const estiloMap={
-    'eufórico':`SUPER EUFÓRICO, DINÁMICO Y ENERGÉTICO — estilo Ke Buena / La Mera Mera México. Frases cortas y poderosas. Exclamaciones. Ritmo acelerado. Mucha emoción y urgencia. Como si el locutor estuviera emocionadísimo. USA [excited] frecuentemente, [fast] para partes de lista y [pause] breve para respirar.`,
-    'dinámico':`DINÁMICO Y FRESCO — estilo Exa FM / Los 40 Principales México. Energético pero fluido. Mezcla emoción con datos. Frases de impacto. USA [excited] en ofertas, [fast] en listas, tono juvenil y moderno.`,
-    'elegante':`ELEGANTE Y PROFESIONAL — estilo W Radio / XEW México. Voz autoridad, cálido pero formal. Pausas bien colocadas. Comunica prestigio y confianza. USA [calm] para cierres institucionales, [pause] para énfasis.`,
-    'urgente':`URGENTE Y DE OFERTA LIMITADA — como spot de remate de fin de semana. Transmite que es HOY, que se acaba, que no puede perderse. Frases cortas, mucha urgencia, usa [excited] y [fast]. Como anuncio de liquidación masiva.`,
+    'eufórico':{
+      tono:`ULTRA EUFÓRICO Y RÁPIDO — estilo Ke Buena / La Mera Mera México. Habla DIRECTO al oyente, tutéalo, como si le estuvieras gritando al oído con emoción. Frases cortas, trepidantes, velocidad alta. [fast] casi todo el spot, [excited] en cada producto, [pause] muy breve solo para respirar. El oyente debe sentir que TIENE que ir a Terrapesca HOY.`,
+      ritmo:'muy rápido, frenético, sin pausas largas'
+    },
+    'dinámico':{
+      tono:`DINÁMICO, DIRECTO Y CONVINCENTE — estilo Exa FM / Los 40. Habla al oyente como amigo que le da el tip del día. "Oye, escucha esto…" Natural, fluido pero con energía. [fast] en listas, [excited] en beneficios clave. Mezcla información real del producto con emoción.`,
+      ritmo:'rápido pero fluido, conversacional'
+    },
+    'elegante':{
+      tono:`SOFISTICADO Y CONVINCENTE — estilo W Radio. Habla al oyente con autoridad y calidez, como experto que recomienda. Frases contundentes. [calm] para credibilidad, [emphasis] en el nombre del modelo, [pause] dramático antes del cierre.`,
+      ritmo:'moderado, con pausas de impacto'
+    },
+    'urgente':{
+      tono:`URGENTE, IMPARABLE — "¡Oyente, escúchame bien!" Transmite que esto es AHORA, no mañana. El stock se va. La oportunidad es hoy. Habla al oyente directamente con nombre: "Tú que nos escuchas…". [fast] todo, [excited] máximo, como si el locutor corriera mientras habla.`,
+      ritmo:'rapidísimo, sin respiro, urgencia total'
+    },
   };
-  const tono=estiloMap[estilo]||estiloMap['eufórico'];
-  return `Eres el locutor estrella de Terrapesca Radio, la estación oficial de Terrapesca Marine & Outdoors en México.
+  const e=estiloMap[estilo]||estiloMap['eufórico'];
+  return `Eres el locutor estrella de Terrapesca Radio — la radio de pesca y outdoor más chingona de México.
 
-TONO: ${tono}
+MISIÓN: Generar un spot radial de 30-35 segundos (90-110 palabras) que CONVENZA al oyente de visitar Terrapesca.
 
-Genera un spot publicitario radial de máximo 35 segundos (85-110 palabras) basándote en este contenido:
+TONO: ${e.tono}
+RITMO: ${e.ritmo}
+
+PRODUCTOS DEL CATÁLOGO (usa tu conocimiento de estas marcas/modelos para describir sus CARACTERÍSTICAS REALES — tecnología, materiales, beneficios para el pescador):
 ---
 ${contenido}
 ---
-Eslogan de cierre: "${cfg.slogan}"
 
-REGLAS:
-- USA audio tags de ElevenLabs v3 para máximo impacto: [excited], [fast], [pause], [calm], [emphasis]
-- Comienza con una frase de gancho que capture atención INMEDIATAMENTE
-- Menciona precios o descuentos de forma entusiasta si los hay
-- Cierra con el eslogan de forma memorable
-- NUNCA menciones "Terrapesca Radio" en el spot (es implícito)
-- Sin muletillas ni frases genéricas aburridas
+REGLAS ABSOLUTAS:
+1. SIEMPRE dirígete al oyente directamente: "tú", "oyente", "amigo pescador", "tú que nos escuchas"
+2. JAMÁS menciones precios, costos ni cantidades de stock
+3. Habla de CARACTERÍSTICAS Y BENEFICIOS reales del modelo (usa tu conocimiento de la marca)
+4. Si conoces el modelo, menciona specs reales: tipo de freno, peso, relación de arrastre, material, tecnología
+5. Si no conoces el modelo exacto, describe beneficios generales de la categoría con convicción
+6. USA tags de ElevenLabs v3: [fast] [excited] [pause] [calm] [emphasis] para máxima expresividad
+7. Abre con gancho que capture en 2 segundos
+8. Cierra con: "${cfg.slogan}"
+9. NUNCA digas "Terrapesca Radio" dentro del spot
 
-Responde ÚNICAMENTE con el texto del spot listo para narrar, sin explicaciones ni comillas externas.`;
+Responde ÚNICAMENTE con el texto listo para narrar. Sin comillas, sin explicaciones.`;
 }
 
 // ---- GENERATE SPOT ----
@@ -1021,8 +1040,8 @@ async function generateSpot(){
   let contenido='', spotLabel='Terrapesca';
   if(spotMode==='excel'){
     if(!products.length){showToast('⚠️ Carga el inventario primero','error');return}
-    const top=products.filter(p=>p.priority).slice(0,3);
-    contenido=top.map(p=>p.name+(p.price?' — $'+p.price.toFixed(0):'')).join('\n');
+    const top=products.filter(p=>p.priority).slice(0,4);
+    contenido=top.map(p=>p.name+(p.desc?' — '+p.desc:'')).join('\n');
     spotLabel=top[0]?.name||'Terrapesca';
   }else{
     contenido=document.getElementById('spotTextoInput').value.trim();
@@ -1056,7 +1075,7 @@ async function generateSpot(){
       body:JSON.stringify({
         text:script,
         model_id:'eleven_v3',
-        voice_settings:{stability:0.25,similarity_boost:0.88,style:0.90,use_speaker_boost:true}
+        voice_settings:{stability:0.15,similarity_boost:0.85,style:0.95,use_speaker_boost:true}
       })
     });
     if(!tr.ok){const er=await tr.json().catch(()=>({}));throw new Error(er.detail?.message||'Error ElevenLabs')}
