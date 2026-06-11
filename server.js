@@ -101,6 +101,33 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // Proxy CONAGUA SINAV presas (CORS blocked from browser)
+  if (req.url.startsWith('/api/conagua') && req.method === 'GET') {
+    const siReq = https.request({
+      hostname: 'sinav30.conagua.gob.mx',
+      port: 8080,
+      path: '/Presas/',
+      method: 'GET',
+      headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json' },
+      rejectUnauthorized: false
+    }, (apiRes) => {
+      let raw = '';
+      apiRes.on('data', chunk => raw += chunk);
+      apiRes.on('end', () => {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(raw);
+      });
+    });
+    siReq.on('error', (e) => {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: false, error: e.message }));
+    });
+    siReq.setTimeout(8000, () => { siReq.destroy(); });
+    siReq.end();
+    return;
+  }
+
   // Proxy YouTube oEmbed (no API key needed, returns title + author)
   if (req.url.startsWith('/api/ytmeta/') && req.method === 'GET') {
     const videoId = req.url.replace('/api/ytmeta/', '').split('?')[0].trim();

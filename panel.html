@@ -537,6 +537,11 @@ input[type=range]::-moz-range-thumb{
 .dj-action-row{display:flex;gap:6px}
 .dj-action-row button{flex:1;padding:7px;background:var(--navy2);border:1px solid var(--border2);border-radius:7px;color:var(--text2);font-family:'Inter',sans-serif;font-size:10px;cursor:pointer;transition:border-color .2s}
 .dj-action-row button:hover{border-color:var(--accent1)}
+.dj-status-chip{display:inline-flex;align-items:center;gap:4px;font-size:9px;font-family:'Share Tech Mono',monospace;padding:2px 7px;border-radius:10px;background:var(--navy2);border:1px solid var(--border2);color:var(--text3)}
+.dj-status-chip.live{border-color:#f59e0b;color:#f59e0b;animation:blink 1s step-start infinite}
+.dj-status-chip.duck{border-color:#3b82f6;color:#3b82f6}
+.dj-subsection{margin-top:6px;padding-top:6px;border-top:1px solid var(--border2)}
+.dj-subhead{font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}
 
 /* ── PRODUCTION ENGINE ── */
 .prod-section{
@@ -959,13 +964,17 @@ input:checked + .toggle-slider::before{background:var(--red);transform:translate
       <!-- DJ RODO -->
       <div class="dj-section">
         <div class="dj-toggle-row">
-          <div class="sec-lbl" style="margin:0">🎙️ DJ Rodo</div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <div class="sec-lbl" style="margin:0">🎙️ DJ Rodo</div>
+            <span class="dj-status-chip" id="djStatusChip">off</span>
+          </div>
           <label class="toggle-switch">
             <input type="checkbox" id="djRodoEnabled" onchange="toggleDJRodo()">
             <span class="toggle-slider"></span>
           </label>
         </div>
         <div class="dj-controls" id="djRodoControls">
+          <!-- Voz y frecuencia -->
           <div class="prod-row">
             <span class="prod-label">Voz</span>
             <select id="djRodoVoice" style="flex:1;background:var(--navy2);border:1px solid var(--border2);border-radius:5px;color:var(--text2);padding:4px 6px;font-size:11px" onchange="saveDJRodoConfig()">
@@ -984,18 +993,106 @@ input:checked + .toggle-slider::before{background:var(--red);transform:translate
               <div class="dj-freq-btn" id="djFreqAlta" onclick="setDJFreq('alta')">Alta</div>
             </div>
           </div>
-          <div class="dj-opts">
-            <label class="dj-opt"><input type="checkbox" id="djOptHora" checked onchange="saveDJRodoConfig()"> Hora en vivo</label>
-            <label class="dj-opt"><input type="checkbox" id="djOptTips" checked onchange="saveDJRodoConfig()"> Tips de pesca</label>
-            <label class="dj-opt"><input type="checkbox" id="djOptPromos" checked onchange="saveDJRodoConfig()"> Promos</label>
-            <label class="dj-opt"><input type="checkbox" id="djOptStationId" checked onchange="saveDJRodoConfig()"> ID estación</label>
-            <label class="dj-opt"><input type="checkbox" id="djOptEfectos" checked onchange="saveDJRodoConfig()"> Efectos SFX</label>
+
+          <!-- Modo de entrada / ducking -->
+          <div class="dj-subsection">
+            <div class="dj-subhead">Modo de entrada</div>
+            <div class="dj-freq-btns">
+              <div class="dj-freq-btn active" id="djModeEntreSongs" onclick="setDJMode('between')">Entre canciones</div>
+              <div class="dj-freq-btn" id="djModeOverMusic" onclick="setDJMode('over_music')">Sobre música</div>
+              <div class="dj-freq-btn" id="djModeAuto" onclick="setDJMode('auto')">Automático</div>
+            </div>
+            <div class="prod-row" style="margin-top:6px">
+              <span class="prod-label" style="font-size:9px">Ducking</span>
+              <label class="toggle-switch" style="transform:scale(.8);margin-right:4px">
+                <input type="checkbox" id="djDuckingEnabled" checked onchange="saveDJRodoConfig()">
+                <span class="toggle-slider"></span>
+              </label>
+              <span class="prod-label" style="font-size:9px;margin-left:4px">Música al hablar</span>
+              <input type="range" id="djDuckLevel" min="5" max="70" value="30" style="flex:1" oninput="document.getElementById('djDuckPct').textContent=this.value+'%';saveDJRodoConfig()"/>
+              <span id="djDuckPct" style="font-size:9px;color:var(--text3);font-family:'Share Tech Mono',monospace;min-width:28px">30%</span>
+            </div>
           </div>
-          <div style="font-size:9px;color:var(--text3);margin-bottom:2px">Última frase:</div>
+
+          <!-- Tags expresivos v3 -->
+          <div class="dj-subsection">
+            <div class="dj-subhead">Tags expresivos v3</div>
+            <div class="prod-row">
+              <span class="prod-label" style="font-size:9px">Nivel</span>
+              <div class="dj-freq-btns" style="flex:1">
+                <div class="dj-freq-btn" id="djExpBajo" onclick="setDJExpLevel('bajo')">Bajo</div>
+                <div class="dj-freq-btn active" id="djExpMedio" onclick="setDJExpLevel('medio')">Medio</div>
+                <div class="dj-freq-btn" id="djExpAlto" onclick="setDJExpLevel('alto')">Alto</div>
+              </div>
+            </div>
+            <div class="dj-opts">
+              <label class="dj-opt"><input type="checkbox" id="djOptRisa" checked onchange="saveDJRodoConfig()"> Risa ligera</label>
+              <label class="dj-opt"><input type="checkbox" id="djOptSuspiro" checked onchange="saveDJRodoConfig()"> Suspiros</label>
+              <label class="dj-opt"><input type="checkbox" id="djOptWhisper" onchange="saveDJRodoConfig()"> Whisper</label>
+              <label class="dj-opt"><input type="checkbox" id="djOptEfectos" checked onchange="saveDJRodoConfig()"> Efectos SFX</label>
+            </div>
+          </div>
+
+          <!-- Intervenciones activas -->
+          <div class="dj-subsection">
+            <div class="dj-subhead">Intervenciones</div>
+            <div class="dj-opts">
+              <label class="dj-opt"><input type="checkbox" id="djOptHora" checked onchange="saveDJRodoConfig()"> Hora en vivo</label>
+              <label class="dj-opt"><input type="checkbox" id="djOptTips" checked onchange="saveDJRodoConfig()"> Tips pesca</label>
+              <label class="dj-opt"><input type="checkbox" id="djOptPromos" checked onchange="saveDJRodoConfig()"> Promos</label>
+              <label class="dj-opt"><input type="checkbox" id="djOptStationId" checked onchange="saveDJRodoConfig()"> ID estación</label>
+              <label class="dj-opt"><input type="checkbox" id="djOptSongReview" checked onchange="saveDJRodoConfig()"> Coment. canción</label>
+              <label class="dj-opt"><input type="checkbox" id="djOptWeather" onchange="saveDJRodoConfig()"> Clima</label>
+              <label class="dj-opt"><input type="checkbox" id="djOptForecast" onchange="saveDJRodoConfig()"> Predicción pesca</label>
+            </div>
+            <div class="prod-row" style="margin-top:4px">
+              <span class="prod-label" style="font-size:9px">Coment. canciones</span>
+              <select id="djSongCommentFreq" style="flex:1;background:var(--navy2);border:1px solid var(--border2);border-radius:5px;color:var(--text2);padding:3px 5px;font-size:10px" onchange="saveDJRodoConfig()">
+                <option value="off">Off</option>
+                <option value="baja">Baja (c/6-8)</option>
+                <option value="media" selected>Media (c/3-5)</option>
+                <option value="alta">Alta (c/2-3)</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Clima y predicción -->
+          <div class="dj-subsection" id="djWeatherSection" style="display:none">
+            <div class="dj-subhead">Clima / Predicción</div>
+            <div class="prod-row">
+              <span class="prod-label" style="font-size:9px">Ciudad</span>
+              <select id="djWeatherCity" style="flex:1;background:var(--navy2);border:1px solid var(--border2);border-radius:5px;color:var(--text2);padding:3px 5px;font-size:10px" onchange="saveDJRodoConfig()">
+                <option value="los_mochis">Los Mochis</option>
+                <option value="culiacan">Culiacán</option>
+                <option value="mazatlan">Mazatlán</option>
+                <option value="guasave">Guasave</option>
+                <option value="topolobampo">Topolobampo</option>
+                <option value="ahome">Ahome</option>
+              </select>
+            </div>
+            <div class="prod-row">
+              <span class="prod-label" style="font-size:9px">Especie</span>
+              <select id="djTargetSpecies" style="flex:1;background:var(--navy2);border:1px solid var(--border2);border-radius:5px;color:var(--text2);padding:3px 5px;font-size:10px" onchange="saveDJRodoConfig()">
+                <option value="robalo">Robalo</option>
+                <option value="pargo">Pargo</option>
+                <option value="curvina">Curvina</option>
+                <option value="lobina">Lobina</option>
+                <option value="tilapia">Tilapia</option>
+                <option value="sierra">Sierra</option>
+                <option value="dorado">Dorado/Jurel</option>
+              </select>
+            </div>
+            <button onclick="testWeatherReport()" style="width:100%;padding:6px;background:var(--navy2);border:1px solid var(--border2);border-radius:7px;color:var(--text2);font-size:10px;cursor:pointer;margin-top:2px">
+              🌤 Probar reporte clima/pesca
+            </button>
+          </div>
+
+          <div style="font-size:9px;color:var(--text3);margin-top:4px;margin-bottom:2px">Última intervención:</div>
           <div class="dj-last-phrase" id="djLastPhrase">—</div>
           <div class="dj-action-row">
             <button onclick="testDJRodo()">▶ Probar DJ Rodo</button>
-            <button onclick="clearDJCache()">🗑 Limpiar caché</button>
+            <button onclick="testDJTalkOver()">🎵 Talk-over</button>
+            <button onclick="clearDJCache()">🗑 Caché</button>
           </div>
         </div>
       </div>
@@ -1693,8 +1790,18 @@ function handleEnded(){
         incrementDJCounters();
         const interv=decideDJIntervention();
         if(interv){
-          playDJRodo(interv).catch(()=>{}).finally(()=>nextTrack());
-          return;
+          // Long types wait for nextTrack to start first (play over music)
+          // Short types just fire between songs for simplicity unless mode=over_music
+          const mode=selectRodoPlaybackMode(interv);
+          if(mode==='over_music'){
+            // Start next track, then DJ Rodo will duck over it
+            nextTrack();
+            setTimeout(()=>playDJRodo(interv).catch(()=>{}),800);
+            return;
+          }else{
+            playDJRodo(interv).catch(()=>{}).finally(()=>nextTrack());
+            return;
+          }
         }
       } else if(shouldPlayCapsule()){
         playCapsule().catch(()=>{}).finally(()=>nextTrack());
@@ -2256,20 +2363,52 @@ async function testCapsule(){
 
 // ---- DJ RODO ----
 let djRodoFreq='baja';
+let djRodoMode='auto'; // 'between' | 'over_music' | 'auto'
+let djRodoExpLevel='medio'; // 'bajo' | 'medio' | 'alto'
 let djSongSinceTime=0,djSongSinceId=0,djSongSinceTip=0,djSongSincePromo=0,djSongSinceBridge=0;
+let djSongSinceReview=0,djSongSinceWeather=0,djSongSinceForecast=0;
 let djRodoLastPhrases=[],djRodoLastType=null;
+let djRodoActive=false;
 const djRodoAudioCache=new Map();
-const DJ_THRESHOLDS={
-  baja: {TIME_CHECK:5,STATION_ID:8,FISHING_TIP:10,PROMO_TEASER:8,SONG_BRIDGE:4},
-  media:{TIME_CHECK:3,STATION_ID:5,FISHING_TIP:7, PROMO_TEASER:5,SONG_BRIDGE:3},
-  alta: {TIME_CHECK:2,STATION_ID:3,FISHING_TIP:5, PROMO_TEASER:3,SONG_BRIDGE:2},
+let weatherCache={data:null,ts:0};
+let forecastCache={data:null,ts:0};
+
+const WEATHER_CITIES={
+  los_mochis:{name:'Los Mochis',lat:25.7919,lng:-109.0200},
+  culiacan:   {name:'Culiacán', lat:24.8092,lng:-107.3938},
+  mazatlan:   {name:'Mazatlán', lat:23.2494,lng:-106.4111},
+  guasave:    {name:'Guasave',  lat:25.5647,lng:-108.4656},
+  topolobampo:{name:'Topolobampo',lat:25.6000,lng:-109.0500},
+  ahome:      {name:'Ahome',    lat:25.9219,lng:-109.1761},
 };
+
+const DJ_THRESHOLDS={
+  baja: {TIME_CHECK:5,STATION_ID:8,FISHING_TIP:10,PROMO_TEASER:8,SONG_BRIDGE:4,SONG_REVIEW:7,WEATHER:12,FORECAST:12},
+  media:{TIME_CHECK:3,STATION_ID:5,FISHING_TIP:7, PROMO_TEASER:5,SONG_BRIDGE:3,SONG_REVIEW:4,WEATHER:8, FORECAST:8},
+  alta: {TIME_CHECK:2,STATION_ID:3,FISHING_TIP:5, PROMO_TEASER:3,SONG_BRIDGE:2,SONG_REVIEW:3,WEATHER:6, FORECAST:6},
+};
+
+// Short interventions that can play over music with ducking
+const DJ_SHORT_TYPES=new Set(['TIME_CHECK','STATION_ID','SONG_BRIDGE','SONG_REVIEW','NEXT_SONG_TEASER']);
+// Long interventions that must play between songs
+const DJ_LONG_TYPES=new Set(['WEATHER_REPORT','RESERVOIR_REPORT','FISHING_FORECAST','PROMO_TEASER','FISHING_TIP','SPOT_INTRO','SPOT_OUTRO']);
 
 function toggleDJRodo(){
   const on=document.getElementById('djRodoEnabled').checked;
   const ctrl=document.getElementById('djRodoControls');
   if(on)ctrl.classList.add('open'); else ctrl.classList.remove('open');
+  updateDJStatusChip(on?'standby':'off');
   saveDJRodoConfig();
+}
+
+function updateDJStatusChip(state){
+  const chip=document.getElementById('djStatusChip');
+  if(!chip)return;
+  chip.className='dj-status-chip';
+  if(state==='live'){chip.classList.add('live');chip.textContent='● al aire';}
+  else if(state==='duck'){chip.classList.add('duck');chip.textContent='↓ ducking';}
+  else if(state==='standby'){chip.textContent='standby';}
+  else{chip.textContent='off';}
 }
 
 function setDJFreq(f){
@@ -2280,33 +2419,233 @@ function setDJFreq(f){
   saveDJRodoConfig();
 }
 
+function setDJMode(m){
+  djRodoMode=m;
+  const map={between:'djModeEntreSongs',over_music:'djModeOverMusic',auto:'djModeAuto'};
+  Object.values(map).forEach(id=>document.getElementById(id)?.classList.remove('active'));
+  if(map[m])document.getElementById(map[m])?.classList.add('active');
+  saveDJRodoConfig();
+}
+
+function setDJExpLevel(l){
+  djRodoExpLevel=l;
+  ['bajo','medio','alto'].forEach(k=>{
+    document.getElementById('djExp'+k.charAt(0).toUpperCase()+k.slice(1))?.classList.toggle('active',k===l);
+  });
+  saveDJRodoConfig();
+}
+
+function selectRodoPlaybackMode(type){
+  if(djRodoMode==='between') return 'between';
+  if(djRodoMode==='over_music') return 'over_music';
+  // auto mode
+  if(DJ_SHORT_TYPES.has(type)) return 'over_music';
+  return 'between';
+}
+
 function decideDJIntervention(){
   const thr=DJ_THRESHOLDS[djRodoFreq]||DJ_THRESHOLDS.baja;
   const optHora=document.getElementById('djOptHora')?.checked;
   const optTips=document.getElementById('djOptTips')?.checked;
   const optPromos=document.getElementById('djOptPromos')?.checked;
   const optStation=document.getElementById('djOptStationId')?.checked;
+  const optReview=document.getElementById('djOptSongReview')?.checked;
+  const optWeather=document.getElementById('djOptWeather')?.checked;
+  const optForecast=document.getElementById('djOptForecast')?.checked;
+  const songFreq=document.getElementById('djSongCommentFreq')?.value||'off';
   const candidates=[];
-  if(optHora&&djSongSinceTime>=thr.TIME_CHECK) candidates.push({type:'TIME_CHECK',score:djSongSinceTime-thr.TIME_CHECK});
-  if(optStation&&djSongSinceId>=thr.STATION_ID)  candidates.push({type:'STATION_ID',score:djSongSinceId-thr.STATION_ID});
-  if(optTips&&djSongSinceTip>=thr.FISHING_TIP)   candidates.push({type:'FISHING_TIP',score:djSongSinceTip-thr.FISHING_TIP});
+  if(optHora&&djSongSinceTime>=thr.TIME_CHECK)      candidates.push({type:'TIME_CHECK',  score:djSongSinceTime-thr.TIME_CHECK});
+  if(optStation&&djSongSinceId>=thr.STATION_ID)     candidates.push({type:'STATION_ID',  score:djSongSinceId-thr.STATION_ID});
+  if(optTips&&djSongSinceTip>=thr.FISHING_TIP)      candidates.push({type:'FISHING_TIP', score:djSongSinceTip-thr.FISHING_TIP});
   if(optPromos&&djSongSincePromo>=thr.PROMO_TEASER) candidates.push({type:'PROMO_TEASER',score:djSongSincePromo-thr.PROMO_TEASER});
-  if(djSongSinceBridge>=thr.SONG_BRIDGE)          candidates.push({type:'SONG_BRIDGE',score:djSongSinceBridge-thr.SONG_BRIDGE});
+  if(djSongSinceBridge>=thr.SONG_BRIDGE)            candidates.push({type:'SONG_BRIDGE', score:djSongSinceBridge-thr.SONG_BRIDGE});
+  if(optWeather&&djSongSinceWeather>=thr.WEATHER)   candidates.push({type:'WEATHER_REPORT',score:djSongSinceWeather-thr.WEATHER});
+  if(optForecast&&djSongSinceForecast>=thr.FORECAST)candidates.push({type:'FISHING_FORECAST',score:djSongSinceForecast-thr.FORECAST});
+  if(songFreq!=='off'&&optReview){
+    const songThr={baja:7,media:4,alta:2}[songFreq]||4;
+    const curT=playlist[curIdx];
+    if(curT&&curT.title&&djSongSinceReview>=songThr) candidates.push({type:'SONG_REVIEW',score:djSongSinceReview-songThr});
+  }
   if(!candidates.length) return null;
   candidates.sort((a,b)=>b.score-a.score);
   return candidates[0].type;
 }
 
 function incrementDJCounters(){
-  djSongSinceTime++;djSongSinceId++;djSongSinceTip++;djSongSincePromo++;djSongSinceBridge++;
+  djSongSinceTime++;djSongSinceId++;djSongSinceTip++;djSongSincePromo++;
+  djSongSinceBridge++;djSongSinceReview++;djSongSinceWeather++;djSongSinceForecast++;
 }
 
 function updateDJCounters(type){
-  if(type==='TIME_CHECK')   djSongSinceTime=0;
+  if(type==='TIME_CHECK')       djSongSinceTime=0;
   else if(type==='STATION_ID')  djSongSinceId=0;
   else if(type==='FISHING_TIP') djSongSinceTip=0;
   else if(type==='PROMO_TEASER')djSongSincePromo=0;
   else if(type==='SONG_BRIDGE') djSongSinceBridge=0;
+  else if(type==='SONG_REVIEW') djSongSinceReview=0;
+  else if(type==='WEATHER_REPORT')   djSongSinceWeather=0;
+  else if(type==='FISHING_FORECAST') djSongSinceForecast=0;
+}
+
+// ---- WEATHER ENGINE (Open-Meteo, free, no key) ----
+async function getWeatherData(){
+  const now=Date.now();
+  if(weatherCache.data&&now-weatherCache.ts<12*60*1000) return weatherCache.data;
+  const cityKey=document.getElementById('djWeatherCity')?.value||'los_mochis';
+  const city=WEATHER_CITIES[cityKey]||WEATHER_CITIES.los_mochis;
+  try{
+    const url=`https://api.open-meteo.com/v1/forecast?latitude=${city.lat}&longitude=${city.lng}&current=temperature_2m,weather_code,wind_speed_10m,wind_direction_10m,surface_pressure,precipitation_probability_max&timezone=America%2FMazatlan&forecast_days=1`;
+    const r=await fetch(url);
+    if(!r.ok) throw new Error('weather API '+r.status);
+    const d=await r.json();
+    const c=d.current;
+    const wcode=c.weather_code||0;
+    let condition='despejado';
+    if(wcode>=80)condition='lluvia';
+    else if(wcode>=61)condition='lluvia ligera';
+    else if(wcode>=51)condition='llovizna';
+    else if(wcode>=45)condition='niebla';
+    else if(wcode>=3)condition='nublado';
+    else if(wcode>=1)condition='parcialmente nublado';
+    const windDir=windDegToText(c.wind_direction_10m||0);
+    const data={
+      ok:true,location:city.name,
+      temperatureC:Math.round(c.temperature_2m||0),
+      condition,
+      windKmh:Math.round(c.wind_speed_10m||0),
+      windDirection:windDir,
+      rainProbability:c.precipitation_probability_max||0,
+      pressure:Math.round(c.surface_pressure||1013),
+      updatedAt:new Date().toISOString()
+    };
+    weatherCache={data,ts:now};
+    return data;
+  }catch(e){return{ok:false,error:e.message}}
+}
+
+function windDegToText(deg){
+  const dirs=['N','NE','E','SE','S','SO','O','NO'];
+  return dirs[Math.round(deg/45)%8];
+}
+
+// ---- SOLUNAR / MOON ENGINE ----
+function getMoonPhase(){
+  const now=new Date();
+  const year=now.getFullYear(),month=now.getMonth()+1,day=now.getDate();
+  // Simple Julian date calculation
+  const jd=367*year-Math.floor(7*(year+Math.floor((month+9)/12))/4)+Math.floor(275*month/9)+day+1721013.5;
+  const phase=((jd-2451550.1)%29.53058872)/29.53058872;
+  const norm=phase<0?phase+1:phase;
+  let label='creciente';
+  if(norm<0.03||norm>0.97)label='luna nueva';
+  else if(norm<0.22)label='creciente';
+  else if(norm<0.28)label='cuarto creciente';
+  else if(norm<0.47)label='gibosa creciente';
+  else if(norm<0.53)label='luna llena';
+  else if(norm<0.72)label='gibosa menguante';
+  else if(norm<0.78)label='cuarto menguante';
+  else label='menguante';
+  return{phase:norm,label,illumination:Math.round(Math.abs(Math.cos(norm*2*Math.PI)*-100+100))};
+}
+
+function getSolunalWindows(){
+  // Simplified solunar windows based on current hour
+  const now=new Date();
+  const h=now.getHours();
+  const windows=[];
+  // Major periods roughly at local sunrise/sunset ±1h and transit/anti-transit
+  const periods=[[5,7],[11,13],[17,19],[23,1]];
+  periods.forEach(([s,e])=>{
+    if(e>s){if(h>=s&&h<e)windows.push({active:true,start:s,end:e});}
+    else{if(h>=s||h<e)windows.push({active:true,start:s,end:e});}
+  });
+  return windows;
+}
+
+// ---- FISHING FORECAST ENGINE ----
+async function getFishingForecast(){
+  const now=Date.now();
+  if(forecastCache.data&&now-forecastCache.ts<30*60*1000) return forecastCache.data;
+  const weather=await getWeatherData();
+  const moon=getMoonPhase();
+  const solWindows=getSolunalWindows();
+  const species=document.getElementById('djTargetSpecies')?.value||'robalo';
+  // Score activity
+  let score=50;
+  if(weather.ok){
+    if(weather.rainProbability<20)score+=10;
+    else if(weather.rainProbability>60)score-=15;
+    if(weather.windKmh<20)score+=10;
+    else if(weather.windKmh>35)score-=10;
+    if(weather.pressure>1013)score+=8;
+    else if(weather.pressure<1005)score-=8;
+  }
+  if(moon.phase<0.1||moon.phase>0.9)score+=5;
+  if(moon.illumination>60&&moon.illumination<90)score+=10;
+  if(solWindows.some(w=>w.active))score+=15;
+  score=Math.max(5,Math.min(95,score));
+  const level=score>70?'alta':score>40?'media':'baja';
+  const cityKey=document.getElementById('djWeatherCity')?.value||'los_mochis';
+  const city=WEATHER_CITIES[cityKey]||WEATHER_CITIES.los_mochis;
+  const lures=recommendLures(weather,species,level);
+  const data={ok:true,location:city.name,species,activityLevel:level,activityScore:score,moon,weather,lures,updatedAt:new Date().toISOString()};
+  forecastCache={data,ts:now};
+  return data;
+}
+
+function recommendLures(weather,species,activity){
+  const recs=[];
+  const isWind=(weather.ok&&weather.windKmh>20);
+  const isTurb=(weather.ok&&weather.rainProbability>40);
+  const isLow=activity==='baja';
+  const isHigh=activity==='alta';
+  const speciesLures={
+    robalo:[{cat:'minnow',size:'9-12cm',color:'blanco/sardina'},{cat:'paddle tail',size:'4"',color:'chartreuse si turbia'}],
+    pargo:[{cat:'jig metálico',size:'20-40g',color:'naranja/glow'},{cat:'camarón artificial',size:'3"',color:'natural'}],
+    curvina:[{cat:'cuchara',size:'20-30g',color:'plata/blanco'},{cat:'jig',size:'20-30g',color:'sardina'}],
+    lobina:[{cat:'spinnerbait',size:'3/8oz',color:'blanco/chartreuse'},{cat:'worm',size:'5"',color:'watermelon/green pumpkin'}],
+    tilapia:[{cat:'micro señuelo',size:'1-2"',color:'natural'},{cat:'anzuelo',size:'#6-#8',color:'n/a'}],
+    sierra:[{cat:'cuchara',size:'25-40g',color:'plata/azul'},{cat:'jig metálico',size:'30-60g',color:'sardina'}],
+    dorado:[{cat:'jig',size:'60-100g',color:'brillante'},{cat:'popper',size:'grande',color:'azul/blanco'}],
+  };
+  const base=speciesLures[species]||speciesLures.robalo;
+  recs.push(...base);
+  if(isWind) recs.push({cat:'señuelo con vibración',size:'medio',color:'colores llamativos'});
+  if(isTurb){recs.forEach(r=>{if(!r.note)r.note='color visible';});}
+  if(isLow)  recs.push({cat:'presentación lenta',tip:'señuelos más pequeños, trabajo lento'});
+  if(isHigh) recs.push({cat:'topwater',tip:'primeras y últimas horas'});
+  return recs.slice(0,3);
+}
+
+function luresText(lures){
+  if(!lures||!lures.length)return '';
+  const top=lures.slice(0,2);
+  return top.map(l=>`${l.cat}${l.color?(' '+l.color):''}`).join(' o ');
+}
+
+async function testWeatherReport(){
+  const w=await getWeatherData();
+  const f=await getFishingForecast();
+  if(!w.ok){showToast('Clima no disponible: '+w.error,'error');return;}
+  const script=buildWeatherForecastScript(w,f);
+  showToast('Clima: '+script.slice(0,60)+'...');
+  playDJRodo('WEATHER_REPORT').catch(e=>showToast(e.message,'error'));
+}
+
+function buildWeatherForecastScript(weather,forecast){
+  const loc=weather.location||'la zona';
+  const t=weather.temperatureC;
+  const cond=weather.condition;
+  const wind=weather.windKmh;
+  const act=forecast?.activityLevel||'media';
+  const sp=forecast?.species||'pesca';
+  const lures=forecast?.lures?luresText(forecast.lures):'';
+  const moon=forecast?.moon;
+  let script=`[confident][natural delivery] Clima Terrapesca: ${loc} marca ${t} grados, ${cond}.`;
+  if(wind>15) script+=` Viento a ${wind} kilómetros por hora.`;
+  if(act&&sp!=='pesca') script+=` Actividad ${act} para ${sp}.`;
+  if(lures) script+=` Prueba ${lures}.`;
+  return script;
 }
 
 function buildDJRodoContext(type){
@@ -2321,141 +2660,227 @@ function buildDJRodoContext(type){
     nextSong:nxt&&nxt.type!=='spot'?{title:nxt.title||'',artist:nxt.sub||''}:null,
     stationSlogan:cfg.slogan||'Tu tienda de pesca favorita',
     lastPhrase,
-    lastType:djRodoLastType
+    lastType:djRodoLastType,
+    weather:weatherCache.data||null,
+    forecast:forecastCache.data||null,
   };
 }
 
+function _djTagsForLevel(){
+  const l=djRodoExpLevel||'medio';
+  const allowLaughs=document.getElementById('djOptRisa')?.checked;
+  const allowSighs=document.getElementById('djOptSuspiro')?.checked;
+  const allowWhisper=document.getElementById('djOptWhisper')?.checked;
+  const base=`TAGS DISPONIBLES: [radio announcer],[commercial tone],[natural delivery],[confident],[fast-paced],[energetic],[upbeat],[warm],[serious],[calm],[excited],[thoughtful],[surprised],[firmly],[dramatically]`;
+  const extras=[];
+  if(allowLaughs) extras.push('[chuckles],[laughs]');
+  if(allowSighs)  extras.push('[sighs],[sigh]');
+  if(allowWhisper)extras.push('[whispers]');
+  const rule=l==='bajo'
+    ?'Usa solo 1 tag al inicio. No uses tags de humor ni reacciones.'
+    :l==='alto'
+    ?'Puedes usar 2 tags al inicio y 1 tag interno adicional si aporta intención genuina. Usa risa/suspiro/whisper cuando sea completamente natural.'
+    :'Usa máximo 2 tags al inicio. Usa 1 tag interno adicional solo si aporta intención real. Risa y suspiro solo cuando sea completamente natural.';
+  return `${base}${extras.length?', '+extras.join(', '):''}.\n${rule}`;
+}
+
 function buildDJRodoPrompt(type,ctx){
-  const identity=`Eres DJ Rodo, el locutor de Radio Terrapesca.
+  const tagsInstructions=_djTagsForLevel();
+  const identity=`Eres DJ Rodo, locutor virtual de Radio Terrapesca.
 
-PERSONALIDAD:
-- Locutor mexicano de radio comercial. Rápido, claro, seguro, natural, con energía.
-- Frases cortas. Ritmo ágil. Cero relleno.
-- Llevas horas en el aire. No es tu primera frase del día.
+PERSONALIDAD: Mexicano. Directo. Natural. Rápido. Confiable. Con energía. Frases cortas. Cero relleno.
+Radio comercial mexicana. Llevas horas en el aire. No es tu primera frase del día.
 
-PROHIBIDO USAR:
-"Hola", "Hey", "oyente", "amigos", "sintonizas", "no te despegues",
-"la hora actual es", "son exactamente", "estimado radioescucha".
-No sonar como IA. No sonar pausado. No sonar robótico.
-No exagerar la actuación.
+PROHIBIDO: "Hola","Hey","oyente","amigos","sintonizas","la hora actual es","son exactamente","estimado radioescucha","no te despegues","quédate con nosotros","DJ Rodo te saluda","hola soy DJ Rodo".
+No sonar como IA. No sonar pausado. No sonar robótico. No sonar como vendedor desesperado.
 
-FORMATO: Máximo 2 oraciones cortas. Sin comillas de cierre. Sin explicaciones.`;
+${tagsInstructions}
+
+FORMATO: Entrega SOLO la línea lista para ElevenLabs v3. Sin comillas externas. Sin explicaciones. Máximo 2 oraciones.`;
 
   const hora=ctx.hora;
   const slogan=ctx.stationSlogan||'Música, pesca, marina y outdoor';
   const cur=ctx.currentSong?`"${ctx.currentSong.title}"${ctx.currentSong.artist?' de '+ctx.currentSong.artist:''}`:'la canción anterior';
   const nxt=ctx.nextSong?`"${ctx.nextSong.title}"${ctx.nextSong.artist?' de '+ctx.nextSong.artist:''}`:'la siguiente';
-  const avoid=ctx.lastPhrase?`\nNO repitas ni parafrasees esta frase anterior: "${ctx.lastPhrase}"`:'';
+  const avoid=ctx.lastPhrase?`\nNO repitas ni parafrasees: "${ctx.lastPhrase}"`:'';
+
+  // Weather/forecast context
+  let weatherCtx='';
+  if(ctx.weather?.ok){
+    const w=ctx.weather;
+    weatherCtx=`CLIMA REAL DISPONIBLE: ${w.location}, ${w.temperatureC}°C, ${w.condition}, viento ${w.windKmh}km/h ${w.windDirection}, lluvia ${w.rainProbability}%.`;
+  }
+  let forecastCtx='';
+  if(ctx.forecast?.ok){
+    const f=ctx.forecast;
+    const lures=f.lures?luresText(f.lures):'';
+    forecastCtx=`PREDICCIÓN PESCA: actividad ${f.activityLevel} para ${f.species}${lures?', señuelos: '+lures:''}.`;
+  }
 
   const scripts={
     TIME_CHECK:
 `${identity}
 
-Menciona la hora (${hora}) como parte natural de la continuidad. Ejemplo de tono:
-"Son ${hora}, y la jornada sigue en Radio Terrapesca."
-"${hora}. Seguimos."
-Escribe TU versión, diferente a los ejemplos.${avoid}`,
+Da la hora (${hora}) de forma natural. Entra directo.
+Ejemplo de tono: "[confident][upbeat] Son ${hora}. Sigues en Radio Terrapesca."
+TU VERSIÓN:${avoid}`,
 
     STATION_ID:
 `${identity}
 
-Haz un ID de estación de Radio Terrapesca. Tono seguro, parte de la estación.
-Slogan disponible (opcional): "${slogan}"
-Ejemplos de tono:
-"Radio Terrapesca. Música, pesca, marina y outdoor."
-"Esto es Radio Terrapesca. La jornada sigue."
-Escribe TU versión.${avoid}`,
+ID de estación. Directo, seguro. Slogan opcional: "${slogan}"
+Ejemplo: "[radio announcer][confident] Radio Terrapesca. Música, pesca, marina y outdoor."
+TU VERSIÓN:${avoid}`,
 
     SONG_BRIDGE:
 `${identity}
 
-Conecta ${cur} con ${nxt}. Transición natural de locutor, no de presentador formal.
-Ejemplos de tono:
-"Buena. Ahí va la siguiente."
-"Eso fue [artista]. Ahora [artista]."
-Escribe TU versión.${avoid}`,
+Conecta ${cur} con ${nxt}. Transición natural, mínima, de locutor.
+Ejemplo: "[fast-paced][confident] Buena. Ahí va la siguiente."
+TU VERSIÓN:${avoid}`,
+
+    SONG_REVIEW:
+`${identity}
+
+Comenta brevemente ${cur}. Solo si el título te da algo natural que decir. No inventes historia ni artista.
+Ejemplo: "[confident][upbeat] Venimos de ${ctx.currentSong?.title||'buena música'}. Buen ritmo para la jornada."
+TU VERSIÓN:${avoid}`,
+
+    NEXT_SONG_TEASER:
+`${identity}
+
+Prepara ${nxt} brevemente. Natural, de continuidad.
+Ejemplo: "[fast-paced][confident] Viene ${ctx.nextSong?.title||'buena canción'}. Seguimos en Radio Terrapesca."
+TU VERSIÓN:${avoid}`,
 
     PROMO_TEASER:
 `${identity}
 
-Menciona Terrapesca como tienda de pesca y outdoor. Una idea, sin lista de productos.
-Ejemplos de tono:
-"Terrapesca, equipo que sí responde."
-"Antes de salir al agua, revisa tu equipo. Terrapesca te tiene."
-Escribe TU versión.${avoid}`,
+Mención breve de Terrapesca. Una sola idea, sin lista de productos. Con intención comercial natural.
+Ejemplo: "[confident][upbeat] Terrapesca, equipo que sí responde."
+TU VERSIÓN:${avoid}`,
 
     FISHING_TIP:
 `${identity}
 
-Da un tip breve y útil de pesca, caza o actividad outdoor. Tono experto y casual, como alguien que sabe.
-Ejemplos de tono:
-"Agua fría, carnada viva. Así de simple."
-"Con viento norte la pesca mejora en la mañana. Aprovéchalo."
-Escribe TU versión diferente.${avoid}`,
+Tip breve y útil de pesca o equipo. Tono experto y casual. Máximo 2 oraciones.
+Ejemplo: "[upbeat][natural delivery] Tip Terrapesca: revisa nudos y freno antes del primer lance. Lo básico gana peleas."
+TU VERSIÓN:${avoid}`,
+
+    WEATHER_REPORT:
+`${identity}
+
+Reporte de clima. Usa SOLO estos datos reales, no inventes:
+${weatherCtx||'No hay datos de clima disponibles. Di que no hay reporte disponible en este momento.'}
+${forecastCtx}
+Tono serio-informativo. Si no hay datos, no menciones cifras.
+Ejemplo: "[confident][natural delivery] Clima Terrapesca: Los Mochis marca 34 grados. Revisa condiciones antes de salir."
+TU VERSIÓN:${avoid}`,
+
+    FISHING_FORECAST:
+`${identity}
+
+Predicción de pesca. Usa SOLO estos datos:
+${forecastCtx||'No hay predicción disponible. Di "predicción no disponible en este momento".'}
+${weatherCtx}
+No prometas capturas. No digas "garantizado". Preséntalo como orientación.
+Ejemplo: "[fast-paced][confident] Predicción Terrapesca: actividad media por la tarde. Para robalo, prueba minnow blanco o paddle tail."
+TU VERSIÓN:${avoid}`,
 
     SPOT_INTRO:
 `${identity}
 
-Introduce un mensaje comercial. Una sola oración, directo.
-Tono: "Escucha esto." / "Momento Terrapesca."
-Escribe TU versión.${avoid}`,
+Presenta un mensaje comercial. Una sola oración. Directo.
+Ejemplo: "[fast-paced][confident] Pausa rápida para equiparte mejor. Va Terrapesca."
+TU VERSIÓN:${avoid}`,
 
     SPOT_OUTRO:
 `${identity}
 
 Cierra un mensaje comercial y regresa al aire. Una sola oración.
-Tono: "Y seguimos." / "De vuelta."
-Escribe TU versión.${avoid}`,
+Ejemplo: "[confident][upbeat] Terrapesca, equipo que sí responde. Seguimos con música."
+TU VERSIÓN:${avoid}`,
 
     BLOCK_OPEN:
 `${identity}
 
 Abre un bloque musical. Breve, con energía.
-Tono: "Arrancamos." / "DJ Rodo te acompaña. Vamos con más música."
-Escribe TU versión.${avoid}`,
+Ejemplo: "[energetic][confident] DJ Rodo te acompaña. Vamos con más música."
+TU VERSIÓN:${avoid}`,
 
     BLOCK_CLOSE:
 `${identity}
 
 Cierra un bloque musical. Breve, natural.
-Tono: "Eso fue el bloque. Seguimos después." / "Buena música. Ahora una pausa."
-Escribe TU versión.${avoid}`,
+Ejemplo: "[confident][natural delivery] Buena música. La jornada sigue."
+TU VERSIÓN:${avoid}`,
   };
   return scripts[type]||scripts.SONG_BRIDGE;
 }
 
 function getDJRodoFallback(type,ctx){
   const hora=ctx.hora;
+  const cur=ctx.currentSong?.title;
+  const nxt=ctx.nextSong?.title;
+  const w=ctx.weather;
+  const f=ctx.forecast;
   const fallbacks={
     TIME_CHECK:[
-      `${hora}. Sigues en Radio Terrapesca.`,
-      `Son ${hora} y la jornada sigue.`,
-      `${hora}, aquí Radio Terrapesca.`,
+      `[confident][upbeat] ${hora}. Sigues en Radio Terrapesca.`,
+      `[fast-paced][confident] Son ${hora} y la jornada sigue.`,
+      `[radio announcer][confident] ${hora}. Aquí Radio Terrapesca.`,
     ],
     STATION_ID:[
-      `Radio Terrapesca. Música, pesca, marina y outdoor.`,
-      `Buena música para la jornada. Esto es Radio Terrapesca.`,
-      `DJ Rodo te acompaña. Vamos con más música.`,
+      `[radio announcer][confident] Radio Terrapesca. Música, pesca, marina y outdoor.`,
+      `[confident][upbeat] Buena música para la jornada. Esto es Radio Terrapesca.`,
+      `[fast-paced][confident] La jornada sigue y la música también. Radio Terrapesca.`,
     ],
     SONG_BRIDGE:[
-      `Buena. Ahí va la siguiente.`,
-      `La jornada sigue y la música también.`,
-      `Seguimos.`,
+      `[fast-paced][confident] Buena. Ahí va la siguiente.`,
+      `[confident][upbeat] La jornada sigue y la música también.`,
+      `[natural delivery][confident] Seguimos.`,
+    ],
+    SONG_REVIEW:[
+      cur?`[confident][upbeat] Venimos de ${cur}. Buen ritmo para la jornada.`:`[confident][upbeat] Buena música. Seguimos en Radio Terrapesca.`,
+      `[natural delivery][confident] Así se mantiene arriba la jornada. Radio Terrapesca.`,
+    ],
+    NEXT_SONG_TEASER:[
+      nxt?`[fast-paced][confident] Viene ${nxt}. Seguimos en Radio Terrapesca.`:`[fast-paced][confident] Ahí va la siguiente. Radio Terrapesca.`,
     ],
     PROMO_TEASER:[
-      `Terrapesca, equipo que sí responde.`,
-      `Antes de salir al agua, revisa tu equipo. Terrapesca te tiene.`,
-      `Terrapesca. Todo lo que necesitas para pescar.`,
+      `[confident][upbeat] Terrapesca, equipo que sí responde.`,
+      `[natural delivery][confident] Antes de salir al agua, revisa tu equipo. Terrapesca te tiene.`,
+      `[upbeat][commercial tone] Terrapesca. Todo lo que necesitas para pescar.`,
     ],
     FISHING_TIP:[
-      `Agua fría, carnada viva. Así de simple.`,
-      `Con viento norte la pesca mejora en la mañana. Aprovéchalo.`,
-      `El anzuelo sin lastre trabaja mejor en agua somera. Tenlo en mente.`,
+      `[upbeat][natural delivery] Tip Terrapesca: revisa línea, nudos y freno antes del primer lance. Lo básico gana peleas.`,
+      `[confident][natural delivery] Agua fría, carnada viva. Así de simple.`,
+      `[natural delivery][confident] Después de pescar, enjuaga el equipo con agua dulce y sécalo bien antes de guardar.`,
     ],
-    SPOT_INTRO:[`Escucha esto.`,`Momento Terrapesca.`,`Un momento.`],
-    SPOT_OUTRO:[`Y seguimos.`,`De vuelta al aire.`,`Seguimos con música.`],
-    BLOCK_OPEN:[`Arrancamos.`,`DJ Rodo te acompaña. Vamos con más música.`,`Aquí vamos.`],
-    BLOCK_CLOSE:[`La jornada sigue.`,`Seguimos después.`,`Buena música. Ahora una pausa.`],
+    WEATHER_REPORT:[
+      w?.ok?`[confident][natural delivery] Clima Terrapesca: ${w.location} marca ${w.temperatureC} grados, ${w.condition}. Revisa condiciones antes de salir.`
+           :`[serious][natural delivery] Reporte Terrapesca: clima no disponible en este momento.`,
+    ],
+    FISHING_FORECAST:[
+      f?.ok?`[fast-paced][confident] Predicción Terrapesca: actividad ${f.activityLevel} para ${f.species||'pesca'}. ${f.lures?.length?'Prueba '+luresText(f.lures)+'.':''}`
+           :`[confident][natural delivery] Predicción de pesca no disponible en este momento.`,
+    ],
+    SPOT_INTRO:[
+      `[fast-paced][confident] Pausa rápida para equiparte mejor. Va Terrapesca.`,
+      `[confident][commercial tone] Momento Terrapesca.`,
+    ],
+    SPOT_OUTRO:[
+      `[confident][upbeat] Terrapesca, equipo que sí responde. Seguimos con música.`,
+      `[fast-paced][confident] Y seguimos.`,
+    ],
+    BLOCK_OPEN:[
+      `[energetic][confident] DJ Rodo te acompaña. Vamos con más música.`,
+      `[upbeat][fast-paced] Arrancamos. Radio Terrapesca.`,
+    ],
+    BLOCK_CLOSE:[
+      `[confident][natural delivery] Buena música. La jornada sigue.`,
+      `[warm][confident] Seguimos después. Radio Terrapesca.`,
+    ],
   };
   const opts=fallbacks[type]||fallbacks.SONG_BRIDGE;
   return opts[Math.floor(Math.random()*opts.length)];
@@ -2463,6 +2888,13 @@ function getDJRodoFallback(type,ctx){
 
 async function generateDJScript(type){
   if(!cfg.anthropicKey) return null;
+  // Pre-fetch weather/forecast data for relevant types before building prompt
+  if(type==='WEATHER_REPORT'||type==='FISHING_FORECAST'){
+    await Promise.all([
+      getWeatherData().catch(()=>null),
+      getFishingForecast().catch(()=>null),
+    ]);
+  }
   const ctx=buildDJRodoContext(type);
   const prompt=buildDJRodoPrompt(type,ctx);
   try{
@@ -2471,7 +2903,7 @@ async function generateDJScript(type){
       headers:{'Content-Type':'application/json','x-api-key':cfg.anthropicKey},
       body:JSON.stringify({
         model:'claude-sonnet-4-20250514',
-        max_tokens:120,
+        max_tokens:140,
         messages:[{role:'user',content:prompt}]
       })
     });
@@ -2482,6 +2914,7 @@ async function generateDJScript(type){
 }
 
 async function playDJRodo(type){
+  if(djRodoActive){return;} // prevent overlap
   const ctx=buildDJRodoContext(type);
   let script=null;
   const cacheKey=type+'_'+ctx.hora.slice(0,5);
@@ -2499,7 +2932,10 @@ async function playDJRodo(type){
     return;
   }
   script=await generateDJScript(type);
-  if(!script) script=getDJRodoFallback(type,ctx);
+  if(!script){
+    const fbCtx=buildDJRodoContext(type);
+    script=getDJRodoFallback(type,fbCtx);
+  }
   updateDJCounters(type);
   djRodoLastType=type;
   djRodoLastPhrases.push(script);
@@ -2518,7 +2954,7 @@ async function playDJRodo(type){
       body:JSON.stringify({
         text:script,
         model_id:'eleven_v3',
-        voice_settings:{stability:0.5,similarity_boost:0.8,style:0.35,use_speaker_boost:true}
+        voice_settings:{stability:0.48,similarity_boost:0.82,style:0.38,use_speaker_boost:true}
       })
     });
     if(!r.ok) throw new Error('EL error '+r.status);
@@ -2533,49 +2969,141 @@ async function playDJRodo(type){
   }
 }
 
+// ---- DUCKING ENGINE ----
+let _duckRamp=null;
+
+function startMusicDucking(){
+  const duckEnabled=document.getElementById('djDuckingEnabled')?.checked;
+  if(!duckEnabled) return;
+  const targetPct=(parseInt(document.getElementById('djDuckLevel')?.value)||30)/100;
+  const fadeMs=450;
+  const steps=20;
+  const interval=fadeMs/steps;
+  // Get current music volume
+  const currentVol=isPlaying?(audioEl?audioEl.volume:0):0;
+  if(!audioEl&&!ytReady) return;
+  let step=0;
+  _duckRamp=setInterval(()=>{
+    step++;
+    const t=step/steps;
+    const newVol=currentVol+(targetPct-currentVol)*t;
+    if(audioEl) audioEl.volume=Math.max(0,Math.min(1,newVol));
+    if(step>=steps){clearInterval(_duckRamp);_duckRamp=null;}
+  },interval);
+  updateDJStatusChip('duck');
+}
+
+function releaseMusicDucking(){
+  if(_duckRamp){clearInterval(_duckRamp);_duckRamp=null;}
+  const duckEnabled=document.getElementById('djDuckingEnabled')?.checked;
+  if(!duckEnabled) return;
+  const targetVol=(radioState.volume||80)/100;
+  const fadeMs=1200;
+  const steps=30;
+  const interval=fadeMs/steps;
+  const currentVol=audioEl?audioEl.volume:targetVol;
+  let step=0;
+  _duckRamp=setInterval(()=>{
+    step++;
+    const t=step/steps;
+    const newVol=currentVol+(targetVol-currentVol)*t;
+    if(audioEl) audioEl.volume=Math.max(0,Math.min(1,newVol));
+    if(step>=steps){
+      clearInterval(_duckRamp);_duckRamp=null;
+      updateDJStatusChip(document.getElementById('djRodoEnabled')?.checked?'standby':'off');
+    }
+  },interval);
+}
+
 function playDJAudio(url,type){
   return new Promise(resolve=>{
     const useEfx=document.getElementById('djOptEfectos')?.checked;
+    const mode=selectRodoPlaybackMode(type);
     const vol=(document.getElementById('capsulaVolSlider')?.value||80)/100;
-    const play=()=>{
+    const playNow=()=>{
+      djRodoActive=true;
+      updateDJStatusChip('live');
       const a=new Audio(url);
       a.volume=vol;
-      a.onended=()=>{URL.revokeObjectURL(url);resolve()};
-      a.onerror=()=>{resolve()};
-      a.play().catch(()=>resolve());
+      a.onended=()=>{
+        URL.revokeObjectURL(url);
+        djRodoActive=false;
+        if(mode==='over_music') releaseMusicDucking();
+        else updateDJStatusChip(document.getElementById('djRodoEnabled')?.checked?'standby':'off');
+        resolve();
+      };
+      a.onerror=()=>{
+        djRodoActive=false;
+        if(mode==='over_music') releaseMusicDucking();
+        else updateDJStatusChip('standby');
+        resolve();
+      };
+      a.play().catch(()=>{djRodoActive=false;resolve();});
     };
-    if(useEfx){
-      playLiveSFX();
-      setTimeout(play,350);
+    if(mode==='over_music'&&isPlaying){
+      if(useEfx) playLiveSFX();
+      startMusicDucking();
+      setTimeout(playNow,useEfx?380:50);
     }else{
-      play();
+      if(useEfx){playLiveSFX();setTimeout(playNow,350);}
+      else playNow();
     }
   });
 }
 
+async function testDJTalkOver(){
+  // Test talk-over while music plays
+  const origMode=djRodoMode;
+  setDJMode('over_music');
+  const types=['TIME_CHECK','STATION_ID','SONG_BRIDGE'];
+  const t=types[Math.floor(Math.random()*types.length)];
+  try{await playDJRodo(t);}catch(e){showToast(e.message,'error');}
+  setDJMode(origMode);
+}
+
 function testDJRodo(){
-  const types=['TIME_CHECK','STATION_ID','FISHING_TIP','PROMO_TEASER','SONG_BRIDGE'];
+  const enabled=document.getElementById('djOptWeather')?.checked&&forecastCache.data;
+  const types=['TIME_CHECK','STATION_ID','FISHING_TIP','PROMO_TEASER','SONG_BRIDGE','SONG_REVIEW'];
+  if(enabled) types.push('WEATHER_REPORT','FISHING_FORECAST');
   const t=types[Math.floor(Math.random()*types.length)];
   playDJRodo(t).catch(e=>showToast('Error: '+e.message));
 }
 
 function clearDJCache(){
   djRodoAudioCache.clear();
+  weatherCache={data:null,ts:0};
+  forecastCache={data:null,ts:0};
   showToast('Caché DJ Rodo limpiado');
 }
 
 function saveDJRodoConfig(){
-  const cfg2={
+  const c={
     enabled:document.getElementById('djRodoEnabled')?.checked||false,
     freq:djRodoFreq,
+    mode:djRodoMode,
+    expLevel:djRodoExpLevel,
     voice:document.getElementById('djRodoVoice')?.value||'bill',
+    duckEnabled:document.getElementById('djDuckingEnabled')?.checked??true,
+    duckLevel:document.getElementById('djDuckLevel')?.value||'30',
     optHora:document.getElementById('djOptHora')?.checked??true,
     optTips:document.getElementById('djOptTips')?.checked??true,
     optPromos:document.getElementById('djOptPromos')?.checked??true,
     optStation:document.getElementById('djOptStationId')?.checked??true,
+    optSongReview:document.getElementById('djOptSongReview')?.checked??true,
+    optWeather:document.getElementById('djOptWeather')?.checked??false,
+    optForecast:document.getElementById('djOptForecast')?.checked??false,
+    optRisa:document.getElementById('djOptRisa')?.checked??true,
+    optSuspiro:document.getElementById('djOptSuspiro')?.checked??true,
+    optWhisper:document.getElementById('djOptWhisper')?.checked??false,
     optEfectos:document.getElementById('djOptEfectos')?.checked??true,
+    songCommentFreq:document.getElementById('djSongCommentFreq')?.value||'media',
+    weatherCity:document.getElementById('djWeatherCity')?.value||'los_mochis',
+    targetSpecies:document.getElementById('djTargetSpecies')?.value||'robalo',
   };
-  localStorage.setItem('tp_djrodo',JSON.stringify(cfg2));
+  localStorage.setItem('tp_djrodo',JSON.stringify(c));
+  // Show/hide weather section
+  const ws=document.getElementById('djWeatherSection');
+  if(ws) ws.style.display=(c.optWeather||c.optForecast)?'block':'none';
 }
 
 function loadDJRodoConfig(){
@@ -2586,11 +3114,33 @@ function loadDJRodoConfig(){
     if(c.enabled){
       document.getElementById('djRodoEnabled').checked=true;
       document.getElementById('djRodoControls').classList.add('open');
+      updateDJStatusChip('standby');
     }
-    if(c.freq){djRodoFreq=c.freq;setDJFreq(c.freq);}
-    if(c.voice){const el=document.getElementById('djRodoVoice');if(el)el.value=c.voice;}
-    const ids={optHora:'djOptHora',optTips:'djOptTips',optPromos:'djOptPromos',optStation:'djOptStationId',optEfectos:'djOptEfectos'};
-    Object.entries(ids).forEach(([k,id])=>{const el=document.getElementById(id);if(el&&c[k]!==undefined)el.checked=c[k];});
+    if(c.freq) setDJFreq(c.freq);
+    if(c.mode) setDJMode(c.mode);
+    if(c.expLevel) setDJExpLevel(c.expLevel);
+    const setEl=(id,v,prop='checked')=>{const el=document.getElementById(id);if(el&&v!==undefined)el[prop]=v;};
+    setEl('djRodoVoice',c.voice,'value');
+    setEl('djDuckingEnabled',c.duckEnabled??true);
+    setEl('djDuckLevel',c.duckLevel||'30','value');
+    if(c.duckLevel) document.getElementById('djDuckPct').textContent=(c.duckLevel||'30')+'%';
+    setEl('djOptHora',c.optHora??true);
+    setEl('djOptTips',c.optTips??true);
+    setEl('djOptPromos',c.optPromos??true);
+    setEl('djOptStationId',c.optStation??true);
+    setEl('djOptSongReview',c.optSongReview??true);
+    setEl('djOptWeather',c.optWeather??false);
+    setEl('djOptForecast',c.optForecast??false);
+    setEl('djOptRisa',c.optRisa??true);
+    setEl('djOptSuspiro',c.optSuspiro??true);
+    setEl('djOptWhisper',c.optWhisper??false);
+    setEl('djOptEfectos',c.optEfectos??true);
+    setEl('djSongCommentFreq',c.songCommentFreq||'media','value');
+    setEl('djWeatherCity',c.weatherCity||'los_mochis','value');
+    setEl('djTargetSpecies',c.targetSpecies||'robalo','value');
+    // Show weather section if needed
+    const ws=document.getElementById('djWeatherSection');
+    if(ws) ws.style.display=(c.optWeather||c.optForecast)?'block':'none';
   }catch(e){}
 }
 
