@@ -522,6 +522,22 @@ input[type=range]::-moz-range-thumb{
   .pl-card{grid-row:auto;max-height:280px;position:static}
 }
 
+/* ── DJ RODO ── */
+.dj-section{margin-top:12px;border-top:1px solid var(--border2);padding-top:12px;}
+.dj-toggle-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.dj-controls{display:none;flex-direction:column;gap:8px}
+.dj-controls.open{display:flex}
+.dj-freq-btns{display:flex;gap:5px}
+.dj-freq-btn{flex:1;padding:5px 0;font-size:10px;font-family:'Share Tech Mono',monospace;background:var(--navy2);border:1px solid var(--border2);border-radius:5px;color:var(--text3);cursor:pointer;transition:all .2s;text-align:center}
+.dj-freq-btn.active{background:#1a3a6e;border-color:var(--accent1);color:var(--accent1)}
+.dj-opts{display:grid;grid-template-columns:1fr 1fr;gap:4px}
+.dj-opt{display:flex;align-items:center;gap:6px;font-size:10px;color:var(--text2);cursor:pointer}
+.dj-opt input{accent-color:var(--accent1)}
+.dj-last-phrase{font-size:10px;font-family:'Share Tech Mono',monospace;color:var(--text3);background:var(--navy2);border:1px solid var(--border2);border-radius:5px;padding:6px 8px;min-height:32px;line-height:1.4;font-style:italic}
+.dj-action-row{display:flex;gap:6px}
+.dj-action-row button{flex:1;padding:7px;background:var(--navy2);border:1px solid var(--border2);border-radius:7px;color:var(--text2);font-family:'Inter',sans-serif;font-size:10px;cursor:pointer;transition:border-color .2s}
+.dj-action-row button:hover{border-color:var(--accent1)}
+
 /* ── PRODUCTION ENGINE ── */
 .prod-section{
   margin-top:12px;border-top:1px solid var(--border2);padding-top:12px;
@@ -937,6 +953,50 @@ input:checked + .toggle-slider::before{background:var(--red);transform:translate
           <button id="btnTestCapsule" onclick="testCapsule()" style="width:100%;padding:8px;background:var(--navy2);border:1px solid var(--border2);border-radius:7px;color:var(--text2);font-family:'Inter',sans-serif;font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;transition:border-color .2s">
             <span>🕐</span> Probar cápsula de hora
           </button>
+        </div>
+      </div>
+
+      <!-- DJ RODO -->
+      <div class="dj-section">
+        <div class="dj-toggle-row">
+          <div class="sec-lbl" style="margin:0">🎙️ DJ Rodo</div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="djRodoEnabled" onchange="toggleDJRodo()">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="dj-controls" id="djRodoControls">
+          <div class="prod-row">
+            <span class="prod-label">Voz</span>
+            <select id="djRodoVoice" style="flex:1;background:var(--navy2);border:1px solid var(--border2);border-radius:5px;color:var(--text2);padding:4px 6px;font-size:11px" onchange="saveDJRodoConfig()">
+              <option value="bill">Bill</option>
+              <option value="charlie">Charlie</option>
+              <option value="callum">Callum</option>
+              <option value="aria">Aria</option>
+              <option value="matilda">Matilda</option>
+            </select>
+          </div>
+          <div class="prod-row">
+            <span class="prod-label">Frecuencia</span>
+            <div class="dj-freq-btns" style="flex:1">
+              <div class="dj-freq-btn active" id="djFreqBaja" onclick="setDJFreq('baja')">Baja</div>
+              <div class="dj-freq-btn" id="djFreqMedia" onclick="setDJFreq('media')">Media</div>
+              <div class="dj-freq-btn" id="djFreqAlta" onclick="setDJFreq('alta')">Alta</div>
+            </div>
+          </div>
+          <div class="dj-opts">
+            <label class="dj-opt"><input type="checkbox" id="djOptHora" checked onchange="saveDJRodoConfig()"> Hora en vivo</label>
+            <label class="dj-opt"><input type="checkbox" id="djOptTips" checked onchange="saveDJRodoConfig()"> Tips de pesca</label>
+            <label class="dj-opt"><input type="checkbox" id="djOptPromos" checked onchange="saveDJRodoConfig()"> Promos</label>
+            <label class="dj-opt"><input type="checkbox" id="djOptStationId" checked onchange="saveDJRodoConfig()"> ID estación</label>
+            <label class="dj-opt"><input type="checkbox" id="djOptEfectos" checked onchange="saveDJRodoConfig()"> Efectos SFX</label>
+          </div>
+          <div style="font-size:9px;color:var(--text3);margin-bottom:2px">Última frase:</div>
+          <div class="dj-last-phrase" id="djLastPhrase">—</div>
+          <div class="dj-action-row">
+            <button onclick="testDJRodo()">▶ Probar DJ Rodo</button>
+            <button onclick="clearDJCache()">🗑 Limpiar caché</button>
+          </div>
         </div>
       </div>
 
@@ -1623,13 +1683,23 @@ function handleEnded(){
     }
   }
   if(isRepeat&&curIdx>=0){playTrack(curIdx);return}
-  // Cápsula de hora — solo entre canciones (nunca antes/durante/después de spots)
+  // DJ Rodo / Cápsula de hora — solo entre canciones (nunca antes/durante/después de spots)
   if(t&&t.type!=='spot'){
     const ni=isShuffle?Math.floor(Math.random()*playlist.length):(curIdx+1)%playlist.length;
     const nextT=playlist[ni];
-    if(nextT&&nextT.type!=='spot'&&shouldPlayCapsule()){
-      playCapsule().catch(()=>{}).finally(()=>nextTrack());
-      return;
+    if(nextT&&nextT.type!=='spot'){
+      const djOn=document.getElementById('djRodoEnabled')?.checked;
+      if(djOn){
+        incrementDJCounters();
+        const interv=decideDJIntervention();
+        if(interv){
+          playDJRodo(interv).catch(()=>{}).finally(()=>nextTrack());
+          return;
+        }
+      } else if(shouldPlayCapsule()){
+        playCapsule().catch(()=>{}).finally(()=>nextTrack());
+        return;
+      }
     }
   }
   nextTrack();
@@ -2184,6 +2254,249 @@ async function testCapsule(){
   btn.disabled=false;btn.innerHTML='<span>🕐</span> Probar cápsula de hora';
 }
 
+// ---- DJ RODO ----
+let djRodoFreq='baja';
+let djSongSinceTime=0,djSongSinceId=0,djSongSinceTip=0,djSongSincePromo=0,djSongSinceBridge=0;
+let djRodoLastPhrases=[],djRodoLastType=null;
+const djRodoAudioCache=new Map();
+const DJ_THRESHOLDS={
+  baja: {TIME_CHECK:5,STATION_ID:8,FISHING_TIP:10,PROMO_TEASER:8,SONG_BRIDGE:4},
+  media:{TIME_CHECK:3,STATION_ID:5,FISHING_TIP:7, PROMO_TEASER:5,SONG_BRIDGE:3},
+  alta: {TIME_CHECK:2,STATION_ID:3,FISHING_TIP:5, PROMO_TEASER:3,SONG_BRIDGE:2},
+};
+
+function toggleDJRodo(){
+  const on=document.getElementById('djRodoEnabled').checked;
+  const ctrl=document.getElementById('djRodoControls');
+  if(on)ctrl.classList.add('open'); else ctrl.classList.remove('open');
+  saveDJRodoConfig();
+}
+
+function setDJFreq(f){
+  djRodoFreq=f;
+  ['baja','media','alta'].forEach(k=>{
+    document.getElementById('djFreq'+k.charAt(0).toUpperCase()+k.slice(1))?.classList.toggle('active',k===f);
+  });
+  saveDJRodoConfig();
+}
+
+function decideDJIntervention(){
+  const thr=DJ_THRESHOLDS[djRodoFreq]||DJ_THRESHOLDS.baja;
+  const optHora=document.getElementById('djOptHora')?.checked;
+  const optTips=document.getElementById('djOptTips')?.checked;
+  const optPromos=document.getElementById('djOptPromos')?.checked;
+  const optStation=document.getElementById('djOptStationId')?.checked;
+  const candidates=[];
+  if(optHora&&djSongSinceTime>=thr.TIME_CHECK) candidates.push({type:'TIME_CHECK',score:djSongSinceTime-thr.TIME_CHECK});
+  if(optStation&&djSongSinceId>=thr.STATION_ID)  candidates.push({type:'STATION_ID',score:djSongSinceId-thr.STATION_ID});
+  if(optTips&&djSongSinceTip>=thr.FISHING_TIP)   candidates.push({type:'FISHING_TIP',score:djSongSinceTip-thr.FISHING_TIP});
+  if(optPromos&&djSongSincePromo>=thr.PROMO_TEASER) candidates.push({type:'PROMO_TEASER',score:djSongSincePromo-thr.PROMO_TEASER});
+  if(djSongSinceBridge>=thr.SONG_BRIDGE)          candidates.push({type:'SONG_BRIDGE',score:djSongSinceBridge-thr.SONG_BRIDGE});
+  if(!candidates.length) return null;
+  candidates.sort((a,b)=>b.score-a.score);
+  return candidates[0].type;
+}
+
+function incrementDJCounters(){
+  djSongSinceTime++;djSongSinceId++;djSongSinceTip++;djSongSincePromo++;djSongSinceBridge++;
+}
+
+function updateDJCounters(type){
+  if(type==='TIME_CHECK')   djSongSinceTime=0;
+  else if(type==='STATION_ID')  djSongSinceId=0;
+  else if(type==='FISHING_TIP') djSongSinceTip=0;
+  else if(type==='PROMO_TEASER')djSongSincePromo=0;
+  else if(type==='SONG_BRIDGE') djSongSinceBridge=0;
+}
+
+function buildDJRodoContext(type){
+  const cur=playlist[curIdx]||null;
+  const nextIdx=(curIdx+1)%playlist.length;
+  const nxt=playlist[nextIdx]||null;
+  const hora=getHoraRadio();
+  const lastPhrase=djRodoLastPhrases.length?djRodoLastPhrases[djRodoLastPhrases.length-1]:'';
+  return {
+    type,hora,
+    currentSong:cur?{title:cur.title||'',artist:cur.sub||''}:null,
+    nextSong:nxt&&nxt.type!=='spot'?{title:nxt.title||'',artist:nxt.sub||''}:null,
+    stationSlogan:cfg.slogan||'Tu tienda de pesca favorita',
+    lastPhrase,
+    lastType:djRodoLastType
+  };
+}
+
+function buildDJRodoPrompt(type,ctx){
+  const identity=`Eres Rodo, el locutor de Radio Terrapesca. Voz masculina, profesional, cálida. Radio comercial mexicana. Máximo 2 oraciones. Sin saludos, sin "amigos", sin "estimados". Natural, directo, como si llevaras horas en el aire.`;
+  const slogan=ctx.stationSlogan;
+  const hora=ctx.hora;
+  const cur=ctx.currentSong?`"${ctx.currentSong.title}"${ctx.currentSong.artist?' de '+ctx.currentSong.artist:''}`:'la canción anterior';
+  const nxt=ctx.nextSong?`"${ctx.nextSong.title}"${ctx.nextSong.artist?' de '+ctx.nextSong.artist:''}`:'la siguiente';
+  const avoid=ctx.lastPhrase?`No repitas ni parafrasees: "${ctx.lastPhrase}". `:'';
+
+  const scripts={
+    TIME_CHECK:`${identity}\nDi la hora (${hora}) de forma natural como locutor. ${avoid}`,
+    STATION_ID:`${identity}\nHaz un ID de estación mencionando Terrapesca. Slogan disponible: "${slogan}". ${avoid}`,
+    SONG_BRIDGE:`${identity}\nConecta ${cur} con ${nxt}. Transición natural de DJ. ${avoid}`,
+    PROMO_TEASER:`${identity}\nMenciona brevemente Terrapesca como tienda de pesca y outdoors. Sin lista de productos. ${avoid}`,
+    FISHING_TIP:`${identity}\nDa un tip breve y útil de pesca, caza o actividad outdoor. Tono experto, casual. ${avoid}`,
+    SPOT_INTRO:`${identity}\nIntroduce un mensaje comercial de Terrapesca. Máximo 1 oración. ${avoid}`,
+    SPOT_OUTRO:`${identity}\nCierra un mensaje comercial, devuelve al aire. Máximo 1 oración. ${avoid}`,
+    BLOCK_OPEN:`${identity}\nAbre un bloque musical. Menciona que vienen buenas canciones. ${avoid}`,
+    BLOCK_CLOSE:`${identity}\nCierra un bloque musical brevemente. ${avoid}`,
+  };
+  return scripts[type]||scripts.SONG_BRIDGE;
+}
+
+function getDJRodoFallback(type,ctx){
+  const hora=ctx.hora;
+  const fallbacks={
+    TIME_CHECK:[`${hora}, seguimos con Terrapesca.`,`Son ${hora} en punto de Terrapesca Radio.`],
+    STATION_ID:[`Terrapesca Radio, música y pesca.`,`Esto es Terrapesca, tu estación de pesca favorita.`],
+    SONG_BRIDGE:[`Seguimos.`,`Ahí va la siguiente.`],
+    PROMO_TEASER:[`Terrapesca, todo lo que necesitas para pescar.`,`Visita Terrapesca y equípate bien.`],
+    FISHING_TIP:[`Recuerda usar carnada viva cuando el agua está fría.`,`Con viento norte, la pesca mejora en la mañana.`],
+    SPOT_INTRO:[`Escucha esto.`,`Momento Terrapesca.`],
+    SPOT_OUTRO:[`Y seguimos.`,`De vuelta al aire.`],
+    BLOCK_OPEN:[`Arrancamos.`,`Aquí vamos.`],
+    BLOCK_CLOSE:[`Eso fue todo por ahora.`,`Seguimos después.`],
+  };
+  const opts=fallbacks[type]||fallbacks.SONG_BRIDGE;
+  return opts[Math.floor(Math.random()*opts.length)];
+}
+
+async function generateDJScript(type){
+  if(!cfg.anthropicKey) return null;
+  const ctx=buildDJRodoContext(type);
+  const prompt=buildDJRodoPrompt(type,ctx);
+  try{
+    const r=await fetch('/api/anthropic',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':cfg.anthropicKey},
+      body:JSON.stringify({
+        model:'claude-sonnet-4-20250514',
+        max_tokens:120,
+        messages:[{role:'user',content:prompt}]
+      })
+    });
+    if(!r.ok) return null;
+    const d=await r.json();
+    return d.content?.[0]?.text?.trim()||null;
+  }catch(e){return null}
+}
+
+async function playDJRodo(type){
+  const ctx=buildDJRodoContext(type);
+  let script=null;
+  const cacheKey=type+'_'+ctx.hora.slice(0,5);
+  if(djRodoAudioCache.has(cacheKey)){
+    const cached=djRodoAudioCache.get(cacheKey);
+    script=cached.script;
+    updateDJCounters(type);
+    djRodoLastType=type;
+    djRodoLastPhrases.push(script);
+    if(djRodoLastPhrases.length>5)djRodoLastPhrases.shift();
+    document.getElementById('djLastPhrase').textContent=script;
+    const blob=new Blob([cached.audio],{type:'audio/mpeg'});
+    const url=URL.createObjectURL(blob);
+    await playDJAudio(url,type);
+    return;
+  }
+  script=await generateDJScript(type);
+  if(!script) script=getDJRodoFallback(type,ctx);
+  updateDJCounters(type);
+  djRodoLastType=type;
+  djRodoLastPhrases.push(script);
+  if(djRodoLastPhrases.length>5)djRodoLastPhrases.shift();
+  document.getElementById('djLastPhrase').textContent=script;
+  if(!cfg.apiKey){
+    showToast('DJ Rodo: falta clave ElevenLabs');
+    return;
+  }
+  const voiceKey=document.getElementById('djRodoVoice')?.value||'bill';
+  const voiceId=VOICES[voiceKey]?.id||VOICES.bill.id;
+  try{
+    const r=await fetch(`/api/elevenlabs/${voiceId}`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json','xi-api-key':cfg.apiKey},
+      body:JSON.stringify({
+        text:script,
+        model_id:'eleven_v3',
+        voice_settings:{stability:0.5,similarity_boost:0.8,style:0.35,use_speaker_boost:true}
+      })
+    });
+    if(!r.ok) throw new Error('EL error '+r.status);
+    const ab=await r.arrayBuffer();
+    if(djRodoAudioCache.size>=30) djRodoAudioCache.delete(djRodoAudioCache.keys().next().value);
+    djRodoAudioCache.set(cacheKey,{script,audio:ab});
+    const blob=new Blob([ab],{type:'audio/mpeg'});
+    const url=URL.createObjectURL(blob);
+    await playDJAudio(url,type);
+  }catch(e){
+    showToast('DJ Rodo TTS error: '+e.message);
+  }
+}
+
+function playDJAudio(url,type){
+  return new Promise(resolve=>{
+    const useEfx=document.getElementById('djOptEfectos')?.checked;
+    const vol=(document.getElementById('capsulaVolSlider')?.value||80)/100;
+    const play=()=>{
+      const a=new Audio(url);
+      a.volume=vol;
+      a.onended=()=>{URL.revokeObjectURL(url);resolve()};
+      a.onerror=()=>{resolve()};
+      a.play().catch(()=>resolve());
+    };
+    if(useEfx){
+      playLiveSFX();
+      setTimeout(play,350);
+    }else{
+      play();
+    }
+  });
+}
+
+function testDJRodo(){
+  const types=['TIME_CHECK','STATION_ID','FISHING_TIP','PROMO_TEASER','SONG_BRIDGE'];
+  const t=types[Math.floor(Math.random()*types.length)];
+  playDJRodo(t).catch(e=>showToast('Error: '+e.message));
+}
+
+function clearDJCache(){
+  djRodoAudioCache.clear();
+  showToast('Caché DJ Rodo limpiado');
+}
+
+function saveDJRodoConfig(){
+  const cfg2={
+    enabled:document.getElementById('djRodoEnabled')?.checked||false,
+    freq:djRodoFreq,
+    voice:document.getElementById('djRodoVoice')?.value||'bill',
+    optHora:document.getElementById('djOptHora')?.checked??true,
+    optTips:document.getElementById('djOptTips')?.checked??true,
+    optPromos:document.getElementById('djOptPromos')?.checked??true,
+    optStation:document.getElementById('djOptStationId')?.checked??true,
+    optEfectos:document.getElementById('djOptEfectos')?.checked??true,
+  };
+  localStorage.setItem('tp_djrodo',JSON.stringify(cfg2));
+}
+
+function loadDJRodoConfig(){
+  try{
+    const raw=localStorage.getItem('tp_djrodo');
+    if(!raw)return;
+    const c=JSON.parse(raw);
+    if(c.enabled){
+      document.getElementById('djRodoEnabled').checked=true;
+      document.getElementById('djRodoControls').classList.add('open');
+    }
+    if(c.freq){djRodoFreq=c.freq;setDJFreq(c.freq);}
+    if(c.voice){const el=document.getElementById('djRodoVoice');if(el)el.value=c.voice;}
+    const ids={optHora:'djOptHora',optTips:'djOptTips',optPromos:'djOptPromos',optStation:'djOptStationId',optEfectos:'djOptEfectos'};
+    Object.entries(ids).forEach(([k,id])=>{const el=document.getElementById(id);if(el&&c[k]!==undefined)el.checked=c[k];});
+  }catch(e){}
+}
+
 // ---- PRODUCTION ENGINE ----
 const PROD_PRESETS={
   'terrapesca': {sfx:1,bed:1},
@@ -2391,6 +2704,7 @@ function audioBufferToWAV(buf){
 
 // INIT
 updateSpotCtr();refreshVBtns();
+loadDJRodoConfig();
 // Open IndexedDB and restore last session
 openDB().then(()=>restoreSession()).catch(e=>console.error('DB open failed:',e));
 // Wire URL preview
