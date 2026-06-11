@@ -521,6 +521,74 @@ input[type=range]::-moz-range-thumb{
   .app{grid-template-columns:1fr;padding:10px 12px 80px}
   .pl-card{grid-row:auto;max-height:280px;position:static}
 }
+
+/* ── PRODUCTION ENGINE ── */
+.prod-section{
+  margin-top:12px;border-top:1px solid var(--border2);padding-top:12px;
+}
+.prod-toggle-row{
+  display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:10px;
+}
+.toggle-switch{position:relative;width:36px;height:20px;flex-shrink:0}
+.toggle-switch input{opacity:0;width:0;height:0}
+.toggle-slider{
+  position:absolute;inset:0;background:var(--navy);border:1px solid var(--border);
+  border-radius:20px;cursor:pointer;transition:all .2s;
+}
+.toggle-slider::before{
+  content:'';position:absolute;width:14px;height:14px;
+  border-radius:50%;background:var(--text3);
+  left:2px;top:2px;transition:all .2s;
+}
+input:checked + .toggle-slider{background:var(--red-dim);border-color:rgba(212,32,32,0.4)}
+input:checked + .toggle-slider::before{background:var(--red);transform:translateX(16px);box-shadow:0 0 6px var(--red)}
+
+.prod-controls{display:flex;flex-direction:column;gap:8px}
+.prod-row{display:flex;align-items:center;gap:8px}
+.prod-label{
+  font-family:'Share Tech Mono',monospace;font-size:9px;
+  color:var(--text3);letter-spacing:1px;text-transform:uppercase;
+  min-width:60px;
+}
+.prod-select{
+  flex:1;padding:6px 8px;border:1px solid var(--border);border-radius:6px;
+  background:var(--navy2);color:var(--text);
+  font-family:'Share Tech Mono',monospace;font-size:10px;
+  outline:none;cursor:pointer;
+}
+.prod-select:focus{border-color:var(--red)}
+.intensity-btns{display:flex;gap:4px;flex:1}
+.ib{
+  flex:1;padding:5px 4px;border-radius:5px;border:1px solid var(--border);
+  background:transparent;color:var(--text3);
+  font-family:'Share Tech Mono',monospace;font-size:9px;
+  cursor:pointer;transition:all .12s;text-align:center;
+}
+.ib.active{background:var(--red-dim);border-color:rgba(212,32,32,0.35);color:var(--red)}
+
+.prod-status{
+  padding:8px 10px;background:var(--navy2);border:1px solid var(--border2);
+  border-radius:6px;font-family:'Share Tech Mono',monospace;font-size:10px;
+  color:var(--text2);display:flex;flex-wrap:wrap;gap:6px;
+  margin-top:2px;
+}
+.ps-chip{
+  padding:2px 7px;border-radius:3px;font-size:9px;letter-spacing:.5px;
+  background:var(--navy3);border:1px solid var(--border2);
+}
+.ps-chip.active{background:var(--red-dim);border-color:rgba(212,32,32,0.3);color:var(--red)}
+
+.btn-mix{
+  width:100%;margin-top:8px;padding:10px;
+  background:linear-gradient(135deg,rgba(212,32,32,0.15),rgba(212,32,32,0.05));
+  border:1px solid rgba(212,32,32,0.3);border-radius:8px;
+  color:var(--red);font-family:'Inter',sans-serif;font-size:12px;font-weight:600;
+  cursor:pointer;transition:all .2s;
+  display:flex;align-items:center;justify-content:center;gap:7px;
+}
+.btn-mix:hover{background:rgba(212,32,32,0.2);border-color:rgba(212,32,32,0.5)}
+.btn-mix:disabled{opacity:0.3;cursor:not-allowed}
 </style>
 </head>
 <body>
@@ -707,6 +775,58 @@ input[type=range]::-moz-range-thumb{
           <button onclick="removeJingle()" style="background:transparent;border:none;color:var(--text3);cursor:pointer;font-size:12px;padding:2px 4px" title="Quitar jingle">✕</button>
         </div>
       </div>
+
+      <!-- PRODUCTION ENGINE -->
+      <div class="prod-section">
+        <div class="prod-toggle-row">
+          <div class="sec-lbl" style="margin:0">Motor de producción</div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="prodEnabled" onchange="updateProdStatus()">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div id="prodControls" class="prod-controls" style="display:none">
+          <div class="prod-row">
+            <span class="prod-label">Preset</span>
+            <select class="prod-select" id="prodPreset" onchange="applyPreset(this.value)">
+              <option value="terrapesca">🎣 Terrapesca</option>
+              <option value="eufórico">🔥 Eufórico</option>
+              <option value="elegante">🎙️ Elegante</option>
+              <option value="urgente">⏱️ Urgente</option>
+              <option value="nocturno">🌙 Nocturno</option>
+              <option value="impacto">💥 Impacto</option>
+            </select>
+          </div>
+          <div class="prod-row">
+            <span class="prod-label">SFX</span>
+            <div class="intensity-btns">
+              <button class="ib" data-sfx="0" onclick="setSFXLevel(0)">OFF</button>
+              <button class="ib active" data-sfx="1" onclick="setSFXLevel(1)">BAJO</button>
+              <button class="ib" data-sfx="2" onclick="setSFXLevel(2)">MEDIO</button>
+              <button class="ib" data-sfx="3" onclick="setSFXLevel(3)">ALTO</button>
+            </div>
+          </div>
+          <div class="prod-row">
+            <span class="prod-label">Music bed</span>
+            <div class="intensity-btns">
+              <button class="ib" data-bed="0" onclick="setBedLevel(0)">OFF</button>
+              <button class="ib active" data-bed="1" onclick="setBedLevel(1)">–18dB</button>
+              <button class="ib" data-bed="2" onclick="setBedLevel(2)">–12dB</button>
+              <button class="ib" data-bed="3" onclick="setBedLevel(3)">–6dB</button>
+            </div>
+          </div>
+          <div class="prod-status" id="prodStatus">
+            <span class="ps-chip" id="pchip-voice">VOZ</span>
+            <span class="ps-chip" id="pchip-sfx">SFX</span>
+            <span class="ps-chip" id="pchip-bed">MUSIC BED</span>
+            <span class="ps-chip" id="pchip-duck">DUCKING</span>
+            <span class="ps-chip" id="pchip-comp">COMP</span>
+          </div>
+          <button class="btn-mix" id="btnMix" onclick="mixAndDownload()" disabled>
+            <span>🎚️</span> Mezclar y descargar WAV
+          </button>
+        </div>
+      </div>
     </div>
 
   </div><!-- /left-col -->
@@ -782,7 +902,9 @@ const SPOT_EVERY=3;
 let products=[];
 let ytPlayer=null,ytReady=false,audioEl=null,progInt=null;
 let ws=null,wsConnected=false;
-let jingleUrl=null,jingleB64=null,jingleAudio=null,jingleVolume=0.25;
+let jingleUrl=null,jingleB64=null,jingleBlob=null,jingleAudio=null,jingleVolume=0.25;
+let lastSpotBlob=null,lastSpotScript='';
+let sfxLevel=1,bedLevel=1;
 
 // ---- WEBSOCKET ----
 function connectWS() {
@@ -1092,6 +1214,7 @@ async function generateSpot(){
     if(!tr.ok){const er=await tr.json().catch(()=>({}));throw new Error(er.detail?.message||'Error ElevenLabs')}
     showStatus('📡 Procesando audio...',80);
     const blob=await tr.blob();
+    lastSpotBlob=blob;lastSpotScript=script;updateMixBtn();
     const audioUrl=URL.createObjectURL(blob);
     const b64=await new Promise(res=>{
       const reader=new FileReader();
@@ -1298,6 +1421,7 @@ function renderPlaylist(){
 function loadJingle(e){
   const file=e.target.files[0];if(!file)return;
   jingleUrl=URL.createObjectURL(file);
+  jingleBlob=file;
   const reader=new FileReader();
   reader.onload=(ev)=>{
     jingleB64=ev.target.result.split(',')[1];
@@ -1316,7 +1440,7 @@ function setJingleVol(v){
   if(jingleAudio)jingleAudio.volume=jingleVolume;
 }
 function removeJingle(){
-  jingleUrl=null;jingleB64=null;
+  jingleUrl=null;jingleB64=null;jingleBlob=null;
   if(jingleAudio){jingleAudio.pause();jingleAudio=null}
   document.getElementById('jingleLabel').textContent='Sube un MP3 para sonar de fondo en los spots';
   document.getElementById('jingleInfo').style.display='none';
@@ -1341,6 +1465,211 @@ function hideStatus(){document.getElementById('statusBar').classList.remove('sho
 let toastT;
 function showToast(m,t='info'){const el=document.getElementById('toast');el.textContent=m;el.className='toast show '+t;clearTimeout(toastT);toastT=setTimeout(()=>el.classList.remove('show'),3500)}
 function fmt(s){if(!s||isNaN(s))return'0:00';const m=Math.floor(s/60),sc=Math.floor(s%60);return m+':'+(sc<10?'0':'')+sc}
+
+// ---- PRODUCTION ENGINE ----
+const PROD_PRESETS={
+  'terrapesca': {sfx:1,bed:1},
+  'eufórico':   {sfx:3,bed:2},
+  'elegante':   {sfx:0,bed:1},
+  'urgente':    {sfx:2,bed:3},
+  'nocturno':   {sfx:1,bed:1},
+  'impacto':    {sfx:3,bed:3},
+};
+
+function updateProdStatus(){
+  const on=document.getElementById('prodEnabled').checked;
+  document.getElementById('prodControls').style.display=on?'flex':'none';
+  updateMixBtn();
+}
+function updateMixBtn(){
+  const on=document.getElementById('prodEnabled')?.checked;
+  const btn=document.getElementById('btnMix');
+  if(!btn)return;
+  btn.disabled=!(on&&lastSpotBlob);
+  document.getElementById('pchip-voice').classList.toggle('active',!!lastSpotBlob);
+  document.getElementById('pchip-sfx').classList.toggle('active',sfxLevel>0);
+  document.getElementById('pchip-bed').classList.toggle('active',!!(bedLevel>0&&jingleBlob));
+  document.getElementById('pchip-duck').classList.toggle('active',!!(bedLevel>0&&jingleBlob));
+  document.getElementById('pchip-comp').classList.toggle('active',true);
+}
+function applyPreset(p){
+  const pr=PROD_PRESETS[p];if(!pr)return;
+  setSFXLevel(pr.sfx);setBedLevel(pr.bed);
+}
+function setSFXLevel(l){
+  sfxLevel=l;
+  document.querySelectorAll('[data-sfx]').forEach(b=>b.classList.toggle('active',parseInt(b.dataset.sfx)===l));
+  updateMixBtn();
+}
+function setBedLevel(l){
+  bedLevel=l;
+  document.querySelectorAll('[data-bed]').forEach(b=>b.classList.toggle('active',parseInt(b.dataset.bed)===l));
+  updateMixBtn();
+}
+
+function synthSFX(ctx, type, startTime, gain){
+  const g=ctx.createGain();g.gain.value=gain||0.4;g.connect(ctx.destination);
+  if(type==='HIT_CORTO'){
+    const buf=ctx.createBuffer(1,Math.floor(ctx.sampleRate*0.15),ctx.sampleRate);
+    const d=buf.getChannelData(0);
+    for(let i=0;i<d.length;i++) d[i]=(Math.random()*2-1)*Math.exp(-i/(ctx.sampleRate*0.04));
+    const src=ctx.createBufferSource();src.buffer=buf;
+    const f=ctx.createBiquadFilter();f.type='bandpass';f.frequency.value=900;f.Q.value=1.5;
+    src.connect(f);f.connect(g);src.start(startTime);
+  } else if(type==='WHOOSH_SUAVE'){
+    const buf=ctx.createBuffer(1,Math.floor(ctx.sampleRate*0.45),ctx.sampleRate);
+    const d=buf.getChannelData(0);
+    for(let i=0;i<d.length;i++) d[i]=(Math.random()*2-1)*Math.sin((i/d.length)*Math.PI)*0.7;
+    const src=ctx.createBufferSource();src.buffer=buf;
+    const f=ctx.createBiquadFilter();f.type='bandpass';f.frequency.value=2800;f.Q.value=0.5;
+    src.connect(f);f.connect(g);src.start(startTime);
+  } else if(type==='RISER_CORTO'){
+    const osc=ctx.createOscillator();osc.type='sawtooth';
+    osc.frequency.setValueAtTime(180,startTime);
+    osc.frequency.linearRampToValueAtTime(1100,startTime+0.55);
+    const gFade=ctx.createGain();
+    gFade.gain.setValueAtTime(0,startTime);
+    gFade.gain.linearRampToValueAtTime(0.6,startTime+0.35);
+    gFade.gain.linearRampToValueAtTime(0,startTime+0.55);
+    const f=ctx.createBiquadFilter();f.type='lowpass';f.frequency.value=4000;
+    osc.connect(f);f.connect(gFade);gFade.connect(g);
+    osc.start(startTime);osc.stop(startTime+0.6);
+  } else if(type==='IMPACT_BAJO'){
+    const osc=ctx.createOscillator();osc.type='sine';
+    osc.frequency.setValueAtTime(80,startTime);
+    osc.frequency.exponentialRampToValueAtTime(28,startTime+0.35);
+    const gFade=ctx.createGain();
+    gFade.gain.setValueAtTime(1,startTime);
+    gFade.gain.exponentialRampToValueAtTime(0.001,startTime+0.45);
+    osc.connect(gFade);gFade.connect(g);
+    osc.start(startTime);osc.stop(startTime+0.5);
+  } else if(type==='STINGER_TERRAPESCA'){
+    const freqs=[440,554,659,880];
+    freqs.forEach((f,i)=>{
+      const osc=ctx.createOscillator();osc.type='triangle';osc.frequency.value=f;
+      const gn=ctx.createGain();
+      gn.gain.setValueAtTime(0.35,startTime+i*0.09);
+      gn.gain.exponentialRampToValueAtTime(0.001,startTime+i*0.09+0.28);
+      osc.connect(gn);gn.connect(g);
+      osc.start(startTime+i*0.09);osc.stop(startTime+i*0.09+0.32);
+    });
+  }
+}
+
+function parseScriptTimeline(script){
+  const markers=[];
+  const words=script.split(/\s+/);
+  let cleanIdx=0;
+  for(const w of words){
+    const m=w.match(/^\[SFX:\s*([A-Z_]+)\]$/);
+    if(m) markers.push({type:m[1],t:cleanIdx/3});
+    else cleanIdx++;
+  }
+  return markers;
+}
+
+async function mixAndDownload(){
+  if(!lastSpotBlob){showToast('⚠️ Genera un spot primero','error');return}
+  const btn=document.getElementById('btnMix');
+  btn.disabled=true;btn.innerHTML='<span>⏳</span> Mezclando...';
+  showStatus('🎚️ Cargando capas de audio...',10);
+  try{
+    // Decode voice to get duration
+    const decCtx=new AudioContext();
+    const voiceAB0=await lastSpotBlob.arrayBuffer();
+    const voiceBufTmp=await decCtx.decodeAudioData(voiceAB0);
+    const dur=voiceBufTmp.duration;
+    await decCtx.close();
+
+    const sr=44100;
+    const totalDur=dur+2.0;
+    const offCtx=new OfflineAudioContext(2,Math.ceil(totalDur*sr),sr);
+
+    // Compressor → destination
+    const comp=offCtx.createDynamicsCompressor();
+    comp.threshold.value=-18;comp.knee.value=10;comp.ratio.value=4;
+    comp.attack.value=0.005;comp.release.value=0.12;
+    comp.connect(offCtx.destination);
+    const masterG=offCtx.createGain();masterG.gain.value=0.88;
+    masterG.connect(comp);
+
+    // ── VOICE LAYER ──
+    const vAB=await lastSpotBlob.arrayBuffer();
+    const vBuf=await offCtx.decodeAudioData(vAB);
+    const vSrc=offCtx.createBufferSource();vSrc.buffer=vBuf;
+    const vGain=offCtx.createGain();vGain.gain.value=1.0;
+    vSrc.connect(vGain);vGain.connect(masterG);
+    vSrc.start(0.25);
+
+    // ── MUSIC BED LAYER ──
+    if(jingleBlob && bedLevel>0){
+      showStatus('🎚️ Mezclando music bed...',35);
+      const bedVols=[0,0.15,0.27,0.48];
+      const bedVol=bedVols[bedLevel];
+      const bAB=await jingleBlob.arrayBuffer();
+      const bBuf=await offCtx.decodeAudioData(bAB);
+      const bedSrc=offCtx.createBufferSource();bedSrc.buffer=bBuf;bedSrc.loop=true;
+      const bedG=offCtx.createGain();
+      bedG.gain.setValueAtTime(bedVol,0);
+      bedG.gain.linearRampToValueAtTime(bedVol*0.3,0.45);  // duck down as voice enters
+      bedG.gain.setValueAtTime(bedVol*0.3,dur-0.15);        // hold ducked
+      bedG.gain.linearRampToValueAtTime(0,totalDur);         // fade out
+      bedSrc.connect(bedG);bedG.connect(masterG);
+      bedSrc.start(0);bedSrc.stop(totalDur);
+    }
+
+    // ── SFX LAYER ──
+    if(sfxLevel>0){
+      showStatus('🎚️ Sintetizando SFX...',58);
+      const sfxG=[0,0.28,0.48,0.68][sfxLevel];
+      synthSFX(offCtx,'STINGER_TERRAPESCA',0.0,sfxG*0.55);
+      const timeline=parseScriptTimeline(lastSpotScript);
+      for(const mk of timeline) synthSFX(offCtx,mk.type,0.25+mk.t,sfxG);
+      if(!timeline.length){
+        synthSFX(offCtx,'HIT_CORTO',0.25,sfxG);
+        if(dur>3) synthSFX(offCtx,'WHOOSH_SUAVE',dur*0.5,sfxG*0.6);
+        synthSFX(offCtx,'IMPACT_BAJO',dur+0.15,sfxG*0.8);
+      }
+    }
+
+    showStatus('🎚️ Renderizando mezcla final...',76);
+    const rendered=await offCtx.startRendering();
+    showStatus('💾 Generando WAV...',93);
+    const wavBlob=audioBufferToWAV(rendered);
+    const url=URL.createObjectURL(wavBlob);
+    const a=document.createElement('a');
+    a.href=url;a.download=`terrapesca_spot_${Date.now()}.wav`;
+    document.body.appendChild(a);a.click();document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    hideStatus();
+    btn.disabled=false;btn.innerHTML='<span>🎚️</span> Mezclar y descargar WAV';
+    showToast('✅ Spot mezclado y descargado','success');
+  }catch(err){
+    hideStatus();
+    btn.disabled=false;btn.innerHTML='<span>🎚️</span> Mezclar y descargar WAV';
+    showToast('❌ '+err.message,'error');
+    console.error('mixAndDownload:',err);
+  }
+}
+
+function audioBufferToWAV(buf){
+  const nCh=buf.numberOfChannels,sr=buf.sampleRate,len=buf.length;
+  const ab=new ArrayBuffer(44+len*nCh*2);
+  const v=new DataView(ab);
+  const str=(o,s)=>{for(let i=0;i<s.length;i++)v.setUint8(o+i,s.charCodeAt(i))};
+  str(0,'RIFF');v.setUint32(4,ab.byteLength-8,true);str(8,'WAVE');
+  str(12,'fmt ');v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,nCh,true);
+  v.setUint32(24,sr,true);v.setUint32(28,sr*nCh*2,true);v.setUint16(32,nCh*2,true);v.setUint16(34,16,true);
+  str(36,'data');v.setUint32(40,len*nCh*2,true);
+  let off=44;
+  for(let i=0;i<len;i++){
+    for(let c=0;c<nCh;c++){
+      const s=Math.max(-1,Math.min(1,buf.getChannelData(c)[i]));
+      v.setInt16(off,s<0?s*0x8000:s*0x7FFF,true);off+=2;
+    }
+  }
+  return new Blob([ab],{type:'audio/wav'});
+}
 
 // INIT
 updateSpotCtr();refreshVBtns();
