@@ -859,7 +859,7 @@ function onYouTubeIframeAPIReady(){
     }
   });
 }
-function getYTId(u){const m=u.match(/(?:youtu\.be\/|v=|\/embed\/)([A-Za-z0-9_-]{11})/);return m?m[1]:null}
+function getYTId(u){const m=u.match(/(?:youtu\.be\/|[?&]v=|\/embed\/|music\.youtube\.com\/watch\?[^#]*v=)([A-Za-z0-9_-]{11})/);return m?m[1]:null}
 
 // ---- TRACKS ----
 function switchTab(t){
