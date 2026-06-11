@@ -989,61 +989,58 @@ function pickVoiceId(){
 
 // Prompt builder
 function buildPrompt(contenido, estilo){
-  const velocidad={
-    'eufórico':'Ritmo ágil y directo, energía alta, frases cortas, máxima fluidez.',
-    'dinámico':'Ritmo natural y conversacional, energía media-alta, como locutor en vivo.',
-    'elegante':'Ritmo moderado, tono confiable y cercano, frases contundentes.',
-    'urgente': 'Ritmo muy ágil, sin pausas largas, sensación de que hay que actuar ya.',
+  const estiloTags={
+    'eufórico': '[fast-paced][energetic][excited]',
+    'dinámico': '[fast-paced][energetic][confident]',
+    'elegante': '[confident][warmly][natural delivery]',
+    'urgente':  '[fast-paced][energetic][dramatically]',
   };
-  return `Actúa como un locutor mexicano profesional de radio comercial, con ritmo natural, dinámico y conversacional.
+  const tags=estiloTags[estilo]||estiloTags['dinámico'];
+  return `Actúa como un guionista y locutor mexicano profesional de radio comercial para Terrapesca.
 
-NO empieces con frases genéricas como: "Hey pescador", "Atención amigos", "Si eres amante de la pesca", "Hola qué tal".
-Evita sonar pausado, robótico, leído o exageradamente teatral.
-
-PRODUCTO O MODELOS A ANUNCIAR:
+OBJETIVO: Crear un spot de radio rápido, dinámico, persuasivo y natural a partir del siguiente producto o modelo:
 ${contenido}
 
-ESTRUCTURA OBLIGATORIA DEL SPOT:
+REGLA PRINCIPAL: El anuncio debe comenzar DIRECTO AL GRANO.
 
-1. APERTURA CON ESCENA, PROBLEMA O EXPERIENCIA REAL
-   Empieza con una situación que el cliente pueda reconocer. Ejemplos:
-   "Te ha pasado que llegas al punto bueno y el equipo no responde…"
-   "Cuando el pez pega fuerte, ahí es donde se nota si traes equipo de verdad…"
+PROHIBIDO iniciar con: "Hey pescador", "Ey oyente", "Hola amigos", "Atención pescadores", "Si eres amante de la pesca", "Amigo de la pesca", "Qué tal", "Escucha esto", "No te pierdas", "Tenemos para ti".
+NO saludes. NO presentes el anuncio. NO hagas introducción lenta. NO suenes como IA. NO uses frases genéricas de comercial barato.
 
-2. TENSIÓN O NECESIDAD
-   Explica brevemente el problema que resuelve el producto: falta de fuerza, poca precisión, desgaste, equipo inseguro, mala respuesta, poca durabilidad o bajo rendimiento.
+ESTILO DE LOCUCIÓN: ${tags}[radio announcer][upbeat][commercial tone][Mexican accent][natural delivery]
+Ritmo rápido pero claro. Frases cortas. Energía media-alta. Sin pausas largas. Como locutor de radio mexicana en vivo. Debe sonar como una recomendación fuerte, no como ficha técnica.
 
-3. PRESENTACIÓN DEL PRODUCTO
-   Menciona el producto de forma natural, no como ficha técnica. Incluye el modelo exacto si fue proporcionado.
+ESTRUCTURA OBLIGATORIA:
 
-4. BENEFICIO CLARO
-   Convierte características en beneficios reales. No solo "resistente"; di "para que aguante jornadas duras". No solo "ligero"; di "para lanzar más cómodo y cansarte menos".
+1. ARRANQUE DIRECTO CON PROBLEMA, ESCENA O DOLOR
+   Frase de impacto inmediata. Ejemplos:
+   "Cuando el pez pega fuerte, el equipo barato se delata."
+   "Llegar al punto bueno y fallar por el equipo… eso sí duele."
+   "Si el carrete se amarra justo cuando más lo necesitas, ya perdiste la pelea."
 
-5. GANCHO COMERCIAL
-   Una frase que provoque deseo o urgencia. Ejemplos:
-   "Es de esos equipos que cuando lo pruebas, ya no quieres regresar al anterior."
-   "Porque en la pesca, el momento bueno no avisa dos veces."
+2. TENSIÓN COMERCIAL — el problema real: falta de fuerza, mala respuesta, desgaste, pérdida de oportunidad.
 
-6. LLAMADO A LA ACCIÓN
-   Invita a visitar Terrapesca o preguntar por disponibilidad. Que suene natural, no forzado.
+3. PRODUCTO — presenta el modelo de forma natural. No más de 2 veces.
 
-7. CIERRE DE MARCA
-   Termina con: "${cfg.slogan}"
+4. BENEFICIO — características convertidas en beneficios reales: más control, mejor respuesta, más confianza, menos cansancio, mayor duración.
 
-ESTILO: ${velocidad[estilo]||velocidad['dinámico']}
-Español mexicano natural. Energía media-alta. Sin pausas largas. Frases cortas y fluidas. Tono confiable, comercial y cercano. Debe sentirse como radio real, no como anuncio generado por IA. Duración: 20 a 30 segundos.
+5. GANCHO DE VENTA:
+   "No es comprar por comprar, es equiparte para no fallar."
+   "El momento bueno no avisa dos veces."
+   "Cuando la pelea empieza, ahí se nota qué traes en la mano."
 
-REGLAS:
-- No inventes datos técnicos si no están confirmados.
-- Si no tienes especificaciones del producto, habla de beneficios generales sin exagerar.
-- No uses demasiadas palabras técnicas.
-- No repitas el nombre del producto más de 2 veces.
-- No hagas una introducción lenta.
-- No termines con frases débiles como "no te lo pierdas".
+6. LLAMADO A LA ACCIÓN — invita a preguntar por disponibilidad en Terrapesca. Natural, rápido, comercial.
+
+7. CIERRE DE MARCA: "${cfg.slogan}"
+
+REGLAS DE REDACCIÓN:
+- Duración: 15 a 20 segundos.
+- No inventes datos técnicos no confirmados.
+- No uses lenguaje exagerado falso.
+- No uses más de 2 tags por línea.
+- Usa mayúsculas solo en palabras clave para énfasis.
 - NUNCA menciones precios ni cantidades.
-- USA tags de ElevenLabs v3 para expresividad: [fast] [excited] [pause] [emphasis]
 
-FORMATO DE SALIDA: Entrega ÚNICAMENTE el texto del spot listo para locución. Sin títulos, sin análisis, sin explicaciones.`;
+FORMATO: Entrega ÚNICAMENTE el texto final listo para ElevenLabs v3. Sin títulos. Sin explicación. Sin análisis.`;
 }
 
 // ---- GENERATE SPOT ----
