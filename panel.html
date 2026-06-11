@@ -398,11 +398,13 @@ input[type=range]::-moz-range-thumb{
 
 .tr{
   display:flex;align-items:center;gap:8px;
-  padding:7px 8px;border-radius:8px;cursor:pointer;
+  padding:7px 8px;border-radius:8px;cursor:grab;
   transition:background .1s;border:1px solid transparent;
   margin-bottom:2px;
 }
 .tr:hover{background:var(--navy3)}
+.tr.dragging{opacity:0.35;cursor:grabbing}
+.tr.drag-over{border-color:var(--red);background:var(--red-dim)}
 .tr.active{background:var(--red-dim);border-color:rgba(212,32,32,0.2)}
 .tr.spot-r{background:var(--gold-dim)}
 .tr.spot-r.active{background:rgba(255,215,0,0.08);border-color:rgba(255,215,0,0.2)}
@@ -1236,6 +1238,39 @@ function updateSpotCtr(){
     d.className='sdot'+(i<songsSinceSpot?' done':'')+(i===2&&songsSinceSpot>=3?' gold':'');
   }
 }
+// ---- DRAG & DROP ----
+let dragSrcIdx=null;
+function onDragStart(e,i){
+  dragSrcIdx=i;
+  e.currentTarget.classList.add('dragging');
+  e.dataTransfer.effectAllowed='move';
+}
+function onDragOver(e,i){
+  e.preventDefault();
+  e.dataTransfer.dropEffect='move';
+  document.querySelectorAll('.tr').forEach(el=>el.classList.remove('drag-over'));
+  e.currentTarget.classList.add('drag-over');
+}
+function onDragLeave(e){e.currentTarget.classList.remove('drag-over')}
+function onDrop(e,i){
+  e.preventDefault();
+  if(dragSrcIdx===null||dragSrcIdx===i)return;
+  const moved=playlist.splice(dragSrcIdx,1)[0];
+  playlist.splice(i,0,moved);
+  if(curIdx===dragSrcIdx)curIdx=i;
+  else if(dragSrcIdx<curIdx&&i>=curIdx)curIdx--;
+  else if(dragSrcIdx>curIdx&&i<=curIdx)curIdx++;
+  dragSrcIdx=null;
+  renderPlaylist();
+  sendWS({type:'PLAYLIST_UPDATE',playlist:getPublicPlaylist()});
+}
+function onDragEnd(e){
+  dragSrcIdx=null;
+  document.querySelectorAll('.tr').forEach(el=>{
+    el.classList.remove('dragging','drag-over');
+  });
+}
+
 function renderPlaylist(){
   const list=document.getElementById('plList');
   const s=playlist.filter(t=>t.type!=='spot').length;
@@ -1246,8 +1281,15 @@ function renderPlaylist(){
   list.innerHTML=playlist.map((t,i)=>{
     const act=i===curIdx;
     const num=act&&isPlaying?`<div style="display:flex;gap:2px;align-items:flex-end;height:12px"><span style="width:3px;background:var(--red);border-radius:1px;animation:dot-dance .6s ease-in-out infinite alternate"></span><span style="width:3px;background:var(--red);border-radius:1px;animation:dot-dance .6s .2s ease-in-out infinite alternate"></span><span style="width:3px;background:var(--red);border-radius:1px;animation:dot-dance .6s .4s ease-in-out infinite alternate"></span></div>`:(i+1);
-    return `<div class="tr ${act?'active':''} ${t.type==='spot'?'spot-r':''}" onclick="playTrack(${i})">
-      <span class="tr-n">${num}</span>
+    return `<div class="tr ${act?'active':''} ${t.type==='spot'?'spot-r':''}"
+      draggable="true"
+      onclick="playTrack(${i})"
+      ondragstart="onDragStart(event,${i})"
+      ondragover="onDragOver(event,${i})"
+      ondragleave="onDragLeave(event)"
+      ondrop="onDrop(event,${i})"
+      ondragend="onDragEnd(event)">
+      <span class="tr-n" style="cursor:grab;color:var(--text3);font-size:10px">⠿</span>
       <div class="tr-ic ${t.type}">${ic[t.type]||'🎵'}</div>
       <div class="tr-info"><div class="tr-nm">${t.name}</div><div class="tr-tp">${t.type==='yt'?'YouTube':t.type==='mp3'?'MP3':'Spot IA'}</div></div>
       <button class="tr-del" onclick="event.stopPropagation();removeTrack(${i})">✕</button>

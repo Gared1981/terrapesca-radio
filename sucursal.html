@@ -837,7 +837,7 @@ function updateProg(){
 function updateNP(track, playing){
   document.getElementById('npTitle').textContent=track.name||'Sin título';
   const tag=document.getElementById('srcTag');
-  if(track.type==='yt'){tag.textContent='▶ YOUTUBE';tag.className='disp-src-tag yt'}
+  if(track.type==='yt'){tag.textContent='♪ EN TRANSMISIÓN';tag.className='disp-src-tag mp3'}
   else if(track.type==='mp3'){tag.textContent='♪ MP3';tag.className='disp-src-tag mp3'}
   else if(track.type==='spot'){tag.textContent='★ SPOT';tag.className='disp-src-tag spot'}
   else if(track.type==='mic'){tag.textContent='⬤ EN VIVO';tag.className='disp-src-tag mic'}
