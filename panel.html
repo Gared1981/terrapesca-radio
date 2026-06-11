@@ -754,6 +754,27 @@ input:checked + .toggle-slider::before{background:var(--red);transform:translate
         </select>
       </div>
 
+      <!-- Hora en vivo -->
+      <div style="margin-top:8px;padding:8px 10px;background:var(--navy2);border:1px solid var(--border2);border-radius:7px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">
+          <span style="font-size:10px;color:var(--text3);font-family:'Share Tech Mono',monospace;white-space:nowrap">HORA:</span>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;flex:1">
+            <input type="checkbox" id="horaEnabled" checked style="accent-color:var(--red);width:13px;height:13px" onchange="toggleHoraOpts()"/>
+            <span style="font-size:11px;color:var(--text2)">Incluir hora en vivo</span>
+          </label>
+          <span id="horaPreview" style="font-family:'Share Tech Mono',monospace;font-size:8px;color:rgba(212,32,32,0.7);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+        </div>
+        <div id="horaOpts" style="display:flex;align-items:center;gap:6px">
+          <span style="font-size:9px;color:var(--text3);font-family:'Share Tech Mono',monospace;white-space:nowrap">POS:</span>
+          <select id="horaPosicion" class="inp" style="margin-bottom:0;font-size:10px;padding:4px 7px;flex:1">
+            <option value="automatico">⚡ Automático</option>
+            <option value="medio" selected>🎯 Medio (recomendado)</option>
+            <option value="inicio">🔛 Inicio</option>
+            <option value="cierre">🔚 Cierre</option>
+          </select>
+        </div>
+      </div>
+
       <button class="btn-spot" id="btnSpot" onclick="generateSpot()" disabled>
         🎙️ Generar spot con IA + ElevenLabs
       </button>
@@ -1109,8 +1130,62 @@ function pickVoiceId(){
   return VOICES[sel]||VOICES.bill;
 }
 
+// ---- HORA RADIO ----
+const HORA_WORDS_H = ['','una','dos','tres','cuatro','cinco','seis','siete','ocho','nueve','diez','once','doce'];
+const HORA_WORDS_M = {
+  0:'',1:'un',2:'dos',3:'tres',4:'cuatro',5:'cinco',6:'seis',7:'siete',8:'ocho',9:'nueve',
+  10:'diez',11:'once',12:'doce',13:'trece',14:'catorce',15:'quince',16:'dieciséis',17:'diecisiete',
+  18:'dieciocho',19:'diecinueve',20:'veinte',21:'veintiuno',22:'veintidós',23:'veintitrés',
+  24:'veinticuatro',25:'veinticinco',26:'veintiséis',27:'veintisiete',28:'veintiocho',29:'veintinueve',
+  30:'treinta',31:'treinta y uno',32:'treinta y dos',33:'treinta y tres',34:'treinta y cuatro',
+  35:'treinta y cinco',36:'treinta y seis',37:'treinta y siete',38:'treinta y ocho',39:'treinta y nueve',
+  40:'cuarenta',41:'cuarenta y uno',42:'cuarenta y dos',43:'cuarenta y tres',44:'cuarenta y cuatro',
+  45:'cuarenta y cinco',46:'cuarenta y seis',47:'cuarenta y siete',48:'cuarenta y ocho',49:'cuarenta y nueve',
+  50:'cincuenta',51:'cincuenta y uno',52:'cincuenta y dos',53:'cincuenta y tres',54:'cincuenta y cuatro',
+  55:'cincuenta y cinco',56:'cincuenta y seis',57:'cincuenta y siete',58:'cincuenta y ocho',59:'cincuenta y nueve'
+};
+
+function getHoraRadio(){
+  try{
+    const now=new Date();
+    const parts=new Intl.DateTimeFormat('en-US',{
+      timeZone:'America/Mazatlan',hour:'numeric',minute:'2-digit',hour12:false
+    }).formatToParts(now);
+    let h24=0,m=0;
+    for(const p of parts){
+      if(p.type==='hour') h24=parseInt(p.value);
+      if(p.type==='minute') m=parseInt(p.value);
+    }
+    let periodo;
+    if(h24>=5&&h24<=11) periodo='de la mañana';
+    else if(h24===12) periodo='del mediodía';
+    else if(h24>=13&&h24<=18) periodo='de la tarde';
+    else if(h24>=19) periodo='de la noche';
+    else periodo='de la madrugada';
+    let h12=h24%12; if(h12===0)h12=12;
+    const art=h12===1?'la':'las';
+    if(m===0) return `${art} ${HORA_WORDS_H[h12]} en punto ${periodo}`;
+    if(m<10)  return `${art} ${HORA_WORDS_H[h12]} con ${HORA_WORDS_M[m]} minutos ${periodo}`;
+    return `${art} ${HORA_WORDS_H[h12]} con ${HORA_WORDS_M[m]} ${periodo}`;
+  }catch(e){return null}
+}
+
+function toggleHoraOpts(){
+  const on=document.getElementById('horaEnabled').checked;
+  document.getElementById('horaOpts').style.display=on?'flex':'none';
+  document.getElementById('horaPreview').textContent=on?getHoraRadio()||'':'';
+}
+
+// Live clock preview (updates every 10s)
+setInterval(()=>{
+  if(document.getElementById('horaEnabled')?.checked){
+    const el=document.getElementById('horaPreview');
+    if(el) el.textContent=getHoraRadio()||'';
+  }
+},10000);
+
 // Prompt builder
-function buildPrompt(contenido, estilo){
+function buildPrompt(contenido, estilo, horaRadio){
   const estiloTags={
     'eufórico': '[fast-paced][energetic][excited]',
     'dinámico': '[fast-paced][energetic][confident]',
@@ -1118,6 +1193,21 @@ function buildPrompt(contenido, estilo){
     'urgente':  '[fast-paced][energetic][dramatically]',
   };
   const tags=estiloTags[estilo]||estiloTags['dinámico'];
+  const posicion=document.getElementById('horaPosicion')?.value||'automatico';
+  const horaBlock=horaRadio?`
+HORA EN VIVO — VARIABLE {{HORA_RADIO}}:
+La hora actual en Mazatlán es: {{HORA_RADIO}} = "${horaRadio}"
+
+INSTRUCCIONES PARA INTEGRAR LA HORA:
+- Intégrala UNA SOLA VEZ de forma completamente natural, como locutor de radio.
+- Posición: ${posicion==='automatico'?'elige el momento donde suene más natural, preferiblemente después del gancho principal':posicion==='inicio'?'después de la primera frase de impacto':posicion==='cierre'?'justo antes del cierre de marca':'en la parte central del spot, entre el beneficio y el llamado a la acción'}.
+- USA frases naturales como: "Son {{HORA_RADIO}}, y la pesca no espera." / "{{HORA_RADIO}}, seguimos con Terrapesca." / "Ya son {{HORA_RADIO}}, buen momento para equiparte." / "{{HORA_RADIO}}, y si vas saliendo a pescar, revisa tu equipo."
+- NUNCA digas "La hora actual es…", "Son exactamente…", "Estimado oyente…"
+- NO debe sonar como asistente virtual. Debe sonar como radio en vivo.
+- NO repitas la hora más de una vez.
+- La hora NO debe reemplazar ni cortar el gancho principal.
+- Sustituye {{HORA_RADIO}} con la frase exacta: "${horaRadio}"
+`:'';
   return `Actúa como un guionista y locutor mexicano profesional de radio comercial para Terrapesca.
 
 OBJETIVO: Crear un spot de radio rápido, dinámico, persuasivo y natural a partir del siguiente producto o modelo:
@@ -1153,7 +1243,7 @@ ESTRUCTURA OBLIGATORIA:
 6. LLAMADO A LA ACCIÓN — invita a preguntar por disponibilidad en Terrapesca. Natural, rápido, comercial.
 
 7. CIERRE DE MARCA: "${cfg.slogan}"
-
+${horaBlock}
 REGLAS DE REDACCIÓN:
 - Duración: 15 a 20 segundos.
 - No inventes datos técnicos no confirmados.
@@ -1184,6 +1274,8 @@ async function generateSpot(){
 
   const estilo=document.getElementById('spotEstilo')?.value||'eufórico';
   const voz=pickVoiceId();
+  const horaEnabled=document.getElementById('horaEnabled')?.checked;
+  const horaRadio=horaEnabled?getHoraRadio():null;
   const btn=document.getElementById('btnSpot');btn.disabled=true;
   showStatus(`🤖 Generando guión (${estilo})...`,20);
   const baseUrl=cfg.ws.replace('wss://','https://').replace('ws://','http://').replace(/\/$/,'');
@@ -1194,7 +1286,7 @@ async function generateSpot(){
       headers:{'Content-Type':'application/json','x-api-key':cfg.anthropicKey},
       body:JSON.stringify({
         model:'claude-sonnet-4-20250514',max_tokens:1200,
-        messages:[{role:'user',content:buildPrompt(contenido,estilo)}]
+        messages:[{role:'user',content:buildPrompt(contenido,estilo,horaRadio)}]
       })
     });
     const sd=await sr.json();
@@ -1673,6 +1765,10 @@ function audioBufferToWAV(buf){
 
 // INIT
 updateSpotCtr();refreshVBtns();
+setTimeout(()=>{
+  const el=document.getElementById('horaPreview');
+  if(el) el.textContent=getHoraRadio()||'';
+},200);
 if(cfg.ws)connectWS();
 else{setWSStatus('error','Sin configurar');showToast('⚙️ Configura la URL del servidor primero','info')}
 </script>
