@@ -2173,9 +2173,11 @@ function playTrack(idx,opts={}){
   // and (unless this IS a spot) any playing library spot. Prevents a stuck
   // djRodoActive from blocking playback when the user clicks a song.
   if(t.type!=='spot'){
-    _stopDJNow();
-    if(currentSpotAu){try{currentSpotAu.pause();currentSpotAu.src='';}catch(e){}currentSpotAu=null;}
-    stopJingle();
+    try{
+      _stopDJNow();
+      if(currentSpotAu){try{currentSpotAu.pause();currentSpotAu.src='';}catch(e){}currentSpotAu=null;}
+      stopJingle();
+    }catch(e){console.warn('cleanup',e);}
   }
 
   if(t.type==='yt'){
@@ -2186,6 +2188,14 @@ function playTrack(idx,opts={}){
     document.getElementById('tC').textContent='0:00';
     document.getElementById('yt-container').style.display='block';
     if(ytReady){ytPlayer.loadVideoById(t.ytId);ytPlayer.setVolume(parseInt(document.getElementById('volS').value));}
+    else{ // YouTube API not ready yet — retry shortly
+      let _ytWait=0;
+      const _ytRetry=setInterval(()=>{
+        _ytWait++;
+        if(ytReady&&ytPlayer){clearInterval(_ytRetry);ytPlayer.loadVideoById(t.ytId);ytPlayer.setVolume(parseInt(document.getElementById('volS').value));}
+        else if(_ytWait>20){clearInterval(_ytRetry);showToast('⚠️ Reproductor de YouTube no disponible','error');}
+      },300);
+    }
     sendWS({type:'PLAY',track:{type:'yt',name:t.name,ytId:t.ytId},position:0});
 
   }else if(t.type==='spot'&&t.b64){
@@ -2242,10 +2252,14 @@ function playTrack(idx,opts={}){
       const ni=smartNextIdx();
       scheduleXfade(incoming,ni);
     }).catch((err)=>{
-      // play() rejected — try to advance to next track
-      if(err?.name==='NotSupportedError'||err?.name==='NotAllowedError'){
-        audioEl=outgoing; // restore outgoing so watchdog/next works
-        setTimeout(()=>nextTrack(),500);
+      if(err?.name==='NotAllowedError'){
+        // Autoplay blocked — keep this track loaded, wait for user gesture
+        incoming.volume=targetVol;
+        showToast('▶️ Toca reproducir para iniciar el audio','info');
+      } else if(err?.name==='NotSupportedError'){
+        // Bad/expired source — advance once (no loop: only auto-skip a single time)
+        if(!opts._skipped){ audioEl=outgoing; setTimeout(()=>playTrack(smartNextIdx(),{_skipped:true}),500); }
+        else { showToast('⚠️ No se pudo cargar el audio','error'); }
       } else {
         incoming.volume=targetVol;
         startProg();
