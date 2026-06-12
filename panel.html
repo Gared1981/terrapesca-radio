@@ -34,6 +34,7 @@
   --border:#162f50;
   --border2:#0d2040;
   --radius:12px;
+  --accent1:#d42020;
 }
 
 body{
@@ -369,6 +370,48 @@ input[type=range]::-moz-range-thumb{
 .btn-spot:hover{background:rgba(255,215,0,0.15);border-color:rgba(255,215,0,0.4)}
 .btn-spot:disabled{opacity:0.35;cursor:not-allowed}
 
+/* ── RIGHT COL ── */
+.right-col{
+  display:flex;flex-direction:column;gap:10px;
+  position:sticky;top:70px;
+  max-height:calc(100vh - 84px);
+  overflow-y:auto;
+  overflow-x:hidden;
+}
+.right-col::-webkit-scrollbar{width:3px}
+.right-col::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+
+/* ── SCHEDULE CARD ── */
+.sched-card{
+  background:var(--panel);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  padding:0;
+  overflow:hidden;
+}
+.sched-card .sched-hdr{
+  padding:11px 14px;
+  background:var(--navy2);
+  border-bottom:1px solid var(--border2);
+  display:flex;align-items:center;justify-content:space-between;
+  cursor:pointer;
+  user-select:none;
+}
+.sched-card .sched-body{
+  padding:12px 14px;
+  display:flex;flex-direction:column;gap:8px;
+}
+
+/* ── DAY CHIPS ── */
+.day-chip{
+  padding:3px 7px;border-radius:4px;font-size:10px;font-weight:600;
+  font-family:'Share Tech Mono',monospace;
+  border:1px solid var(--border);background:var(--navy2);color:var(--text3);
+  cursor:pointer;transition:all .15s;
+  display:inline-flex;align-items:center;
+}
+.day-chip.on{background:var(--red-dim);border-color:rgba(212,32,32,0.4);color:var(--red)}
+
 /* ── PLAYLIST ── */
 .pl-card{
   background:var(--panel);
@@ -377,10 +420,18 @@ input[type=range]::-moz-range-thumb{
   overflow:hidden;
   box-shadow:0 4px 20px rgba(0,0,0,0.3);
   display:flex;flex-direction:column;
-  grid-row:1/span 3;
-  max-height:calc(100vh - 80px);
-  position:sticky;top:70px;
 }
+.pl-card.pl-main{flex:1;min-height:280px;}
+.pl-card.pl-spots{flex-shrink:0;}
+
+/* ── SPOT PLAY BUTTON ── */
+.tr-play{
+  width:26px;height:26px;border-radius:4px;border:1px solid rgba(29,185,84,0.3);
+  background:rgba(29,185,84,0.08);color:var(--green);cursor:pointer;
+  font-size:11px;display:flex;align-items:center;justify-content:center;
+  transition:all .15s;flex-shrink:0;
+}
+.tr-play:hover{background:rgba(29,185,84,0.2);border-color:var(--green)}
 .pl-hdr{
   padding:13px 14px 10px;
   border-bottom:1px solid var(--border);
@@ -524,6 +575,7 @@ input[type=range]::-moz-range-thumb{
 @media(max-width:860px){
   .app{grid-template-columns:1fr;padding:10px 12px 80px}
   .pl-card{grid-row:auto;max-height:280px;position:static}
+  .right-col{position:static;max-height:none;overflow:visible;gap:8px}
   header{padding:0 14px;height:52px}
   .logo-name{font-size:15px}
   .logo-badge{display:none}
@@ -1273,9 +1325,12 @@ input:checked + .toggle-slider::before{background:var(--red);transform:translate
     </div>
 
     <!-- PROGRAMMING CALENDAR -->
-    <div style="background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px">
-      <div class="sec-lbl" style="margin-bottom:12px">📅 Programación</div>
-      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:10px">
+    <div class="sched-card">
+      <div class="sched-hdr" onclick="toggleSchedCard()">
+        <div class="sec-lbl" style="margin:0">📅 Programación</div>
+        <span id="schedArrow" style="color:var(--text3);font-size:11px;transition:transform .2s">▾</span>
+      </div>
+      <div class="sched-body" id="schedBody" style="display:none">
         <div style="display:flex;gap:6px;align-items:center">
           <select class="inp" id="schedSpot" style="flex:1;padding:5px 8px;font-size:11px">
             <option value="-1">— sin spots —</option>
@@ -1284,50 +1339,54 @@ input:checked + .toggle-slider::before{background:var(--red);transform:translate
         </div>
         <div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center">
           <span style="font-size:10px;color:var(--text2);margin-right:2px">Días:</span>
-          <label style="display:flex;align-items:center;gap:2px;font-size:10px;cursor:pointer"><input type="checkbox" id="sched-day-lun" checked/> L</label>
-          <label style="display:flex;align-items:center;gap:2px;font-size:10px;cursor:pointer"><input type="checkbox" id="sched-day-mar" checked/> M</label>
-          <label style="display:flex;align-items:center;gap:2px;font-size:10px;cursor:pointer"><input type="checkbox" id="sched-day-mie" checked/> X</label>
-          <label style="display:flex;align-items:center;gap:2px;font-size:10px;cursor:pointer"><input type="checkbox" id="sched-day-jue" checked/> J</label>
-          <label style="display:flex;align-items:center;gap:2px;font-size:10px;cursor:pointer"><input type="checkbox" id="sched-day-vie" checked/> V</label>
-          <label style="display:flex;align-items:center;gap:2px;font-size:10px;cursor:pointer"><input type="checkbox" id="sched-day-sab"/> S</label>
-          <label style="display:flex;align-items:center;gap:2px;font-size:10px;cursor:pointer"><input type="checkbox" id="sched-day-dom"/> D</label>
+          <label class="day-chip on" onclick="this.classList.toggle('on');document.getElementById('sched-day-lun').checked=this.classList.contains('on')"><input type="checkbox" id="sched-day-lun" checked style="display:none"/>L</label>
+          <label class="day-chip on" onclick="this.classList.toggle('on');document.getElementById('sched-day-mar').checked=this.classList.contains('on')"><input type="checkbox" id="sched-day-mar" checked style="display:none"/>M</label>
+          <label class="day-chip on" onclick="this.classList.toggle('on');document.getElementById('sched-day-mie').checked=this.classList.contains('on')"><input type="checkbox" id="sched-day-mie" checked style="display:none"/>X</label>
+          <label class="day-chip on" onclick="this.classList.toggle('on');document.getElementById('sched-day-jue').checked=this.classList.contains('on')"><input type="checkbox" id="sched-day-jue" checked style="display:none"/>J</label>
+          <label class="day-chip on" onclick="this.classList.toggle('on');document.getElementById('sched-day-vie').checked=this.classList.contains('on')"><input type="checkbox" id="sched-day-vie" checked style="display:none"/>V</label>
+          <label class="day-chip" onclick="this.classList.toggle('on');document.getElementById('sched-day-sab').checked=this.classList.contains('on')"><input type="checkbox" id="sched-day-sab" style="display:none"/>S</label>
+          <label class="day-chip" onclick="this.classList.toggle('on');document.getElementById('sched-day-dom').checked=this.classList.contains('on')"><input type="checkbox" id="sched-day-dom" style="display:none"/>D</label>
         </div>
         <button class="btn-m primary" style="width:100%;font-size:11px" onclick="addScheduleEntry()">+ Agregar entrada</button>
-      </div>
-      <div id="schedList" style="max-height:200px;overflow-y:auto">
-        <div class="pl-empty" style="padding:12px 0"><p style="font-size:11px">Sin entradas programadas</p></div>
+        <div id="schedList" style="max-height:200px;overflow-y:auto">
+          <div class="pl-empty" style="padding:12px 0"><p style="font-size:11px">Sin entradas programadas</p></div>
+        </div>
       </div>
     </div>
 
   </div><!-- /left-col -->
 
-  <!-- PLAYLIST -->
-  <div class="pl-card">
-    <div class="pl-hdr">
-      <div class="sec-lbl" style="margin:0">Playlist</div>
-      <span class="pl-cnt" id="plCnt">0 canciones</span>
-    </div>
-    <div class="pl-list" id="plList">
-      <div class="pl-empty">
-        <div class="ei">🎶</div>
-        <p>Agrega canciones para comenzar</p>
-      </div>
-    </div>
-  </div>
+  <div class="right-col">
 
-  <!-- SPOTS LIBRARY -->
-  <div class="pl-card" style="margin-top:10px">
-    <div class="pl-hdr">
-      <div class="sec-lbl" style="margin:0">🎙️ Spots</div>
-      <span class="pl-cnt" id="spotsCnt">0 spots</span>
-    </div>
-    <div class="pl-list" id="spotsList" style="max-height:220px">
-      <div class="pl-empty">
-        <div class="ei">🎙️</div>
-        <p>Genera spots con IA para verlos aquí</p>
+    <!-- PLAYLIST -->
+    <div class="pl-card pl-main">
+      <div class="pl-hdr">
+        <div class="sec-lbl" style="margin:0">Playlist</div>
+        <span class="pl-cnt" id="plCnt">0 canciones</span>
+      </div>
+      <div class="pl-list" id="plList">
+        <div class="pl-empty">
+          <div class="ei">🎶</div>
+          <p>Agrega canciones para comenzar</p>
+        </div>
       </div>
     </div>
-  </div>
+
+    <!-- SPOTS LIBRARY -->
+    <div class="pl-card pl-spots">
+      <div class="pl-hdr">
+        <div class="sec-lbl" style="margin:0">🎙️ Spots</div>
+        <span class="pl-cnt" id="spotsCnt">0 spots</span>
+      </div>
+      <div class="pl-list" id="spotsList" style="max-height:220px">
+        <div class="pl-empty">
+          <div class="ei">🎙️</div>
+          <p>Genera spots con IA para verlos aquí</p>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /right-col -->
 
 </div><!-- /app -->
 
@@ -2363,7 +2422,7 @@ function renderSpots(){
     <div class="tr" style="padding:8px 10px">
       <div class="tr-ic spot">🎙️</div>
       <div class="tr-info"><div class="tr-nm" style="font-size:12px">${s.name}</div><div class="tr-tp">Spot IA</div></div>
-      <button class="tr-del" style="color:var(--green);border-color:var(--green)" title="Reproducir" onclick="playSpotManual(spotsLibrary[${i}])">▶</button>
+      <button class="tr-play" title="Reproducir" onclick="playSpotManual(spotsLibrary[${i}])">▶</button>
       <button class="tr-del" onclick="spotsLibrary.splice(${i},1);renderSpots();triggerSave()" title="Eliminar">✕</button>
     </div>`).join('');
   // Update schedule dropdown whenever spots list changes
@@ -2372,6 +2431,14 @@ function renderSpots(){
 
 // ---- SCHEDULE / PROGRAMMING CALENDAR ----
 let _scheduleNextId=1;
+
+function toggleSchedCard(){
+  const body=document.getElementById('schedBody');
+  const arrow=document.getElementById('schedArrow');
+  const open=body.style.display!=='none'&&body.style.display!=='';
+  body.style.display=open?'none':'flex';
+  if(arrow) arrow.style.transform=open?'rotate(-90deg)':'';
+}
 
 function addScheduleEntry(){
   const spotSel=document.getElementById('schedSpot');
