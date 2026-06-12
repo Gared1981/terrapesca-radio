@@ -2253,6 +2253,8 @@ function handleEnded(){
 
   // If crossfade already took over, don't double-advance
   if(_xfadeScheduled||audioEl2){_handlingEnded=false;return;}
+  // If DJ is speaking over music, let it finish — its finally() handles next track
+  if(djRodoActive){_handlingEnded=false;return;}
 
   const t=playlist[curIdx];
 
@@ -3452,7 +3454,7 @@ ESTILO: Locutor mexicano de radio comercial. Natural, no robótico. Alegre pero 
 PROHIBIDO sonar como: español de España, narrador de documental, voz robótica, asistente virtual, lectura plana, voz gringa hablando español, locutor exagerado de feria, voz demasiado seria o funeraria.
 
 PROHIBIDO iniciar con: "Hola","Hey","oyente","amigos","sintonizas","la hora actual es","son exactamente","estimado radioescucha","no te despegues","quédate con nosotros","DJ Rodo te saluda","hola soy DJ Rodo".
-NO leas títulos de canciones, artistas, canales ni datos técnicos de la playlist.
+CUANDO menciones canciones: di siempre el TÍTULO y el GRUPO/ARTISTA. Ejemplo: "Viene 'Bohemian Rhapsody' de Queen" o "Acabamos de escuchar 'La Chona' de Los Tucanes". Nunca menciones solo el título sin el artista.
 
 ${tagsInstructions}
 
@@ -3495,22 +3497,23 @@ TU VERSIÓN:${avoid}`,
     SONG_BRIDGE:
 `${identity}
 
-Conecta ${cur} con ${nxt}. Transición natural, mínima, de locutor.
-Ejemplo: "[fast-paced][confident] Buena. Ahí va la siguiente."
+Transición entre canciones. Acaba de sonar ${cur}. Ahora va ${nxt}.
+Menciona TÍTULO y ARTISTA de la siguiente. Natural, rápido, de locutor FM.
+Ejemplo: "Eso fue 'La Chona' de Los Tucanes. Ahora viene 'Vivir mi Vida' de Marc Anthony."
 TU VERSIÓN:${avoid}`,
 
     SONG_REVIEW:
 `${identity}
 
-Comenta brevemente ${cur}. Solo si el título te da algo natural que decir. No inventes historia ni artista.
-Ejemplo: "[confident][upbeat] Venimos de ${ctx.currentSong?.title||'buena música'}. Buen ritmo para la jornada."
+Comenta brevemente lo que acaba de sonar: ${cur}. Menciona TÍTULO y ARTISTA.
+Ejemplo: "[confident][upbeat] Acabamos de escuchar 'Amor Eterno' de Juan Gabriel. Clásico total."
 TU VERSIÓN:${avoid}`,
 
     NEXT_SONG_TEASER:
 `${identity}
 
-Prepara ${nxt} brevemente. Natural, de continuidad.
-Ejemplo: "[fast-paced][confident] Viene ${ctx.nextSong?.title||'buena canción'}. Seguimos en Radio Terrapesca."
+Anuncia la siguiente canción: ${nxt}. Menciona TÍTULO y ARTISTA. Brevísimo, emocionante.
+Ejemplo: "[fast-paced][confident] Viene 'Bohemian Rhapsody' de Queen. Seguimos en Radio Terrapesca."
 TU VERSIÓN:${avoid}`,
 
     PROMO_TEASER:
@@ -3675,6 +3678,8 @@ async function generateDJScript(type,nextIdx){
 
 async function playDJRodo(type,nextIdx){
   if(djRodoActive){return;} // prevent overlap
+  djRodoActive=true; // lock immediately so handleEnded doesn't advance while generating
+  updateDJStatusChip('live');
   const ctx=buildDJRodoContext(type,nextIdx);
   let script=null;
   const cacheKey=type+'_'+ctx.hora.slice(0,5);
@@ -3703,6 +3708,8 @@ async function playDJRodo(type,nextIdx){
   document.getElementById('djLastPhrase').textContent=script;
   if(!cfg.apiKey){
     showToast('DJ Rodo: falta clave ElevenLabs');
+    djRodoActive=false;
+    updateDJStatusChip(document.getElementById('djRodoEnabled')?.checked?'standby':'off');
     return;
   }
   const voiceId=(VOICES[document.getElementById('djRodoVoice')?.value||'eleguar']||VOICES.eleguar).id;
@@ -3726,6 +3733,8 @@ async function playDJRodo(type,nextIdx){
     await playDJAudio(url,type);
   }catch(e){
     showToast('DJ Rodo TTS error: '+e.message);
+    djRodoActive=false;
+    updateDJStatusChip(document.getElementById('djRodoEnabled')?.checked?'standby':'off');
   }
 }
 
