@@ -1911,9 +1911,9 @@ async function generateSpot(){
       headers:{'Content-Type':'application/json','xi-api-key':cfg.apiKey},
       body:JSON.stringify({
         text:script,
-        model_id:'eleven_v3',
+        model_id:'eleven_multilingual_v2',
         language_code:'es-419',
-        voice_settings:{stability:0.45,similarity_boost:0.8,style:0.35,speed:1.03,use_speaker_boost:true}
+        voice_settings:{stability:0.45,similarity_boost:0.8,style:0.35,use_speaker_boost:true}
       })
     });
     if(!tr.ok){const er=await tr.json().catch(()=>({}));throw new Error(er.detail?.message||'Error ElevenLabs')}
@@ -2909,8 +2909,8 @@ async function playCapsule(){
       method:'POST',
       headers:{'Content-Type':'application/json','xi-api-key':cfg.apiKey},
       body:JSON.stringify({
-        text,model_id:'eleven_v3',language_code:'es-419',
-        voice_settings:{stability:0.45,similarity_boost:0.8,style:0.35,speed:1.03,use_speaker_boost:true}
+        text,model_id:'eleven_multilingual_v2',language_code:'es-419',
+        voice_settings:{stability:0.45,similarity_boost:0.8,style:0.35,use_speaker_boost:true}
       })
     });
     if(!tr.ok) throw new Error('ElevenLabs capsule error');
@@ -3539,9 +3539,9 @@ async function playDJRodo(type){
       headers:{'Content-Type':'application/json','xi-api-key':cfg.apiKey},
       body:JSON.stringify({
         text:script,
-        model_id:'eleven_v3',
+        model_id:'eleven_multilingual_v2',
         language_code:'es-419',
-        voice_settings:{stability:0.45,similarity_boost:0.8,style:0.35,speed:1.03,use_speaker_boost:true}
+        voice_settings:{stability:0.45,similarity_boost:0.8,style:0.35,use_speaker_boost:true}
       })
     });
     if(!r.ok) throw new Error('EL error '+r.status);
