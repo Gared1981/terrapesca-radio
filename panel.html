@@ -2148,7 +2148,9 @@ function handleEnded(){
 // opts.auto=true → duck music (auto spot between songs)
 // default (manual) → stop music first, play at full vol, then resume music
 function playSpotManual(spot, opts={}){
-  if(!spot||!spot.url) return;
+  if(!spot) return;
+  ensureTrackUrl(spot);
+  if(!spot.url) return;
   if(opts.auto){
     // Auto spot: duck music and overlay
     if(currentSpotAu){currentSpotAu.pause();currentSpotAu.src='';currentSpotAu=null;}
@@ -2362,8 +2364,10 @@ function renderSpots(){
       <div class="tr-ic spot">🎙️</div>
       <div class="tr-info"><div class="tr-nm" style="font-size:12px">${s.name}</div><div class="tr-tp">Spot IA</div></div>
       <button class="tr-del" style="color:var(--green);border-color:var(--green)" title="Reproducir" onclick="playSpotManual(spotsLibrary[${i}])">▶</button>
-      <button class="tr-del" onclick="spotsLibrary.splice(${i},1);renderSpots();renderSchedule();triggerSave()" title="Eliminar">✕</button>
+      <button class="tr-del" onclick="spotsLibrary.splice(${i},1);renderSpots();triggerSave()" title="Eliminar">✕</button>
     </div>`).join('');
+  // Update schedule dropdown whenever spots list changes
+  renderSchedule();
 }
 
 // ---- SCHEDULE / PROGRAMMING CALENDAR ----
