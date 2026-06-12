@@ -1912,7 +1912,7 @@ async function generateSpot(){
       body:JSON.stringify({
         text:script,
         model_id:'eleven_multilingual_v2',
-        language_code:'es-419',
+        language_code:'es',
         voice_settings:{stability:0.45,similarity_boost:0.8,style:0.35,use_speaker_boost:true}
       })
     });
@@ -2909,7 +2909,7 @@ async function playCapsule(){
       method:'POST',
       headers:{'Content-Type':'application/json','xi-api-key':cfg.apiKey},
       body:JSON.stringify({
-        text,model_id:'eleven_multilingual_v2',language_code:'es-419',
+        text,model_id:'eleven_multilingual_v2',language_code:'es',
         voice_settings:{stability:0.45,similarity_boost:0.8,style:0.35,use_speaker_boost:true}
       })
     });
@@ -3540,7 +3540,7 @@ async function playDJRodo(type){
       body:JSON.stringify({
         text:script,
         model_id:'eleven_multilingual_v2',
-        language_code:'es-419',
+        language_code:'es',
         voice_settings:{stability:0.45,similarity_boost:0.8,style:0.35,use_speaker_boost:true}
       })
     });
