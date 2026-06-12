@@ -115,6 +115,10 @@ input[type=range]::-moz-range-thumb{width:18px;height:24px;border-radius:5px;bac
 .row .acts{display:flex;gap:3px;flex:none}
 .row .acts button{width:24px;height:24px;border-radius:5px;border:1px solid var(--line2);background:#0b1420;color:var(--txt2);font-size:11px;cursor:pointer}
 .row .acts button:hover{border-color:var(--red);color:var(--txt)}
+.row .acts button.dkA{color:#ff7a6e;border-color:rgba(224,36,28,.35);font-weight:700}
+.row .acts button.dkB{color:#6fe0f0;border-color:rgba(39,198,224,.35);font-weight:700}
+.dj-cue{font-family:var(--mono);font-size:11px;letter-spacing:.4px;color:var(--txt2);
+  background:#0a0814;border:1px solid #241636;border-radius:8px;padding:8px 10px;margin-top:8px;line-height:1.4}
 .empty{text-align:center;color:var(--txt3);font-size:12px;padding:24px 0}
 .hist .row{cursor:default}
 .hist .row .tm{font-family:var(--mono);font-size:9px;color:var(--txt3);flex:none}
@@ -164,6 +168,7 @@ input[type=range]::-moz-range-thumb{width:18px;height:24px;border-radius:5px;bac
     <div class="onair" id="onair"><span class="dot"></span><span id="onairTxt">FUERA DE AIRE</span></div>
     <div class="hbtns">
       <button class="hbtn" onclick="location.href='panel.html'">◀ PANEL</button>
+      <button class="hbtn" onclick="skipNext()" title="Adelantar a la siguiente">⏭ SIGUIENTE</button>
       <button class="hbtn" id="autoBtn" onclick="toggleAuto()">AUTO ●</button>
     </div>
   </header>
@@ -176,10 +181,11 @@ input[type=range]::-moz-range-thumb{width:18px;height:24px;border-radius:5px;bac
       <div class="deck-title" id="tiA">—</div>
       <div class="deck-artist" id="arA"></div>
       <div class="deck-time"><span id="elA">0:00</span><span class="rem" id="reA">-0:00</span></div>
-      <div class="bar"><i id="pgA"></i></div>
+      <div class="bar" onclick="seekBar(event,0)" title="Clic para adelantar"><i id="pgA"></i></div>
       <div class="deck-ctrls">
         <button class="dbtn play" id="plA" onclick="deckPlayPause(0)">▶</button>
-        <button class="dbtn" onclick="deckCueFromQueue(0)" title="Cargar de la cola">⏏</button>
+        <button class="dbtn" onclick="seekDeck(-15)" title="-15s">⏪</button>
+        <button class="dbtn" onclick="seekDeck(15)" title="+15s">⏩</button>
         <button class="dbtn" onclick="forceCrossfade()" title="Mezclar a B">⇆</button>
       </div>
     </div>
@@ -210,10 +216,11 @@ input[type=range]::-moz-range-thumb{width:18px;height:24px;border-radius:5px;bac
       <div class="deck-title" id="tiB">—</div>
       <div class="deck-artist" id="arB"></div>
       <div class="deck-time"><span id="elB">0:00</span><span class="rem" id="reB">-0:00</span></div>
-      <div class="bar"><i id="pgB"></i></div>
+      <div class="bar" onclick="seekBar(event,1)" title="Clic para adelantar"><i id="pgB"></i></div>
       <div class="deck-ctrls">
         <button class="dbtn play" id="plB" onclick="deckPlayPause(1)">▶</button>
-        <button class="dbtn" onclick="deckCueFromQueue(1)" title="Cargar de la cola">⏏</button>
+        <button class="dbtn" onclick="seekDeck(-15)" title="-15s">⏪</button>
+        <button class="dbtn" onclick="seekDeck(15)" title="+15s">⏩</button>
         <button class="dbtn" onclick="forceCrossfade()" title="Mezclar a A">⇆</button>
       </div>
     </div>
@@ -227,6 +234,7 @@ input[type=range]::-moz-range-thumb{width:18px;height:24px;border-radius:5px;bac
       <div class="s on" data-f="media" onclick="setDJFreq('media')">MEDIA</div>
       <div class="s" data-f="alta" onclick="setDJFreq('alta')">ALTA</div>
     </div>
+    <div class="dj-cue" id="djCue">Próxima intervención…</div>
     <div class="dj-now" id="djNow">DJ Rodo habla entre canciones: hora, clima (Culiacán/Mazatlán/Los Mochis), tips de pesca, promos y spots — en rotación, sin repetir.</div>
     <div class="dj-controls">
       <button onclick="djInterveneNow()">▶ Intervención ahora</button>
@@ -305,6 +313,7 @@ let activeDeck=0;      // which deck is "on air"
 let _xfading=false;
 let djActive=false;
 let _djAudio=null;
+let _endedDuringDJ=false;
 
 /* ================= YOUTUBE DUAL PLAYER ================= */
 function onYouTubeIframeAPIReady(){
@@ -327,8 +336,10 @@ function onDeckState(d,e){
   }
   if(e.data===YT.PlayerState.PAUSED){d.playing=false;updateOnAir();}
   if(e.data===YT.PlayerState.ENDED){
-    // Safety net: if auto-mix didn't trigger (very short / no preload), advance now
-    if(d.id===activeDeck && !_xfading){ advanceNoXfade(); }
+    if(d.id===activeDeck){
+      if(djActive){ _endedDuringDJ=true; } // wait until Rodo finishes, then advance
+      else if(!_xfading){ advanceNoXfade(); }
+    }
   }
 }
 function waitReady(cb){
@@ -356,9 +367,10 @@ function loadDeck(id,item,play){
     d.player.loadVideoById(item.ytId);
     d.player.setVolume(Math.round(master*100));
     d.vol=1;
-    setTimeout(()=>{try{d.player.playVideo();}catch(_){}} ,200);
+    if(play!==false){ setTimeout(()=>{try{d.player.playVideo();}catch(_){}} ,200); }
+    else { setTimeout(()=>{try{d.player.pauseVideo();}catch(_){}} ,350); } // preload paused
   }catch(_){}
-  renderDeck(id); pushHistory(item);
+  renderDeck(id); if(play!==false) pushHistory(item);
 }
 function cueDeck(id,item){
   const d=decks[id]; if(!d.ready||!item) return;
@@ -476,11 +488,12 @@ let _djSongCount=0;
 let _djRotIdx=0;
 const DJ_SONGS_BETWEEN={baja:3,media:2,alta:1};
 const DJ_ROTATION=['TIME_CHECK','SPOT','STATION_ID','WEATHER_REPORT','FISHING_TIP','SPOT','PROMO_TEASER','FISHING_FORECAST','SPOT','STATION_ID','WEATHER_REPORT','TIME_CHECK'];
-function setDJFreq(f){djFreq=f;document.querySelectorAll('#djFreqCtrl .s').forEach(s=>s.classList.toggle('on',s.dataset.f===f));}
+function setDJFreq(f){djFreq=f;document.querySelectorAll('#djFreqCtrl .s').forEach(s=>s.classList.toggle('on',s.dataset.f===f));refreshDJStatus();}
 function djShouldFire(){
   if(!flags.dj) return false;
   _djSongCount++;
-  if(_djSongCount>=(DJ_SONGS_BETWEEN[djFreq]||2)){_djSongCount=0;return true;}
+  if(_djSongCount>=(DJ_SONGS_BETWEEN[djFreq]||2)){_djSongCount=0;refreshDJStatus();return true;}
+  refreshDJStatus();
   return false;
 }
 function nextDJItem(){
@@ -505,8 +518,7 @@ function djInterveneNow(){
 }
 async function playDJ(type){
   if(djActive) return;
-  djActive=true; setDJState('al aire'); setOnAir(true);
-  if(flags.duck) duckTo(0.18);
+  djActive=true; _endedDuringDJ=false; setDJState('generando…'); setOnAir(true);
   try{
     const script=await genDJScript(type);
     document.getElementById('djNow').textContent=script||'…';
@@ -518,12 +530,17 @@ async function playDJ(type){
     });
     if(!r.ok) throw new Error('EL '+r.status);
     const ab=await r.arrayBuffer();
+    // Duck ONLY now — when Rodo actually starts speaking (not during generation)
+    setDJState('al aire');
+    if(flags.duck) duckTo(0.18);
     await playClip(URL.createObjectURL(new Blob([ab],{type:'audio/mpeg'})));
   }catch(e){ /* fallback: brief silence handled below */ }
   finally{
     if(flags.duck) unduck();
     djActive=false; setDJState('standby');
-    if(!decks[0].playing&&!decks[1].playing) setOnAir(false);
+    if(_endedDuringDJ && !_xfading) advanceNoXfade();
+    if(!decks[0].playing&&!decks[1].playing&&!_endedDuringDJ) setOnAir(false);
+    refreshDJStatus();
   }
 }
 function playClip(url){
@@ -538,16 +555,18 @@ async function playSpot(){
   if(!spots.length) return;
   const sp=spots[Math.floor(Math.random()*spots.length)];
   if(!sp||!sp.b64) return;
-  djActive=true; setDJState('spot'); setOnAir(true);
-  if(flags.duck) duckTo(0.12);
+  djActive=true; _endedDuringDJ=false; setDJState('spot'); setOnAir(true);
   try{
     const bin=atob(sp.b64),arr=new Uint8Array(bin.length);
     for(let i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);
     document.getElementById('djNow').textContent='📢 '+(sp.name||'Spot Terrapesca');
     pushHistory({name:sp.name||'Spot',artist:'Spot publicitario',spot:true});
+    // Duck right as the spot starts playing
+    if(flags.duck) duckTo(0.12);
     await playClip(URL.createObjectURL(new Blob([arr],{type:'audio/mpeg'})));
   }catch(e){}
-  finally{ if(flags.duck) unduck(); djActive=false; setDJState('standby'); }
+  finally{ if(flags.duck) unduck(); djActive=false; setDJState('standby');
+    if(_endedDuringDJ && !_xfading) advanceNoXfade(); refreshDJStatus(); }
 }
 
 /* ---- DJ script generation (reuses /api/anthropic) ---- */
@@ -672,11 +691,13 @@ function renderQueue(){
   const L=document.getElementById('queueList');
   if(!queue.length){L.innerHTML='<div class="empty">Sin canciones. Pega un link de YouTube o agrega en el panel.</div>';return;}
   L.innerHTML=queue.map((q,i)=>`
-    <div class="row ${i===queuePos?'cur':''}" onclick="playFromQueue(${i})">
+    <div class="row ${i===queuePos?'cur':''}">
       <span class="n">${i===queuePos?'▶':(i+1)}</span>
       <div class="th" style="background-image:url(https://img.youtube.com/vi/${q.ytId}/default.jpg)"></div>
-      <div class="meta"><div class="t">${esc(q.name||'YouTube')}</div><div class="s">${esc(q.artist||'')}</div></div>
+      <div class="meta" onclick="playFromQueue(${i})" style="cursor:pointer"><div class="t">${esc(q.name||'YouTube')}</div><div class="s">${esc(q.artist||'')}</div></div>
       <div class="acts">
+        <button class="dkA" onclick="event.stopPropagation();loadToDeck(${i},0)" title="Enviar a Deck A">A</button>
+        <button class="dkB" onclick="event.stopPropagation();loadToDeck(${i},1)" title="Enviar a Deck B">B</button>
         <button onclick="event.stopPropagation();moveQ(${i},-1)">↑</button>
         <button onclick="event.stopPropagation();moveQ(${i},1)">↓</button>
         <button onclick="event.stopPropagation();delQ(${i})">✕</button>
@@ -730,9 +751,71 @@ function moveQ(i,dir){const j=i+dir;if(j<0||j>=queue.length)return;[queue[i],que
 function delQ(i){queue.splice(i,1);if(queuePos>=i)queuePos=Math.max(0,queuePos-1);renderQueue();}
 function playSpotIdx(i){const sp=spots[i];if(!sp)return;const tmp=spots;spots=[sp];playSpot().finally(()=>spots=tmp);}
 
+/* Load a specific queue song into a chosen deck (A=0 / B=1) */
+function loadToDeck(i,deckId){
+  const item=queue[i]; if(!item) return;
+  waitReady(()=>{
+    const other=deckId===0?1:0;
+    // If the other deck isn't playing, make this deck active and play it
+    if(!decks[other].playing){
+      loadDeck(deckId,item,true); activeDeck=deckId; queuePos=i;
+      setCrossfader(deckId===0?0:100);
+    }else{
+      // Other deck is on air → just cue this one ready (play paused/preloaded), don't interrupt
+      loadDeck(deckId,item,false);
+      try{decks[deckId].player.pauseVideo();}catch(_){}
+    }
+    renderQueue(); refreshDJStatus();
+  });
+  toast(`Cargada en Deck ${deckId?'B':'A'}`,'ok');
+}
+
+/* Skip / advance to the next song immediately (crossfade if a deck is preloaded) */
+function skipNext(){
+  if(!queue.length) return;
+  if(djActive){toast('Espera a que termine Rodo','');return;}
+  const other=activeDeck===0?1:0;
+  if(decks[other].item && !_xfading){ doCrossfade(); }
+  else { advanceQueueInto(other); }
+}
+/* Seek the active deck forward/back */
+function seekDeck(secs){
+  const d=decks[activeDeck]; if(!d||!d.ready) return;
+  try{const ct=d.player.getCurrentTime()||0,dur=d.player.getDuration()||0;
+    d.player.seekTo(Math.max(0,Math.min(dur-0.5,ct+secs)),true);}catch(_){}
+}
+/* Click on a deck's progress bar to seek to that position */
+function seekBar(ev,id){
+  const d=decks[id]; if(!d||!d.ready||!d.item) return;
+  const r=ev.currentTarget.getBoundingClientRect();
+  const p=Math.max(0,Math.min(1,(ev.clientX-r.left)/r.width));
+  try{d.player.seekTo(p*(d.player.getDuration()||0),true);}catch(_){}
+}
+
+/* ---- DJ next-intervention status ---- */
+function djStatusInfo(){
+  if(!flags.dj) return {text:'DJ Rodo desactivado',soon:false};
+  const left=Math.max(0,(DJ_SONGS_BETWEEN[djFreq]||2)-_djSongCount);
+  // peek next rotation item without consuming
+  let peek=DJ_ROTATION[_djRotIdx%DJ_ROTATION.length], k=_djRotIdx;
+  while(peek==='SPOT' && !spots.length){ k++; peek=DJ_ROTATION[k%DJ_ROTATION.length]; }
+  const labels={TIME_CHECK:'⏰ Hora',STATION_ID:'📻 Sucursales',WEATHER_REPORT:'🌤 Clima',
+    FISHING_TIP:'🎣 Tip de pesca',PROMO_TEASER:'🛒 Promo',FISHING_FORECAST:'🐟 Predicción de pesca',SPOT:'📢 Spot'};
+  const nextLabel=peek==='SPOT'?'📢 Spot':(labels[peek]||peek);
+  if(left<=0) return {text:`🎙️ Rodo entra al terminar esta canción → ${nextLabel}`,soon:true};
+  return {text:`Próxima intervención en ${left} canción${left>1?'es':''} → ${nextLabel}`,soon:false};
+}
+function refreshDJStatus(){
+  const el=document.getElementById('djCue'); if(!el) return;
+  const s=djStatusInfo();
+  el.textContent=s.text;
+  el.style.color=s.soon?'#ffd76a':'var(--txt2)';
+  el.style.borderColor=s.soon?'rgba(245,166,35,.5)':'#241636';
+}
+
 /* ================= FLAGS ================= */
 function toggleAuto(){flags.auto=!flags.auto;document.getElementById('tgAuto').classList.toggle('on',flags.auto);document.getElementById('autoBtn').style.color=flags.auto?'var(--grn)':'var(--txt2)';}
-function toggleFlag(k){flags[k]=!flags[k];document.getElementById(k==='duck'?'tgDuck':'tgDJ').classList.toggle('on',flags[k]);}
+function toggleFlag(k){flags[k]=!flags[k];document.getElementById(k==='duck'?'tgDuck':'tgDJ').classList.toggle('on',flags[k]);if(k==='dj')refreshDJStatus();}
 
 /* ================= LOAD SHARED DATA (IndexedDB de panel.html) ================= */
 const IDB_NAME='TerrapescaRadio',IDB_VER=2;
@@ -756,6 +839,7 @@ async function loadShared(){
 
 /* ================= INIT ================= */
 setDJFreq('media');
+refreshDJStatus();
 document.getElementById('autoBtn').style.color='var(--grn)';
 loadShared();
 drawVU();
