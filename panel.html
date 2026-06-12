@@ -2187,13 +2187,23 @@ function playTrack(idx,opts={}){
     document.getElementById('pF').style.width='0%';
     document.getElementById('tC').textContent='0:00';
     document.getElementById('yt-container').style.display='block';
-    if(ytReady){ytPlayer.loadVideoById(t.ytId);ytPlayer.setVolume(parseInt(document.getElementById('volS').value));}
+    const vid=t.ytId;
+    const _loadYT=()=>{
+      try{
+        ytPlayer.loadVideoById(vid);
+        ytPlayer.setVolume(parseInt(document.getElementById('volS').value)||80);
+        setTimeout(()=>{try{ytPlayer.playVideo();}catch(e){}},250); // force play (mobile/autoplay)
+      }catch(e){console.warn('[YT] load error',e);showToast('⚠️ Error al cargar video','error');}
+    };
+    if(!vid){showToast('⚠️ Esta canción no tiene ID de YouTube','error');}
+    else if(ytReady&&ytPlayer){_loadYT();}
     else{ // YouTube API not ready yet — retry shortly
+      console.warn('[YT] player not ready, waiting…');
       let _ytWait=0;
       const _ytRetry=setInterval(()=>{
         _ytWait++;
-        if(ytReady&&ytPlayer){clearInterval(_ytRetry);ytPlayer.loadVideoById(t.ytId);ytPlayer.setVolume(parseInt(document.getElementById('volS').value));}
-        else if(_ytWait>20){clearInterval(_ytRetry);showToast('⚠️ Reproductor de YouTube no disponible','error');}
+        if(ytReady&&ytPlayer){clearInterval(_ytRetry);_loadYT();}
+        else if(_ytWait>20){clearInterval(_ytRetry);showToast('⚠️ Reproductor de YouTube no cargó (revisa conexión)','error');}
       },300);
     }
     sendWS({type:'PLAY',track:{type:'yt',name:t.name,ytId:t.ytId},position:0});
