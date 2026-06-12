@@ -1355,10 +1355,13 @@ let selV = cfg.voice;
 
 // STATE
 let playlist=[],curIdx=-1,isPlaying=false,isShuffle=false,isRepeat=false;
+let spotsLibrary=[]; // separate spots library (not part of playlist)
+let schedule=[]; // programming calendar entries
 let songsSinceSpot=0;
 const SPOT_EVERY=3;
 let products=[];
 let ytPlayer=null,ytReady=false,audioEl=null,audioEl2=null,progInt=null;
+let currentSpotAu=null; // currently playing spot audio element
 const CROSSFADE_SECS=3;
 const CROSSFADE_MS=2500;
 let _xfadeScheduled=false;
@@ -1847,8 +1850,8 @@ async function generateSpot(){
       reader.readAsDataURL(blob);
     });
     const spotName=`🎙️ SPOT [${voz.label}] — ${spotLabel.substring(0,30)}`;
-    playlist.push({type:'spot',name:spotName,url:audioUrl,b64,script});
-    renderPlaylist();
+    spotsLibrary.push({type:'spot',name:spotName,url:audioUrl,b64,script});
+    renderSpots();
     sendWS({type:'SPOT',track:{type:'spot',name:spotName,b64,jingleB64:jingleB64||null}});
     hideStatus();btn.disabled=false;
     showToast(`🎙️ Spot [${voz.label}] listo y enviado!`,'gold');
@@ -1933,7 +1936,7 @@ function startCrossfade(nextIdx,outgoing){
   });
 }
 
-function playTrack(idx){
+function playTrack(idx,opts={}){
   if(idx<0||idx>=playlist.length)return;
   cancelCrossfade();
   curIdx=idx;
@@ -1950,21 +1953,25 @@ function playTrack(idx){
     sendWS({type:'PLAY',track:{type:'yt',name:t.name,ytId:t.ytId},position:0});
 
   }else if(t.type==='spot'&&t.b64){
-    // Spot: duck music and play overlay — music never stops
+    // Spot: stop any existing spot first, then duck music and play overlay
+    if(currentSpotAu){currentSpotAu.pause();currentSpotAu.src='';currentSpotAu=null;}
     document.getElementById('yt-container').style.display='none';
     ensureTrackUrl(t);
     startMusicDucking();
     playJingle();
     const spotAu=new Audio(t.url);
+    currentSpotAu=spotAu;
     spotAu.volume=parseInt(document.getElementById('volS').value)/100;
     spotAu.play().catch(()=>{});
     spotAu.addEventListener('ended',()=>{
+      if(currentSpotAu===spotAu)currentSpotAu=null;
       stopJingle();
       releaseMusicDucking();
       const ni=smartNextIdx();
       if(ni!==curIdx) playTrack(ni); else nextTrack();
     });
     spotAu.addEventListener('error',()=>{
+      if(currentSpotAu===spotAu)currentSpotAu=null;
       stopJingle();releaseMusicDucking();nextTrack();
     });
     sendWS({type:'SPOT',track:{type:'spot',name:t.name,b64:t.b64,jingleB64:jingleB64||null}});
@@ -2047,9 +2054,11 @@ function handleEnded(){
   // Spot counter
   if(t&&t.type!=='spot'){
     songsSinceSpot++;updateSpotCtr();
-    if(songsSinceSpot>=SPOT_EVERY){
-      const si=playlist.findIndex((x,i)=>i>curIdx&&x.type==='spot');
-      if(si!==-1){songsSinceSpot=0;_handlingEnded=false;playTrack(si);return;}
+    if(songsSinceSpot>=SPOT_EVERY&&spotsLibrary.length){
+      const spot=spotsLibrary[Math.floor(Math.random()*spotsLibrary.length)];
+      songsSinceSpot=0;_handlingEnded=false;
+      playSpotManual(spot,{auto:true});
+      return;
     }
   }
 
