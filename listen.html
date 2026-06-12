@@ -265,8 +265,9 @@ input[type=range]::-webkit-slider-thumb{
 const TP_LOGO = 'https://cdn.shopify.com/s/files/1/0205/5752/9188/files/Logo-Terrapesca-01_205270e5-d546-4e33-a8d1-db0a91f1e554.png?v=1700262873';
 const audio = document.getElementById('radioAudio');
 const streamSrc = location.origin + '/radio/stream';
-let playing = false, started = false, currentTrack = null;
-let ws = null, wsReconnectTimer = null;
+let playing = false, started = false, intentionalPause = false;
+let currentTrack = null, ws = null, wsReconnectTimer = null;
+let _errorRetryTimer = null, _watchdogTimer = null;
 
 document.getElementById('streamUrl').textContent = streamSrc;
 audio.volume = 0.9;
@@ -274,37 +275,72 @@ audio.volume = 0.9;
 // ── Audio events ──
 audio.addEventListener('playing', () => {
   playing = true;
+  intentionalPause = false;
+  clearTimeout(_errorRetryTimer);
+  resetWatchdog();
   setPlayUI(true);
   setStatus('● EN VIVO', 'live');
   document.getElementById('liveBadge').style.display = 'inline-flex';
 });
-audio.addEventListener('waiting', () => setStatus('Cargando...', 'connecting'));
-audio.addEventListener('stalled', () => {
-  setStatus('Cargando...', 'connecting');
-  // On stall, reload stream after short delay
-  setTimeout(() => { if (!playing) reconnectAudio(); }, 4000);
-});
+
+// Buffering — just show status, do NOT reconnect
+audio.addEventListener('waiting',  () => { if (!intentionalPause) setStatus('Cargando...', 'connecting'); });
+audio.addEventListener('stalled',  () => { if (!intentionalPause) setStatus('Cargando...', 'connecting'); });
+
+// Real error → reconnect after delay
 audio.addEventListener('error', () => {
-  setStatus('Reintentando...', 'error');
-  setTimeout(reconnectAudio, 3000);
+  if (intentionalPause || !started) return;
+  setStatus('Reconectando...', 'error');
+  clearTimeout(_errorRetryTimer);
+  _errorRetryTimer = setTimeout(hardReconnect, 4000);
 });
+
+// Pause — only update UI if user intentionally paused
 audio.addEventListener('pause', () => {
   playing = false;
   setPlayUI(false);
   document.getElementById('liveBadge').style.display = 'none';
-  if (started) setStatus('Pausado', '');
+  if (intentionalPause) setStatus('Pausado', '');
+  // If paused by browser (not user) and we were playing, reconnect
+  else if (started) {
+    clearTimeout(_errorRetryTimer);
+    _errorRetryTimer = setTimeout(hardReconnect, 3000);
+  }
 });
 
-function reconnectAudio() {
-  if (!started) return;
-  _playRetries = 0;
-  doPlay();
+// Watchdog: if we started but no 'playing' event in 12s, hard-reconnect
+function resetWatchdog() {
+  clearTimeout(_watchdogTimer);
+  if (!started || intentionalPause) return;
+  _watchdogTimer = setTimeout(() => {
+    if (!playing && started && !intentionalPause) hardReconnect();
+  }, 12000);
+}
+
+function hardReconnect() {
+  if (!started || intentionalPause) return;
+  setStatus('Reconectando...', 'connecting');
+  // Destroy current element state and assign fresh src
+  audio.pause();
+  audio.removeAttribute('src');
+  audio.load();
+  // Small delay so browser releases the old connection
+  setTimeout(() => {
+    audio.src = streamSrc + '?t=' + Date.now();
+    audio.play().catch(() => {
+      // If play rejected here, retry in 5s
+      clearTimeout(_errorRetryTimer);
+      _errorRetryTimer = setTimeout(hardReconnect, 5000);
+    });
+    resetWatchdog();
+  }, 400);
 }
 
 // ── First tap — only called from user gesture ──
 function startListening() {
   if (started) return;
   started = true;
+  intentionalPause = false;
 
   const overlay = document.getElementById('startOverlay');
   overlay.classList.add('hidden');
@@ -313,38 +349,27 @@ function startListening() {
   connectWS();
   startSWPing();
   setupMediaSessionBase();
-  doPlay();
-}
 
-let _playRetries = 0;
-function doPlay() {
   setStatus('Cargando...', 'connecting');
-  // Always set a fresh URL to avoid cached/stale state
-  audio.src = streamSrc + '?t=' + Date.now();
-  const p = audio.play();
-  if (p && p.catch) {
-    p.catch(err => {
-      // NotAllowedError = browser blocked (shouldn't happen here, we have gesture)
-      // AbortError = load() was called before play() resolved — retry once
-      if (_playRetries < 3) {
-        _playRetries++;
-        setTimeout(doPlay, 1500);
-      } else {
-        setStatus('Sin señal — reintentando...', 'error');
-        _playRetries = 0;
-        setTimeout(doPlay, 5000);
-      }
-    });
-  }
+  audio.src = streamSrc;
+  audio.play().catch(() => {
+    // play() rejected on first try — hard reconnect
+    setTimeout(hardReconnect, 1000);
+  });
+  resetWatchdog();
 }
 
 // ── Controls ──
 function togglePlay() {
   if (!started) { startListening(); return; }
-  if (audio.paused) {
-    _playRetries = 0;
-    doPlay();
+  if (audio.paused || audio.ended) {
+    intentionalPause = false;
+    clearTimeout(_errorRetryTimer);
+    hardReconnect();
   } else {
+    intentionalPause = true;
+    clearTimeout(_errorRetryTimer);
+    clearTimeout(_watchdogTimer);
     audio.pause();
   }
 }
