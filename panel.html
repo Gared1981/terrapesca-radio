@@ -1239,8 +1239,8 @@ input:checked + .toggle-slider::before{background:var(--red);transform:translate
               <label class="dj-opt"><input type="checkbox" id="djOptPromos" checked onchange="saveDJRodoConfig()"> Promos</label>
               <label class="dj-opt"><input type="checkbox" id="djOptStationId" checked onchange="saveDJRodoConfig()"> ID estación</label>
               <label class="dj-opt"><input type="checkbox" id="djOptSongReview" checked onchange="saveDJRodoConfig()"> Coment. canción</label>
-              <label class="dj-opt"><input type="checkbox" id="djOptWeather" onchange="saveDJRodoConfig()"> Clima</label>
-              <label class="dj-opt"><input type="checkbox" id="djOptForecast" onchange="saveDJRodoConfig()"> Predicción pesca</label>
+              <label class="dj-opt"><input type="checkbox" id="djOptWeather" checked onchange="saveDJRodoConfig()"> Clima</label>
+              <label class="dj-opt"><input type="checkbox" id="djOptForecast" checked onchange="saveDJRodoConfig()"> Predicción pesca</label>
             </div>
             <div class="prod-row" style="margin-top:4px">
               <span class="prod-label" style="font-size:9px">Coment. canciones</span>
@@ -1259,9 +1259,10 @@ input:checked + .toggle-slider::before{background:var(--red);transform:translate
             <div class="prod-row">
               <span class="prod-label" style="font-size:9px">Ciudad</span>
               <select id="djWeatherCity" style="flex:1;background:var(--navy2);border:1px solid var(--border2);border-radius:5px;color:var(--text2);padding:3px 5px;font-size:10px" onchange="saveDJRodoConfig()">
-                <option value="los_mochis">Los Mochis</option>
+                <option value="auto" selected>🎲 Automático (Sinaloa)</option>
                 <option value="culiacan">Culiacán</option>
                 <option value="mazatlan">Mazatlán</option>
+                <option value="los_mochis">Los Mochis</option>
                 <option value="guasave">Guasave</option>
                 <option value="topolobampo">Topolobampo</option>
                 <option value="ahome">Ahome</option>
@@ -2084,9 +2085,13 @@ function startCrossfade(nextIdx,outgoing){
       startProg();
       const ni=smartNextIdx();
       scheduleXfade(audioEl,ni);
+      // Count this crossfade as a track transition for DJ Rodo
+      incrementDJCounters();
     });
   }).catch(()=>{
     audioEl2=null;
+    // crossfade failed — let current track finish and handleEnded will advance
+    // watchdog will force-skip if track is also stuck
   });
 }
 
@@ -2158,9 +2163,15 @@ function playTrack(idx,opts={}){
       startProg();
       const ni=smartNextIdx();
       scheduleXfade(incoming,ni);
-    }).catch(()=>{
-      incoming.volume=targetVol;
-      startProg();
+    }).catch((err)=>{
+      // play() rejected — try to advance to next track
+      if(err?.name==='NotSupportedError'||err?.name==='NotAllowedError'){
+        audioEl=outgoing; // restore outgoing so watchdog/next works
+        setTimeout(()=>nextTrack(),500);
+      } else {
+        incoming.volume=targetVol;
+        startProg();
+      }
     });
     sendWS({type:'PLAY',track:buildTrackMsg(t),position:0});
   }
@@ -3061,6 +3072,33 @@ const djRodoAudioCache=new Map();
 let weatherCache={data:null,ts:0};
 let forecastCache={data:null,ts:0};
 
+// ---- DJ AUTO-TIMER (time-based trigger, independent of song count) ----
+const DJ_AUTO_INTERVAL={baja:5*60*1000,media:3*60*1000,alta:90*1000};
+let _djAutoTimer=null;
+function _restartDJAutoTimer(){
+  clearInterval(_djAutoTimer);
+  const djOn=document.getElementById('djRodoEnabled')?.checked;
+  if(!djOn)return;
+  const ms=DJ_AUTO_INTERVAL[djRodoFreq]||DJ_AUTO_INTERVAL.baja;
+  _djAutoTimer=setInterval(_djAutoTick,ms);
+}
+function _djAutoTick(){
+  const djOn=document.getElementById('djRodoEnabled')?.checked;
+  if(!djOn||!isPlaying||djRodoActive)return;
+  // Bump all counters so decideDJIntervention() has fresh candidates
+  incrementDJCounters();
+  const type=decideDJIntervention();
+  if(!type)return;
+  playDJRodo(type).catch(()=>{});
+}
+
+const _AUTO_WEATHER_CITIES=['culiacan','mazatlan','los_mochis'];
+function _resolveWeatherCity(){
+  const v=document.getElementById('djWeatherCity')?.value||'auto';
+  if(v==='auto') return _AUTO_WEATHER_CITIES[Math.floor(Math.random()*_AUTO_WEATHER_CITIES.length)];
+  return v;
+}
+
 const WEATHER_CITIES={
   los_mochis:{name:'Los Mochis',lat:25.7919,lng:-109.0200},
   culiacan:   {name:'Culiacán', lat:24.8092,lng:-107.3938},
@@ -3087,6 +3125,7 @@ function toggleDJRodo(){
   if(on)ctrl.classList.add('open'); else ctrl.classList.remove('open');
   updateDJStatusChip(on?'standby':'off');
   saveDJRodoConfig();
+  _restartDJAutoTimer();
 }
 
 function updateDJStatusChip(state){
@@ -3105,6 +3144,7 @@ function setDJFreq(f){
     document.getElementById('djFreq'+k.charAt(0).toUpperCase()+k.slice(1))?.classList.toggle('active',k===f);
   });
   saveDJRodoConfig();
+  _restartDJAutoTimer();
 }
 
 function setDJMode(m){
@@ -3179,7 +3219,7 @@ function updateDJCounters(type){
 async function getWeatherData(){
   const now=Date.now();
   if(weatherCache.data&&now-weatherCache.ts<12*60*1000) return weatherCache.data;
-  const cityKey=document.getElementById('djWeatherCity')?.value||'los_mochis';
+  const cityKey=_resolveWeatherCity();
   const city=WEATHER_CITIES[cityKey]||WEATHER_CITIES.los_mochis;
   try{
     const url=`https://api.open-meteo.com/v1/forecast?latitude=${city.lat}&longitude=${city.lng}&current=temperature_2m,weather_code,wind_speed_10m,wind_direction_10m,surface_pressure&daily=precipitation_probability_max&timezone=America%2FMazatlan&forecast_days=1`;
@@ -3274,7 +3314,7 @@ async function getFishingForecast(){
   if(solWindows.some(w=>w.active))score+=15;
   score=Math.max(5,Math.min(95,score));
   const level=score>70?'alta':score>40?'media':'baja';
-  const cityKey=document.getElementById('djWeatherCity')?.value||'los_mochis';
+  const cityKey=_resolveWeatherCity();
   const city=WEATHER_CITIES[cityKey]||WEATHER_CITIES.los_mochis;
   const lures=recommendLures(weather,species,level);
   const data={ok:true,location:city.name,species,activityLevel:level,activityScore:score,moon,weather,lures,updatedAt:new Date().toISOString()};
@@ -3773,8 +3813,8 @@ function saveDJRodoConfig(){
     optPromos:document.getElementById('djOptPromos')?.checked??true,
     optStation:document.getElementById('djOptStationId')?.checked??true,
     optSongReview:document.getElementById('djOptSongReview')?.checked??true,
-    optWeather:document.getElementById('djOptWeather')?.checked??false,
-    optForecast:document.getElementById('djOptForecast')?.checked??false,
+    optWeather:document.getElementById('djOptWeather')?.checked??true,
+    optForecast:document.getElementById('djOptForecast')?.checked??true,
     optRisa:document.getElementById('djOptRisa')?.checked??true,
     optSuspiro:document.getElementById('djOptSuspiro')?.checked??true,
     optWhisper:document.getElementById('djOptWhisper')?.checked??false,
@@ -3812,8 +3852,8 @@ function loadDJRodoConfig(){
     setEl('djOptPromos',c.optPromos??true);
     setEl('djOptStationId',c.optStation??true);
     setEl('djOptSongReview',c.optSongReview??true);
-    setEl('djOptWeather',c.optWeather??false);
-    setEl('djOptForecast',c.optForecast??false);
+    setEl('djOptWeather',c.optWeather??true);
+    setEl('djOptForecast',c.optForecast??true);
     setEl('djOptRisa',c.optRisa??true);
     setEl('djOptSuspiro',c.optSuspiro??true);
     setEl('djOptWhisper',c.optWhisper??false);
@@ -4313,6 +4353,7 @@ function smartNextIdx() {
 // INIT
 updateSpotCtr();refreshVBtns();
 loadDJRodoConfig();
+_restartDJAutoTimer();
 // Open IndexedDB and restore last session
 openDB().then(()=>restoreSession()).catch(e=>console.error('DB open failed:',e));
 // Wire URL preview
