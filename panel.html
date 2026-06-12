@@ -810,6 +810,37 @@ input:checked + .toggle-slider::before{background:var(--red);transform:translate
   width:80px;height:60px;object-fit:cover;border-radius:6px;
   background:var(--navy3);flex-shrink:0;
 }
+/* ── MICROPHONE ── */
+.mic-card{
+  background:var(--panel);border:1px solid var(--border);
+  border-radius:var(--radius);padding:14px 16px;
+}
+.mic-onair-btn{
+  width:100%;padding:13px;border-radius:10px;
+  background:linear-gradient(135deg,rgba(212,32,32,0.1),rgba(212,32,32,0.05));
+  border:2px solid rgba(212,32,32,0.3);
+  color:var(--text2);font-family:'Syne',sans-serif;font-size:14px;font-weight:700;
+  cursor:pointer;transition:all .2s;letter-spacing:.5px;
+  display:flex;align-items:center;justify-content:center;gap:8px;margin-top:10px;
+}
+.mic-onair-btn.active{
+  background:linear-gradient(135deg,var(--red),var(--red2));
+  border-color:transparent;color:#fff;
+  box-shadow:0 0 24px var(--red-glow);
+  animation:micPulse 1.5s ease infinite;
+}
+@keyframes micPulse{0%,100%{box-shadow:0 0 24px var(--red-glow)}50%{box-shadow:0 0 40px rgba(212,32,32,0.5)}}
+.mic-presets{display:flex;gap:5px;flex-wrap:wrap;margin:10px 0}
+.mic-preset{
+  flex:1;min-width:60px;padding:6px 4px;border-radius:6px;
+  border:1px solid var(--border2);background:var(--navy2);
+  color:var(--text3);font-family:'Share Tech Mono',monospace;font-size:10px;
+  cursor:pointer;transition:all .15s;text-align:center;
+}
+.mic-preset.active{background:var(--red-dim);border-color:rgba(212,32,32,0.4);color:var(--red)}
+.mic-vu{height:6px;background:var(--navy3);border-radius:3px;overflow:hidden;margin:6px 0}
+.mic-vu-fill{height:100%;width:0%;background:linear-gradient(to right,var(--green),var(--gold),var(--red));border-radius:3px;transition:width .05s}
+.mic-vol-row{display:flex;align-items:center;gap:8px;font-size:10px;color:var(--text3);font-family:'Share Tech Mono',monospace}
 </style>
 </head>
 <body>
@@ -1346,6 +1377,29 @@ input:checked + .toggle-slider::before{background:var(--red);transform:translate
       </div>
     </div>
 
+    <!-- MICROPHONE -->
+    <div class="mic-card">
+      <div class="sec-lbl" style="margin-bottom:10px">🎤 Micrófono en vivo</div>
+      <div class="mic-presets">
+        <button class="mic-preset active" id="mp-normal" onclick="setMicPreset('normal')">Normal</button>
+        <button class="mic-preset" id="mp-radio" onclick="setMicPreset('radio')">Radio FM</button>
+        <button class="mic-preset" id="mp-deep" onclick="setMicPreset('deep')">Profundo</button>
+        <button class="mic-preset" id="mp-robot" onclick="setMicPreset('robot')">Robot</button>
+        <button class="mic-preset" id="mp-echo" onclick="setMicPreset('echo')">Eco</button>
+      </div>
+      <div class="mic-vol-row">
+        <span>VOL MIC</span>
+        <input type="range" id="micVolSlider" min="0" max="200" value="100" style="flex:1" oninput="setMicGain(this.value)"/>
+        <span id="micVolPct">100%</span>
+      </div>
+      <div class="mic-vu"><div class="mic-vu-fill" id="micVuFill"></div></div>
+      <button class="mic-onair-btn" id="btnMicOnAir" onclick="toggleMicOnAir()">
+        <span id="micBtnIcon">🎤</span>
+        <span id="micBtnLabel">Ir al Aire</span>
+      </button>
+      <div style="font-size:9px;color:var(--text3);text-align:center;margin-top:6px;font-family:'Share Tech Mono',monospace" id="micStatusLabel">Sin micrófono</div>
+    </div>
+
   </div><!-- /left-col -->
 
   <div class="right-col">
@@ -1447,6 +1501,8 @@ let selV = cfg.voice;
 
 // STATE
 let playlist=[],curIdx=-1,isPlaying=false,isShuffle=false,isRepeat=false;
+let _watchdogCT = -1;
+let _watchdogAt = 0;
 let spotsLibrary=[]; // separate spots library (not part of playlist)
 let schedule=[]; // programming calendar entries
 let songsSinceSpot=0;
@@ -2089,6 +2145,8 @@ function playTrack(idx,opts={}){
     incoming.volume=audioEl?0:targetVol; // silent if we'll crossfade from outgoing
     incoming.addEventListener('loadedmetadata',()=>{document.getElementById('tT').textContent=fmt(incoming.duration);});
     incoming.addEventListener('ended',handleEnded);
+    incoming.addEventListener('waiting',()=>{_watchdogAt=Date.now()-3500;}); // treat waiting as near-stall
+    incoming.addEventListener('stalled',()=>{_watchdogAt=Date.now()-4000;}); // stalled = almost at timeout
     incoming.addEventListener('timeupdate',updateProg);
     const outgoing=audioEl;
     audioEl=incoming;
@@ -2134,6 +2192,18 @@ function setPlayUI(p){
   document.getElementById('viz').classList.toggle('spot-mode',isS);
   document.getElementById('btnPlay').classList.toggle('spot-m',isS);
 }
+function _silenceWatchdog(){
+  if(!isPlaying||!audioEl||audioEl.paused||audioEl.ended) return;
+  const ct=audioEl.currentTime;
+  if(ct!==_watchdogCT){_watchdogCT=ct;_watchdogAt=Date.now();return;}
+  if(Date.now()-_watchdogAt>5000){
+    _watchdogAt=Date.now();
+    console.warn('[watchdog] audio stalled → next track');
+    nextTrack();
+  }
+}
+setInterval(_silenceWatchdog,2000);
+
 function stopAll(){
   cancelCrossfade();
   if(audioEl){audioEl.pause();audioEl.src='';audioEl=null;}
@@ -4268,6 +4338,163 @@ if('serviceWorker' in navigator){
 document.addEventListener('visibilitychange',()=>{
   if(navigator.mediaSession) navigator.mediaSession.playbackState=isPlaying?'playing':'paused';
 });
+
+// ════════════════════════════════════════════
+// MÓDULO DE MICRÓFONO CON CAMBIADOR DE VOZ
+// ════════════════════════════════════════════
+let micCtx=null, micStream=null, micSource=null;
+let micGainNode=null, micOutputGain=null;
+let micRobotOsc=null, micRobotGain=null;
+let micDelayNode=null, micFeedGain=null;
+let micAnalyser=null, micVuAnim=null;
+let micOnAir=false;
+let micPreset='normal';
+
+const MIC_PRESETS={
+  normal:{label:'Normal',    icon:'🎤'},
+  radio: {label:'Radio FM',  icon:'📻'},
+  deep:  {label:'Profundo',  icon:'🔉'},
+  robot: {label:'Robot',     icon:'🤖'},
+  echo:  {label:'Eco',       icon:'🔊'},
+};
+
+function setMicPreset(name){
+  micPreset=name;
+  document.querySelectorAll('.mic-preset').forEach(b=>b.classList.remove('active'));
+  const btn=document.getElementById('mp-'+name);
+  if(btn)btn.classList.add('active');
+  if(micOnAir) _rebuildMicChain();
+}
+
+function setMicGain(v){
+  document.getElementById('micVolPct').textContent=v+'%';
+  if(micGainNode) micGainNode.gain.value=parseInt(v)/100;
+}
+
+async function toggleMicOnAir(){
+  if(micOnAir){ _stopMic(); return; }
+  try{
+    document.getElementById('micStatusLabel').textContent='Solicitando acceso al micrófono...';
+    micStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true},video:false});
+    micCtx=new AudioContext();
+    micSource=micCtx.createMediaStreamSource(micStream);
+    _rebuildMicChain();
+    micOnAir=true;
+    document.getElementById('btnMicOnAir').classList.add('active');
+    document.getElementById('micBtnIcon').textContent='🔴';
+    document.getElementById('micBtnLabel').textContent='EN AIRE — clic para cortar';
+    document.getElementById('micStatusLabel').textContent='Micrófono activo — preset: '+MIC_PRESETS[micPreset].label;
+    // Duck music while on air
+    startMusicDucking();
+    // Notify server
+    sendWS({type:'MIC_ONAIR',active:true});
+    // Start VU meter
+    _startMicVU();
+  }catch(e){
+    document.getElementById('micStatusLabel').textContent='Error: '+e.message;
+    showToast('⚠️ No se pudo acceder al micrófono','error');
+  }
+}
+
+function _stopMic(){
+  if(micVuAnim){cancelAnimationFrame(micVuAnim);micVuAnim=null;}
+  document.getElementById('micVuFill').style.width='0%';
+  if(micRobotOsc){try{micRobotOsc.stop();}catch(_){}micRobotOsc=null;}
+  if(micOutputGain){micOutputGain.disconnect();micOutputGain=null;}
+  if(micSource){micSource.disconnect();micSource=null;}
+  if(micAnalyser){micAnalyser.disconnect();micAnalyser=null;}
+  if(micCtx){micCtx.close().catch(()=>{});micCtx=null;}
+  if(micStream){micStream.getTracks().forEach(t=>t.stop());micStream=null;}
+  micGainNode=null;micRobotGain=null;micDelayNode=null;micFeedGain=null;
+  micOnAir=false;
+  document.getElementById('btnMicOnAir').classList.remove('active');
+  document.getElementById('micBtnIcon').textContent='🎤';
+  document.getElementById('micBtnLabel').textContent='Ir al Aire';
+  document.getElementById('micStatusLabel').textContent='Sin micrófono';
+  releaseMusicDucking();
+  sendWS({type:'MIC_ONAIR',active:false});
+}
+
+function _rebuildMicChain(){
+  if(!micCtx||!micSource) return;
+  // Disconnect previous output if any
+  if(micOutputGain){try{micOutputGain.disconnect();}catch(_){}}
+  if(micRobotOsc){try{micRobotOsc.stop();}catch(_){}micRobotOsc=null;}
+
+  const ctx=micCtx;
+  micGainNode=ctx.createGain();
+  micGainNode.gain.value=parseInt(document.getElementById('micVolSlider').value)/100;
+  micAnalyser=ctx.createAnalyser();
+  micAnalyser.fftSize=256;
+  micOutputGain=ctx.createGain();
+  micOutputGain.gain.value=1;
+
+  let chain=micSource;
+
+  if(micPreset==='normal'){
+    // Slight presence boost
+    const eq=ctx.createBiquadFilter();
+    eq.type='peaking';eq.frequency.value=3000;eq.gain.value=3;
+    chain.connect(micGainNode);micGainNode.connect(eq);eq.connect(micAnalyser);
+
+  }else if(micPreset==='radio'){
+    // Bandpass 300-3400Hz + soft clip (radio telephone effect)
+    const hp=ctx.createBiquadFilter();hp.type='highpass';hp.frequency.value=300;hp.Q.value=0.7;
+    const lp=ctx.createBiquadFilter();lp.type='lowpass';lp.frequency.value=3400;lp.Q.value=0.7;
+    const pres=ctx.createBiquadFilter();pres.type='peaking';pres.frequency.value=1800;pres.gain.value=6;
+    const comp=ctx.createDynamicsCompressor();comp.threshold.value=-20;comp.ratio.value=8;comp.attack.value=0.003;comp.release.value=0.1;
+    chain.connect(micGainNode);micGainNode.connect(hp);hp.connect(lp);lp.connect(pres);pres.connect(comp);comp.connect(micAnalyser);
+
+  }else if(micPreset==='deep'){
+    // Low shelf boost + high cut + slight extra gain
+    const ls=ctx.createBiquadFilter();ls.type='lowshelf';ls.frequency.value=300;ls.gain.value=8;
+    const hc=ctx.createBiquadFilter();hc.type='lowpass';hc.frequency.value=4000;
+    const g=ctx.createGain();g.gain.value=1.4;
+    chain.connect(micGainNode);micGainNode.connect(ls);ls.connect(hc);hc.connect(g);g.connect(micAnalyser);
+
+  }else if(micPreset==='robot'){
+    // Ring modulator: multiply signal with 80Hz oscillator
+    const ringGain=ctx.createGain();ringGain.gain.value=0;
+    micRobotOsc=ctx.createOscillator();
+    micRobotOsc.frequency.value=80;
+    micRobotOsc.type='square';
+    micRobotOsc.connect(ringGain.gain);
+    micRobotOsc.start();
+    const lp=ctx.createBiquadFilter();lp.type='lowpass';lp.frequency.value=5000;
+    const comp=ctx.createDynamicsCompressor();comp.threshold.value=-10;comp.ratio.value=6;
+    chain.connect(micGainNode);micGainNode.connect(ringGain);ringGain.connect(lp);lp.connect(comp);comp.connect(micAnalyser);
+
+  }else if(micPreset==='echo'){
+    // Delay with feedback
+    micDelayNode=ctx.createDelay(1.0);micDelayNode.delayTime.value=0.25;
+    micFeedGain=ctx.createGain();micFeedGain.gain.value=0.45;
+    const dryGain=ctx.createGain();dryGain.gain.value=0.6;
+    const wetGain=ctx.createGain();wetGain.gain.value=0.5;
+    const merge=ctx.createGain();
+    chain.connect(micGainNode);
+    micGainNode.connect(dryGain);dryGain.connect(merge);
+    micGainNode.connect(micDelayNode);micDelayNode.connect(micFeedGain);micFeedGain.connect(micDelayNode);
+    micDelayNode.connect(wetGain);wetGain.connect(merge);
+    merge.connect(micAnalyser);
+  }
+
+  micAnalyser.connect(micOutputGain);
+  micOutputGain.connect(ctx.destination);
+}
+
+function _startMicVU(){
+  if(!micAnalyser) return;
+  const buf=new Uint8Array(micAnalyser.frequencyBinCount);
+  function frame(){
+    if(!micOnAir){document.getElementById('micVuFill').style.width='0%';return;}
+    micVuAnim=requestAnimationFrame(frame);
+    micAnalyser.getByteFrequencyData(buf);
+    const avg=buf.reduce((a,b)=>a+b,0)/buf.length;
+    document.getElementById('micVuFill').style.width=Math.min(100,avg*1.5)+'%';
+  }
+  micVuAnim=requestAnimationFrame(frame);
+}
+// ════════════════════════════════════════════
 </script>
 </body>
 </html>

@@ -465,6 +465,10 @@ wss.on('connection', (ws) => {
           radioState.jingleB64 = msg.b64;
           broadcast({ type: 'JINGLE_SET', b64: msg.b64 }, ws);
           break;
+        case 'MIC_ONAIR':
+          radioState.micOnAir = msg.active || false;
+          broadcast({ type: 'MIC_ONAIR', active: radioState.micOnAir }, ws);
+          break;
       }
     } catch (e) {
       console.error('Error:', e.message);
