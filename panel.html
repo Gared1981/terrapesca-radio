@@ -707,7 +707,10 @@ input:checked + .toggle-slider::before{background:var(--red);transform:translate
     <!-- PLAYER -->
     <div class="player-card">
       <div class="player-hero">
-        <div class="on-air"><div class="on-air-dot"></div>Al aire</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;width:100%">
+          <div class="on-air"><div class="on-air-dot"></div>Al aire</div>
+          <a href="/listen" target="_blank" style="font-size:9px;font-family:'Share Tech Mono',monospace;color:var(--text3);text-decoration:none;padding:3px 8px;border:1px solid var(--border2);border-radius:5px;background:var(--navy2)" title="Escuchar en móvil">📱 Móvil</a>
+        </div>
         <div class="np-thumb-wrap" id="npThumbWrap">
           <img class="np-thumb" id="npThumb" src="" alt="">
           <div class="np-thumb-overlay"></div>
@@ -1898,6 +1901,25 @@ function updateNP(t){
     wrap.style.display='none';
     img.src='';img.onerror=null;
   }
+  setupMediaSession(t);
+}
+
+function setupMediaSession(t){
+  if(!('mediaSession' in navigator)) return;
+  const title=t.name||t.title||'Radio Terrapesca';
+  const artist=t.channelTitle||t.sub||'Radio Terrapesca';
+  const artwork=t.ytId
+    ?[{src:`https://img.youtube.com/vi/${t.ytId}/hqdefault.jpg`,sizes:'480x360',type:'image/jpeg'},
+      {src:`https://img.youtube.com/vi/${t.ytId}/maxresdefault.jpg`,sizes:'1280x720',type:'image/jpeg'}]
+    :[{src:TP_LOGO,sizes:'512x512',type:'image/png'}];
+  try{
+    navigator.mediaSession.metadata=new MediaMetadata({title,artist,album:'Radio Terrapesca',artwork});
+    navigator.mediaSession.setActionHandler('play',()=>{ if(!isPlaying)togglePlay(); });
+    navigator.mediaSession.setActionHandler('pause',()=>{ if(isPlaying)togglePlay(); });
+    navigator.mediaSession.setActionHandler('nexttrack',()=>nextTrack());
+    navigator.mediaSession.setActionHandler('previoustrack',()=>prevTrack());
+    navigator.mediaSession.setActionHandler('stop',()=>stopAll());
+  }catch(_){}
 }
 function updateSpotCtr(){
   const r=SPOT_EVERY-songsSinceSpot;
@@ -3675,6 +3697,15 @@ setTimeout(()=>{
 },200);
 if(cfg.ws)connectWS();
 else{setWSStatus('error','Sin configurar');showToast('⚙️ Configura la URL del servidor primero','info')}
+
+// Service Worker registration
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('/sw.js').catch(()=>{});
+}
+// MediaSession state sync
+document.addEventListener('visibilitychange',()=>{
+  if(navigator.mediaSession) navigator.mediaSession.playbackState=isPlaying?'playing':'paused';
+});
 </script>
 </body>
 </html>

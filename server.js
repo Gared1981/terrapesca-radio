@@ -4,6 +4,9 @@ const fs = require('fs');
 const path = require('path');
 const { WebSocketServer } = require('ws');
 
+let ytdl = null;
+try { ytdl = require('@distube/ytdl-core'); } catch(e) { console.warn('ytdl-core not available:', e.message); }
+
 const PORT = process.env.PORT || 3000;
 
 let radioState = {
@@ -15,22 +18,90 @@ let radioState = {
   lastUpdate: Date.now()
 };
 
+// ---- RADIO STREAM ENGINE ----
+const streamClients = new Set();
+let currentStreamDestroy = null; // function to cancel current stream
+let streamBusy = false;
+
+function writeToStreamClients(chunk) {
+  streamClients.forEach(client => {
+    if (!client.destroyed && !client.writableEnded) {
+      try { client.write(chunk); } catch(_) {}
+    }
+  });
+}
+
+function silenceChunk(ms = 200) {
+  // ~200ms of MP3 silence at 128kbps ≈ 3200 bytes of zeros
+  return Buffer.alloc(Math.ceil(128000 / 8 * ms / 1000));
+}
+
+async function streamYouTubeVideo(videoId) {
+  if (!ytdl) throw new Error('ytdl-core not available');
+  return new Promise((resolve, reject) => {
+    const url = `https://www.youtube.com/watch?v=${videoId}`;
+    let stream;
+    try {
+      stream = ytdl(url, {
+        filter: 'audioonly',
+        quality: 'highestaudio',
+        highWaterMark: 1 << 25 // 32MB buffer
+      });
+    } catch(e) { reject(e); return; }
+
+    currentStreamDestroy = () => {
+      try { stream.destroy(); } catch(_) {}
+    };
+
+    stream.on('data', writeToStreamClients);
+    stream.on('end', () => { currentStreamDestroy = null; resolve(); });
+    stream.on('error', (e) => { currentStreamDestroy = null; reject(e); });
+  });
+}
+
+async function streamAudioBuffer(buffer) {
+  // Stream a raw audio buffer (for spots/MP3s) to all clients
+  const CHUNK = 8192;
+  for (let i = 0; i < buffer.length; i += CHUNK) {
+    writeToStreamClients(buffer.slice(i, i + CHUNK));
+    await new Promise(r => setTimeout(r, 20));
+  }
+}
+
+// Called when the panel sends a PLAY/SPOT WebSocket message
+function startStreamTrack(track) {
+  // Cancel current stream
+  if (currentStreamDestroy) { currentStreamDestroy(); currentStreamDestroy = null; }
+  streamBusy = false;
+
+  if (!track) return;
+
+  if (track.type === 'yt' && track.ytId && ytdl) {
+    streamBusy = true;
+    streamYouTubeVideo(track.ytId)
+      .then(() => { streamBusy = false; })
+      .catch(e => {
+        console.error('Stream error for', track.ytId, e.message);
+        streamBusy = false;
+        // Send short silence so clients don't hang
+        writeToStreamClients(silenceChunk(500));
+      });
+  }
+}
+
+// ---- HTTP PROXY HELPERS ----
 function proxyPost(hostname, path, headers, body, res) {
   const data = typeof body === 'string' ? body : JSON.stringify(body);
   const options = {
     hostname,
     path,
     method: 'POST',
-    headers: {
-      ...headers,
-      'Content-Length': Buffer.byteLength(data)
-    }
+    headers: { ...headers, 'Content-Length': Buffer.byteLength(data) }
   };
 
   const req = https.request(options, (apiRes) => {
     const isAudio = (apiRes.headers['content-type'] || '').includes('audio');
     res.setHeader('Access-Control-Allow-Origin', '*');
-
     if (isAudio) {
       res.writeHead(apiRes.statusCode, { 'Content-Type': apiRes.headers['content-type'] || 'audio/mpeg' });
       apiRes.pipe(res);
@@ -43,35 +114,111 @@ function proxyPost(hostname, path, headers, body, res) {
       });
     }
   });
-
   req.on('error', (e) => {
     res.writeHead(500, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ error: e.message }));
   });
-
   req.write(data);
   req.end();
 }
 
+// ---- HTTP SERVER ----
 const server = http.createServer((req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, xi-api-key, x-api-key, anthropic-version');
 
-  if (req.method === 'OPTIONS') {
-    res.writeHead(204);
-    res.end();
-    return;
-  }
+  if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
 
-  // Health check
+  // ── Health check ──
   if (req.url === '/health') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ status: 'ok', clients: wss.clients.size }));
+    res.end(JSON.stringify({
+      status: 'ok',
+      clients: wss.clients.size,
+      streamClients: streamClients.size,
+      streamBusy,
+      ytdlAvailable: !!ytdl
+    }));
     return;
   }
 
-  // Proxy Anthropic
+  // ── /radio/stream — continuous HTTP audio stream ──
+  if (req.url === '/radio/stream' || req.url === '/live.mp3' || req.url === '/stream.mp3') {
+    res.writeHead(200, {
+      'Content-Type': 'audio/mpeg',
+      'Transfer-Encoding': 'chunked',
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Connection': 'keep-alive',
+      'Access-Control-Allow-Origin': '*',
+      'icy-name': 'Radio Terrapesca',
+      'icy-genre': 'Fishing & Outdoor',
+      'icy-url': 'https://terrapesca.com',
+      'X-Content-Type-Options': 'nosniff'
+    });
+    streamClients.add(res);
+    console.log(`Stream client connected. Total: ${streamClients.size}`);
+
+    // If a track is currently playing, start streaming it to this new client
+    if (radioState.isPlaying && radioState.currentTrack?.ytId && ytdl && !streamBusy) {
+      startStreamTrack(radioState.currentTrack);
+    }
+
+    req.on('close', () => {
+      streamClients.delete(res);
+      console.log(`Stream client disconnected. Total: ${streamClients.size}`);
+    });
+    return;
+  }
+
+  // ── /api/ytaudio/:videoId — direct audio proxy (for <audio> tag fallback) ──
+  if (req.url.startsWith('/api/ytaudio/') && req.method === 'GET') {
+    if (!ytdl) {
+      res.writeHead(503, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'ytdl not available' }));
+      return;
+    }
+    const videoId = req.url.replace('/api/ytaudio/', '').split('?')[0].trim();
+    const url = `https://www.youtube.com/watch?v=${videoId}`;
+    try {
+      res.writeHead(200, {
+        'Content-Type': 'audio/mpeg',
+        'Transfer-Encoding': 'chunked',
+        'Cache-Control': 'no-cache',
+        'Access-Control-Allow-Origin': '*'
+      });
+      const stream = ytdl(url, { filter: 'audioonly', quality: 'highestaudio' });
+      stream.pipe(res);
+      stream.on('error', () => { try { res.end(); } catch(_) {} });
+      req.on('close', () => { try { stream.destroy(); } catch(_) {} });
+    } catch(e) {
+      try { res.end(); } catch(_) {}
+    }
+    return;
+  }
+
+  // ── /api/ytinfo/:videoId — return stream URL without proxying ──
+  if (req.url.startsWith('/api/ytinfo/') && req.method === 'GET') {
+    if (!ytdl) {
+      res.writeHead(503, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'ytdl not available' }));
+      return;
+    }
+    const videoId = req.url.replace('/api/ytinfo/', '').split('?')[0].trim();
+    ytdl.getInfo(`https://www.youtube.com/watch?v=${videoId}`)
+      .then(info => {
+        const fmt = ytdl.chooseFormat(info.formats, { filter: 'audioonly', quality: 'highestaudio' });
+        res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+        res.end(JSON.stringify({ url: fmt.url, mimeType: fmt.mimeType || 'audio/mp4', title: info.videoDetails.title }));
+      })
+      .catch(e => {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: e.message }));
+      });
+    return;
+  }
+
+  // ── Proxy Anthropic ──
   if (req.url === '/api/anthropic' && req.method === 'POST') {
     let body = '';
     req.on('data', chunk => body += chunk);
@@ -86,7 +233,7 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // Proxy YouTube playlist items (YouTube Data API v3)
+  // ── Proxy YouTube playlist items (YouTube Data API v3) ──
   if (req.url.startsWith('/api/ytplaylist') && req.method === 'GET') {
     const u = new URL(req.url, 'http://localhost');
     const playlistId = u.searchParams.get('playlistId') || '';
@@ -121,7 +268,7 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // Proxy ElevenLabs TTS
+  // ── Proxy ElevenLabs TTS ──
   if (req.url.startsWith('/api/elevenlabs/') && req.method === 'POST') {
     let body = '';
     req.on('data', chunk => body += chunk);
@@ -136,7 +283,7 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // Proxy CONAGUA SINAV presas (CORS blocked from browser)
+  // ── Proxy CONAGUA SINAV presas ──
   if (req.url.startsWith('/api/conagua') && req.method === 'GET') {
     const siReq = https.request({
       hostname: 'sinav30.conagua.gob.mx',
@@ -163,7 +310,7 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // Proxy YouTube oEmbed (no API key needed, returns title + author)
+  // ── Proxy YouTube oEmbed ──
   if (req.url.startsWith('/api/ytmeta/') && req.method === 'GET') {
     const videoId = req.url.replace('/api/ytmeta/', '').split('?')[0].trim();
     const oembedPath = `/oembed?url=https://www.youtube.com/watch?v=${encodeURIComponent(videoId)}&format=json`;
@@ -189,12 +336,25 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // Serve HTML files
+  // ── Serve static files ──
+  if (req.url === '/sw.js') {
+    const swPath = path.join(__dirname, 'sw.js');
+    if (fs.existsSync(swPath)) {
+      res.writeHead(200, { 'Content-Type': 'application/javascript', 'Service-Worker-Allowed': '/' });
+      fs.createReadStream(swPath).pipe(res);
+    } else {
+      res.writeHead(404); res.end();
+    }
+    return;
+  }
+
   let filePath = null;
   if (req.url === '/' || req.url === '/panel' || req.url === '/panel.html') {
     filePath = path.join(__dirname, 'panel.html');
   } else if (req.url === '/sucursal' || req.url === '/sucursal.html') {
     filePath = path.join(__dirname, 'sucursal.html');
+  } else if (req.url === '/listen' || req.url === '/listen.html') {
+    filePath = path.join(__dirname, 'listen.html');
   }
 
   if (filePath && fs.existsSync(filePath)) {
@@ -207,6 +367,7 @@ const server = http.createServer((req, res) => {
   res.end('Terrapesca Radio Server running');
 });
 
+// ---- WEBSOCKET ----
 const wss = new WebSocketServer({ server });
 
 function broadcast(data, excludeWs = null) {
@@ -233,10 +394,13 @@ wss.on('connection', (ws) => {
           radioState.position = msg.position || 0;
           radioState.lastUpdate = Date.now();
           broadcast({ type: 'PLAY', track: msg.track, position: radioState.position }, ws);
+          // Trigger server-side stream for mobile clients
+          if (streamClients.size > 0) startStreamTrack(msg.track);
           break;
         case 'PAUSE':
           radioState.isPlaying = false;
           radioState.position = msg.position || 0;
+          if (currentStreamDestroy) { currentStreamDestroy(); currentStreamDestroy = null; }
           broadcast({ type: 'PAUSE', position: radioState.position }, ws);
           break;
         case 'RESUME':
@@ -244,6 +408,7 @@ wss.on('connection', (ws) => {
           radioState.position = msg.position || 0;
           radioState.lastUpdate = Date.now();
           broadcast({ type: 'RESUME', position: radioState.position }, ws);
+          if (streamClients.size > 0 && radioState.currentTrack) startStreamTrack(radioState.currentTrack);
           break;
         case 'VOLUME':
           radioState.volume = msg.volume;
@@ -277,4 +442,6 @@ wss.on('connection', (ws) => {
 
 server.listen(PORT, () => {
   console.log(`Terrapesca Radio corriendo en puerto ${PORT}`);
+  console.log(`Stream disponible en /radio/stream`);
+  console.log(`ytdl-core: ${ytdl ? 'disponible' : 'no disponible'}`);
 });
