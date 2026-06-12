@@ -2053,26 +2053,6 @@ function scheduleXfade(el,nextIdx){
     if(rem<=CROSSFADE_SECS&&rem>0){
       el.removeEventListener('timeupdate',check);
       _xfadeScheduled=false;
-      // If DJ Rodo is enabled and wants to speak between songs,
-      // fade out the current song now and start DJ immediately — no silence gap
-      const djOn=document.getElementById('djRodoEnabled')?.checked;
-      if(djOn&&!djRodoActive){
-        incrementDJCounters();
-        const interv=decideDJIntervention();
-        if(interv){
-          // Duck current song, DJ talks over it, then music returns to full volume
-          const savedMode=djRodoMode;
-          djRodoMode='over_music';
-          playDJRodo(interv,nextIdx).catch(()=>{}).finally(()=>{
-            djRodoMode=savedMode;
-            // If song ended while DJ was speaking, start the next one
-            if(isPlaying&&(!audioEl||audioEl.paused||audioEl.ended)) playTrack(nextIdx);
-          });
-          return;
-        }
-        djSongSinceTime--;djSongSinceId--;djSongSinceTip--;djSongSincePromo--;
-        djSongSinceBridge--;djSongSinceReview--;djSongSinceWeather--;djSongSinceForecast--;
-      }
       // Spot as next track: fade out music then hand off to playTrack (no silence gap)
       if(next.type==='spot'){
         fadeVolumeTo(el,0,CROSSFADE_MS,()=>{el.pause();el.src='';playTrack(nextIdx);});
@@ -2109,8 +2089,7 @@ function startCrossfade(nextIdx,outgoing){
       startProg();
       const ni=smartNextIdx();
       scheduleXfade(audioEl,ni);
-      // Count this crossfade as a track transition for DJ Rodo
-      incrementDJCounters();
+      // Note: DJ rotation song counter is handled in handleEnded (shouldDJFireBetweenSongs)
     });
   }).catch(()=>{
     audioEl2=null;
@@ -2279,12 +2258,10 @@ function handleEnded(){
     const nextT=playlist[ni];
     if(nextT&&nextT.type!=='spot'){
       const djOn=document.getElementById('djRodoEnabled')?.checked;
-      if(djOn){
-        incrementDJCounters();
-        const interv=decideDJIntervention();
+      if(djOn&&shouldDJFireBetweenSongs()){
+        const interv=getNextDJType();
         if(interv){
           _handlingEnded=false;
-          // Always between songs: DJ speaks, then the exact pinned next song starts
           cancelCrossfade();
           playDJRodo(interv,ni).catch(()=>{}).finally(()=>{
             const needsTrack=!audioEl||audioEl.paused||audioEl.ended;
@@ -2292,7 +2269,7 @@ function handleEnded(){
           });
           return;
         }
-      } else if(shouldPlayCapsule()){
+      } else if(!djOn&&shouldPlayCapsule()){
         _handlingEnded=false;
         cancelCrossfade();
         playCapsule().catch(()=>{}).finally(()=>{
@@ -3103,14 +3080,10 @@ function _restartDJAutoTimer(){
 }
 function _djAutoTick(){
   const djOn=document.getElementById('djRodoEnabled')?.checked;
-  if(!djOn||djRodoActive)return;
-  // Force counters to threshold so decideDJIntervention always returns something
-  djSongSinceTime=99;djSongSinceId=99;djSongSinceTip=99;
-  djSongSincePromo=99;djSongSinceBridge=99;
-  djSongSinceWeather=99;djSongSinceForecast=99;
-  const type=decideDJIntervention();
+  if(!djOn||djRodoActive||!isPlaying)return;
+  const type=getNextDJType();
   if(!type)return;
-  // Timer-based interventions always play over music (duck + voice)
+  // Timer-based: play over current music with ducking
   const savedMode=djRodoMode;
   djRodoMode='over_music';
   playDJRodo(type).catch(()=>{}).finally(()=>{
@@ -3141,10 +3114,55 @@ const DJ_THRESHOLDS={
   alta: {TIME_CHECK:1,STATION_ID:1,FISHING_TIP:2,PROMO_TEASER:1,SONG_BRIDGE:1,SONG_REVIEW:1,WEATHER:2,FORECAST:2},
 };
 
-// Short interventions that can play over music with ducking
-const DJ_SHORT_TYPES=new Set(['TIME_CHECK','STATION_ID','SONG_BRIDGE','SONG_REVIEW','NEXT_SONG_TEASER']);
-// Long interventions that must play between songs
-const DJ_LONG_TYPES=new Set(['WEATHER_REPORT','RESERVOIR_REPORT','FISHING_FORECAST','PROMO_TEASER','FISHING_TIP','SPOT_INTRO','SPOT_OUTRO']);
+// ---- DJ ROTATION QUEUE ----
+// Fixed order: SONG_BRIDGE every 2-3 songs; major content every 4-6 songs.
+// Frequency (baja/media/alta) controls how many songs pass before next DJ fires.
+const DJ_ROTATION=[
+  'SONG_BRIDGE',
+  'TIME_CHECK',
+  'SONG_BRIDGE',
+  'STATION_ID',
+  'SONG_BRIDGE',
+  'FISHING_TIP',
+  'SONG_BRIDGE',
+  'WEATHER_REPORT',
+  'SONG_BRIDGE',
+  'TIME_CHECK',
+  'SONG_BRIDGE',
+  'PROMO_TEASER',
+  'SONG_BRIDGE',
+  'FISHING_FORECAST',
+  'SONG_BRIDGE',
+  'STATION_ID',
+  'SONG_BRIDGE',
+  'FISHING_TIP',
+  'SONG_BRIDGE',
+  'WEATHER_REPORT',
+  'SONG_BRIDGE',
+  'TIME_CHECK',
+  'SONG_BRIDGE',
+  'PROMO_TEASER',
+];
+let _djRotIdx=0;
+let _djSongCount=0; // songs played since last DJ intervention
+
+// Songs between DJ interventions per frequency
+const DJ_SONGS_BETWEEN={baja:3,media:2,alta:1};
+
+function getNextDJType(){
+  const type=DJ_ROTATION[_djRotIdx%DJ_ROTATION.length];
+  _djRotIdx++;
+  _djSongCount=0;
+  return type;
+}
+
+function shouldDJFireBetweenSongs(){
+  const djOn=document.getElementById('djRodoEnabled')?.checked;
+  if(!djOn||djRodoActive) return false;
+  _djSongCount++;
+  const thr=DJ_SONGS_BETWEEN[djRodoFreq]||3;
+  return _djSongCount>=thr;
+}
 
 function toggleDJRodo(){
   const on=document.getElementById('djRodoEnabled').checked;
