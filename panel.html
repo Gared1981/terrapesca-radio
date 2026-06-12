@@ -2065,6 +2065,8 @@ function scheduleXfade(el,nextIdx){
           djRodoMode='over_music';
           playDJRodo(interv,nextIdx).catch(()=>{}).finally(()=>{
             djRodoMode=savedMode;
+            // If song ended while DJ was speaking, start the next one
+            if(isPlaying&&(!audioEl||audioEl.paused||audioEl.ended)) playTrack(nextIdx);
           });
           return;
         }
@@ -2226,7 +2228,7 @@ function setPlayUI(p){
   document.getElementById('btnPlay').classList.toggle('spot-m',isS);
 }
 function _silenceWatchdog(){
-  if(!isPlaying||!audioEl||audioEl.paused||audioEl.ended) return;
+  if(!isPlaying||!audioEl||audioEl.paused||audioEl.ended||djRodoActive) return;
   const ct=audioEl.currentTime;
   if(ct!==_watchdogCT){_watchdogCT=ct;_watchdogAt=Date.now();return;}
   if(Date.now()-_watchdogAt>400){
@@ -2282,19 +2284,12 @@ function handleEnded(){
         const interv=decideDJIntervention();
         if(interv){
           _handlingEnded=false;
-          const mode=selectRodoPlaybackMode(interv);
-          if(mode==='over_music'){
-            // Start next song first, then DJ talks over it with ducking
-            playTrack(ni);
-            setTimeout(()=>{ if(!djRodoActive) playDJRodo(interv,ni).catch(()=>{}); },600);
-          }else{
-            // DJ speaks between songs, then exactly that same song starts
-            cancelCrossfade();
-            playDJRodo(interv,ni).catch(()=>{}).finally(()=>{
-              const needsTrack=!audioEl||audioEl.paused||audioEl.ended;
-              if(needsTrack) playTrack(ni);
-            });
-          }
+          // Always between songs: DJ speaks, then the exact pinned next song starts
+          cancelCrossfade();
+          playDJRodo(interv,ni).catch(()=>{}).finally(()=>{
+            const needsTrack=!audioEl||audioEl.paused||audioEl.ended;
+            if(needsTrack) playTrack(ni);
+          });
           return;
         }
       } else if(shouldPlayCapsule()){
