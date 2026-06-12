@@ -1022,12 +1022,7 @@ input:checked + .toggle-slider::before{background:var(--red);transform:translate
       <div style="margin-top:10px;padding:8px 10px;background:var(--navy2);border:1px solid var(--border2);border-radius:7px;display:flex;align-items:center;gap:8px">
         <span style="font-size:10px;color:var(--text3);font-family:'Share Tech Mono',monospace;white-space:nowrap">VOZ:</span>
         <select id="spotVozSelect" class="inp" style="margin-bottom:0;font-size:11px;padding:5px 8px;flex:1">
-          <option value="auto">🔄 Auto (rotar voces)</option>
-          <option value="bill">🎙️ Bill — Masculina profunda</option>
-          <option value="charlie">🎙️ Charlie — Masculina joven</option>
-          <option value="callum">🎙️ Callum — Masculina dramática</option>
-          <option value="aria">🎤 Aria — Femenina</option>
-          <option value="matilda">🎤 Matilda — Femenina energética</option>
+          <option value="callum">🎙️ Callum — Locutor mexicano profesional</option>
         </select>
       </div>
 
@@ -1107,12 +1102,7 @@ input:checked + .toggle-slider::before{background:var(--red);transform:translate
           <div class="prod-row">
             <span class="prod-label">Voz</span>
             <select class="prod-select" id="capsulaVozSel">
-              <option value="auto">🔄 Auto (rotar)</option>
-              <option value="bill">Bill — Masculina profunda</option>
-              <option value="charlie">Charlie — Masculina joven</option>
-              <option value="callum">Callum — Dramática</option>
-              <option value="aria">Aria — Femenina</option>
-              <option value="matilda">Matilda — Energética</option>
+              <option value="callum">Callum — Locutor mexicano profesional</option>
             </select>
           </div>
           <div class="prod-row">
@@ -1152,11 +1142,7 @@ input:checked + .toggle-slider::before{background:var(--red);transform:translate
           <div class="prod-row">
             <span class="prod-label">Voz</span>
             <select id="djRodoVoice" style="flex:1;background:var(--navy2);border:1px solid var(--border2);border-radius:5px;color:var(--text2);padding:4px 6px;font-size:11px" onchange="saveDJRodoConfig()">
-              <option value="bill">Bill</option>
-              <option value="charlie">Charlie</option>
-              <option value="callum">Callum</option>
-              <option value="aria">Aria</option>
-              <option value="matilda">Matilda</option>
+              <option value="callum">Callum — Locutor mexicano profesional</option>
             </select>
           </div>
           <div class="prod-row">
@@ -1746,24 +1732,14 @@ setTimeout(()=>{
   });
 },500);
 
-// Voices pool
+// Voices pool — Callum: locutor latinoamericano mexicano profesional
 const VOICES={
-  bill:  {id:'pqHfZKP75CvOlQylNhV4', label:'Bill'},
-  charlie:{id:'IKne3meq5aSn9XLyUdCD', label:'Charlie'},
   callum:{id:'N2lVS1w4EtoT3dr4eOWO', label:'Callum'},
-  aria:  {id:'9BWtsMINqrJLrRacOk9x', label:'Aria'},
-  matilda:{id:'XrExE9yKIg1WjnnlVkGX', label:'Matilda'},
 };
-const VOICE_ROTATION=['bill','charlie','aria','callum','matilda'];
+const VOICE_ROTATION=['callum'];
 let voiceRotIdx=0;
 function pickVoiceId(){
-  const sel=document.getElementById('spotVozSelect').value;
-  if(sel==='auto'){
-    const v=VOICES[VOICE_ROTATION[voiceRotIdx%VOICE_ROTATION.length]];
-    voiceRotIdx++;
-    return v;
-  }
-  return VOICES[sel]||VOICES.bill;
+  return VOICES.callum;
 }
 
 // ---- HORA RADIO ----
@@ -1854,8 +1830,8 @@ REGLA PRINCIPAL: El anuncio debe comenzar DIRECTO AL GRANO.
 PROHIBIDO iniciar con: "Hey pescador", "Ey oyente", "Hola amigos", "Atención pescadores", "Si eres amante de la pesca", "Amigo de la pesca", "Qué tal", "Escucha esto", "No te pierdas", "Tenemos para ti".
 NO saludes. NO presentes el anuncio. NO hagas introducción lenta. NO suenes como IA. NO uses frases genéricas de comercial barato.
 
-ESTILO DE LOCUCIÓN: ${tags}[radio announcer][upbeat][commercial tone][Mexican accent][natural delivery]
-Ritmo rápido pero claro. Frases cortas. Energía media-alta. Sin pausas largas. Como locutor de radio mexicana en vivo. Debe sonar como una recomendación fuerte, no como ficha técnica.
+ESTILO DE LOCUCIÓN: ${tags}[radio announcer][upbeat][commercial tone][latin mexican radio host][natural delivery][warm]
+Ritmo rápido pero claro. Frases cortas. Energía media-alta. Sin pausas largas. Como locutor de radio FM mexicana en vivo. Acento latinoamericano neutro con sabor mexicano. Debe sonar como una recomendación fuerte y cercana, no como ficha técnica.
 
 ESTRUCTURA OBLIGATORIA:
 
@@ -1936,7 +1912,7 @@ async function generateSpot(){
       body:JSON.stringify({
         text:script,
         model_id:'eleven_v3',
-        voice_settings:{stability:0.15,similarity_boost:0.85,style:0.95,use_speaker_boost:true}
+        voice_settings:{stability:0.45,similarity_boost:0.8,style:0.35,speed:1.03,use_speaker_boost:true}
       })
     });
     if(!tr.ok){const er=await tr.json().catch(()=>({}));throw new Error(er.detail?.message||'Error ElevenLabs')}
@@ -2856,7 +2832,7 @@ const CAPSULE_STYLE_TAGS={
   'elegante':  '[confident][warm]',
   'nocturno':  '[confident][warmly]',
 };
-const CAPSULE_VOZ_ROT=['bill','charlie','aria','matilda','callum'];
+const CAPSULE_VOZ_ROT=['callum'];
 
 function toggleCapsulaOpts(){
   const on=document.getElementById('capsulaEnabled').checked;
@@ -2888,12 +2864,7 @@ function buildCapsulaText(hora){
 }
 
 function pickCapsulaVoz(){
-  const sel=document.getElementById('capsulaVozSel')?.value||'auto';
-  if(sel==='auto'){
-    const v=VOICES[CAPSULE_VOZ_ROT[capsulaVozRotIdx%CAPSULE_VOZ_ROT.length]];
-    capsulaVozRotIdx++;return v;
-  }
-  return VOICES[sel]||VOICES.bill;
+  return VOICES.callum;
 }
 
 function playLiveSFX(){
@@ -2938,7 +2909,7 @@ async function playCapsule(){
       headers:{'Content-Type':'application/json','xi-api-key':cfg.apiKey},
       body:JSON.stringify({
         text,model_id:'eleven_v3',
-        voice_settings:{stability:0.35,similarity_boost:0.80,style:0.60,use_speaker_boost:true}
+        voice_settings:{stability:0.45,similarity_boost:0.8,style:0.35,speed:1.03,use_speaker_boost:true}
       })
     });
     if(!tr.ok) throw new Error('ElevenLabs capsule error');
@@ -3300,13 +3271,14 @@ function _djTagsForLevel(){
 
 function buildDJRodoPrompt(type,ctx){
   const tagsInstructions=_djTagsForLevel();
-  const identity=`Eres DJ Rodo, locutor virtual de Radio Terrapesca.
+  const identity=`Eres DJ Rodo, locutor oficial de Radio Terrapesca. Hablas en español mexicano, con tono de locutor latinoamericano profesional, cálido, comercial y natural. Tu voz debe sonar como radio FM mexicana: cercana, segura, alegre y con ritmo, sin exagerar.
 
-PERSONALIDAD: Mexicano. Directo. Natural. Rápido. Confiable. Con energía. Frases cortas. Cero relleno.
-Radio comercial mexicana. Llevas horas en el aire. No es tu primera frase del día.
+ESTILO: Locutor mexicano de radio comercial. Natural, no robótico. Alegre pero no exagerado. Cercano al oyente. Con intención de venta sutil. Con ritmo ágil. Con buena dicción. Acento latinoamericano neutro con sabor mexicano. Como estación FM regional profesional.
 
-PROHIBIDO: "Hola","Hey","oyente","amigos","sintonizas","la hora actual es","son exactamente","estimado radioescucha","no te despegues","quédate con nosotros","DJ Rodo te saluda","hola soy DJ Rodo".
-No sonar como IA. No sonar pausado. No sonar robótico. No sonar como vendedor desesperado.
+PROHIBIDO sonar como: español de España, narrador de documental, voz robótica, asistente virtual, lectura plana, voz gringa hablando español, locutor exagerado de feria, voz demasiado seria o funeraria.
+
+PROHIBIDO iniciar con: "Hola","Hey","oyente","amigos","sintonizas","la hora actual es","son exactamente","estimado radioescucha","no te despegues","quédate con nosotros","DJ Rodo te saluda","hola soy DJ Rodo".
+NO leas títulos de canciones, artistas, canales ni datos técnicos de la playlist.
 
 ${tagsInstructions}
 
@@ -3559,8 +3531,7 @@ async function playDJRodo(type){
     showToast('DJ Rodo: falta clave ElevenLabs');
     return;
   }
-  const voiceKey=document.getElementById('djRodoVoice')?.value||'bill';
-  const voiceId=VOICES[voiceKey]?.id||VOICES.bill.id;
+  const voiceId=VOICES.callum.id;
   try{
     const r=await fetch(`/api/elevenlabs/${voiceId}`,{
       method:'POST',
@@ -3568,7 +3539,7 @@ async function playDJRodo(type){
       body:JSON.stringify({
         text:script,
         model_id:'eleven_v3',
-        voice_settings:{stability:0.48,similarity_boost:0.82,style:0.38,use_speaker_boost:true}
+        voice_settings:{stability:0.45,similarity_boost:0.8,style:0.35,speed:1.03,use_speaker_boost:true}
       })
     });
     if(!r.ok) throw new Error('EL error '+r.status);
@@ -3689,7 +3660,7 @@ function saveDJRodoConfig(){
     freq:djRodoFreq,
     mode:djRodoMode,
     expLevel:djRodoExpLevel,
-    voice:document.getElementById('djRodoVoice')?.value||'bill',
+    voice:'callum',
     duckEnabled:document.getElementById('djDuckingEnabled')?.checked??true,
     duckLevel:document.getElementById('djDuckLevel')?.value||'30',
     optHora:document.getElementById('djOptHora')?.checked??true,
