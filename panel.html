@@ -2043,7 +2043,7 @@ function cancelCrossfade(){
 function scheduleXfade(el,nextIdx){
   if(_xfadeScheduled||nextIdx<0||nextIdx>=playlist.length) return;
   const next=playlist[nextIdx];
-  if(!next||next.type==='yt'||next.type==='spot') return; // can't xfade into YT/spot
+  if(!next||next.type==='yt') return; // can't xfade into YT
   _xfadeScheduled=true;
   function check(){
     if(!el||el!==audioEl){el.removeEventListener('timeupdate',check);_xfadeScheduled=false;return;}
@@ -2053,20 +2053,28 @@ function scheduleXfade(el,nextIdx){
     if(rem<=CROSSFADE_SECS&&rem>0){
       el.removeEventListener('timeupdate',check);
       _xfadeScheduled=false;
-      // If DJ Rodo is enabled and wants to speak between songs, skip crossfade
-      // so the track ends naturally → handleEnded fires → DJ speaks → next song
+      // If DJ Rodo is enabled and wants to speak between songs,
+      // fade out the current song now and start DJ immediately — no silence gap
       const djOn=document.getElementById('djRodoEnabled')?.checked;
       if(djOn&&!djRodoActive){
         incrementDJCounters();
         const interv=decideDJIntervention();
         if(interv){
-          // Don't crossfade — let track reach ended event normally
+          // Crossfade-style: fade out song while DJ starts talking
+          fadeVolumeTo(el,0,CROSSFADE_MS,()=>{el.pause();el.src='';});
+          playDJRodo(interv,nextIdx).catch(()=>{}).finally(()=>{
+            const needsTrack=!audioEl||audioEl.paused||audioEl.ended;
+            if(needsTrack) playTrack(nextIdx);
+          });
           return;
         }
-        // No intervention this time — undo increment so it accumulates next song
-        // (counters will be incremented again in startCrossfade completion)
         djSongSinceTime--;djSongSinceId--;djSongSinceTip--;djSongSincePromo--;
         djSongSinceBridge--;djSongSinceReview--;djSongSinceWeather--;djSongSinceForecast--;
+      }
+      // Spot as next track: fade out music then hand off to playTrack (no silence gap)
+      if(next.type==='spot'){
+        fadeVolumeTo(el,0,CROSSFADE_MS,()=>{el.pause();el.src='';playTrack(nextIdx);});
+        return;
       }
       startCrossfade(nextIdx,el);
     }
