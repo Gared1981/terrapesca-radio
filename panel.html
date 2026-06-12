@@ -2060,11 +2060,11 @@ function scheduleXfade(el,nextIdx){
         incrementDJCounters();
         const interv=decideDJIntervention();
         if(interv){
-          // Crossfade-style: fade out song while DJ starts talking
-          fadeVolumeTo(el,0,CROSSFADE_MS,()=>{el.pause();el.src='';});
+          // Duck current song, DJ talks over it, then music returns to full volume
+          const savedMode=djRodoMode;
+          djRodoMode='over_music';
           playDJRodo(interv,nextIdx).catch(()=>{}).finally(()=>{
-            const needsTrack=!audioEl||audioEl.paused||audioEl.ended;
-            if(needsTrack) playTrack(nextIdx);
+            djRodoMode=savedMode;
           });
           return;
         }
