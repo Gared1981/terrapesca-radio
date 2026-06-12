@@ -2052,15 +2052,70 @@ function scheduleXfade(el,nextIdx){
     if(rem<=CROSSFADE_SECS&&rem>0){
       el.removeEventListener('timeupdate',check);
       _xfadeScheduled=false;
-      // Spot as next track: fade out music then hand off to playTrack (no silence gap)
-      if(next.type==='spot'){
-        fadeVolumeTo(el,0,CROSSFADE_MS,()=>{el.pause();el.src='';playTrack(nextIdx);});
-        return;
-      }
-      startCrossfade(nextIdx,el);
+      _runTransition(el,nextIdx);
     }
   }
   el.addEventListener('timeupdate',check);
+}
+
+// SINGLE transition decision point — called at the crossfade point of every song.
+// Decides: spot-in-playlist | DJ/spot interruption between songs | normal crossfade.
+function _runTransition(el,nextIdx){
+  songsSinceSpot++;updateSpotCtr();
+  const next=playlist[nextIdx];
+  // Spot already queued in the playlist → fade out and play it
+  if(next&&next.type==='spot'){
+    fadeVolumeTo(el,0,CROSSFADE_MS,()=>{el.pause();el.src='';if(audioEl===el)audioEl=null;playTrack(nextIdx);});
+    return;
+  }
+  // DJ Rodo interruption (DJ or library spot) between songs?
+  const djOn=document.getElementById('djRodoEnabled')?.checked;
+  if(djOn&&!djRodoActive&&_interruptionDue()){
+    const item=_nextInterruption();
+    if(item){
+      // Fade current song out fully, then run interruption, then start next song
+      djRodoActive=true; // block watchdog & handleEnded during the gap
+      fadeVolumeTo(el,0,900,()=>{el.pause();el.src='';if(audioEl===el)audioEl=null;});
+      let _advanced=false;
+      const after=()=>{ if(_advanced)return; _advanced=true; playTrack(nextIdx); };
+      if(item.kind==='spot'){
+        djRodoActive=false;
+        _playSpotBetween(after);
+      }else{
+        const savedMode=djRodoMode;
+        djRodoMode='between';
+        playDJRodo(item.type,nextIdx).catch(()=>{}).finally(()=>{
+          djRodoMode=savedMode;
+          after();
+        });
+      }
+      return;
+    }
+  }
+  // Normal music-to-music crossfade
+  startCrossfade(nextIdx,el);
+}
+
+// Play a library spot between songs (music already faded out). Calls onDone when narration+jingle finish.
+function _playSpotBetween(onDone){
+  if(!spotsLibrary.length){onDone();return;}
+  const spot=spotsLibrary[Math.floor(Math.random()*spotsLibrary.length)];
+  ensureTrackUrl(spot);
+  if(!spot||!spot.url){onDone();return;}
+  songsSinceSpot=0;updateSpotCtr();
+  if(currentSpotAu){currentSpotAu.pause();currentSpotAu.src='';currentSpotAu=null;}
+  updateNP({name:spot.name||'🎙️ Spot Terrapesca',type:'spot'});
+  const hasJingle=!!(jingleUrl||jingleB64);
+  const gate=makeSpotDoneGate(onDone);
+  playJingle(gate.jingleDone);
+  if(!hasJingle) gate.jingleDone();
+  const au=new Audio(spot.url);
+  currentSpotAu=au;
+  au.volume=parseInt(document.getElementById('volS').value)/100;
+  au.play().catch(()=>{});
+  au.addEventListener('ended',()=>{if(currentSpotAu===au)currentSpotAu=null;gate.narrationDone();});
+  au.addEventListener('error',()=>{if(currentSpotAu===au)currentSpotAu=null;gate.narrationDone();});
+  sendWS({type:'SPOT',track:{type:'spot',name:spot.name,b64:spot.b64||null,jingleB64:jingleB64||null}});
 }
 
 function startCrossfade(nextIdx,outgoing){
@@ -2097,7 +2152,7 @@ function startCrossfade(nextIdx,outgoing){
       startProg();
       const ni=smartNextIdx();
       scheduleXfade(audioEl,ni);
-      // Note: DJ rotation song counter is handled in handleEnded (shouldDJFireBetweenSongs)
+      // DJ/spot interruptions are decided in _runTransition (single source)
     });
   }).catch(()=>{
     audioEl2=null;
@@ -2249,45 +2304,36 @@ function handleEnded(){
 
   const t=playlist[curIdx];
 
-  // Spot counter
-  if(t&&t.type!=='spot'){
-    songsSinceSpot++;updateSpotCtr();
-    if(songsSinceSpot>=SPOT_EVERY&&spotsLibrary.length){
-      const spot=spotsLibrary[Math.floor(Math.random()*spotsLibrary.length)];
-      songsSinceSpot=0;_handlingEnded=false;
-      playSpotManual(spot,{auto:true});
-      return;
-    }
-  }
-
   if(isRepeat&&curIdx>=0){_handlingEnded=false;playTrack(curIdx);return;}
 
-  // DJ Rodo / Cápsula — solo entre canciones, nunca durante spots
-  if(t&&t.type!=='spot'&&!djRodoActive){
-    const ni=smartNextIdx(); // pin next index once — same song DJ mentions AND plays
+  // Fallback path (crossfade didn't run, e.g. very short track or load error).
+  // Song already ended — run the same interruption decision, then next song.
+  if(t&&t.type!=='spot'){
+    const ni=smartNextIdx();
     const nextT=playlist[ni];
-    if(nextT&&nextT.type!=='spot'){
-      const djOn=document.getElementById('djRodoEnabled')?.checked;
-      if(djOn&&shouldDJFireBetweenSongs()){
-        const interv=getNextDJType();
-        if(interv){
-          _handlingEnded=false;
-          cancelCrossfade();
-          playDJRodo(interv,ni).catch(()=>{}).finally(()=>{
-            const needsTrack=!audioEl||audioEl.paused||audioEl.ended;
-            if(needsTrack) playTrack(ni);
-          });
-          return;
-        }
-      } else if(!djOn&&shouldPlayCapsule()){
+    const djOn=document.getElementById('djRodoEnabled')?.checked;
+    if(djOn&&nextT&&nextT.type!=='spot'&&_interruptionDue()){
+      const item=_nextInterruption();
+      if(item){
         _handlingEnded=false;
         cancelCrossfade();
-        playCapsule().catch(()=>{}).finally(()=>{
-          const needsTrack=!audioEl||audioEl.paused||audioEl.ended;
-          if(needsTrack) playTrack(ni);
-        });
+        let _adv=false;
+        const go=()=>{ if(_adv)return; _adv=true; playTrack(ni); };
+        if(item.kind==='spot'){
+          _playSpotBetween(go);
+        }else{
+          djRodoActive=true;
+          const savedMode=djRodoMode;djRodoMode='between';
+          playDJRodo(item.type,ni).catch(()=>{}).finally(()=>{djRodoMode=savedMode;go();});
+        }
         return;
       }
+    } else if(!djOn&&shouldPlayCapsule()){
+      _handlingEnded=false;
+      cancelCrossfade();
+      let _advC=false;
+      playCapsule().catch(()=>{}).finally(()=>{ if(!_advC){_advC=true;playTrack(ni);} });
+      return;
     }
   }
 
@@ -3078,40 +3124,10 @@ const djRodoAudioCache=new Map();
 let weatherCache={data:null,ts:0};
 let forecastCache={data:null,ts:0};
 
-// ---- DJ AUTO-TIMER (time-based trigger, independent of song count) ----
-const DJ_AUTO_INTERVAL={baja:4*60*1000,media:2*60*1000,alta:60*1000};
-let _djAutoTimer=null;
-function _restartDJAutoTimer(){
-  clearInterval(_djAutoTimer);
-  const djOn=document.getElementById('djRodoEnabled')?.checked;
-  if(!djOn)return;
-  const ms=DJ_AUTO_INTERVAL[djRodoFreq]||DJ_AUTO_INTERVAL.baja;
-  _djAutoTimer=setInterval(_djAutoTick,ms);
-}
-function _djAutoTick(){
-  const djOn=document.getElementById('djRodoEnabled')?.checked;
-  if(!djOn||djRodoActive||!isPlaying)return;
-  // Don't fire if song is almost over — let natural crossfade/handleEnded handle the transition
-  if(audioEl&&audioEl.duration&&isFinite(audioEl.duration)){
-    const rem=audioEl.duration-audioEl.currentTime;
-    if(rem<15) return;
-  }
-  const type=getNextDJType();
-  if(!type)return;
-  const savedMode=djRodoMode;
-  djRodoMode='over_music';
-  playDJRodo(type).catch(()=>{}).finally(()=>{
-    djRodoMode=savedMode;
-    // Re-register crossfade monitoring if song is still playing after DJ
-    if(audioEl&&!audioEl.ended&&!audioEl.paused&&!_xfadeScheduled&&!audioEl2){
-      scheduleXfade(audioEl,smartNextIdx());
-    }
-    // Only start next track if audio actually stopped (song ended while DJ was speaking)
-    if(!djRodoActive&&isPlaying&&(!audioEl||audioEl.paused||audioEl.ended)){
-      playTrack(smartNextIdx());
-    }
-  });
-}
+// DJ Rodo fires ONLY between songs (driven by _runTransition at each song's
+// crossfade point). The old over-music timer was removed because it cut/changed
+// songs unexpectedly. This is kept as a no-op so existing callers stay valid.
+function _restartDJAutoTimer(){ /* between-songs only — no timer */ }
 
 const _AUTO_WEATHER_CITIES=['culiacan','mazatlan','los_mochis'];
 function _resolveWeatherCity(){
@@ -3136,53 +3152,54 @@ const DJ_THRESHOLDS={
 };
 
 // ---- DJ ROTATION QUEUE ----
-// Fixed order: SONG_BRIDGE every 2-3 songs; major content every 4-6 songs.
-// Frequency (baja/media/alta) controls how many songs pass before next DJ fires.
+// Fixed, predictable flow of content + spots, all BETWEEN songs.
+// 'SPOT' = play a random library spot. Everything else = DJ Rodo intervention.
+// WEATHER_REPORT picks a random Sinaloa city (Culiacán/Mazatlán/Los Mochis).
 const DJ_ROTATION=[
-  'SONG_BRIDGE',
-  'TIME_CHECK',
-  'SONG_BRIDGE',
+  'TIME_CHECK',        // hora en vivo
+  'SPOT',              // spot publicitario
+  'STATION_ID',        // identificación / sucursales
+  'WEATHER_REPORT',    // clima (ciudad aleatoria)
+  'FISHING_TIP',       // tip de pesca
+  'SPOT',
+  'PROMO_TEASER',      // promo Terrapesca
+  'FISHING_FORECAST',  // predicción de pesca del día
+  'SPOT',
   'STATION_ID',
-  'SONG_BRIDGE',
-  'FISHING_TIP',
-  'SONG_BRIDGE',
   'WEATHER_REPORT',
-  'SONG_BRIDGE',
+  'SONG_BRIDGE',       // comentario de canción
   'TIME_CHECK',
-  'SONG_BRIDGE',
-  'PROMO_TEASER',
-  'SONG_BRIDGE',
-  'FISHING_FORECAST',
-  'SONG_BRIDGE',
-  'STATION_ID',
-  'SONG_BRIDGE',
+  'SPOT',
   'FISHING_TIP',
-  'SONG_BRIDGE',
-  'WEATHER_REPORT',
-  'SONG_BRIDGE',
-  'TIME_CHECK',
-  'SONG_BRIDGE',
   'PROMO_TEASER',
 ];
 let _djRotIdx=0;
-let _djSongCount=0; // songs played since last DJ intervention
+let _songsSinceInterruption=0;
 
-// Songs between DJ interventions per frequency
+// Songs between interventions per frequency
 const DJ_SONGS_BETWEEN={baja:3,media:2,alta:1};
 
-function getNextDJType(){
-  const type=DJ_ROTATION[_djRotIdx%DJ_ROTATION.length];
-  _djRotIdx++;
-  _djSongCount=0;
-  return type;
+// Called once per song transition. Returns true when an interruption is due.
+function _interruptionDue(){
+  _songsSinceInterruption++;
+  const thr=DJ_SONGS_BETWEEN[djRodoFreq]||3;
+  if(_songsSinceInterruption>=thr){_songsSinceInterruption=0;return true;}
+  return false;
 }
 
-function shouldDJFireBetweenSongs(){
-  const djOn=document.getElementById('djRodoEnabled')?.checked;
-  if(!djOn||djRodoActive) return false;
-  _djSongCount++;
-  const thr=DJ_SONGS_BETWEEN[djRodoFreq]||3;
-  return _djSongCount>=thr;
+// Returns the next interruption: {kind:'spot'} or {kind:'dj',type:'TIME_CHECK'|...}.
+// Skips SPOT entries when the spot library is empty.
+function _nextInterruption(){
+  for(let i=0;i<DJ_ROTATION.length;i++){
+    const item=DJ_ROTATION[_djRotIdx%DJ_ROTATION.length];
+    _djRotIdx++;
+    if(item==='SPOT'){
+      if(spotsLibrary.length) return {kind:'spot'};
+      continue; // no spots available → advance to next rotation item
+    }
+    return {kind:'dj',type:item};
+  }
+  return null;
 }
 
 function toggleDJRodo(){
@@ -3230,11 +3247,8 @@ function setDJExpLevel(l){
 }
 
 function selectRodoPlaybackMode(type){
-  if(djRodoMode==='between') return 'between';
-  if(djRodoMode==='over_music') return 'over_music';
-  // auto mode
-  if(DJ_SHORT_TYPES.has(type)) return 'over_music';
-  return 'between';
+  // 'over_music' only when explicitly set; default is between songs.
+  return djRodoMode==='over_music' ? 'over_music' : 'between';
 }
 
 function decideDJIntervention(){
