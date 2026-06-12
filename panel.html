@@ -1358,7 +1358,10 @@ let playlist=[],curIdx=-1,isPlaying=false,isShuffle=false,isRepeat=false;
 let songsSinceSpot=0;
 const SPOT_EVERY=3;
 let products=[];
-let ytPlayer=null,ytReady=false,audioEl=null,progInt=null;
+let ytPlayer=null,ytReady=false,audioEl=null,audioEl2=null,progInt=null;
+const CROSSFADE_SECS=3;   // seconds before track ends to start xfade
+const CROSSFADE_MS=2500;  // xfade ramp duration ms
+let _xfadeScheduled=false;
 let ws=null,wsConnected=false;
 let jingleUrl=null,jingleB64=null,jingleBlob=null,jingleAudio=null,jingleVolume=0.25;
 let lastSpotBlob=null,lastSpotScript='';
@@ -1827,46 +1830,157 @@ async function generateSpot(){
 }
 
 // ---- PLAYBACK ----
-function playTrack(idx){
-  if(idx<0||idx>=playlist.length)return;
-  stopAll();curIdx=idx;
-  const t=playlist[idx];
-  if(t.type==='yt'){
-    document.getElementById('yt-container').style.display='block';
-    if(ytReady){ytPlayer.loadVideoById(t.ytId);ytPlayer.setVolume(parseInt(document.getElementById('volS').value))}
-    sendWS({type:'PLAY',track:{type:'yt',name:t.name,ytId:t.ytId},position:0});
-  }else{
-    document.getElementById('yt-container').style.display='none';
-    ensureTrackUrl(t); // recreate blob URL from stored data if needed
-    audioEl=new Audio(t.url);
-    audioEl.volume=parseInt(document.getElementById('volS').value)/100;
-    audioEl.play();
-    audioEl.addEventListener('ended',handleEnded);
-    audioEl.addEventListener('timeupdate',updateProg);
-    audioEl.addEventListener('loadedmetadata',()=>{document.getElementById('tT').textContent=fmt(audioEl.duration)});
-    if(t.type==='spot' && t.b64){
-      playJingle();
-      audioEl.addEventListener('ended',stopJingle);
-      sendWS({type:'SPOT',track:{type:'spot',name:t.name,b64:t.b64,jingleB64:jingleB64||null}});
-    }else{
-      sendWS({type:'PLAY',track:{type:'mp3',name:t.name},position:0});
+
+// Utility: ramp el.volume from current → targetVol over ms ms; returns timer id
+function fadeVolumeTo(el,targetVol,ms,onDone){
+  if(!el) return null;
+  const steps=Math.max(10,Math.round(ms/20));
+  const interval=ms/steps;
+  const startVol=el.volume;
+  let step=0;
+  const timer=setInterval(()=>{
+    step++;
+    const p=step/steps;
+    el.volume=Math.max(0,Math.min(1,startVol+(targetVol-startVol)*p));
+    if(step>=steps){clearInterval(timer);if(onDone)onDone();}
+  },interval);
+  return timer;
+}
+
+// Cancel any in-progress crossfade and destroy the incoming element
+function cancelCrossfade(){
+  _xfadeScheduled=false;
+  if(audioEl2){audioEl2.pause();audioEl2.src='';audioEl2=null;}
+}
+
+// Watch el for approach of end; when <=CROSSFADE_SECS remaining, launch xfade to nextIdx
+function scheduleXfade(el,nextIdx){
+  if(_xfadeScheduled||nextIdx<0||nextIdx>=playlist.length) return;
+  const next=playlist[nextIdx];
+  if(!next||next.type==='yt'||next.type==='spot') return; // can't xfade into YT/spot
+  _xfadeScheduled=true;
+  function check(){
+    if(!el||el!==audioEl){el.removeEventListener('timeupdate',check);return;}
+    const dur=el.duration||0;
+    if(!dur) return;
+    const rem=dur-el.currentTime;
+    if(rem<=CROSSFADE_SECS&&rem>0){
+      el.removeEventListener('timeupdate',check);
+      _xfadeScheduled=false;
+      startCrossfade(nextIdx,el);
     }
   }
-  updateNP(t);setPlayUI(true);renderPlaylist();startProg();
-  recordPlayback(t);
-  triggerSave(); // save current track index
+  el.addEventListener('timeupdate',check);
+}
+
+function startCrossfade(nextIdx,outgoing){
+  if(nextIdx<0||nextIdx>=playlist.length) return;
+  const t=playlist[nextIdx];
+  if(!t||t.type==='yt'||t.type==='spot') return;
+  ensureTrackUrl(t);
+  if(!t.url) return;
+  const targetVol=parseInt(document.getElementById('volS').value)/100;
+  audioEl2=new Audio(t.url);
+  audioEl2.volume=0;
+  audioEl2.addEventListener('loadedmetadata',()=>{document.getElementById('tT').textContent=fmt(audioEl2.duration);});
+  audioEl2.play().then(()=>{
+    curIdx=nextIdx;
+    updateNP(t);renderPlaylist();recordPlayback(t);triggerSave();
+    sendWS({type:'PLAY',track:{type:'mp3',name:t.name},position:0});
+    fadeVolumeTo(audioEl2,targetVol,CROSSFADE_MS);
+    fadeVolumeTo(outgoing,0,CROSSFADE_MS,()=>{
+      outgoing.pause();outgoing.src='';
+      audioEl=audioEl2;audioEl2=null;
+      audioEl.removeEventListener('timeupdate',updateProg); // detach if already there
+      audioEl.addEventListener('timeupdate',updateProg);
+      audioEl.addEventListener('ended',handleEnded);
+      startProg();
+      const ni=smartNextIdx();
+      scheduleXfade(audioEl,ni);
+    });
+  }).catch(()=>{
+    audioEl2=null;
+  });
+}
+
+function playTrack(idx){
+  if(idx<0||idx>=playlist.length)return;
+  cancelCrossfade();
+  curIdx=idx;
+  const t=playlist[idx];
+
+  if(t.type==='yt'){
+    // YT: kill audioEl, hand off to YT player
+    if(audioEl){audioEl.pause();audioEl.src='';audioEl=null;}
+    stopJingle();clearInterval(progInt);
+    document.getElementById('pF').style.width='0%';
+    document.getElementById('tC').textContent='0:00';
+    document.getElementById('yt-container').style.display='block';
+    if(ytReady){ytPlayer.loadVideoById(t.ytId);ytPlayer.setVolume(parseInt(document.getElementById('volS').value));}
+    sendWS({type:'PLAY',track:{type:'yt',name:t.name,ytId:t.ytId},position:0});
+
+  }else if(t.type==='spot'&&t.b64){
+    // Spot: duck music and play overlay — music never stops
+    document.getElementById('yt-container').style.display='none';
+    ensureTrackUrl(t);
+    startMusicDucking();
+    playJingle();
+    const spotAu=new Audio(t.url);
+    spotAu.volume=parseInt(document.getElementById('volS').value)/100;
+    spotAu.play().catch(()=>{});
+    spotAu.addEventListener('ended',()=>{
+      stopJingle();
+      releaseMusicDucking();
+      const ni=smartNextIdx();
+      if(ni!==curIdx) playTrack(ni); else nextTrack();
+    });
+    spotAu.addEventListener('error',()=>{
+      stopJingle();releaseMusicDucking();nextTrack();
+    });
+    sendWS({type:'SPOT',track:{type:'spot',name:t.name,b64:t.b64,jingleB64:jingleB64||null}});
+
+  }else{
+    // Regular music track with crossfade from previous
+    document.getElementById('yt-container').style.display='none';
+    if(ytReady&&ytPlayer)try{ytPlayer.stopVideo();}catch(e){}
+    ensureTrackUrl(t);
+    const targetVol=parseInt(document.getElementById('volS').value)/100;
+    const incoming=new Audio(t.url);
+    incoming.volume=audioEl?0:targetVol; // silent if we'll crossfade from outgoing
+    incoming.addEventListener('loadedmetadata',()=>{document.getElementById('tT').textContent=fmt(incoming.duration);});
+    incoming.addEventListener('ended',handleEnded);
+    incoming.addEventListener('timeupdate',updateProg);
+    const outgoing=audioEl;
+    audioEl=incoming;
+    incoming.play().then(()=>{
+      if(outgoing){
+        fadeVolumeTo(incoming,targetVol,600);
+        fadeVolumeTo(outgoing,0,600,()=>{outgoing.pause();outgoing.src='';});
+      }
+      startProg();
+      const ni=smartNextIdx();
+      scheduleXfade(incoming,ni);
+    }).catch(()=>{
+      incoming.volume=targetVol;
+      startProg();
+    });
+    sendWS({type:'PLAY',track:{type:'mp3',name:t.name},position:0});
+  }
+
+  updateNP(t);setPlayUI(true);renderPlaylist();
+  recordPlayback(t);triggerSave();
 }
 function togglePlay(){
   if(curIdx===-1){if(playlist.length)playTrack(0);return}
   const t=playlist[curIdx];
   if(isPlaying){
     if(t.type==='yt'&&ytReady)ytPlayer.pauseVideo();
-    else if(audioEl)audioEl.pause();
+    else{if(audioEl)audioEl.pause();if(audioEl2)audioEl2.pause();}
     setPlayUI(false);
     sendWS({type:'PAUSE',position:audioEl?audioEl.currentTime:0});
   }else{
     if(t.type==='yt'&&ytReady)ytPlayer.playVideo();
-    else if(audioEl)audioEl.play();
+    else{if(audioEl)audioEl.play().catch(()=>{});if(audioEl2)audioEl2.play().catch(()=>{});}
     setPlayUI(true);
     sendWS({type:'RESUME',position:audioEl?audioEl.currentTime:0});
   }
@@ -1881,7 +1995,8 @@ function setPlayUI(p){
   document.getElementById('btnPlay').classList.toggle('spot-m',isS);
 }
 function stopAll(){
-  if(audioEl){audioEl.pause();audioEl.src='';audioEl=null}
+  cancelCrossfade();
+  if(audioEl){audioEl.pause();audioEl.src='';audioEl=null;}
   if(ytReady&&ytPlayer)try{ytPlayer.stopVideo()}catch(e){}
   stopJingle();
   clearInterval(progInt);
@@ -1952,7 +2067,8 @@ function seekTo(e){
 }
 function setVolume(v){
   document.getElementById('volP').textContent=v+'%';
-  if(audioEl)audioEl.volume=v/100;
+  if(audioEl&&!_duckRamp)audioEl.volume=v/100;
+  if(audioEl2&&!_duckRamp)audioEl2.volume=v/100;
   if(ytReady&&ytPlayer)try{ytPlayer.setVolume(parseInt(v))}catch(e){}
   sendWS({type:'VOLUME',volume:parseInt(v)});
   triggerSave();
@@ -2479,10 +2595,13 @@ async function playCapsule(){
     const url=URL.createObjectURL(blob);
     const au=new Audio(url);
     au.volume=parseInt(document.getElementById('capsulaVolSlider')?.value||80)/100;
-    au.play().catch(resolve);
-    au.addEventListener('ended',()=>{URL.revokeObjectURL(url);resolve()});
-    au.addEventListener('error',()=>{URL.revokeObjectURL(url);resolve()});
-    setTimeout(resolve,15000); // 15s safety timeout
+    let done=false;
+    const finish=()=>{if(done)return;done=true;releaseMusicDucking();URL.revokeObjectURL(url);resolve();};
+    startMusicDucking();
+    au.play().catch(finish);
+    au.addEventListener('ended',finish);
+    au.addEventListener('error',finish);
+    setTimeout(finish,15000); // 15s safety timeout
   });
 }
 
@@ -3110,47 +3229,40 @@ async function playDJRodo(type){
 // ---- DUCKING ENGINE ----
 let _duckRamp=null;
 
-function startMusicDucking(){
-  const duckEnabled=document.getElementById('djDuckingEnabled')?.checked;
-  if(!duckEnabled) return;
-  const targetPct=(parseInt(document.getElementById('djDuckLevel')?.value)||30)/100;
-  const fadeMs=450;
-  const steps=20;
-  const interval=fadeMs/steps;
-  // Get current music volume
-  const currentVol=isPlaying?(audioEl?audioEl.volume:0):0;
-  if(!audioEl&&!ytReady) return;
+function _duckRampTo(targetVol,ms,steps,onDone){
+  if(_duckRamp){clearInterval(_duckRamp);_duckRamp=null;}
+  const startA=audioEl?audioEl.volume:targetVol;
+  const startA2=audioEl2?audioEl2.volume:targetVol;
+  const startYT=(ytReady&&ytPlayer)?ytPlayer.getVolume()/100:targetVol;
+  const interval=ms/steps;
   let step=0;
   _duckRamp=setInterval(()=>{
     step++;
-    const t=step/steps;
-    const newVol=currentVol+(targetPct-currentVol)*t;
-    if(audioEl) audioEl.volume=Math.max(0,Math.min(1,newVol));
-    if(step>=steps){clearInterval(_duckRamp);_duckRamp=null;}
+    const p=step/steps;
+    const eased=p<0.5?2*p*p:(1-(2*(1-p)*(1-p)));
+    if(audioEl) audioEl.volume=Math.max(0,Math.min(1,startA+(targetVol-startA)*eased));
+    if(audioEl2) audioEl2.volume=Math.max(0,Math.min(1,startA2+(targetVol-startA2)*eased));
+    if(ytReady&&ytPlayer)try{ytPlayer.setVolume(Math.round(Math.max(0,Math.min(100,(startYT+(targetVol-startYT)*eased))*100)));}catch(e){}
+    if(step>=steps){clearInterval(_duckRamp);_duckRamp=null;if(onDone)onDone();}
   },interval);
+}
+
+function startMusicDucking(){
+  const duckEnabled=document.getElementById('djDuckingEnabled')?.checked;
+  if(!duckEnabled) return;
+  if(!audioEl&&!ytReady) return;
+  const targetPct=(parseInt(document.getElementById('djDuckLevel')?.value)||30)/100;
+  _duckRampTo(targetPct,450,20);
   updateDJStatusChip('duck');
 }
 
 function releaseMusicDucking(){
-  if(_duckRamp){clearInterval(_duckRamp);_duckRamp=null;}
   const duckEnabled=document.getElementById('djDuckingEnabled')?.checked;
-  if(!duckEnabled) return;
+  if(!duckEnabled){if(_duckRamp){clearInterval(_duckRamp);_duckRamp=null;}return;}
   const targetVol=(radioState.volume||80)/100;
-  const fadeMs=1200;
-  const steps=30;
-  const interval=fadeMs/steps;
-  const currentVol=audioEl?audioEl.volume:targetVol;
-  let step=0;
-  _duckRamp=setInterval(()=>{
-    step++;
-    const t=step/steps;
-    const newVol=currentVol+(targetVol-currentVol)*t;
-    if(audioEl) audioEl.volume=Math.max(0,Math.min(1,newVol));
-    if(step>=steps){
-      clearInterval(_duckRamp);_duckRamp=null;
-      updateDJStatusChip(document.getElementById('djRodoEnabled')?.checked?'standby':'off');
-    }
-  },interval);
+  _duckRampTo(targetVol,1200,30,()=>{
+    updateDJStatusChip(document.getElementById('djRodoEnabled')?.checked?'standby':'off');
+  });
 }
 
 function playDJAudio(url,type){
