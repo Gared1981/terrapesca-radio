@@ -1732,11 +1732,11 @@ setTimeout(()=>{
   });
 },500);
 
-// Voices pool — Callum: locutor latinoamericano mexicano profesional
+// Voices pool — Eleguar: locutor latinoamericano nativo
 const VOICES={
   eleguar:{id:'T7QGPtToiqH4S8VlIkMJ', label:'Eleguar'},
 };
-const VOICE_ROTATION=['callum'];
+const VOICE_ROTATION=['eleguar'];
 let voiceRotIdx=0;
 function pickVoiceId(){
   return VOICES.eleguar;
@@ -2833,7 +2833,7 @@ const CAPSULE_STYLE_TAGS={
   'elegante':  '[confident][warm]',
   'nocturno':  '[confident][warmly]',
 };
-const CAPSULE_VOZ_ROT=['callum'];
+const CAPSULE_VOZ_ROT=['eleguar'];
 
 function toggleCapsulaOpts(){
   const on=document.getElementById('capsulaEnabled').checked;
@@ -3662,7 +3662,7 @@ function saveDJRodoConfig(){
     freq:djRodoFreq,
     mode:djRodoMode,
     expLevel:djRodoExpLevel,
-    voice:'callum',
+    voice:'eleguar',
     duckEnabled:document.getElementById('djDuckingEnabled')?.checked??true,
     duckLevel:document.getElementById('djDuckLevel')?.value||'30',
     optHora:document.getElementById('djOptHora')?.checked??true,
