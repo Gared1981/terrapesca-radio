@@ -86,6 +86,41 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // Proxy YouTube playlist items (YouTube Data API v3)
+  if (req.url.startsWith('/api/ytplaylist') && req.method === 'GET') {
+    const u = new URL(req.url, 'http://localhost');
+    const playlistId = u.searchParams.get('playlistId') || '';
+    const pageToken  = u.searchParams.get('pageToken')  || '';
+    const apiKey     = u.searchParams.get('key')        || '';
+    if (!playlistId || !apiKey) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'playlistId and key required' }));
+      return;
+    }
+    let ytPath = `/youtube/v3/playlistItems?part=snippet&maxResults=50&playlistId=${encodeURIComponent(playlistId)}&key=${encodeURIComponent(apiKey)}`;
+    if (pageToken) ytPath += `&pageToken=${encodeURIComponent(pageToken)}`;
+    const ytReq = https.request({
+      hostname: 'www.googleapis.com',
+      path: ytPath,
+      method: 'GET',
+      headers: { 'Accept': 'application/json' }
+    }, (apiRes) => {
+      let raw = '';
+      apiRes.on('data', chunk => raw += chunk);
+      apiRes.on('end', () => {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.writeHead(apiRes.statusCode, { 'Content-Type': 'application/json' });
+        res.end(raw);
+      });
+    });
+    ytReq.on('error', (e) => {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: e.message }));
+    });
+    ytReq.end();
+    return;
+  }
+
   // Proxy ElevenLabs TTS
   if (req.url.startsWith('/api/elevenlabs/') && req.method === 'POST') {
     let body = '';

@@ -787,8 +787,40 @@ input:checked + .toggle-slider::before{background:var(--red);transform:translate
       <div id="fYT" class="add-form">
         <input class="inp" id="ytN" placeholder="Nombre (opcional — se detecta automático)"/>
         <div class="inp-row">
-          <input class="inp" id="ytU" placeholder="Link de YouTube o YouTube Music..."/>
-          <button class="btn-add" onclick="addYT()">+ Add</button>
+          <input class="inp" id="ytU" placeholder="Link de YouTube, YouTube Music o Playlist..."/>
+          <button class="btn-add" id="btnAddYT" onclick="addYT()">+ Add</button>
+        </div>
+        <!-- Playlist import panel (shown when playlist URL detected) -->
+        <div id="plImportBox" style="display:none;margin-top:8px;background:var(--navy2);border:1px solid var(--border2);border-radius:8px;padding:10px 12px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+            <span style="font-size:11px;color:var(--accent1);font-family:'Share Tech Mono',monospace;font-weight:600">📋 Playlist detectada</span>
+            <span id="plImportId" style="font-size:9px;color:var(--text3);font-family:'Share Tech Mono',monospace"></span>
+          </div>
+          <div id="plImportMeta" style="font-size:10px;color:var(--text2);margin-bottom:8px;font-family:'Inter',sans-serif">—</div>
+          <div id="plImportProgress" style="display:none;margin-bottom:8px">
+            <div style="height:4px;background:var(--border2);border-radius:2px;overflow:hidden">
+              <div id="plImportBar" style="height:100%;background:var(--accent1);width:0%;transition:width .3s"></div>
+            </div>
+            <div id="plImportStatus" style="font-size:9px;color:var(--text3);font-family:'Share Tech Mono',monospace;margin-top:4px">Cargando...</div>
+          </div>
+          <div style="display:flex;gap:6px">
+            <button id="btnImportPL" onclick="importPlaylistFromUrl()" style="flex:1;padding:7px;background:#1a3a6e;border:1px solid var(--accent1);border-radius:7px;color:var(--accent1);font-family:'Inter',sans-serif;font-size:10px;cursor:pointer;font-weight:600">
+              ▶ Importar playlist
+            </button>
+            <button onclick="refreshPlaylistImport()" style="padding:7px 10px;background:var(--navy2);border:1px solid var(--border2);border-radius:7px;color:var(--text2);font-size:10px;cursor:pointer" title="Actualizar">↺</button>
+          </div>
+        </div>
+        <!-- Playlist info panel (shown after import) -->
+        <div id="plInfoBox" style="display:none;margin-top:8px;background:var(--navy2);border:1px solid var(--border2);border-radius:8px;padding:10px 12px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+            <span style="font-size:11px;color:var(--text1);font-family:'Share Tech Mono',monospace;font-weight:600" id="plInfoName">—</span>
+            <button onclick="refreshPlaylistImport()" style="font-size:9px;padding:3px 8px;background:var(--navy2);border:1px solid var(--border2);border-radius:4px;color:var(--text3);cursor:pointer">↺ Actualizar</button>
+          </div>
+          <div style="display:flex;gap:12px;font-size:9px;color:var(--text3);font-family:'Share Tech Mono',monospace">
+            <span id="plInfoCount">— canciones</span>
+            <span id="plInfoDur">—</span>
+            <span id="plInfoDate">—</span>
+          </div>
         </div>
         <div class="yt-preview-box" id="ytPreviewBox" style="display:none">
           <img class="yt-preview-thumb" id="ytPreviewThumb" src="" alt="">
@@ -1196,6 +1228,10 @@ input:checked + .toggle-slider::before{background:var(--red);transform:translate
       <label>Eslogan de la radio</label>
       <input class="inp" id="cfgSl" value="La estación oficial de Terrapesca"/>
     </div>
+    <div class="field">
+      <label>YouTube API Key <span style="font-size:10px;color:var(--text3)">(para importar playlists)</span></label>
+      <input class="inp" id="cfgYT" placeholder="AIzaSy..." type="password"/>
+    </div>
     <div style="margin-top:16px;border-top:1px solid var(--border2);padding-top:14px">
       <p class="sub" style="margin-bottom:8px">Respaldo de sesión</p>
       <div style="display:flex;gap:8px">
@@ -1222,7 +1258,8 @@ let cfg = {
   apiKey: localStorage.getItem('tp_el') || '',
   anthropicKey: localStorage.getItem('tp_ant') || '',
   voice: localStorage.getItem('tp_voice') || 'male',
-  slogan: localStorage.getItem('tp_slogan') || 'La estación oficial de Terrapesca'
+  slogan: localStorage.getItem('tp_slogan') || 'La estación oficial de Terrapesca',
+  ytApiKey: localStorage.getItem('tp_yt') || ''
 };
 let selV = cfg.voice;
 
@@ -1281,6 +1318,7 @@ function openConfig() {
   document.getElementById('cfgEl').value = cfg.apiKey;
   document.getElementById('cfgAnt').value = cfg.anthropicKey || '';
   document.getElementById('cfgSl').value = cfg.slogan;
+  document.getElementById('cfgYT').value = cfg.ytApiKey || '';
   selV = cfg.voice; refreshVBtns();
   document.getElementById('cfgModal').classList.add('open');
 }
@@ -1292,9 +1330,11 @@ function saveConfig() {
   cfg.apiKey=document.getElementById('cfgEl').value.trim();
   cfg.anthropicKey=document.getElementById('cfgAnt').value.trim();
   cfg.voice=selV; cfg.slogan=document.getElementById('cfgSl').value.trim();
+  cfg.ytApiKey=document.getElementById('cfgYT').value.trim();
   localStorage.setItem('tp_ws',cfg.ws);localStorage.setItem('tp_el',cfg.apiKey);
   localStorage.setItem('tp_ant',cfg.anthropicKey);
   localStorage.setItem('tp_voice',cfg.voice);localStorage.setItem('tp_slogan',cfg.slogan);
+  localStorage.setItem('tp_yt',cfg.ytApiKey);
   closeConfig(); connectWS();
   showToast('✅ Configuración guardada','success');
 }
@@ -1318,20 +1358,7 @@ function setThumb(img,videoId){
 
 const ytMetaCache={};
 let ytPreviewTimer=null;
-function onYTUrlInput(){
-  const url=document.getElementById('ytU').value.trim();
-  const id=getYTId(url);
-  const box=document.getElementById('ytPreviewBox');
-  if(!id){box.style.display='none';return}
-  setThumb(document.getElementById('ytPreviewThumb'),id);
-  document.getElementById('ytPreviewTitle').textContent='⏳ Detectando título...';
-  document.getElementById('ytPreviewChannel').textContent='';
-  document.getElementById('ytPreviewVid').textContent='ID: '+id;
-  box.style.display='flex';
-  if(ytMetaCache[id]){applyPreviewMeta(ytMetaCache[id]);return}
-  clearTimeout(ytPreviewTimer);
-  ytPreviewTimer=setTimeout(()=>fetchYTMeta(id),500);
-}
+// onYTUrlInput is defined later in the YOUTUBE PLAYLIST IMPORT section (handles both video & playlist URLs)
 function applyPreviewMeta(data){
   document.getElementById('ytPreviewTitle').textContent=data.title||'Video de YouTube';
   document.getElementById('ytPreviewChannel').textContent=data.author_name||'';
@@ -1736,6 +1763,7 @@ function playTrack(idx){
     }
   }
   updateNP(t);setPlayUI(true);renderPlaylist();startProg();
+  recordPlayback(t);
   triggerSave(); // save current track index
 }
 function togglePlay(){
@@ -1811,7 +1839,7 @@ function handleEnded(){
   }
   nextTrack();
 }
-function nextTrack(){if(!playlist.length)return;const n=isShuffle?Math.floor(Math.random()*playlist.length):(curIdx+1)%playlist.length;playTrack(n)}
+function nextTrack(){if(!playlist.length)return;playTrack(smartNextIdx())}
 function prevTrack(){if(!playlist.length)return;playTrack(curIdx<=0?playlist.length-1:curIdx-1)}
 function toggleShuffle(){isShuffle=!isShuffle;document.getElementById('btnSh').classList.toggle('active',isShuffle);triggerSave()}
 function toggleRepeat(){isRepeat=!isRepeat;document.getElementById('btnRp').classList.toggle('active',isRepeat);triggerSave()}
@@ -3348,6 +3376,207 @@ function audioBufferToWAV(buf){
     }
   }
   return new Blob([ab],{type:'audio/wav'});
+}
+
+// ---- YOUTUBE PLAYLIST IMPORT ----
+let _currentPlaylistId = null;
+let _playbackHistory = []; // {videoId, playedAt (ms)}
+const REPEAT_WINDOW_MS = 2 * 60 * 60 * 1000; // 2 hours
+
+function extractPlaylistId(url) {
+  try {
+    const u = new URL(url.trim());
+    return u.searchParams.get('list') || null;
+  } catch { return null; }
+}
+
+function extractVideoId(url) {
+  try {
+    const u = new URL(url.trim());
+    if (u.hostname === 'youtu.be') return u.pathname.slice(1).split('?')[0];
+    // shorts
+    const shortsMatch = u.pathname.match(/\/shorts\/([^/?]+)/);
+    if (shortsMatch) return shortsMatch[1];
+    return u.searchParams.get('v') || null;
+  } catch { return null; }
+}
+
+// Called on every URL input — decides whether to show single-video or playlist UI
+function onYTUrlInput() {
+  const url = document.getElementById('ytU')?.value?.trim() || '';
+  const plId = extractPlaylistId(url);
+  const vidId = extractVideoId(url) || getYTId(url);
+  const previewBox = document.getElementById('ytPreviewBox');
+  const plImportBox = document.getElementById('plImportBox');
+  const btnAdd = document.getElementById('btnAddYT');
+
+  if (plId && !vidId) {
+    // Pure playlist URL (no individual video in the URL)
+    if (previewBox) previewBox.style.display = 'none';
+    if (plImportBox) {
+      plImportBox.style.display = 'block';
+      document.getElementById('plImportId').textContent = plId.slice(0, 20) + (plId.length > 20 ? '…' : '');
+      document.getElementById('plImportMeta').textContent = 'Lista detectada. Haz clic en Importar para cargar canciones.';
+      document.getElementById('plImportProgress').style.display = 'none';
+    }
+    if (btnAdd) btnAdd.style.display = 'none';
+    _currentPlaylistId = plId;
+  } else {
+    // Single video URL (or playlist+video — treat as video)
+    if (plImportBox) plImportBox.style.display = 'none';
+    if (btnAdd) btnAdd.style.display = '';
+    _currentPlaylistId = null;
+    if (!vidId) { if (previewBox) previewBox.style.display = 'none'; return; }
+    if (previewBox) {
+      previewBox.style.display = 'flex';
+      document.getElementById('ytPreviewTitle').textContent = '⏳ Detectando título...';
+      document.getElementById('ytPreviewChannel').textContent = '';
+      document.getElementById('ytPreviewVid').textContent = 'ID: ' + vidId;
+      setThumb(document.getElementById('ytPreviewThumb'), vidId);
+    }
+    if (ytMetaCache[vidId]) { applyPreviewMeta(ytMetaCache[vidId]); return; }
+    clearTimeout(ytPreviewTimer);
+    ytPreviewTimer = setTimeout(() => fetchYTMeta(vidId), 500);
+  }
+}
+
+async function importPlaylistFromUrl() {
+  const plId = _currentPlaylistId || extractPlaylistId(document.getElementById('ytU')?.value || '');
+  if (!plId) { showToast('No se detectó ID de playlist', 'error'); return; }
+  if (!cfg.ytApiKey) {
+    showToast('Agrega tu YouTube API Key en Configuración ⚙️', 'error');
+    return;
+  }
+  const btn = document.getElementById('btnImportPL');
+  const progressBox = document.getElementById('plImportProgress');
+  const bar = document.getElementById('plImportBar');
+  const status = document.getElementById('plImportStatus');
+  if (btn) btn.disabled = true;
+  if (progressBox) progressBox.style.display = 'block';
+
+  const items = [];
+  let pageToken = '';
+  let page = 0;
+  const MAX_PAGES = 4; // up to 200 videos
+
+  try {
+    do {
+      let url = `/api/ytplaylist?playlistId=${encodeURIComponent(plId)}&key=${encodeURIComponent(cfg.ytApiKey)}`;
+      if (pageToken) url += `&pageToken=${encodeURIComponent(pageToken)}`;
+      const r = await fetch(url);
+      const d = await r.json();
+      if (d.error) throw new Error(d.error?.message || JSON.stringify(d.error));
+      const vids = (d.items || []).filter(it => it.snippet?.resourceId?.videoId && it.snippet.title !== 'Deleted video' && it.snippet.title !== 'Private video');
+      for (const it of vids) {
+        const vid = it.snippet.resourceId.videoId;
+        const title = it.snippet.title || vid;
+        const channel = it.snippet.videoOwnerChannelTitle || it.snippet.channelTitle || '';
+        const thumb = it.snippet.thumbnails?.high?.url || it.snippet.thumbnails?.default?.url || `https://img.youtube.com/vi/${vid}/hqdefault.jpg`;
+        items.push({ vid, title, channel, thumb });
+      }
+      pageToken = d.nextPageToken || '';
+      page++;
+      const pct = Math.min(95, Math.round(((page) / MAX_PAGES) * 100));
+      if (bar) bar.style.width = pct + '%';
+      if (status) status.textContent = `${items.length} canciones cargadas...`;
+    } while (pageToken && page < MAX_PAGES);
+  } catch (e) {
+    if (btn) btn.disabled = false;
+    showToast('Error importando playlist: ' + e.message, 'error');
+    if (status) status.textContent = 'Error: ' + e.message;
+    return;
+  }
+
+  if (!items.length) {
+    if (btn) btn.disabled = false;
+    showToast('Playlist vacía o privada', 'error');
+    return;
+  }
+
+  // Add all videos to playlist (skip duplicates already in list)
+  const existingIds = new Set(playlist.map(t => t.ytId).filter(Boolean));
+  let added = 0;
+  for (const it of items) {
+    if (existingIds.has(it.vid)) continue;
+    const track = {
+      id: 'yt_' + it.vid + '_' + Date.now() + '_' + Math.random().toString(36).slice(2),
+      type: 'yt',
+      ytId: it.vid,
+      title: it.title,
+      sub: it.channel,
+      thumb: it.thumb,
+      url: null,
+      playCount: 0,
+      lastPlayedAt: null,
+      addedAt: Date.now()
+    };
+    playlist.push(track);
+    added++;
+  }
+
+  if (bar) bar.style.width = '100%';
+  if (status) status.textContent = `✅ ${added} canciones importadas`;
+  if (btn) btn.disabled = false;
+
+  renderPlaylist();
+  triggerSave();
+
+  // Show info panel
+  showPlaylistInfoPanel(plId, items.length, added);
+  showToast(`✅ ${added} canciones importadas de la playlist`, 'success');
+  _currentPlaylistId = plId;
+}
+
+function refreshPlaylistImport() {
+  const url = document.getElementById('ytU')?.value || '';
+  const plId = extractPlaylistId(url);
+  if (!plId) { showToast('Pega una URL de playlist primero', 'error'); return; }
+  _currentPlaylistId = plId;
+  importPlaylistFromUrl();
+}
+
+function showPlaylistInfoPanel(plId, total, added) {
+  const box = document.getElementById('plInfoBox');
+  if (!box) return;
+  box.style.display = 'block';
+  document.getElementById('plInfoName').textContent = 'Playlist: ' + plId.slice(0, 16) + '…';
+  document.getElementById('plInfoCount').textContent = total + ' canciones';
+  document.getElementById('plInfoDur').textContent = added + ' nuevas';
+  document.getElementById('plInfoDate').textContent = 'hoy ' + new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+}
+
+// Track playback history for repeat-prevention
+function recordPlayback(track) {
+  if (!track?.ytId) return;
+  _playbackHistory.push({ videoId: track.ytId, playedAt: Date.now() });
+  // Keep only last 4 hours
+  const cutoff = Date.now() - 4 * 60 * 60 * 1000;
+  _playbackHistory = _playbackHistory.filter(h => h.playedAt > cutoff);
+}
+
+function wasRecentlyPlayed(track) {
+  if (!track?.ytId) return false;
+  const cutoff = Date.now() - REPEAT_WINDOW_MS;
+  return _playbackHistory.some(h => h.videoId === track.ytId && h.playedAt > cutoff);
+}
+
+// Smart next track: skip recently played songs
+function smartNextIdx() {
+  if (!playlist.length) return 0;
+  if (isShuffle) {
+    // Try up to 10 random picks to find a non-recently-played track
+    for (let i = 0; i < 10; i++) {
+      const idx = Math.floor(Math.random() * playlist.length);
+      if (!wasRecentlyPlayed(playlist[idx])) return idx;
+    }
+    return Math.floor(Math.random() * playlist.length);
+  }
+  // Sequential — find next non-recently-played
+  for (let offset = 1; offset <= playlist.length; offset++) {
+    const idx = (curIdx + offset) % playlist.length;
+    if (!wasRecentlyPlayed(playlist[idx])) return idx;
+  }
+  return (curIdx + 1) % playlist.length;
 }
 
 // INIT
