@@ -1359,9 +1359,11 @@ let songsSinceSpot=0;
 const SPOT_EVERY=3;
 let products=[];
 let ytPlayer=null,ytReady=false,audioEl=null,audioEl2=null,progInt=null;
-const CROSSFADE_SECS=3;   // seconds before track ends to start xfade
-const CROSSFADE_MS=2500;  // xfade ramp duration ms
+const CROSSFADE_SECS=3;
+const CROSSFADE_MS=2500;
 let _xfadeScheduled=false;
+let _ytEndedTrackIdx=-1; // guard against YT double-calling handleEnded
+let _handlingEnded=false; // mutex: only one handleEnded at a time
 let ws=null,wsConnected=false;
 let jingleUrl=null,jingleB64=null,jingleBlob=null,jingleAudio=null,jingleVolume=0.25;
 let lastSpotBlob=null,lastSpotScript='';
@@ -1502,7 +1504,14 @@ function onYouTubeIframeAPIReady(){
     events:{
       onReady:()=>{ytReady=true},
       onStateChange:(e)=>{
-        if(e.data===YT.PlayerState.ENDED)handleEnded();
+        if(e.data===YT.PlayerState.ENDED){
+          // Guard: only fire if this YT track is still the current one
+          const t=playlist[curIdx];
+          if(t&&t.type==='yt'&&curIdx!==_ytEndedTrackIdx){
+            _ytEndedTrackIdx=curIdx;
+            handleEnded();
+          }
+        }
         if(e.data===YT.PlayerState.PLAYING)setPlayUI(true);
         if(e.data===YT.PlayerState.PAUSED)setPlayUI(false);
       }
@@ -1880,9 +1889,9 @@ function scheduleXfade(el,nextIdx){
   if(!next||next.type==='yt'||next.type==='spot') return; // can't xfade into YT/spot
   _xfadeScheduled=true;
   function check(){
-    if(!el||el!==audioEl){el.removeEventListener('timeupdate',check);return;}
+    if(!el||el!==audioEl){el.removeEventListener('timeupdate',check);_xfadeScheduled=false;return;}
     const dur=el.duration||0;
-    if(!dur) return;
+    if(!dur||!isFinite(dur)) return;
     const rem=dur-el.currentTime;
     if(rem<=CROSSFADE_SECS&&rem>0){
       el.removeEventListener('timeupdate',check);
@@ -1894,6 +1903,7 @@ function scheduleXfade(el,nextIdx){
 }
 
 function startCrossfade(nextIdx,outgoing){
+  if(djRodoActive) return; // don't crossfade while DJ is speaking
   if(nextIdx<0||nextIdx>=playlist.length) return;
   const t=playlist[nextIdx];
   if(!t||t.type==='yt'||t.type==='spot') return;
@@ -2024,18 +2034,30 @@ function stopAll(){
   document.getElementById('tC').textContent='0:00';
 }
 function handleEnded(){
+  // Mutex: ignore if already handling (e.g. YT double-firing)
+  if(_handlingEnded) return;
+  _handlingEnded=true;
+  setTimeout(()=>{_handlingEnded=false;},500); // release after 500ms
+
+  // If crossfade already took over, don't double-advance
+  if(_xfadeScheduled||audioEl2){_handlingEnded=false;return;}
+
   const t=playlist[curIdx];
+
+  // Spot counter
   if(t&&t.type!=='spot'){
     songsSinceSpot++;updateSpotCtr();
     if(songsSinceSpot>=SPOT_EVERY){
       const si=playlist.findIndex((x,i)=>i>curIdx&&x.type==='spot');
-      if(si!==-1){songsSinceSpot=0;playTrack(si);return}
+      if(si!==-1){songsSinceSpot=0;_handlingEnded=false;playTrack(si);return;}
     }
   }
-  if(isRepeat&&curIdx>=0){playTrack(curIdx);return}
-  // DJ Rodo / Cápsula de hora — solo entre canciones (nunca antes/durante/después de spots)
-  if(t&&t.type!=='spot'){
-    const ni=isShuffle?Math.floor(Math.random()*playlist.length):(curIdx+1)%playlist.length;
+
+  if(isRepeat&&curIdx>=0){_handlingEnded=false;playTrack(curIdx);return;}
+
+  // DJ Rodo / Cápsula — solo entre canciones, nunca durante spots
+  if(t&&t.type!=='spot'&&!djRodoActive){
+    const ni=smartNextIdx();
     const nextT=playlist[ni];
     if(nextT&&nextT.type!=='spot'){
       const djOn=document.getElementById('djRodoEnabled')?.checked;
@@ -2043,25 +2065,33 @@ function handleEnded(){
         incrementDJCounters();
         const interv=decideDJIntervention();
         if(interv){
-          // Long types wait for nextTrack to start first (play over music)
-          // Short types just fire between songs for simplicity unless mode=over_music
+          _handlingEnded=false;
           const mode=selectRodoPlaybackMode(interv);
           if(mode==='over_music'){
-            // Start next track, then DJ Rodo will duck over it
-            nextTrack();
-            setTimeout(()=>playDJRodo(interv).catch(()=>{}),800);
-            return;
+            // Start next song first, then DJ talks over it with ducking
+            playTrack(ni);
+            setTimeout(()=>{ if(!djRodoActive) playDJRodo(interv).catch(()=>{}); },600);
           }else{
-            playDJRodo(interv).catch(()=>{}).finally(()=>nextTrack());
-            return;
+            // DJ speaks between songs, then next song starts
+            cancelCrossfade();
+            playDJRodo(interv).catch(()=>{}).finally(()=>{
+              if(!isPlaying) playTrack(smartNextIdx());
+            });
           }
+          return;
         }
       } else if(shouldPlayCapsule()){
-        playCapsule().catch(()=>{}).finally(()=>nextTrack());
+        _handlingEnded=false;
+        cancelCrossfade();
+        playCapsule().catch(()=>{}).finally(()=>{
+          if(!isPlaying) playTrack(smartNextIdx());
+        });
         return;
       }
     }
   }
+
+  _handlingEnded=false;
   nextTrack();
 }
 function nextTrack(){if(!playlist.length)return;playTrack(smartNextIdx())}
@@ -3279,7 +3309,7 @@ function startMusicDucking(){
 function releaseMusicDucking(){
   const duckEnabled=document.getElementById('djDuckingEnabled')?.checked;
   if(!duckEnabled){if(_duckRamp){clearInterval(_duckRamp);_duckRamp=null;}return;}
-  const targetVol=(radioState.volume||80)/100;
+  const targetVol=parseInt(document.getElementById('volS')?.value||'80')/100;
   _duckRampTo(targetVol,1200,30,()=>{
     updateDJStatusChip(document.getElementById('djRodoEnabled')?.checked?'standby':'off');
   });
