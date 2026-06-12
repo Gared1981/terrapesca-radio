@@ -1022,7 +1022,9 @@ input:checked + .toggle-slider::before{background:var(--red);transform:translate
       <div style="margin-top:10px;padding:8px 10px;background:var(--navy2);border:1px solid var(--border2);border-radius:7px;display:flex;align-items:center;gap:8px">
         <span style="font-size:10px;color:var(--text3);font-family:'Share Tech Mono',monospace;white-space:nowrap">VOZ:</span>
         <select id="spotVozSelect" class="inp" style="margin-bottom:0;font-size:11px;padding:5px 8px;flex:1">
-          <option value="eleguar">🎙️ Eleguar — Locutor latinoamericano nativo</option>
+          <option value="eleguar">🎙️ Eleguar — Masculina latinoamericana</option>
+          <option value="latinFem">🎤 Latin Female — Femenina suave latina</option>
+          <option value="daniela">🎤 Daniela — Femenina energética latina</option>
         </select>
       </div>
 
@@ -1102,7 +1104,9 @@ input:checked + .toggle-slider::before{background:var(--red);transform:translate
           <div class="prod-row">
             <span class="prod-label">Voz</span>
             <select class="prod-select" id="capsulaVozSel">
-              <option value="eleguar">Eleguar — Locutor latinoamericano nativo</option>
+              <option value="eleguar">Eleguar — Masculina latinoamericana</option>
+              <option value="latinFem">Latin Female — Femenina suave latina</option>
+              <option value="daniela">Daniela — Femenina energética latina</option>
             </select>
           </div>
           <div class="prod-row">
@@ -1142,7 +1146,9 @@ input:checked + .toggle-slider::before{background:var(--red);transform:translate
           <div class="prod-row">
             <span class="prod-label">Voz</span>
             <select id="djRodoVoice" style="flex:1;background:var(--navy2);border:1px solid var(--border2);border-radius:5px;color:var(--text2);padding:4px 6px;font-size:11px" onchange="saveDJRodoConfig()">
-              <option value="eleguar">Eleguar — Locutor latinoamericano nativo</option>
+              <option value="eleguar">Eleguar — Masculina</option>
+              <option value="latinFem">Latin Female — Femenina suave</option>
+              <option value="daniela">Daniela — Femenina energética</option>
             </select>
           </div>
           <div class="prod-row">
@@ -1734,12 +1740,15 @@ setTimeout(()=>{
 
 // Voices pool — Eleguar: locutor latinoamericano nativo
 const VOICES={
-  eleguar:{id:'T7QGPtToiqH4S8VlIkMJ', label:'Eleguar'},
+  eleguar:    {id:'T7QGPtToiqH4S8VlIkMJ', label:'Eleguar — Masculina latinoamericana'},
+  latinFem:   {id:'9EU0h6CVtEDS6vriwwq5', label:'Latin Female — Femenina suave latina'},
+  daniela:    {id:'ajOR9IDAaubDK5qtLUqQ', label:'Daniela — Femenina energética latina'},
 };
 const VOICE_ROTATION=['eleguar'];
 let voiceRotIdx=0;
 function pickVoiceId(){
-  return VOICES.eleguar;
+  const sel=document.getElementById('spotVozSelect')?.value||'eleguar';
+  return VOICES[sel]||VOICES.eleguar;
 }
 // Strip ElevenLabs v3 expression tags — eleven_multilingual_v2 los lee en voz alta
 function stripElTags(t){return t.replace(/\[[^\]]*\]/g,'').replace(/\s{2,}/g,' ').trim();}
@@ -2042,26 +2051,31 @@ function playTrack(idx,opts={}){
     sendWS({type:'PLAY',track:{type:'yt',name:t.name,ytId:t.ytId},position:0});
 
   }else if(t.type==='spot'&&t.b64){
-    // Spot: stop any existing spot first, then duck music and play overlay
-    if(currentSpotAu){currentSpotAu.pause();currentSpotAu.src='';currentSpotAu=null;}
+    // Spot: duck music, play narration + jingle; close when BOTH finish
     document.getElementById('yt-container').style.display='none';
     ensureTrackUrl(t);
+    if(currentSpotAu){currentSpotAu.pause();currentSpotAu.src='';currentSpotAu=null;}
     startMusicDucking();
-    playJingle();
+    const finishSpot=()=>{
+      stopJingle();releaseMusicDucking();
+      const ni=smartNextIdx();
+      if(ni!==curIdx) playTrack(ni); else nextTrack();
+    };
+    const hasJingle=!!(jingleUrl||jingleB64);
+    const gate=makeSpotDoneGate(finishSpot);
+    playJingle(gate.jingleDone);
+    if(!hasJingle) gate.jingleDone(); // no jingle → gate pre-releases that side
     const spotAu=new Audio(t.url);
     currentSpotAu=spotAu;
     spotAu.volume=parseInt(document.getElementById('volS').value)/100;
     spotAu.play().catch(()=>{});
     spotAu.addEventListener('ended',()=>{
       if(currentSpotAu===spotAu)currentSpotAu=null;
-      stopJingle();
-      releaseMusicDucking();
-      const ni=smartNextIdx();
-      if(ni!==curIdx) playTrack(ni); else nextTrack();
+      gate.narrationDone();
     });
     spotAu.addEventListener('error',()=>{
       if(currentSpotAu===spotAu)currentSpotAu=null;
-      stopJingle();releaseMusicDucking();nextTrack();
+      gate.narrationDone();
     });
     sendWS({type:'SPOT',track:{type:'spot',name:t.name,b64:t.b64,jingleB64:jingleB64||null}});
 
@@ -2200,49 +2214,45 @@ function playSpotManual(spot, opts={}){
   ensureTrackUrl(spot);
   if(!spot.url) return;
   if(opts.auto){
-    // Auto spot: duck music and overlay
+    // Auto spot: duck music and overlay; close with jingle
     if(currentSpotAu){currentSpotAu.pause();currentSpotAu.src='';currentSpotAu=null;}
     startMusicDucking();
-    playJingle();
+    const finishAuto=()=>{stopJingle();releaseMusicDucking();nextTrack();};
+    const hasJingle=!!(jingleUrl||jingleB64);
+    const gate=makeSpotDoneGate(finishAuto);
+    playJingle(gate.jingleDone);
+    if(!hasJingle) gate.jingleDone();
     const au=new Audio(spot.url);
     currentSpotAu=au;
     au.volume=parseInt(document.getElementById('volS').value)/100;
     au.play().catch(()=>{});
-    au.addEventListener('ended',()=>{
-      if(currentSpotAu===au) currentSpotAu=null;
-      stopJingle();
-      releaseMusicDucking();
-      nextTrack();
-    });
-    au.addEventListener('error',()=>{
-      if(currentSpotAu===au) currentSpotAu=null;
-      stopJingle();releaseMusicDucking();nextTrack();
-    });
+    au.addEventListener('ended',()=>{if(currentSpotAu===au)currentSpotAu=null;gate.narrationDone();});
+    au.addEventListener('error',()=>{if(currentSpotAu===au)currentSpotAu=null;gate.narrationDone();});
   } else {
-    // Manual spot: pause music, play spot at full volume, then resume
+    // Manual spot: pause music, play spot at full volume, close with jingle, then resume
     const wasPlaying=isPlaying;
     const resumeIdx=curIdx;
     if(audioEl){audioEl.pause();}
     if(ytReady&&ytPlayer) try{ytPlayer.pauseVideo();}catch(e){}
     if(currentSpotAu){currentSpotAu.pause();currentSpotAu.src='';currentSpotAu=null;}
-    playJingle();
-    const au=new Audio(spot.url);
-    currentSpotAu=au;
-    au.volume=parseInt(document.getElementById('volS').value)/100;
-    au.play().catch(()=>{});
-    au.addEventListener('ended',()=>{
-      if(currentSpotAu===au) currentSpotAu=null;
+    const finishManual=()=>{
       stopJingle();
       if(wasPlaying&&resumeIdx>=0&&resumeIdx<playlist.length){
         const t=playlist[resumeIdx];
         if(audioEl&&t&&t.type!=='yt'){audioEl.play().catch(()=>{});}
         else if(t&&t.type==='yt'&&ytReady){try{ytPlayer.playVideo();}catch(e){}}
       }
-    });
-    au.addEventListener('error',()=>{
-      if(currentSpotAu===au) currentSpotAu=null;
-      stopJingle();
-    });
+    };
+    const hasJingle=!!(jingleUrl||jingleB64);
+    const gate=makeSpotDoneGate(finishManual);
+    playJingle(gate.jingleDone);
+    if(!hasJingle) gate.jingleDone();
+    const au=new Audio(spot.url);
+    currentSpotAu=au;
+    au.volume=parseInt(document.getElementById('volS').value)/100;
+    au.play().catch(()=>{});
+    au.addEventListener('ended',()=>{if(currentSpotAu===au)currentSpotAu=null;gate.narrationDone();});
+    au.addEventListener('error',()=>{if(currentSpotAu===au)currentSpotAu=null;gate.narrationDone();});
   }
   sendWS({type:'SPOT',track:{type:'spot',name:spot.name,b64:spot.b64||null,jingleB64:jingleB64||null}});
 }
@@ -2535,21 +2545,31 @@ function removeJingle(){
   document.getElementById('jingleF').value='';
   showToast('Jingle eliminado','info');
 }
-function playJingle(){
+function playJingle(onJingleEnd){
   // Recreate blob URL from b64 if URL is gone (e.g., after page restore)
   if(!jingleUrl&&jingleB64){
     try{
       const bin=atob(jingleB64),arr=new Uint8Array(bin.length);
       for(let i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i);
       jingleUrl=URL.createObjectURL(new Blob([arr],{type:'audio/mpeg'}));
-    }catch(e){return}
+    }catch(e){if(onJingleEnd)onJingleEnd();return;}
   }
-  if(!jingleUrl)return;
-  if(jingleAudio){jingleAudio.pause();jingleAudio=null}
+  if(!jingleUrl){if(onJingleEnd)onJingleEnd();return;}
+  if(jingleAudio){jingleAudio.pause();jingleAudio=null;}
   jingleAudio=new Audio(jingleUrl);
   jingleAudio.volume=jingleVolume;
-  jingleAudio.loop=true;
-  jingleAudio.play().catch(()=>{});
+  jingleAudio.loop=false; // play once — spot closes with jingle end
+  if(onJingleEnd) jingleAudio.addEventListener('ended',onJingleEnd,{once:true});
+  jingleAudio.play().catch(()=>{if(onJingleEnd)onJingleEnd();});
+}
+// Returns {narrationDone, jingleDone} callbacks — onDone fires when BOTH are called
+function makeSpotDoneGate(onDone){
+  let nd=false, jd=false;
+  const tryDone=()=>{if(nd&&jd)onDone();};
+  return {
+    narrationDone:()=>{nd=true;tryDone();},
+    jingleDone:()=>{jd=true;tryDone();},
+  };
 }
 function stopJingle(){
   if(jingleAudio){jingleAudio.pause();jingleAudio.currentTime=0;jingleAudio=null}
@@ -2877,7 +2897,8 @@ function buildCapsulaText(hora){
 }
 
 function pickCapsulaVoz(){
-  return VOICES.eleguar;
+  const sel=document.getElementById('capsulaVozSel')?.value||'eleguar';
+  return VOICES[sel]||VOICES.eleguar;
 }
 
 function playLiveSFX(){
@@ -3544,7 +3565,7 @@ async function playDJRodo(type){
     showToast('DJ Rodo: falta clave ElevenLabs');
     return;
   }
-  const voiceId=VOICES.eleguar.id;
+  const voiceId=(VOICES[document.getElementById('djRodoVoice')?.value||'eleguar']||VOICES.eleguar).id;
   try{
     const r=await fetch(`/api/elevenlabs/${voiceId}`,{
       method:'POST',
@@ -3674,7 +3695,7 @@ function saveDJRodoConfig(){
     freq:djRodoFreq,
     mode:djRodoMode,
     expLevel:djRodoExpLevel,
-    voice:'eleguar',
+    voice:document.getElementById('djRodoVoice')?.value||'eleguar',
     duckEnabled:document.getElementById('djDuckingEnabled')?.checked??true,
     duckLevel:document.getElementById('djDuckLevel')?.value||'30',
     optHora:document.getElementById('djOptHora')?.checked??true,
