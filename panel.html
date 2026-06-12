@@ -1405,6 +1405,26 @@ function sendWS(data) {
   if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(data));
 }
 
+// Build minimal track object for WS — include b64 audio for MP3 tracks so server can stream it
+function buildTrackMsg(t) {
+  if (!t) return null;
+  if (t.type === 'yt') return {type:'yt', name:t.name, ytId:t.ytId};
+  // For uploaded MP3: convert audioData (ArrayBuffer) to b64 so server can stream it
+  const msg = {type:'mp3', name:t.name};
+  if (t.audioData && t.audioData.byteLength < 12 * 1024 * 1024) { // max 12MB
+    try {
+      const bytes = new Uint8Array(t.audioData);
+      let bin = '';
+      const chunk = 8192;
+      for (let i = 0; i < bytes.length; i += chunk) {
+        bin += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+      }
+      msg.b64 = btoa(bin);
+    } catch(e) { /* skip if conversion fails */ }
+  }
+  return msg;
+}
+
 // ---- CONFIG ----
 function openConfig() {
   document.getElementById('cfgWs').value = cfg.ws;
@@ -1886,7 +1906,7 @@ function startCrossfade(nextIdx,outgoing){
   audioEl2.play().then(()=>{
     curIdx=nextIdx;
     updateNP(t);renderPlaylist();recordPlayback(t);triggerSave();
-    sendWS({type:'PLAY',track:{type:'mp3',name:t.name},position:0});
+    sendWS({type:'PLAY',track:buildTrackMsg(t),position:0});
     fadeVolumeTo(audioEl2,targetVol,CROSSFADE_MS);
     fadeVolumeTo(outgoing,0,CROSSFADE_MS,()=>{
       outgoing.pause();outgoing.src='';
@@ -1964,7 +1984,7 @@ function playTrack(idx){
       incoming.volume=targetVol;
       startProg();
     });
-    sendWS({type:'PLAY',track:{type:'mp3',name:t.name},position:0});
+    sendWS({type:'PLAY',track:buildTrackMsg(t),position:0});
   }
 
   updateNP(t);setPlayUI(true);renderPlaylist();

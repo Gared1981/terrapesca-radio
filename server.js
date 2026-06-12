@@ -54,26 +54,30 @@ async function streamYouTubeVideo(videoId) {
     };
 
     stream.on('data', writeToStreamClients);
-    stream.on('end', () => { currentStreamDestroy = null; resolve(); });
-    stream.on('error', (e) => { currentStreamDestroy = null; reject(e); });
+    stream.on('end', () => { currentStreamDestroy = null; streamBusy = false; resolve(); });
+    stream.on('error', (e) => { currentStreamDestroy = null; streamBusy = false; reject(e); });
   });
 }
 
 async function streamAudioBuffer(buffer) {
-  // Stream a raw audio buffer (for spots/MP3s) to all clients
-  const CHUNK = 8192;
+  // Stream a raw audio buffer at roughly real-time rate
+  // 128kbps = 16000 bytes/sec → chunk every 100ms = 1600 bytes
+  const CHUNK = 1600;
+  const INTERVAL = 100; // ms
+  let cancelled = false;
+  currentStreamDestroy = () => { cancelled = true; };
   for (let i = 0; i < buffer.length; i += CHUNK) {
+    if (cancelled) break;
     writeToStreamClients(buffer.slice(i, i + CHUNK));
-    await new Promise(r => setTimeout(r, 20));
+    await new Promise(r => setTimeout(r, INTERVAL));
   }
+  if (!cancelled) currentStreamDestroy = null;
 }
 
 // Called when the panel sends a PLAY/SPOT WebSocket message
 function startStreamTrack(track) {
-  // Cancel current stream
   if (currentStreamDestroy) { currentStreamDestroy(); currentStreamDestroy = null; }
   streamBusy = false;
-
   if (!track) return;
 
   if (track.type === 'yt' && track.ytId && ytdl) {
@@ -81,12 +85,32 @@ function startStreamTrack(track) {
     streamYouTubeVideo(track.ytId)
       .then(() => { streamBusy = false; })
       .catch(e => {
-        console.error('Stream error for', track.ytId, e.message);
+        console.error('ytdl error for', track.ytId, e.message);
         streamBusy = false;
-        // Send short silence so clients don't hang
-        writeToStreamClients(silenceChunk(500));
+        // Do NOT send invalid silence bytes — just let the connection stay open silently
       });
+  } else if (track.b64) {
+    // Uploaded MP3: base64-encoded audio from panel
+    streamBusy = true;
+    const buf = Buffer.from(track.b64, 'base64');
+    streamAudioBuffer(buf)
+      .then(() => { streamBusy = false; })
+      .catch(() => { streamBusy = false; });
   }
+}
+
+// Keep stream connections alive with a periodic TCP-level write
+// Sends valid ID3v2 padding bytes — browsers ignore unknown ID3 frames
+let _keepaliveInterval = null;
+function startStreamKeepalive() {
+  if (_keepaliveInterval) return;
+  _keepaliveInterval = setInterval(() => {
+    if (streamClients.size > 0 && !streamBusy) {
+      // ID3v2 "PRIV" frame with 0 bytes — valid ID3 tag ignored by audio decoders
+      const ka = Buffer.from([0x49, 0x44, 0x33, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
+      writeToStreamClients(ka);
+    }
+  }, 5000);
 }
 
 // ---- HTTP PROXY HELPERS ----
@@ -144,7 +168,8 @@ const server = http.createServer((req, res) => {
   }
 
   // ── /radio/stream — continuous HTTP audio stream ──
-  if (req.url === '/radio/stream' || req.url === '/live.mp3' || req.url === '/stream.mp3') {
+  const urlPath = req.url.split('?')[0];
+  if (urlPath === '/radio/stream' || urlPath === '/live.mp3' || urlPath === '/stream.mp3') {
     res.writeHead(200, {
       'Content-Type': 'audio/mpeg',
       'Transfer-Encoding': 'chunked',
@@ -158,9 +183,10 @@ const server = http.createServer((req, res) => {
     });
     streamClients.add(res);
     console.log(`Stream client connected. Total: ${streamClients.size}`);
+    startStreamKeepalive();
 
-    // If a track is currently playing, start streaming it to this new client
-    if (radioState.isPlaying && radioState.currentTrack?.ytId && ytdl && !streamBusy) {
+    // Only start new stream if nothing is currently streaming
+    if (radioState.isPlaying && radioState.currentTrack && !streamBusy) {
       startStreamTrack(radioState.currentTrack);
     }
 

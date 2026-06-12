@@ -253,7 +253,9 @@ const streamSrc = location.origin + '/radio/stream';
 let playing = false, started = false;
 let intentionalPause = false, reconnecting = false;
 let currentTrack = null, ws = null, wsTimer = null;
-let retryTimer = null, watchdogTimer = null;
+let retryTimer = null;
+let retryCount = 0;
+const MAX_RETRIES = 4;
 
 document.getElementById('streamPill').textContent = streamSrc;
 audio.volume = 0.9;
@@ -261,20 +263,26 @@ audio.volume = 0.9;
 // ── Audio events ──
 audio.addEventListener('playing', () => {
   playing = true; reconnecting = false; intentionalPause = false;
-  clearTimeout(retryTimer); clearTimeout(watchdogTimer);
+  retryCount = 0;
+  clearTimeout(retryTimer);
   setPlayUI(true);
   setStatus('● EN VIVO', 'live');
   document.getElementById('liveLabel').style.display = '';
   document.getElementById('viz').classList.remove('paused');
 });
 
-audio.addEventListener('waiting',  () => { if (!reconnecting && !intentionalPause) setStatus('Cargando...', 'connecting'); });
-audio.addEventListener('stalled',  () => { if (!reconnecting && !intentionalPause) setStatus('Cargando...', 'connecting'); });
+// Buffering — just show status, NEVER reconnect automatically
+audio.addEventListener('waiting', () => {
+  if (!intentionalPause && !reconnecting) setStatus('Cargando...', 'connecting');
+});
+audio.addEventListener('stalled', () => {
+  if (!intentionalPause && !reconnecting) setStatus('Cargando...', 'connecting');
+});
 
-audio.addEventListener('error', (e) => {
+// True network/decode error → retry with backoff, give up after MAX_RETRIES
+audio.addEventListener('error', () => {
   if (reconnecting || !started || intentionalPause) return;
-  setStatus('Sin señal...', 'error');
-  scheduleRetry(4000);
+  scheduleRetry();
 });
 
 audio.addEventListener('pause', () => {
@@ -282,45 +290,42 @@ audio.addEventListener('pause', () => {
   setPlayUI(false);
   document.getElementById('liveLabel').style.display = 'none';
   document.getElementById('viz').classList.add('paused');
-  // Only react if this wasn't triggered by our own reconnect/stop logic
-  if (!reconnecting && !intentionalPause && started) {
-    setStatus('Reconectando...', 'connecting');
-    scheduleRetry(3000);
-  } else if (intentionalPause) {
+  if (intentionalPause) {
     setStatus('Pausado', '');
   }
+  // Do NOT reconnect on pause — pauses can come from buffering or our own reconnect logic
 });
 
-function scheduleRetry(ms) {
+function scheduleRetry() {
+  if (retryCount >= MAX_RETRIES) {
+    setStatus('Sin transmisión activa ─ toca ▶ para reintentar', 'error');
+    return;
+  }
+  retryCount++;
+  const delay = retryCount * 3000; // 3s, 6s, 9s, 12s
+  setStatus(`Reconectando... (${retryCount}/${MAX_RETRIES})`, 'connecting');
   clearTimeout(retryTimer);
-  retryTimer = setTimeout(hardReconnect, ms);
+  retryTimer = setTimeout(hardReconnect, delay);
 }
 
 function hardReconnect() {
   if (!started || intentionalPause) return;
-  if (reconnecting) return; // already in progress
+  if (reconnecting) return;
   reconnecting = true;
-  clearTimeout(retryTimer); clearTimeout(watchdogTimer);
+  clearTimeout(retryTimer);
   setStatus('Reconectando...', 'connecting');
-
-  // Silently tear down without triggering our pause handler
   audio.pause();
   audio.removeAttribute('src');
-  // reset flag after microtask so the pause event above sees reconnecting=true
   setTimeout(() => {
     audio.src = streamSrc + '?t=' + Date.now();
+    reconnecting = false;
     const p = audio.play();
-    reconnecting = false; // allow future events
-    armWatchdog();
-    if (p && p.catch) p.catch(() => scheduleRetry(5000));
-  }, 350);
-}
-
-function armWatchdog() {
-  clearTimeout(watchdogTimer);
-  watchdogTimer = setTimeout(() => {
-    if (!playing && !intentionalPause && started) hardReconnect();
-  }, 15000);
+    if (p && p.catch) p.catch(() => {
+      // play() itself rejected — schedule another retry
+      if (retryCount < MAX_RETRIES) scheduleRetry();
+      else setStatus('Sin transmisión activa ─ toca ▶ para reintentar', 'error');
+    });
+  }, 300);
 }
 
 // ── Start overlay tap ──
@@ -335,12 +340,12 @@ function startListening() {
   startSWPing();
   setupMediaSessionBase();
 
-  // First play — no src change yet, just assign once
+  // First play — assign src once and play; only reconnect on true error
   audio.src = streamSrc;
   setStatus('Cargando...', 'connecting');
+  retryCount = 0;
   const p = audio.play();
-  armWatchdog();
-  if (p && p.catch) p.catch(() => scheduleRetry(1500));
+  if (p && p.catch) p.catch(() => scheduleRetry());
 }
 
 // ── Controls ──
@@ -348,11 +353,12 @@ function togglePlay() {
   if (!started) { startListening(); return; }
   if (audio.paused || !playing) {
     intentionalPause = false;
+    retryCount = 0; // manual retry always resets count
     hardReconnect();
   } else {
     intentionalPause = true;
     reconnecting = false;
-    clearTimeout(retryTimer); clearTimeout(watchdogTimer);
+    clearTimeout(retryTimer);
     audio.pause();
   }
 }
@@ -445,9 +451,8 @@ function startSWPing() {
   }, 20000);
 }
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden && started && !intentionalPause && !playing) {
-    // App came back to foreground — check if we need to reconnect
-    scheduleRetry(500);
+  if (!document.hidden && playing && navigator.mediaSession) {
+    navigator.mediaSession.playbackState = 'playing';
   }
 });
 </script>
