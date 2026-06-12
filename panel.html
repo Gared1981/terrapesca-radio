@@ -1741,6 +1741,8 @@ let voiceRotIdx=0;
 function pickVoiceId(){
   return VOICES.eleguar;
 }
+// Strip ElevenLabs v3 expression tags — eleven_multilingual_v2 los lee en voz alta
+function stripElTags(t){return t.replace(/\[[^\]]*\]/g,'').replace(/\s{2,}/g,' ').trim();}
 
 // ---- HORA RADIO ----
 const HORA_WORDS_H = ['','una','dos','tres','cuatro','cinco','seis','siete','ocho','nueve','diez','once','doce'];
@@ -1910,7 +1912,7 @@ async function generateSpot(){
       method:'POST',
       headers:{'Content-Type':'application/json','xi-api-key':cfg.apiKey},
       body:JSON.stringify({
-        text:script,
+        text:stripElTags(script),
         model_id:'eleven_multilingual_v2',
         language_code:'es',
         voice_settings:{stability:0.45,similarity_boost:0.8,style:0.35,use_speaker_boost:true}
@@ -2909,7 +2911,7 @@ async function playCapsule(){
       method:'POST',
       headers:{'Content-Type':'application/json','xi-api-key':cfg.apiKey},
       body:JSON.stringify({
-        text,model_id:'eleven_multilingual_v2',language_code:'es',
+        text:stripElTags(text),model_id:'eleven_multilingual_v2',language_code:'es',
         voice_settings:{stability:0.45,similarity_boost:0.8,style:0.35,use_speaker_boost:true}
       })
     });
@@ -3538,7 +3540,7 @@ async function playDJRodo(type){
       method:'POST',
       headers:{'Content-Type':'application/json','xi-api-key':cfg.apiKey},
       body:JSON.stringify({
-        text:script,
+        text:stripElTags(script),
         model_id:'eleven_multilingual_v2',
         language_code:'es',
         voice_settings:{stability:0.45,similarity_boost:0.8,style:0.35,use_speaker_boost:true}
