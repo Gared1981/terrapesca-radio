@@ -2685,8 +2685,8 @@ function buildDJRodoContext(type){
   const lastPhrase=djRodoLastPhrases.length?djRodoLastPhrases[djRodoLastPhrases.length-1]:'';
   return {
     type,hora,
-    currentSong:cur?{title:cur.title||'',artist:cur.sub||''}:null,
-    nextSong:nxt&&nxt.type!=='spot'?{title:nxt.title||'',artist:nxt.sub||''}:null,
+    currentSong:cur?{title:cur.name||cur.title||'',artist:cur.channelTitle||cur.sub||''}:null,
+    nextSong:nxt&&nxt.type!=='spot'?{title:nxt.name||nxt.title||'',artist:nxt.channelTitle||nxt.sub||''}:null,
     stationSlogan:cfg.slogan||'Tu tienda de pesca favorita',
     lastPhrase,
     lastType:djRodoLastType,
@@ -3577,7 +3577,9 @@ async function importPlaylistFromUrl() {
       id: 'yt_' + it.vid + '_' + Date.now() + '_' + Math.random().toString(36).slice(2),
       type: 'yt',
       ytId: it.vid,
+      name: it.title,
       title: it.title,
+      channelTitle: it.channel,
       sub: it.channel,
       thumb: it.thumb,
       url: null,
