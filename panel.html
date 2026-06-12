@@ -2268,7 +2268,8 @@ function handleEnded(){
             // DJ speaks between songs, then next song starts
             cancelCrossfade();
             playDJRodo(interv).catch(()=>{}).finally(()=>{
-              if(!isPlaying) playTrack(smartNextIdx());
+              const needsTrack=!audioEl||audioEl.paused||audioEl.ended;
+              if(needsTrack) playTrack(smartNextIdx());
             });
           }
           return;
@@ -2277,7 +2278,8 @@ function handleEnded(){
         _handlingEnded=false;
         cancelCrossfade();
         playCapsule().catch(()=>{}).finally(()=>{
-          if(!isPlaying) playTrack(smartNextIdx());
+          const needsTrack=!audioEl||audioEl.paused||audioEl.ended;
+          if(needsTrack) playTrack(smartNextIdx());
         });
         return;
       }
@@ -3011,8 +3013,7 @@ async function playCapsule(){
   const text=buildCapsulaText(hora);
   capsulaLastTime=Date.now();
 
-  // SFX sweep
-  if(document.getElementById('capsulaEfectoToggle')?.checked) await playLiveSFX();
+  // SFX removed — entradas limpias sin efectos
 
   // Cache lookup
   let blob=capsulaCache.get(text)||null;
@@ -3085,11 +3086,13 @@ function _restartDJAutoTimer(){
 function _djAutoTick(){
   const djOn=document.getElementById('djRodoEnabled')?.checked;
   if(!djOn||!isPlaying||djRodoActive)return;
-  // Bump all counters so decideDJIntervention() has fresh candidates
   incrementDJCounters();
   const type=decideDJIntervention();
   if(!type)return;
-  playDJRodo(type).catch(()=>{});
+  playDJRodo(type).catch(()=>{}).finally(()=>{
+    // If audio stopped while DJ was speaking, resume next track
+    if(isPlaying&&(!audioEl||audioEl.paused||audioEl.ended)) playTrack(smartNextIdx());
+  });
 }
 
 const _AUTO_WEATHER_CITIES=['culiacan','mazatlan','los_mochis'];
@@ -3764,12 +3767,10 @@ function playDJAudio(url,type){
       a.play().catch(()=>{djRodoActive=false;resolve();});
     };
     if(mode==='over_music'&&isPlaying){
-      if(useEfx) playLiveSFX();
       startMusicDucking();
-      setTimeout(playNow,useEfx?380:50);
+      setTimeout(playNow,80);
     }else{
-      if(useEfx){playLiveSFX();setTimeout(playNow,350);}
-      else playNow();
+      playNow();
     }
   });
 }
