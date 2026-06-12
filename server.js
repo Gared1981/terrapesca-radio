@@ -60,13 +60,20 @@ async function streamYouTubeVideo(videoId) {
 }
 
 async function streamAudioBuffer(buffer) {
-  // Stream a raw audio buffer at roughly real-time rate
-  // 128kbps = 16000 bytes/sec → chunk every 100ms = 1600 bytes
-  const CHUNK = 1600;
-  const INTERVAL = 100; // ms
+  // Send first ~5 seconds immediately so browser starts playing fast
+  const PREBUFFER = 80000; // ~5s at 128kbps
+  const HEAD = Math.min(PREBUFFER, buffer.length);
   let cancelled = false;
   currentStreamDestroy = () => { cancelled = true; };
-  for (let i = 0; i < buffer.length; i += CHUNK) {
+
+  writeToStreamClients(buffer.slice(0, HEAD));
+  if (cancelled || HEAD >= buffer.length) { if (!cancelled) currentStreamDestroy = null; return; }
+
+  // Stream remainder at 1.5× real-time: 24000 bytes/s → 48KB every 2s
+  // This keeps browser buffer ~1.5s ahead, absorbs jitter without excess latency
+  const CHUNK = 48000;
+  const INTERVAL = 2000;
+  for (let i = HEAD; i < buffer.length; i += CHUNK) {
     if (cancelled) break;
     writeToStreamClients(buffer.slice(i, i + CHUNK));
     await new Promise(r => setTimeout(r, INTERVAL));
@@ -99,18 +106,20 @@ function startStreamTrack(track) {
   }
 }
 
-// Keep stream connections alive with a periodic TCP-level write
-// Sends valid ID3v2 padding bytes — browsers ignore unknown ID3 frames
+// Keep stream connections alive between tracks using valid MPEG1 Layer3 silent frames.
+// Each frame: sync(FF FB) + header(90 04) + 413 bytes of zeros = 417 bytes ≈ 26ms of silence.
+// Sending 8 frames = ~208ms of valid silence keeps the browser's decoder happy during gaps.
+const SILENT_FRAME = Buffer.concat([Buffer.from([0xFF,0xFB,0x90,0x04]), Buffer.alloc(413)]);
+const SILENT_BURST = Buffer.concat(Array(8).fill(SILENT_FRAME)); // ~208ms silence
+
 let _keepaliveInterval = null;
 function startStreamKeepalive() {
   if (_keepaliveInterval) return;
   _keepaliveInterval = setInterval(() => {
     if (streamClients.size > 0 && !streamBusy) {
-      // ID3v2 "PRIV" frame with 0 bytes — valid ID3 tag ignored by audio decoders
-      const ka = Buffer.from([0x49, 0x44, 0x33, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
-      writeToStreamClients(ka);
+      writeToStreamClients(SILENT_BURST);
     }
-  }, 5000);
+  }, 3000); // every 3s during idle gaps between tracks
 }
 
 // ---- HTTP PROXY HELPERS ----
@@ -173,13 +182,14 @@ const server = http.createServer((req, res) => {
     res.writeHead(200, {
       'Content-Type': 'audio/mpeg',
       'Transfer-Encoding': 'chunked',
-      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Cache-Control': 'no-cache, no-store',
       'Connection': 'keep-alive',
       'Access-Control-Allow-Origin': '*',
       'icy-name': 'Radio Terrapesca',
       'icy-genre': 'Fishing & Outdoor',
       'icy-url': 'https://terrapesca.com',
-      'X-Content-Type-Options': 'nosniff'
+      'icy-metaint': '0',
+      'X-Content-Type-Options': 'nosniff',
     });
     streamClients.add(res);
     console.log(`Stream client connected. Total: ${streamClients.size}`);
