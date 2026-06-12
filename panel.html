@@ -1869,7 +1869,9 @@ ABSOLUTAMENTE PROHIBIDO:
 - Saludos, introducciones lentas, frases de radio genérica, mencionar precios.
 - Inventar especificaciones técnicas no confirmadas.
 ${horaBlock}
-FORMATO: Entrega ÚNICAMENTE el texto final del spot. Sin etiquetas, sin títulos, sin explicaciones.`;
+FORMATO DE RESPUESTA — dos partes obligatorias:
+TITULO: [título creativo y corto del spot, máximo 6 palabras, en español]
+GUION: [texto final del spot listo para narrar, sin etiquetas]`;
 }
 
 // ---- GENERATE SPOT ----
@@ -1907,8 +1909,13 @@ async function generateSpot(){
       })
     });
     const sd=await sr.json();
-    const script=sd.content?.[0]?.text||'';
-    if(!script)throw new Error('Sin respuesta de IA');
+    const raw=sd.content?.[0]?.text||'';
+    if(!raw)throw new Error('Sin respuesta de IA');
+    // Parsear TITULO y GUION del formato de respuesta
+    const titleMatch=raw.match(/TITULO:\s*(.+)/i);
+    const guionMatch=raw.match(/GUION:\s*([\s\S]+)/i);
+    const spotTitle=titleMatch?titleMatch[1].trim():spotLabel.substring(0,40);
+    const script=guionMatch?guionMatch[1].trim():raw;
 
     showStatus(`🎙️ Narrando con ${voz.label}...`,55);
     const tr=await fetch(`${baseUrl}/api/elevenlabs/${voz.id}`,{
@@ -1931,7 +1938,7 @@ async function generateSpot(){
       reader.onload=()=>res(reader.result.split(',')[1]);
       reader.readAsDataURL(blob);
     });
-    const spotName=`🎙️ SPOT [${voz.label}] — ${spotLabel.substring(0,30)}`;
+    const spotName=`🎙️ ${spotTitle}`;
     spotsLibrary.push({type:'spot',name:spotName,url:audioUrl,b64,script});
     renderSpots();
     sendWS({type:'SPOT',track:{type:'spot',name:spotName,b64,jingleB64:jingleB64||null}});
