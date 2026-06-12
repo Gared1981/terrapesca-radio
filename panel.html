@@ -2077,7 +2077,9 @@ function _runTransition(el,nextIdx){
       djRodoActive=true; // block watchdog & handleEnded during the gap
       fadeVolumeTo(el,0,900,()=>{el.pause();el.src='';if(audioEl===el)audioEl=null;});
       let _advanced=false;
-      const after=()=>{ if(_advanced)return; _advanced=true; playTrack(nextIdx); };
+      const after=()=>{ if(_advanced)return; _advanced=true; clearTimeout(_safety); _stopDJNow(); playTrack(nextIdx); };
+      // Safety: if DJ/spot hangs (slow network), advance anyway after 25s
+      const _safety=setTimeout(after,25000);
       if(item.kind==='spot'){
         djRodoActive=false;
         _playSpotBetween(after);
@@ -2166,6 +2168,15 @@ function playTrack(idx,opts={}){
   cancelCrossfade();
   curIdx=idx;
   const t=playlist[idx];
+
+  // Starting a real track cancels any in-progress DJ Rodo intervention,
+  // and (unless this IS a spot) any playing library spot. Prevents a stuck
+  // djRodoActive from blocking playback when the user clicks a song.
+  if(t.type!=='spot'){
+    _stopDJNow();
+    if(currentSpotAu){try{currentSpotAu.pause();currentSpotAu.src='';}catch(e){}currentSpotAu=null;}
+    stopJingle();
+  }
 
   if(t.type==='yt'){
     // YT: kill audioEl, hand off to YT player
@@ -2318,7 +2329,8 @@ function handleEnded(){
         _handlingEnded=false;
         cancelCrossfade();
         let _adv=false;
-        const go=()=>{ if(_adv)return; _adv=true; playTrack(ni); };
+        const go=()=>{ if(_adv)return; _adv=true; clearTimeout(_safetyE); _stopDJNow(); playTrack(ni); };
+        const _safetyE=setTimeout(go,25000);
         if(item.kind==='spot'){
           _playSpotBetween(go);
         }else{
@@ -3825,30 +3837,31 @@ function releaseMusicDucking(){
   });
 }
 
+let _djAudioEl=null; // currently playing DJ Rodo audio element
+
 function playDJAudio(url,type){
   return new Promise(resolve=>{
-    const useEfx=document.getElementById('djOptEfectos')?.checked;
     const mode=selectRodoPlaybackMode(type);
     const vol=(document.getElementById('capsulaVolSlider')?.value||80)/100;
+    let done=false;
+    const finish=()=>{
+      if(done)return; done=true;
+      try{URL.revokeObjectURL(url);}catch(e){}
+      _djAudioEl=null;
+      djRodoActive=false;
+      if(mode==='over_music') releaseMusicDucking();
+      else updateDJStatusChip(document.getElementById('djRodoEnabled')?.checked?'standby':'off');
+      resolve();
+    };
     const playNow=()=>{
       djRodoActive=true;
       updateDJStatusChip('live');
       const a=new Audio(url);
+      _djAudioEl=a;
       a.volume=vol;
-      a.onended=()=>{
-        URL.revokeObjectURL(url);
-        djRodoActive=false;
-        if(mode==='over_music') releaseMusicDucking();
-        else updateDJStatusChip(document.getElementById('djRodoEnabled')?.checked?'standby':'off');
-        resolve();
-      };
-      a.onerror=()=>{
-        djRodoActive=false;
-        if(mode==='over_music') releaseMusicDucking();
-        else updateDJStatusChip('standby');
-        resolve();
-      };
-      a.play().catch(()=>{djRodoActive=false;resolve();});
+      a.onended=finish;
+      a.onerror=finish;
+      a.play().catch(finish);
     };
     if(mode==='over_music'&&isPlaying){
       startMusicDucking();
@@ -3857,6 +3870,13 @@ function playDJAudio(url,type){
       playNow();
     }
   });
+}
+
+// Force-stop any in-progress DJ Rodo intervention (used when user takes manual control).
+function _stopDJNow(){
+  if(_djAudioEl){try{_djAudioEl.pause();_djAudioEl.src='';}catch(e){}_djAudioEl=null;}
+  djRodoActive=false;
+  if(_duckRamp){clearInterval(_duckRamp);_duckRamp=null;}
 }
 
 async function testDJTalkOver(){
