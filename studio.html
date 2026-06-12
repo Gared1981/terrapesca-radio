@@ -56,7 +56,8 @@ header{display:flex;align-items:center;justify-content:space-between;gap:10px;
 .deck-state{font-family:var(--mono);font-size:9px;letter-spacing:1.5px;color:var(--txt3)}
 .deck-state.playing{color:var(--grn)}
 .deck-state.cued{color:var(--amber)}
-.deck-thumb{width:100%;aspect-ratio:16/7;border-radius:9px;background:#000 center/cover;border:1px solid var(--line);margin-bottom:10px;position:relative}
+.deck-thumb{width:100%;aspect-ratio:16/7;border-radius:9px;background:#000 center/cover;border:1px solid var(--line);margin-bottom:10px;position:relative;overflow:hidden}
+.deck-thumb iframe,.deck-thumb>div{width:100%;height:100%;border:0;display:block}
 .deck-title{font-size:13px;font-weight:700;line-height:1.25;height:34px;overflow:hidden;margin-bottom:2px}
 .deck-artist{font-size:11px;color:var(--txt2);margin-bottom:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .deck-time{display:flex;justify-content:space-between;font-family:var(--mono);font-size:15px;color:var(--cyan);margin-bottom:6px}
@@ -177,7 +178,7 @@ input[type=range]::-moz-range-thumb{width:18px;height:24px;border-radius:5px;bac
   <div class="decks">
     <div class="deck A" id="deckA">
       <div class="deck-top"><span class="deck-id">DECK A</span><span class="deck-state" id="stA">vacío</span></div>
-      <div class="deck-thumb" id="thA"></div>
+      <div class="deck-thumb" id="thA"><div id="ytA"></div></div>
       <div class="deck-title" id="tiA">—</div>
       <div class="deck-artist" id="arA"></div>
       <div class="deck-time"><span id="elA">0:00</span><span class="rem" id="reA">-0:00</span></div>
@@ -212,7 +213,7 @@ input[type=range]::-moz-range-thumb{width:18px;height:24px;border-radius:5px;bac
 
     <div class="deck B" id="deckB">
       <div class="deck-top"><span class="deck-id">DECK B</span><span class="deck-state" id="stB">vacío</span></div>
-      <div class="deck-thumb" id="thB"></div>
+      <div class="deck-thumb" id="thB"><div id="ytB"></div></div>
       <div class="deck-title" id="tiB">—</div>
       <div class="deck-artist" id="arB"></div>
       <div class="deck-time"><span id="elB">0:00</span><span class="rem" id="reB">-0:00</span></div>
@@ -273,7 +274,6 @@ input[type=range]::-moz-range-thumb{width:18px;height:24px;border-radius:5px;bac
   </div>
 </div>
 
-<div class="yt-hidden"><div id="ytA"></div><div id="ytB"></div></div>
 <div class="toast" id="toast"></div>
 
 <script src="https://www.youtube.com/iframe_api"></script>
@@ -322,8 +322,15 @@ function onYouTubeIframeAPIReady(){
       height:'100%',width:'100%',
       playerVars:{autoplay:0,controls:0,modestbranding:1,rel:0,playsinline:1},
       events:{
-        onReady:()=>{d.ready=true;d.player.setVolume(0);},
+        onReady:()=>{d.ready=true;d.player.setVolume(0);console.log('[YT] deck '+(d.id?'B':'A')+' ready');},
         onStateChange:(e)=>onDeckState(d,e),
+        onError:(e)=>{ // 101/150 = embedding disabled, 100 = removed, 2 = bad id
+          console.warn('[YT] error',e.data,'deck',d.id);
+          if(d.id===activeDeck && !_xfading && !djActive){
+            toast('⚠️ Video no disponible, saltando…','');
+            advanceNoXfade();
+          }
+        },
       }
     });
   });
