@@ -239,7 +239,7 @@ input[type=range]::-webkit-slider-thumb{
     <div class="controls-section">
       <div class="transport">
         <button class="btn-sk" onclick="skipPrev()">⏮</button>
-        <button class="btn-play" id="btnPlay" onclick="togglePlay()">⏸</button>
+        <button class="btn-play" id="btnPlay" onclick="togglePlay()">▶</button>
         <button class="btn-sk" onclick="skipNext()">⏭</button>
       </div>
 
@@ -297,9 +297,8 @@ audio.addEventListener('pause', () => {
 
 function reconnectAudio() {
   if (!started) return;
-  audio.src = streamSrc + '?t=' + Date.now();
-  audio.load();
-  audio.play().catch(() => {});
+  _playRetries = 0;
+  doPlay();
 }
 
 // ── First tap — only called from user gesture ──
@@ -311,24 +310,40 @@ function startListening() {
   overlay.classList.add('hidden');
   setTimeout(() => { overlay.style.display = 'none'; }, 380);
 
-  audio.src = streamSrc;
-  audio.load();
-  audio.play().catch(() => setStatus('Toca ▶ para escuchar', ''));
-
   connectWS();
   startSWPing();
   setupMediaSessionBase();
+  doPlay();
+}
+
+let _playRetries = 0;
+function doPlay() {
+  setStatus('Cargando...', 'connecting');
+  // Always set a fresh URL to avoid cached/stale state
+  audio.src = streamSrc + '?t=' + Date.now();
+  const p = audio.play();
+  if (p && p.catch) {
+    p.catch(err => {
+      // NotAllowedError = browser blocked (shouldn't happen here, we have gesture)
+      // AbortError = load() was called before play() resolved — retry once
+      if (_playRetries < 3) {
+        _playRetries++;
+        setTimeout(doPlay, 1500);
+      } else {
+        setStatus('Sin señal — reintentando...', 'error');
+        _playRetries = 0;
+        setTimeout(doPlay, 5000);
+      }
+    });
+  }
 }
 
 // ── Controls ──
 function togglePlay() {
   if (!started) { startListening(); return; }
   if (audio.paused) {
-    if (!audio.src || audio.src === location.href) {
-      audio.src = streamSrc + '?t=' + Date.now();
-      audio.load();
-    }
-    audio.play().catch(() => setStatus('Error al reproducir', 'error'));
+    _playRetries = 0;
+    doPlay();
   } else {
     audio.pause();
   }
