@@ -1822,51 +1822,49 @@ INSTRUCCIONES PARA INTEGRAR LA HORA:
 - La hora NO debe reemplazar ni cortar el gancho principal.
 - Sustituye {{HORA_RADIO}} con la frase exacta: "${horaRadio}"
 `:'';
-  return `Actúa como un guionista y locutor mexicano profesional de radio comercial para Terrapesca.
+  // Elige apertura aleatoria para forzar variedad entre spots
+  const aperturas=[
+    'escena de pesca: el momento exacto donde el equipo malo arruina la oportunidad',
+    'dolor del pescador: la frustración de perder una pieza por equipo que falla',
+    'comparación: la diferencia que se siente entre equipo bueno y equipo barato',
+    'urgencia: hay peces, hay condiciones, pero sin el equipo correcto no pasa nada',
+    'aspiración: el pescador que llega bien equipado vs el que improvisa',
+    'desafío directo: pregunta que hace pensar al oyente sobre su equipo actual',
+    'dato sensorial: el sonido, tacto o sensación de equipo de calidad en acción',
+    'historia de 2 oraciones: alguien que falló por equipo malo, luego cambió',
+  ];
+  const apertura=aperturas[Math.floor(Math.random()*aperturas.length)];
 
-OBJETIVO: Crear un spot de radio rápido, dinámico, persuasivo y natural a partir del siguiente producto o modelo:
+  const estilosVenta={
+    'eufórico':'URGENCIA + EMOCIÓN: alta energía, frases cortas y explosivas, sensación de que hay que ir YA a Terrapesca.',
+    'dinámico':'CONFIANZA + ACCIÓN: ritmo ágil, beneficio claro, cierre contundente.',
+    'elegante':'ASPIRACIÓN + CALIDAD: tono premium, el pescador que no se conforma con menos.',
+    'urgente':'ESCASEZ + AHORA: el momento es hoy, el equipo se acaba, no hay segunda oportunidad.',
+  };
+  const estrategia=estilosVenta[estilo]||estilosVenta['eufórico'];
+
+  return `Eres el mejor guionista de radio comercial de México. Creas spots que hacen que la gente QUIERA ir a comprar ahora mismo.
+
+PRODUCTO(S) A ANUNCIAR:
 ${contenido}
 
-REGLA PRINCIPAL: El anuncio debe comenzar DIRECTO AL GRANO.
+MISIÓN: Un spot de 15-20 segundos que sea 100% único para ESTE producto específico. No genérico. No podría funcionar para otro artículo.
 
-PROHIBIDO iniciar con: "Hey pescador", "Ey oyente", "Hola amigos", "Atención pescadores", "Si eres amante de la pesca", "Amigo de la pesca", "Qué tal", "Escucha esto", "No te pierdas", "Tenemos para ti".
-NO saludes. NO presentes el anuncio. NO hagas introducción lenta. NO suenes como IA. NO uses frases genéricas de comercial barato.
+ESTRATEGIA DE VENTA: ${estrategia}
 
-ESTILO DE LOCUCIÓN: ${tags}[radio announcer][upbeat][commercial tone][latin mexican radio host][natural delivery][warm]
-Ritmo rápido pero claro. Frases cortas. Energía media-alta. Sin pausas largas. Como locutor de radio FM mexicana en vivo. Acento latinoamericano neutro con sabor mexicano. Debe sonar como una recomendación fuerte y cercana, no como ficha técnica.
+APERTURA OBLIGATORIA (elige esta técnica): ${apertura}
 
-ESTRUCTURA OBLIGATORIA:
+REGLAS DE ORO:
+- Primera frase: gancho de impacto. Sin saludos, sin presentación, sin contexto.
+- Menciona el producto por nombre exacto mínimo 1 vez, máximo 2.
+- Convierte características en beneficios concretos: no "alta resistencia" → "aguanta la pelea sin temblarte la mano".
+- Disparo de compra claro: "pregunta por él en Terrapesca", "pídelo hoy", "ve a Terrapesca".
+- Cierre de marca: "${cfg.slogan}"
+- Cada spot debe sonar DIFERENTE a cualquier otro. Varía estructura, ritmo, ángulo de venta.
 
-1. ARRANQUE DIRECTO CON PROBLEMA, ESCENA O DOLOR
-   Frase de impacto inmediata. Ejemplos:
-   "Cuando el pez pega fuerte, el equipo barato se delata."
-   "Llegar al punto bueno y fallar por el equipo… eso sí duele."
-   "Si el carrete se amarra justo cuando más lo necesitas, ya perdiste la pelea."
-
-2. TENSIÓN COMERCIAL — el problema real: falta de fuerza, mala respuesta, desgaste, pérdida de oportunidad.
-
-3. PRODUCTO — presenta el modelo de forma natural. No más de 2 veces.
-
-4. BENEFICIO — características convertidas en beneficios reales: más control, mejor respuesta, más confianza, menos cansancio, mayor duración.
-
-5. GANCHO DE VENTA:
-   "No es comprar por comprar, es equiparte para no fallar."
-   "El momento bueno no avisa dos veces."
-   "Cuando la pelea empieza, ahí se nota qué traes en la mano."
-
-6. LLAMADO A LA ACCIÓN — invita a preguntar por disponibilidad en Terrapesca. Natural, rápido, comercial.
-
-7. CIERRE DE MARCA: "${cfg.slogan}"
+PROHIBIDO: "Hey pescador", "Hola amigos", "Atención", saludos, introducciones lentas, frases genéricas de radio barata, mencionar precios, inventar especificaciones técnicas.
 ${horaBlock}
-REGLAS DE REDACCIÓN:
-- Duración: 15 a 20 segundos.
-- No inventes datos técnicos no confirmados.
-- No uses lenguaje exagerado falso.
-- No uses más de 2 tags por línea.
-- Usa mayúsculas solo en palabras clave para énfasis.
-- NUNCA menciones precios ni cantidades.
-
-FORMATO: Entrega ÚNICAMENTE el texto final listo para ElevenLabs v3. Sin títulos. Sin explicación. Sin análisis.`;
+FORMATO: Entrega ÚNICAMENTE el texto final del spot. Sin etiquetas, sin títulos, sin explicaciones. Solo el texto que va a narrar la voz.`;
 }
 
 // ---- GENERATE SPOT ----
@@ -1915,7 +1913,7 @@ async function generateSpot(){
         text:stripElTags(script),
         model_id:'eleven_multilingual_v2',
         language_code:'es',
-        voice_settings:{stability:0.45,similarity_boost:0.8,style:0.35,use_speaker_boost:true}
+        voice_settings:{stability:0.25,similarity_boost:0.8,style:0.75,use_speaker_boost:true}
       })
     });
     if(!tr.ok){const er=await tr.json().catch(()=>({}));throw new Error(er.detail?.message||'Error ElevenLabs')}
@@ -2912,7 +2910,7 @@ async function playCapsule(){
       headers:{'Content-Type':'application/json','xi-api-key':cfg.apiKey},
       body:JSON.stringify({
         text:stripElTags(text),model_id:'eleven_multilingual_v2',language_code:'es',
-        voice_settings:{stability:0.45,similarity_boost:0.8,style:0.35,use_speaker_boost:true}
+        voice_settings:{stability:0.25,similarity_boost:0.8,style:0.75,use_speaker_boost:true}
       })
     });
     if(!tr.ok) throw new Error('ElevenLabs capsule error');
@@ -3345,8 +3343,8 @@ TU VERSIÓN:${avoid}`,
     PROMO_TEASER:
 `${identity}
 
-Mención breve de Terrapesca. Una sola idea, sin lista de productos. Con intención comercial natural.
-Ejemplo: "[confident][upbeat] Terrapesca, equipo que sí responde."
+Mención breve de Terrapesca que despierte ganas de comprar. Una sola idea concreta, con urgencia natural. Puede mencionar disponibilidad, surtido, calidad o momento de compra.
+Ejemplo: "En Terrapesca tienen lo que llevas meses buscando. Pregunta hoy."
 TU VERSIÓN:${avoid}`,
 
     FISHING_TIP:
@@ -3543,7 +3541,7 @@ async function playDJRodo(type){
         text:stripElTags(script),
         model_id:'eleven_multilingual_v2',
         language_code:'es',
-        voice_settings:{stability:0.45,similarity_boost:0.8,style:0.35,use_speaker_boost:true}
+        voice_settings:{stability:0.25,similarity_boost:0.8,style:0.75,use_speaker_boost:true}
       })
     });
     if(!r.ok) throw new Error('EL error '+r.status);
