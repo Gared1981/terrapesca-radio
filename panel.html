@@ -923,7 +923,6 @@ input:checked + .toggle-slider::before{background:var(--red);transform:translate
         </div>
         <div class="btn-row">
           <button class="bc" onclick="prevTrack()" title="Anterior">⏮</button>
-          <button class="bc" id="btnSh" onclick="toggleShuffle()" title="Aleatorio">🔀</button>
           <button class="btn-play" id="btnPlay" onclick="togglePlay()">▶</button>
           <button class="bc" id="btnRp" onclick="toggleRepeat()" title="Repetir">🔁</button>
           <button class="bc" onclick="nextTrack()" title="Siguiente">⏭</button>
@@ -2356,7 +2355,7 @@ function playSpotManual(spot, opts={}){
 
 function nextTrack(){if(!playlist.length)return;playTrack(smartNextIdx())}
 function prevTrack(){if(!playlist.length)return;playTrack(curIdx<=0?playlist.length-1:curIdx-1)}
-function toggleShuffle(){isShuffle=!isShuffle;document.getElementById('btnSh').classList.toggle('active',isShuffle);triggerSave()}
+function toggleShuffle(){isShuffle=false;} // shuffle removed — playlist plays in order
 function toggleRepeat(){isRepeat=!isRepeat;document.getElementById('btnRp').classList.toggle('active',isRepeat);triggerSave()}
 function startProg(){clearInterval(progInt);progInt=setInterval(updateProg,500)}
 function updateProg(){
@@ -2875,7 +2874,7 @@ async function restoreSession(){
       // Restore playback position (paused)
       const idx=(typeof session.curIdx==='number'&&session.curIdx>=0&&session.curIdx<playlist.length)?session.curIdx:-1;
       curIdx=idx;
-      document.getElementById('btnSh').classList.toggle('active',isShuffle);
+      isShuffle=false;
       document.getElementById('btnRp').classList.toggle('active',isRepeat);
       updateSpotCtr();
       if(idx>=0){
