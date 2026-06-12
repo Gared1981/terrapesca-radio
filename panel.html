@@ -3440,64 +3440,139 @@ function onYTUrlInput() {
   }
 }
 
+// Load playlist video IDs via YouTube IFrame API (no API key needed)
+function loadPlaylistViaIframe(plId) {
+  return new Promise((resolve, reject) => {
+    if (!ytReady || !ytPlayer) { reject(new Error('Reproductor YouTube no listo')); return; }
+    const timeout = setTimeout(() => reject(new Error('Timeout cargando playlist')), 15000);
+    const prevState = ytPlayer.getPlayerState();
+    // Cue the playlist without autoplaying
+    ytPlayer.cuePlaylist({ listType: 'playlist', list: plId, index: 0 });
+    // Poll for CUED state (5)
+    let polls = 0;
+    const poll = setInterval(() => {
+      polls++;
+      const state = ytPlayer.getPlayerState();
+      const ids = ytPlayer.getPlaylist ? ytPlayer.getPlaylist() : null;
+      if (ids && ids.length > 0) {
+        clearInterval(poll);
+        clearTimeout(timeout);
+        // Restore previous track if was playing
+        if (curIdx >= 0 && playlist[curIdx]) {
+          const t = playlist[curIdx];
+          if (t.type === 'yt') ytPlayer.cueVideoById(t.ytId);
+        } else {
+          ytPlayer.stopVideo();
+        }
+        resolve(ids);
+      } else if (polls > 60) {
+        clearInterval(poll);
+        clearTimeout(timeout);
+        reject(new Error('No se obtuvieron IDs de la playlist'));
+      }
+    }, 250);
+  });
+}
+
 async function importPlaylistFromUrl() {
   const plId = _currentPlaylistId || extractPlaylistId(document.getElementById('ytU')?.value || '');
   if (!plId) { showToast('No se detectó ID de playlist', 'error'); return; }
-  if (!cfg.ytApiKey) {
-    showToast('Agrega tu YouTube API Key en Configuración ⚙️', 'error');
-    return;
-  }
+
   const btn = document.getElementById('btnImportPL');
   const progressBox = document.getElementById('plImportProgress');
   const bar = document.getElementById('plImportBar');
   const status = document.getElementById('plImportStatus');
   if (btn) btn.disabled = true;
   if (progressBox) progressBox.style.display = 'block';
+  if (status) status.textContent = 'Cargando IDs de la playlist...';
+  if (bar) bar.style.width = '10%';
 
-  const items = [];
-  let pageToken = '';
-  let page = 0;
-  const MAX_PAGES = 4; // up to 200 videos
+  let videoIds = [];
 
+  // Try IFrame API first (no key needed)
   try {
-    do {
-      let url = `/api/ytplaylist?playlistId=${encodeURIComponent(plId)}&key=${encodeURIComponent(cfg.ytApiKey)}`;
-      if (pageToken) url += `&pageToken=${encodeURIComponent(pageToken)}`;
-      const r = await fetch(url);
-      const d = await r.json();
-      if (d.error) throw new Error(d.error?.message || JSON.stringify(d.error));
-      const vids = (d.items || []).filter(it => it.snippet?.resourceId?.videoId && it.snippet.title !== 'Deleted video' && it.snippet.title !== 'Private video');
-      for (const it of vids) {
-        const vid = it.snippet.resourceId.videoId;
-        const title = it.snippet.title || vid;
-        const channel = it.snippet.videoOwnerChannelTitle || it.snippet.channelTitle || '';
-        const thumb = it.snippet.thumbnails?.high?.url || it.snippet.thumbnails?.default?.url || `https://img.youtube.com/vi/${vid}/hqdefault.jpg`;
-        items.push({ vid, title, channel, thumb });
+    videoIds = await loadPlaylistViaIframe(plId);
+  } catch (iframeErr) {
+    // Fallback: use YouTube Data API v3 if key is available
+    if (cfg.ytApiKey) {
+      if (status) status.textContent = 'Cargando via API...';
+      try {
+        let pageToken = '', page = 0;
+        do {
+          let url = `/api/ytplaylist?playlistId=${encodeURIComponent(plId)}&key=${encodeURIComponent(cfg.ytApiKey)}`;
+          if (pageToken) url += `&pageToken=${encodeURIComponent(pageToken)}`;
+          const r = await fetch(url);
+          const d = await r.json();
+          if (d.error) throw new Error(d.error?.message || JSON.stringify(d.error));
+          for (const it of (d.items || [])) {
+            const vid = it.snippet?.resourceId?.videoId;
+            const t = it.snippet?.title || '';
+            if (vid && t !== 'Deleted video' && t !== 'Private video') videoIds.push(vid);
+          }
+          pageToken = d.nextPageToken || '';
+          page++;
+          if (bar) bar.style.width = Math.min(50, 10 + page * 10) + '%';
+        } while (pageToken && page < 4);
+      } catch (apiErr) {
+        if (btn) btn.disabled = false;
+        showToast('Error cargando playlist: ' + apiErr.message, 'error');
+        if (status) status.textContent = 'Error: ' + apiErr.message;
+        return;
       }
-      pageToken = d.nextPageToken || '';
-      page++;
-      const pct = Math.min(95, Math.round(((page) / MAX_PAGES) * 100));
-      if (bar) bar.style.width = pct + '%';
-      if (status) status.textContent = `${items.length} canciones cargadas...`;
-    } while (pageToken && page < MAX_PAGES);
-  } catch (e) {
-    if (btn) btn.disabled = false;
-    showToast('Error importando playlist: ' + e.message, 'error');
-    if (status) status.textContent = 'Error: ' + e.message;
-    return;
+    } else {
+      if (btn) btn.disabled = false;
+      showToast('No se pudo cargar la playlist. Si es privada, agrega YouTube API Key en ⚙️', 'error');
+      if (status) status.textContent = iframeErr.message;
+      return;
+    }
   }
 
-  if (!items.length) {
+  if (!videoIds.length) {
     if (btn) btn.disabled = false;
     showToast('Playlist vacía o privada', 'error');
     return;
   }
 
-  // Add all videos to playlist (skip duplicates already in list)
+  if (bar) bar.style.width = '50%';
+  if (status) status.textContent = `${videoIds.length} videos detectados. Obteniendo títulos...`;
+
+  // Fetch metadata for each video ID via /api/ytmeta (oEmbed, no key)
+  const items = [];
   const existingIds = new Set(playlist.map(t => t.ytId).filter(Boolean));
+  let fetched = 0;
+  for (const vid of videoIds) {
+    if (existingIds.has(vid)) { fetched++; continue; }
+    let title = vid, channel = '';
+    if (ytMetaCache[vid]) {
+      title = ytMetaCache[vid].title || vid;
+      channel = ytMetaCache[vid].author_name || '';
+    } else {
+      try {
+        const r = await fetch(`/api/ytmeta/${vid}`);
+        if (r.ok) {
+          const d = await r.json();
+          if (d.title) { ytMetaCache[vid] = d; title = d.title; channel = d.author_name || ''; }
+        }
+      } catch {}
+    }
+    items.push({ vid, title, channel, thumb: `https://img.youtube.com/vi/${vid}/hqdefault.jpg` });
+    fetched++;
+    const pct = 50 + Math.round((fetched / videoIds.length) * 45);
+    if (bar) bar.style.width = pct + '%';
+    if (status) status.textContent = `${fetched}/${videoIds.length} títulos obtenidos...`;
+    // Small delay to avoid hammering oEmbed
+    if (fetched % 5 === 0) await new Promise(r => setTimeout(r, 80));
+  }
+
+  // items already excludes existing duplicates (filtered above during fetch loop)
+  if (!items.length) {
+    if (btn) btn.disabled = false;
+    showToast('Todas las canciones ya están en la lista o playlist privada', 'error');
+    return;
+  }
+
   let added = 0;
   for (const it of items) {
-    if (existingIds.has(it.vid)) continue;
     const track = {
       id: 'yt_' + it.vid + '_' + Date.now() + '_' + Math.random().toString(36).slice(2),
       type: 'yt',
