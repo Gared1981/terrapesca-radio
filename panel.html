@@ -2,7 +2,10 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="theme-color" content="#060e1c"/>
 <title>Terrapesca Radio — Panel Control</title>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800;900&family=Inter:wght@300;400;500;600&family=Share+Tech+Mono&display=swap" rel="stylesheet"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -517,9 +520,93 @@ input[type=range]::-moz-range-thumb{
 
 @keyframes dot-dance{from{height:4px}to{height:14px}}
 
+/* ── RESPONSIVE ── */
 @media(max-width:860px){
   .app{grid-template-columns:1fr;padding:10px 12px 80px}
   .pl-card{grid-row:auto;max-height:280px;position:static}
+  header{padding:0 14px;height:52px}
+  .logo-name{font-size:15px}
+  .logo-badge{display:none}
+  .header-right{gap:6px}
+}
+
+@media(max-width:600px){
+  header{padding:0 10px;height:48px}
+  .logo-img{height:28px}
+  .logo-name{font-size:14px}
+  .ws-status{display:none}
+
+  .app{padding:8px 8px 72px;gap:8px}
+
+  /* Player card: stack artwork + controls vertically, bigger touch targets */
+  .player-card{padding:14px 12px}
+  .player-top{flex-direction:column;align-items:center;gap:12px}
+  .artwork-wrap{width:140px!important;height:140px!important;flex-shrink:0}
+  .track-info{text-align:center}
+  .track-title{font-size:15px}
+  .track-sub{font-size:12px}
+
+  /* Controls: bigger buttons */
+  .transport{gap:12px}
+  .btn-transport{min-width:44px;min-height:44px}
+  .btn-main{width:60px!important;height:60px!important;font-size:22px!important}
+  .btn-secondary{width:44px!important;height:44px!important}
+
+  /* Volume row */
+  .vol-row input[type=range]{height:6px}
+  .vol-row input[type=range]::-webkit-slider-thumb{width:24px;height:24px}
+
+  /* Playlist card */
+  .pl-card{max-height:260px}
+  .pl-item{min-height:44px;padding:8px 10px}
+  .pl-title{font-size:12px}
+  .pl-meta{font-size:10px}
+
+  /* Config form: stack labels */
+  .cfg-grid{grid-template-columns:1fr!important}
+  .cfg-field{flex-direction:column;gap:4px}
+  .cfg-field label{min-width:unset;font-size:11px}
+  .cfg-field input,.cfg-field select,.cfg-field textarea{font-size:14px;min-height:40px;padding:8px 10px}
+
+  /* DJ Rodo panel */
+  .dj-freq-btns{gap:4px}
+  .dj-freq-btn{font-size:11px;padding:7px 0;min-height:36px}
+  .dj-action-row button{min-height:40px;font-size:11px}
+  .dj-opts{grid-template-columns:1fr}
+  .dj-opt{font-size:12px;padding:4px 0}
+  .dj-opt input{width:18px;height:18px}
+
+  /* Section headings */
+  .section-head{font-size:12px}
+
+  /* Buttons across the board */
+  button{-webkit-tap-highlight-color:transparent}
+  .btn,.btn-sm{min-height:40px;font-size:12px}
+
+  /* YouTube/Playlist import */
+  .yt-import-row{flex-direction:column;gap:6px}
+  .yt-import-row input{font-size:14px;min-height:44px}
+  .yt-import-row button{min-height:44px;font-size:13px;width:100%}
+
+  /* Modal dialogs */
+  .modal-box{width:calc(100vw - 24px)!important;max-height:90vh;overflow-y:auto;padding:16px}
+
+  /* Toast notifications */
+  #toastContainer{bottom:70px;left:12px;right:12px}
+  .toast{font-size:12px;padding:10px 14px;border-radius:10px}
+
+  /* Bottom player bar (if present) */
+  .now-bar{padding:10px 12px;min-height:60px}
+  .now-bar .nb-title{font-size:13px}
+  .now-bar .nb-sub{font-size:11px}
+  .now-bar .nb-btn{width:44px;height:44px;font-size:20px}
+}
+
+@media(max-width:380px){
+  .artwork-wrap{width:110px!important;height:110px!important}
+  .track-title{font-size:14px}
+  .btn-main{width:52px!important;height:52px!important;font-size:20px!important}
+  .pl-card{max-height:220px}
 }
 
 /* ── DJ RODO ── */
