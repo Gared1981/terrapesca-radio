@@ -5,259 +5,243 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
-<meta name="theme-color" content="#0a1628"/>
+<meta name="theme-color" content="#000"/>
 <title>Radio Terrapesca</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Share+Tech+Mono&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
 <style>
-*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-:root{
-  --bg:#0a1628;--navy:#0d1e38;--navy2:#122040;--accent:#3b82f6;--red:#ef4444;
-  --text1:#e2e8f0;--text2:#94a3b8;--text3:#4a6080;--border:#1a3254;--green:#10b981;
-}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none}
+html,body{width:100%;height:100%;background:#000;color:#fff;font-family:'Inter',sans-serif;overflow:hidden}
 
-html,body{
-  width:100%;height:100%;
-  background:var(--bg);
-  color:var(--text1);
-  font-family:'Inter',sans-serif;
-  overflow:hidden;
-  -webkit-overflow-scrolling:touch;
+/* ── Background artwork ── */
+#bgArt{
+  position:fixed;inset:0;z-index:0;
+  background-size:cover;background-position:center;
+  background-image:url('https://cdn.shopify.com/s/files/1/0205/5752/9188/files/Logo-Terrapesca-01_205270e5-d546-4e33-a8d1-db0a91f1e554.png?v=1700262873');
+  transition:background-image .6s ease;
+  filter:blur(0px);
 }
-
-/* ── Full-screen wrapper ── */
-#app{
-  width:100%;height:100%;
-  display:flex;flex-direction:column;
-  padding:
-    max(env(safe-area-inset-top),20px)
-    max(env(safe-area-inset-right),20px)
-    max(env(safe-area-inset-bottom),24px)
-    max(env(safe-area-inset-left),20px);
+#bgArt::after{
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(to bottom,rgba(0,0,0,.55) 0%,rgba(0,0,0,.3) 30%,rgba(0,0,0,.7) 65%,rgba(0,0,0,.97) 100%);
 }
 
 /* ── Start overlay ── */
 #startOverlay{
-  position:fixed;inset:0;z-index:100;
-  background:var(--bg);
+  position:fixed;inset:0;z-index:200;
+  background:rgba(0,0,0,.92);
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:28px;
-  padding:40px 28px;
-  transition:opacity .35s ease;
+  padding:40px 32px;
+  transition:opacity .3s;
 }
 #startOverlay.hidden{opacity:0;pointer-events:none}
-
-.start-logo img{
-  width:96px;height:96px;border-radius:22px;
-  object-fit:cover;
-  box-shadow:0 0 0 1px rgba(59,130,246,.3),0 8px 40px rgba(59,130,246,.25);
-}
-.start-brand{margin-top:10px;font-family:'Share Tech Mono',monospace;font-size:11px;letter-spacing:.25em;color:var(--text3);text-align:center;text-transform:uppercase}
-.start-title{font-size:24px;font-weight:800;color:var(--text1);text-align:center;line-height:1.25}
-.start-slogan{font-size:13px;color:var(--text2);text-align:center;letter-spacing:.02em}
-
+.so-logo img{width:88px;height:88px;border-radius:18px;object-fit:cover;box-shadow:0 0 40px rgba(255,255,255,.12)}
+.so-title{font-size:22px;font-weight:800;text-align:center}
+.so-sub{font-size:13px;color:rgba(255,255,255,.55);text-align:center}
 .btn-start{
   display:flex;align-items:center;justify-content:center;gap:10px;
-  background:var(--accent);color:#fff;
+  background:#1db954;color:#000;
   border:none;border-radius:100px;
-  padding:0 36px;height:60px;width:100%;max-width:320px;
-  font-size:17px;font-weight:700;font-family:'Inter',sans-serif;
-  cursor:pointer;
-  box-shadow:0 0 0 0 rgba(59,130,246,.6);
-  animation:glow 2.4s ease-in-out infinite;
-  transition:transform .12s,background .2s;
+  height:56px;padding:0 32px;width:100%;max-width:300px;
+  font-size:16px;font-weight:700;cursor:pointer;
+  box-shadow:0 4px 24px rgba(29,185,84,.4);
+  transition:transform .12s,background .15s;
 }
-.btn-start:active{transform:scale(.96);animation:none;background:#2563eb}
-@keyframes glow{0%,100%{box-shadow:0 0 0 0 rgba(59,130,246,.5)}50%{box-shadow:0 0 0 12px rgba(59,130,246,.0)}}
+.btn-start:active{transform:scale(.96);background:#1aa34a}
 
-.start-hint{font-size:11px;font-family:'Share Tech Mono',monospace;color:var(--text3);text-align:center}
-
-/* ── Player layout ── */
-.player{
-  flex:1;display:flex;flex-direction:column;align-items:center;
-  justify-content:space-between;
-  max-width:420px;width:100%;margin:0 auto;
+/* ── Full-screen player ── */
+#player{
+  position:fixed;inset:0;z-index:10;
+  display:flex;flex-direction:column;
+  padding:
+    max(env(safe-area-inset-top),44px)
+    20px
+    max(env(safe-area-inset-bottom),28px);
 }
 
-/* Header row */
-.player-header{
-  width:100%;display:flex;align-items:center;justify-content:space-between;
-  padding-bottom:8px;
+/* Top bar */
+.top-bar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding-bottom:6px;
 }
-.station-name{font-family:'Share Tech Mono',monospace;font-size:11px;letter-spacing:.18em;color:var(--text3);text-transform:uppercase}
-.np-badge{
-  display:inline-flex;align-items:center;gap:5px;
-  font-size:9px;font-family:'Share Tech Mono',monospace;
-  padding:3px 9px;border-radius:20px;
-  background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.35);color:#ef4444;
-}
-.np-badge .dot{width:5px;height:5px;border-radius:50%;background:#ef4444;animation:pulse 1.2s ease-in-out infinite}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.top-context{text-align:center;flex:1}
+.top-label{font-size:10px;letter-spacing:.12em;color:rgba(255,255,255,.5);text-transform:uppercase}
+.top-playlist{font-size:13px;font-weight:600;color:#fff;margin-top:2px}
 
 /* Artwork */
-.artwork-section{flex:1;display:flex;align-items:center;justify-content:center;width:100%;padding:12px 0}
-.artwork-wrap{
-  position:relative;
-  width:min(260px,60vw);height:min(260px,60vw);
-  border-radius:20px;overflow:hidden;
-  background:var(--navy2);
-  box-shadow:0 16px 60px rgba(0,0,0,.55);
+.art-section{
+  flex:1;display:flex;align-items:center;justify-content:center;
+  padding:16px 0 8px;
 }
-.artwork-wrap img{width:100%;height:100%;object-fit:cover;transition:opacity .4s}
-.artwork-overlay{position:absolute;inset:0;background:linear-gradient(to bottom,transparent 55%,rgba(10,22,40,.65));pointer-events:none}
+.art-thumb{
+  width:min(280px,78vw);height:min(280px,78vw);
+  border-radius:8px;overflow:hidden;
+  box-shadow:0 20px 80px rgba(0,0,0,.8);
+  background:#111;
+  flex-shrink:0;
+}
+.art-thumb img{width:100%;height:100%;object-fit:cover;display:block;transition:opacity .4s}
 
 /* Track info */
-.track-section{width:100%;text-align:center;padding:0 8px}
-.track-title{
-  font-size:18px;font-weight:700;color:var(--text1);line-height:1.3;
-  overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;
-  margin-bottom:4px;
+.info-row{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 4px;margin-bottom:12px;
 }
-.track-sub{font-size:13px;color:var(--text2);margin-bottom:2px}
-.track-slogan{font-size:11px;color:var(--text3);font-style:italic;margin-top:2px}
+.info-left{flex:1;min-width:0}
+.track-name{font-size:20px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.track-artist{font-size:14px;color:rgba(255,255,255,.6);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.track-slogan{font-size:11px;color:rgba(255,255,255,.35);margin-top:2px;font-style:italic}
+.btn-heart{width:40px;height:40px;background:none;border:none;color:rgba(255,255,255,.55);font-size:22px;cursor:pointer;flex-shrink:0}
 
-/* Visualizer */
-.viz{display:flex;align-items:flex-end;justify-content:center;gap:3px;height:20px;margin:8px 0}
-.vb{width:3px;background:var(--accent);border-radius:2px;opacity:.65}
+/* Progress bar */
+.progress-wrap{padding:0 2px;margin-bottom:8px}
+.progress-track{
+  width:100%;height:4px;background:rgba(255,255,255,.2);
+  border-radius:2px;position:relative;cursor:pointer;
+}
+.progress-fill{height:100%;background:#fff;border-radius:2px;width:0%;transition:width .5s linear}
+.progress-times{display:flex;justify-content:space-between;margin-top:6px}
+.progress-times span{font-size:11px;color:rgba(255,255,255,.45);font-variant-numeric:tabular-nums}
+
+/* Transport */
+.transport{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 4px;margin-bottom:20px;
+}
+.btn-t{background:none;border:none;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:opacity .15s;padding:4px}
+.btn-t:active{opacity:.6}
+.btn-sk svg,.btn-t svg{pointer-events:none}
+.btn-play-main{
+  width:64px;height:64px;border-radius:50%;
+  background:#fff;color:#000;border:none;
+  font-size:26px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 4px 20px rgba(0,0,0,.4);
+  transition:transform .12s;flex-shrink:0;
+}
+.btn-play-main:active{transform:scale(.92)}
+.btn-play-main.live{background:#ef4444;color:#fff}
+
+/* Status chip */
+.status-wrap{display:flex;align-items:center;justify-content:center;margin-bottom:10px;min-height:20px}
+.status{font-size:11px;color:rgba(255,255,255,.4);letter-spacing:.05em}
+.status.live{color:#1db954}
+.status.error{color:#ef4444}
+.status.connecting{color:#f59e0b}
+
+/* Bottom row */
+.bottom-row{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 4px;
+}
+.stream-pill{
+  font-size:9px;color:rgba(255,255,255,.3);
+  background:rgba(255,255,255,.07);
+  border-radius:20px;padding:4px 10px;cursor:pointer;
+  max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+
+/* Viz bars (next to live badge) */
+.viz{display:inline-flex;align-items:flex-end;gap:2px;height:14px;margin-left:6px;vertical-align:middle}
+.vb{width:3px;background:#1db954;border-radius:1px}
 .vb:nth-child(1){animation:bar .9s .00s ease-in-out infinite alternate}
 .vb:nth-child(2){animation:bar .9s .12s ease-in-out infinite alternate}
 .vb:nth-child(3){animation:bar .9s .22s ease-in-out infinite alternate}
-.vb:nth-child(4){animation:bar .9s .17s ease-in-out infinite alternate}
-.vb:nth-child(5){animation:bar .9s .06s ease-in-out infinite alternate}
-.vb:nth-child(6){animation:bar .9s .09s ease-in-out infinite alternate}
-.vb:nth-child(7){animation:bar .9s .19s ease-in-out infinite alternate}
+.vb:nth-child(4){animation:bar .9s .08s ease-in-out infinite alternate}
 .viz.paused .vb{animation:none;height:3px!important}
-@keyframes bar{from{height:3px}to{height:18px}}
-
-/* Controls */
-.controls-section{width:100%;padding-bottom:8px}
-
-.transport{display:flex;align-items:center;justify-content:center;gap:24px;margin-bottom:20px}
-.btn-sk{
-  width:52px;height:52px;border-radius:50%;
-  background:var(--navy2);border:1px solid var(--border);color:var(--text2);
-  font-size:20px;cursor:pointer;
-  display:flex;align-items:center;justify-content:center;
-  transition:border-color .2s,transform .12s;
-  user-select:none;
-}
-.btn-sk:active{border-color:var(--accent);transform:scale(.9)}
-.btn-play{
-  width:76px;height:76px;border-radius:50%;
-  background:var(--accent);border:none;color:#fff;font-size:30px;
-  cursor:pointer;display:flex;align-items:center;justify-content:center;
-  transition:transform .12s,background .2s;
-  box-shadow:0 4px 28px rgba(59,130,246,.5);
-  user-select:none;
-}
-.btn-play:active{transform:scale(.91)}
-.btn-play.playing{background:#ef4444;box-shadow:0 4px 28px rgba(239,68,68,.5)}
-
-.vol-row{display:flex;align-items:center;gap:12px;width:100%;margin-bottom:14px}
-.vol-icon{font-size:16px;color:var(--text3);flex-shrink:0}
-input[type=range]{
-  flex:1;-webkit-appearance:none;height:6px;border-radius:3px;
-  background:var(--border);outline:none;cursor:pointer;
-}
-input[type=range]::-webkit-slider-thumb{
-  -webkit-appearance:none;width:24px;height:24px;border-radius:50%;
-  background:var(--accent);cursor:pointer;
-  box-shadow:0 0 8px rgba(59,130,246,.5);
-}
-
-/* Footer */
-.player-footer{width:100%;display:flex;flex-direction:column;align-items:center;gap:6px}
-.status{font-size:11px;font-family:'Share Tech Mono',monospace;color:var(--text3);text-align:center}
-.status.live{color:var(--green)}
-.status.error{color:#ef4444}
-.status.connecting{color:#f59e0b}
-.stream-url{
-  font-size:9px;font-family:'Share Tech Mono',monospace;color:var(--text3);
-  background:var(--navy2);border:1px solid var(--border);
-  border-radius:8px;padding:5px 12px;width:100%;text-align:center;
-  word-break:break-all;cursor:pointer;
-}
+@keyframes bar{from{height:2px}to{height:12px}}
 </style>
 </head>
 <body>
 
-<!-- ── Tap-to-start overlay ── -->
+<div id="bgArt"></div>
+
+<!-- ── Tap to start ── -->
 <div id="startOverlay">
-  <div class="start-logo" style="text-align:center">
+  <div class="so-logo" style="text-align:center">
     <img src="https://cdn.shopify.com/s/files/1/0205/5752/9188/files/Logo-Terrapesca-01_205270e5-d546-4e33-a8d1-db0a91f1e554.png?v=1700262873" alt="Terrapesca"/>
-    <div class="start-brand">📻 Radio Terrapesca</div>
   </div>
-  <div style="text-align:center">
-    <div class="start-title">La radio oficial de Terrapesca</div>
-    <div class="start-slogan" style="margin-top:6px">Equipa tu aventura</div>
+  <div>
+    <div class="so-title">Radio Terrapesca</div>
+    <div class="so-sub" style="margin-top:6px">Terrapesca, equipa tu aventura</div>
   </div>
   <button class="btn-start" onclick="startListening()">
-    <span style="font-size:22px">▶</span>
-    <span>Escuchar Radio Terrapesca</span>
+    <span style="font-size:20px">▶</span>
+    <span>Escuchar en vivo</span>
   </button>
-  <div class="start-hint">Toca para comenzar la transmisión en vivo</div>
 </div>
 
-<!-- ── Full-screen player ── -->
-<div id="app">
-  <div class="player">
+<!-- ── Player ── -->
+<div id="player">
 
-    <!-- Header -->
-    <div class="player-header">
-      <div class="station-name">📻 Radio Terrapesca</div>
-      <div class="np-badge" id="liveBadge" style="display:none">
-        <span class="dot"></span> EN VIVO
-      </div>
+  <div class="top-bar">
+    <button class="btn-t" style="opacity:.6;font-size:18px">╌</button>
+    <div class="top-context">
+      <div class="top-label">Reproduciendo en vivo</div>
+      <div class="top-playlist" id="topPlaylist">Radio Terrapesca</div>
     </div>
+    <button class="btn-t" style="opacity:.6;font-size:20px">⋮</button>
+  </div>
 
-    <!-- Artwork -->
-    <div class="artwork-section">
-      <div class="artwork-wrap">
-        <img id="artworkImg"
-          src="https://cdn.shopify.com/s/files/1/0205/5752/9188/files/Logo-Terrapesca-01_205270e5-d546-4e33-a8d1-db0a91f1e554.png?v=1700262873"
-          alt="Radio Terrapesca"/>
-        <div class="artwork-overlay"></div>
-      </div>
+  <div class="art-section">
+    <div class="art-thumb">
+      <img id="artImg"
+        src="https://cdn.shopify.com/s/files/1/0205/5752/9188/files/Logo-Terrapesca-01_205270e5-d546-4e33-a8d1-db0a91f1e554.png?v=1700262873"
+        alt="artwork"/>
     </div>
+  </div>
 
-    <!-- Track info -->
-    <div class="track-section">
-      <div class="track-title" id="npTitle">Radio Terrapesca</div>
-      <div class="track-sub" id="npSub">Música, pesca, marina y outdoor</div>
+  <div class="info-row">
+    <div class="info-left">
+      <div class="track-name" id="trackName">Radio Terrapesca</div>
+      <div class="track-artist" id="trackArtist">Música, pesca, marina y outdoor</div>
       <div class="track-slogan">Terrapesca, equipa tu aventura</div>
-      <div class="viz" id="viz">
-        <div class="vb" style="height:6px"></div>
-        <div class="vb" style="height:12px"></div>
-        <div class="vb" style="height:16px"></div>
-        <div class="vb" style="height:10px"></div>
-        <div class="vb" style="height:18px"></div>
-        <div class="vb" style="height:8px"></div>
-        <div class="vb" style="height:14px"></div>
-      </div>
     </div>
+    <button class="btn-heart">♡</button>
+  </div>
 
-    <!-- Controls -->
-    <div class="controls-section">
-      <div class="transport">
-        <button class="btn-sk" onclick="skipPrev()">⏮</button>
-        <button class="btn-play" id="btnPlay" onclick="togglePlay()">▶</button>
-        <button class="btn-sk" onclick="skipNext()">⏭</button>
-      </div>
-
-      <div class="vol-row">
-        <span class="vol-icon">🔈</span>
-        <input type="range" id="volSlider" min="0" max="100" value="90" oninput="setVol(this.value)"/>
-        <span class="vol-icon">🔊</span>
-      </div>
+  <div class="progress-wrap">
+    <div class="progress-track"><div class="progress-fill" id="progFill"></div></div>
+    <div class="progress-times">
+      <span id="tNow">EN VIVO</span>
+      <span id="statusText" class="status connecting">Cargando...</span>
     </div>
+  </div>
 
-    <!-- Footer -->
-    <div class="player-footer">
-      <div class="status connecting" id="statusText">Conectando...</div>
-      <div class="stream-url" id="streamUrl" onclick="copyUrl()">—</div>
+  <div class="transport">
+    <!-- Shuffle (decorative) -->
+    <button class="btn-t" style="opacity:.45">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/></svg>
+    </button>
+    <!-- Prev -->
+    <button class="btn-t" onclick="skipPrev()" style="font-size:28px">⏮</button>
+    <!-- Play/Pause -->
+    <button class="btn-play-main" id="btnPlay" onclick="togglePlay()">▶</button>
+    <!-- Next -->
+    <button class="btn-t" onclick="skipNext()" style="font-size:28px">⏭</button>
+    <!-- Repeat (decorative) -->
+    <button class="btn-t" style="opacity:.45">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/></svg>
+    </button>
+  </div>
+
+  <div class="status-wrap">
+    <div class="viz paused" id="viz">
+      <div class="vb" style="height:4px"></div>
+      <div class="vb" style="height:8px"></div>
+      <div class="vb" style="height:12px"></div>
+      <div class="vb" style="height:6px"></div>
     </div>
+    <span id="liveLabel" style="font-size:11px;color:#1db954;margin-left:4px;display:none">EN VIVO</span>
+  </div>
 
-  </div><!-- .player -->
-</div><!-- #app -->
+  <div class="bottom-row">
+    <button class="btn-t" style="opacity:.45;font-size:20px">📱</button>
+    <div class="stream-pill" id="streamPill" onclick="copyUrl()">—</div>
+    <button class="btn-t" style="opacity:.45;font-size:18px">☰</button>
+  </div>
+
+</div><!-- #player -->
 
 <audio id="radioAudio" preload="none" playsinline x-webkit-airplay="allow" webkit-playsinline="true"></audio>
 
@@ -265,122 +249,120 @@ input[type=range]::-webkit-slider-thumb{
 const TP_LOGO = 'https://cdn.shopify.com/s/files/1/0205/5752/9188/files/Logo-Terrapesca-01_205270e5-d546-4e33-a8d1-db0a91f1e554.png?v=1700262873';
 const audio = document.getElementById('radioAudio');
 const streamSrc = location.origin + '/radio/stream';
-let playing = false, started = false, intentionalPause = false;
-let currentTrack = null, ws = null, wsReconnectTimer = null;
-let _errorRetryTimer = null, _watchdogTimer = null;
 
-document.getElementById('streamUrl').textContent = streamSrc;
+let playing = false, started = false;
+let intentionalPause = false, reconnecting = false;
+let currentTrack = null, ws = null, wsTimer = null;
+let retryTimer = null, watchdogTimer = null;
+
+document.getElementById('streamPill').textContent = streamSrc;
 audio.volume = 0.9;
 
 // ── Audio events ──
 audio.addEventListener('playing', () => {
-  playing = true;
-  intentionalPause = false;
-  clearTimeout(_errorRetryTimer);
-  resetWatchdog();
+  playing = true; reconnecting = false; intentionalPause = false;
+  clearTimeout(retryTimer); clearTimeout(watchdogTimer);
   setPlayUI(true);
   setStatus('● EN VIVO', 'live');
-  document.getElementById('liveBadge').style.display = 'inline-flex';
+  document.getElementById('liveLabel').style.display = '';
+  document.getElementById('viz').classList.remove('paused');
 });
 
-// Buffering — just show status, do NOT reconnect
-audio.addEventListener('waiting',  () => { if (!intentionalPause) setStatus('Cargando...', 'connecting'); });
-audio.addEventListener('stalled',  () => { if (!intentionalPause) setStatus('Cargando...', 'connecting'); });
+audio.addEventListener('waiting',  () => { if (!reconnecting && !intentionalPause) setStatus('Cargando...', 'connecting'); });
+audio.addEventListener('stalled',  () => { if (!reconnecting && !intentionalPause) setStatus('Cargando...', 'connecting'); });
 
-// Real error → reconnect after delay
-audio.addEventListener('error', () => {
-  if (intentionalPause || !started) return;
-  setStatus('Reconectando...', 'error');
-  clearTimeout(_errorRetryTimer);
-  _errorRetryTimer = setTimeout(hardReconnect, 4000);
+audio.addEventListener('error', (e) => {
+  if (reconnecting || !started || intentionalPause) return;
+  setStatus('Sin señal...', 'error');
+  scheduleRetry(4000);
 });
 
-// Pause — only update UI if user intentionally paused
 audio.addEventListener('pause', () => {
   playing = false;
   setPlayUI(false);
-  document.getElementById('liveBadge').style.display = 'none';
-  if (intentionalPause) setStatus('Pausado', '');
-  // If paused by browser (not user) and we were playing, reconnect
-  else if (started) {
-    clearTimeout(_errorRetryTimer);
-    _errorRetryTimer = setTimeout(hardReconnect, 3000);
+  document.getElementById('liveLabel').style.display = 'none';
+  document.getElementById('viz').classList.add('paused');
+  // Only react if this wasn't triggered by our own reconnect/stop logic
+  if (!reconnecting && !intentionalPause && started) {
+    setStatus('Reconectando...', 'connecting');
+    scheduleRetry(3000);
+  } else if (intentionalPause) {
+    setStatus('Pausado', '');
   }
 });
 
-// Watchdog: if we started but no 'playing' event in 12s, hard-reconnect
-function resetWatchdog() {
-  clearTimeout(_watchdogTimer);
-  if (!started || intentionalPause) return;
-  _watchdogTimer = setTimeout(() => {
-    if (!playing && started && !intentionalPause) hardReconnect();
-  }, 12000);
+function scheduleRetry(ms) {
+  clearTimeout(retryTimer);
+  retryTimer = setTimeout(hardReconnect, ms);
 }
 
 function hardReconnect() {
   if (!started || intentionalPause) return;
+  if (reconnecting) return; // already in progress
+  reconnecting = true;
+  clearTimeout(retryTimer); clearTimeout(watchdogTimer);
   setStatus('Reconectando...', 'connecting');
-  // Destroy current element state and assign fresh src
+
+  // Silently tear down without triggering our pause handler
   audio.pause();
   audio.removeAttribute('src');
-  audio.load();
-  // Small delay so browser releases the old connection
+  // reset flag after microtask so the pause event above sees reconnecting=true
   setTimeout(() => {
     audio.src = streamSrc + '?t=' + Date.now();
-    audio.play().catch(() => {
-      // If play rejected here, retry in 5s
-      clearTimeout(_errorRetryTimer);
-      _errorRetryTimer = setTimeout(hardReconnect, 5000);
-    });
-    resetWatchdog();
-  }, 400);
+    const p = audio.play();
+    reconnecting = false; // allow future events
+    armWatchdog();
+    if (p && p.catch) p.catch(() => scheduleRetry(5000));
+  }, 350);
 }
 
-// ── First tap — only called from user gesture ──
+function armWatchdog() {
+  clearTimeout(watchdogTimer);
+  watchdogTimer = setTimeout(() => {
+    if (!playing && !intentionalPause && started) hardReconnect();
+  }, 15000);
+}
+
+// ── Start overlay tap ──
 function startListening() {
   if (started) return;
   started = true;
-  intentionalPause = false;
-
-  const overlay = document.getElementById('startOverlay');
-  overlay.classList.add('hidden');
-  setTimeout(() => { overlay.style.display = 'none'; }, 380);
+  const ov = document.getElementById('startOverlay');
+  ov.classList.add('hidden');
+  setTimeout(() => { ov.style.display = 'none'; }, 320);
 
   connectWS();
   startSWPing();
   setupMediaSessionBase();
 
-  setStatus('Cargando...', 'connecting');
+  // First play — no src change yet, just assign once
   audio.src = streamSrc;
-  audio.play().catch(() => {
-    // play() rejected on first try — hard reconnect
-    setTimeout(hardReconnect, 1000);
-  });
-  resetWatchdog();
+  setStatus('Cargando...', 'connecting');
+  const p = audio.play();
+  armWatchdog();
+  if (p && p.catch) p.catch(() => scheduleRetry(1500));
 }
 
 // ── Controls ──
 function togglePlay() {
   if (!started) { startListening(); return; }
-  if (audio.paused || audio.ended) {
+  if (audio.paused || !playing) {
     intentionalPause = false;
-    clearTimeout(_errorRetryTimer);
     hardReconnect();
   } else {
     intentionalPause = true;
-    clearTimeout(_errorRetryTimer);
-    clearTimeout(_watchdogTimer);
+    reconnecting = false;
+    clearTimeout(retryTimer); clearTimeout(watchdogTimer);
     audio.pause();
   }
 }
-function setVol(v) { audio.volume = v / 100; }
 function skipPrev() { sendWS({ type: 'PREV_TRACK' }); }
 function skipNext() { sendWS({ type: 'NEXT_TRACK' }); }
 
 function setPlayUI(p) {
-  document.getElementById('btnPlay').textContent = p ? '⏸' : '▶';
-  document.getElementById('btnPlay').classList.toggle('playing', p);
-  document.getElementById('viz').classList.toggle('paused', !p);
+  const btn = document.getElementById('btnPlay');
+  btn.textContent = p ? '⏸' : '▶';
+  btn.classList.toggle('live', p);
 }
 function setStatus(msg, cls = '') {
   const el = document.getElementById('statusText');
@@ -389,8 +371,8 @@ function setStatus(msg, cls = '') {
 }
 function copyUrl() {
   navigator.clipboard?.writeText(streamSrc).then(() => {
-    document.getElementById('streamUrl').textContent = '✅ Copiado!';
-    setTimeout(() => document.getElementById('streamUrl').textContent = streamSrc, 2000);
+    document.getElementById('streamPill').textContent = '✅ Copiado';
+    setTimeout(() => { document.getElementById('streamPill').textContent = streamSrc; }, 2000);
   }).catch(() => {});
 }
 
@@ -398,91 +380,75 @@ function copyUrl() {
 function setupMediaSessionBase() {
   if (!('mediaSession' in navigator)) return;
   navigator.mediaSession.metadata = new MediaMetadata({
-    title: 'Radio Terrapesca',
-    artist: 'Terrapesca, equipa tu aventura',
+    title: 'Radio Terrapesca', artist: 'Terrapesca, equipa tu aventura',
     album: 'Radio Terrapesca',
     artwork: [{ src: TP_LOGO, sizes: '512x512', type: 'image/png' }]
   });
-  navigator.mediaSession.setActionHandler('play', () => audio.play());
-  navigator.mediaSession.setActionHandler('pause', () => audio.pause());
-  navigator.mediaSession.setActionHandler('stop', () => audio.pause());
+  navigator.mediaSession.setActionHandler('play', () => { intentionalPause = false; audio.play().catch(() => hardReconnect()); });
+  navigator.mediaSession.setActionHandler('pause', () => { intentionalPause = true; audio.pause(); });
+  navigator.mediaSession.setActionHandler('stop', () => { intentionalPause = true; audio.pause(); });
   navigator.mediaSession.setActionHandler('nexttrack', skipNext);
   navigator.mediaSession.setActionHandler('previoustrack', skipPrev);
 }
-function setupMediaSession(track) {
-  if (!('mediaSession' in navigator)) return;
-  const title = track?.name || track?.title || 'Radio Terrapesca';
-  const artist = track?.channelTitle || track?.sub || 'Radio Terrapesca';
-  const artSrc = track?.thumb || (track?.ytId ? `https://img.youtube.com/vi/${track.ytId}/hqdefault.jpg` : TP_LOGO);
-  const type = (track?.thumb || track?.ytId) ? 'image/jpeg' : 'image/png';
-  navigator.mediaSession.metadata = new MediaMetadata({
-    title, artist,
-    album: 'Radio Terrapesca',
-    artwork: [{ src: artSrc, sizes: '480x360', type }]
-  });
-  navigator.mediaSession.playbackState = playing ? 'playing' : 'paused';
-}
 
-// ── Now Playing ──
 function updateNowPlaying(track) {
   currentTrack = track;
-  const title = track?.name || track?.title || 'Radio Terrapesca';
-  const sub = track?.channelTitle || track?.sub || 'Música, pesca, marina y outdoor';
-  document.getElementById('npTitle').textContent = title;
-  document.getElementById('npSub').textContent = sub;
-  const img = document.getElementById('artworkImg');
-  if (track?.thumb) {
-    img.src = track.thumb;
-    img.onerror = () => { img.src = track.ytId ? `https://img.youtube.com/vi/${track.ytId}/hqdefault.jpg` : TP_LOGO; };
-  } else if (track?.ytId) {
-    img.src = `https://img.youtube.com/vi/${track.ytId}/hqdefault.jpg`;
-    img.onerror = () => { img.src = TP_LOGO; };
-  } else {
-    img.src = TP_LOGO;
+  const name = track?.name || track?.title || 'Radio Terrapesca';
+  const artist = track?.channelTitle || track?.sub || 'Radio Terrapesca';
+  document.getElementById('trackName').textContent = name;
+  document.getElementById('trackArtist').textContent = artist;
+  document.getElementById('topPlaylist').textContent = name;
+
+  const artSrc = track?.thumb || (track?.ytId ? `https://img.youtube.com/vi/${track.ytId}/hqdefault.jpg` : TP_LOGO);
+  document.getElementById('artImg').src = artSrc;
+  document.getElementById('artImg').onerror = () => { document.getElementById('artImg').src = TP_LOGO; };
+
+  // Update blurred background
+  document.getElementById('bgArt').style.backgroundImage = `url('${artSrc}')`;
+
+  if ('mediaSession' in navigator) {
+    const type = (track?.thumb || track?.ytId) ? 'image/jpeg' : 'image/png';
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: name, artist, album: 'Radio Terrapesca',
+      artwork: [{ src: artSrc, sizes: '480x360', type }]
+    });
+    navigator.mediaSession.playbackState = playing ? 'playing' : 'paused';
   }
-  setupMediaSession(track);
 }
 
 // ── WebSocket ──
 function connectWS() {
-  clearTimeout(wsReconnectTimer);
-  const wsUrl = location.origin.replace('https://', 'wss://').replace('http://', 'ws://');
-  try { ws = new WebSocket(wsUrl); } catch(e) { scheduleWSReconnect(); return; }
-  ws.onopen = () => { if (playing) setStatus('● EN VIVO', 'live'); };
-  ws.onclose = () => scheduleWSReconnect();
+  clearTimeout(wsTimer);
+  const url = location.origin.replace('https://', 'wss://').replace('http://', 'ws://');
+  try { ws = new WebSocket(url); } catch(e) { wsTimer = setTimeout(connectWS, 4000); return; }
+  ws.onclose = () => { wsTimer = setTimeout(connectWS, 4000); };
   ws.onerror = () => {};
   ws.onmessage = (e) => {
     try {
-      const msg = JSON.parse(e.data);
-      if (msg.type === 'SYNC' && msg.state?.currentTrack) updateNowPlaying(msg.state.currentTrack);
-      else if ((msg.type === 'PLAY' || msg.type === 'SPOT') && msg.track) updateNowPlaying(msg.track);
-      else if (msg.type === 'PAUSE' && navigator.mediaSession) navigator.mediaSession.playbackState = 'paused';
-      else if (msg.type === 'RESUME' && navigator.mediaSession) navigator.mediaSession.playbackState = 'playing';
+      const m = JSON.parse(e.data);
+      if (m.type === 'SYNC' && m.state?.currentTrack) updateNowPlaying(m.state.currentTrack);
+      else if ((m.type === 'PLAY' || m.type === 'SPOT') && m.track) updateNowPlaying(m.track);
     } catch(_) {}
   };
 }
-function scheduleWSReconnect() { wsReconnectTimer = setTimeout(connectWS, 4000); }
-function sendWS(data) { if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(data)); }
+function sendWS(d) { if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(d)); }
 
 // ── Service Worker ──
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
-
-let swKeepAlive;
+let swPing;
 function startSWPing() {
-  clearInterval(swKeepAlive);
-  swKeepAlive = setInterval(() => {
-    navigator.serviceWorker?.ready.then(reg => {
-      if (reg.active) {
-        const { port1, port2 } = new MessageChannel();
-        reg.active.postMessage('ping', [port2]);
-      }
+  clearInterval(swPing);
+  swPing = setInterval(() => {
+    navigator.serviceWorker?.ready.then(r => {
+      if (r.active) { const { port1, port2 } = new MessageChannel(); r.active.postMessage('ping', [port2]); }
     }).catch(() => {});
   }, 20000);
 }
-
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden && playing && navigator.mediaSession)
-    navigator.mediaSession.playbackState = 'playing';
+  if (!document.hidden && started && !intentionalPause && !playing) {
+    // App came back to foreground — check if we need to reconnect
+    scheduleRetry(500);
+  }
 });
 </script>
 </body>
