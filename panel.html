@@ -2054,6 +2054,21 @@ function scheduleXfade(el,nextIdx){
     if(rem<=CROSSFADE_SECS&&rem>0){
       el.removeEventListener('timeupdate',check);
       _xfadeScheduled=false;
+      // If DJ Rodo is enabled and wants to speak between songs, skip crossfade
+      // so the track ends naturally → handleEnded fires → DJ speaks → next song
+      const djOn=document.getElementById('djRodoEnabled')?.checked;
+      if(djOn&&!djRodoActive){
+        incrementDJCounters();
+        const interv=decideDJIntervention();
+        if(interv){
+          // Don't crossfade — let track reach ended event normally
+          return;
+        }
+        // No intervention this time — undo increment so it accumulates next song
+        // (counters will be incremented again in startCrossfade completion)
+        djSongSinceTime--;djSongSinceId--;djSongSinceTip--;djSongSincePromo--;
+        djSongSinceBridge--;djSongSinceReview--;djSongSinceWeather--;djSongSinceForecast--;
+      }
       startCrossfade(nextIdx,el);
     }
   }
@@ -2150,8 +2165,8 @@ function playTrack(idx,opts={}){
     incoming.volume=audioEl?0:targetVol; // silent if we'll crossfade from outgoing
     incoming.addEventListener('loadedmetadata',()=>{document.getElementById('tT').textContent=fmt(incoming.duration);});
     incoming.addEventListener('ended',handleEnded);
-    incoming.addEventListener('waiting',()=>{_watchdogAt=Date.now()-3500;}); // treat waiting as near-stall
-    incoming.addEventListener('stalled',()=>{_watchdogAt=Date.now()-4000;}); // stalled = almost at timeout
+    incoming.addEventListener('waiting',()=>{_watchdogAt=Date.now()-300;}); // near-stall → skip after 400ms
+    incoming.addEventListener('stalled',()=>{_watchdogAt=Date.now()-350;});  // stalled → skip immediately
     incoming.addEventListener('timeupdate',updateProg);
     const outgoing=audioEl;
     audioEl=incoming;
@@ -2207,13 +2222,12 @@ function _silenceWatchdog(){
   if(!isPlaying||!audioEl||audioEl.paused||audioEl.ended) return;
   const ct=audioEl.currentTime;
   if(ct!==_watchdogCT){_watchdogCT=ct;_watchdogAt=Date.now();return;}
-  if(Date.now()-_watchdogAt>5000){
+  if(Date.now()-_watchdogAt>400){
     _watchdogAt=Date.now();
-    console.warn('[watchdog] audio stalled → next track');
     nextTrack();
   }
 }
-setInterval(_silenceWatchdog,2000);
+setInterval(_silenceWatchdog,200);
 
 function stopAll(){
   cancelCrossfade();
@@ -3074,7 +3088,7 @@ let weatherCache={data:null,ts:0};
 let forecastCache={data:null,ts:0};
 
 // ---- DJ AUTO-TIMER (time-based trigger, independent of song count) ----
-const DJ_AUTO_INTERVAL={baja:5*60*1000,media:3*60*1000,alta:90*1000};
+const DJ_AUTO_INTERVAL={baja:4*60*1000,media:2*60*1000,alta:60*1000};
 let _djAutoTimer=null;
 function _restartDJAutoTimer(){
   clearInterval(_djAutoTimer);
@@ -3085,12 +3099,18 @@ function _restartDJAutoTimer(){
 }
 function _djAutoTick(){
   const djOn=document.getElementById('djRodoEnabled')?.checked;
-  if(!djOn||!isPlaying||djRodoActive)return;
-  incrementDJCounters();
+  if(!djOn||djRodoActive)return;
+  // Force counters to threshold so decideDJIntervention always returns something
+  djSongSinceTime=99;djSongSinceId=99;djSongSinceTip=99;
+  djSongSincePromo=99;djSongSinceBridge=99;
+  djSongSinceWeather=99;djSongSinceForecast=99;
   const type=decideDJIntervention();
   if(!type)return;
+  // Timer-based interventions always play over music (duck + voice)
+  const savedMode=djRodoMode;
+  djRodoMode='over_music';
   playDJRodo(type).catch(()=>{}).finally(()=>{
-    // If audio stopped while DJ was speaking, resume next track
+    djRodoMode=savedMode;
     if(isPlaying&&(!audioEl||audioEl.paused||audioEl.ended)) playTrack(smartNextIdx());
   });
 }
@@ -3112,9 +3132,9 @@ const WEATHER_CITIES={
 };
 
 const DJ_THRESHOLDS={
-  baja: {TIME_CHECK:5,STATION_ID:8,FISHING_TIP:10,PROMO_TEASER:8,SONG_BRIDGE:4,SONG_REVIEW:7,WEATHER:12,FORECAST:12},
-  media:{TIME_CHECK:3,STATION_ID:5,FISHING_TIP:7, PROMO_TEASER:5,SONG_BRIDGE:3,SONG_REVIEW:4,WEATHER:8, FORECAST:8},
-  alta: {TIME_CHECK:2,STATION_ID:3,FISHING_TIP:5, PROMO_TEASER:3,SONG_BRIDGE:2,SONG_REVIEW:3,WEATHER:6, FORECAST:6},
+  baja: {TIME_CHECK:2,STATION_ID:3,FISHING_TIP:4,PROMO_TEASER:3,SONG_BRIDGE:2,SONG_REVIEW:3,WEATHER:5,FORECAST:5},
+  media:{TIME_CHECK:1,STATION_ID:2,FISHING_TIP:3,PROMO_TEASER:2,SONG_BRIDGE:1,SONG_REVIEW:2,WEATHER:3,FORECAST:3},
+  alta: {TIME_CHECK:1,STATION_ID:1,FISHING_TIP:2,PROMO_TEASER:1,SONG_BRIDGE:1,SONG_REVIEW:1,WEATHER:2,FORECAST:2},
 };
 
 // Short interventions that can play over music with ducking
