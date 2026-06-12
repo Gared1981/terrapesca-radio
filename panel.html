@@ -2065,7 +2065,14 @@ function scheduleXfade(el,nextIdx){
 }
 
 function startCrossfade(nextIdx,outgoing){
-  if(djRodoActive) return; // don't crossfade while DJ is speaking
+  if(djRodoActive){
+    // Re-register xfade after a short delay so it fires once DJ finishes
+    setTimeout(()=>{
+      if(!djRodoActive&&audioEl===outgoing&&!audioEl.ended&&!_xfadeScheduled)
+        scheduleXfade(outgoing,nextIdx);
+    },500);
+    return;
+  }
   if(nextIdx<0||nextIdx>=playlist.length) return;
   const t=playlist[nextIdx];
   if(!t||t.type==='yt'||t.type==='spot') return;
@@ -3081,14 +3088,25 @@ function _restartDJAutoTimer(){
 function _djAutoTick(){
   const djOn=document.getElementById('djRodoEnabled')?.checked;
   if(!djOn||djRodoActive||!isPlaying)return;
+  // Don't fire if song is almost over — let natural crossfade/handleEnded handle the transition
+  if(audioEl&&audioEl.duration&&isFinite(audioEl.duration)){
+    const rem=audioEl.duration-audioEl.currentTime;
+    if(rem<15) return;
+  }
   const type=getNextDJType();
   if(!type)return;
-  // Timer-based: play over current music with ducking
   const savedMode=djRodoMode;
   djRodoMode='over_music';
   playDJRodo(type).catch(()=>{}).finally(()=>{
     djRodoMode=savedMode;
-    if(isPlaying&&(!audioEl||audioEl.paused||audioEl.ended)) playTrack(smartNextIdx());
+    // Re-register crossfade monitoring if song is still playing after DJ
+    if(audioEl&&!audioEl.ended&&!audioEl.paused&&!_xfadeScheduled&&!audioEl2){
+      scheduleXfade(audioEl,smartNextIdx());
+    }
+    // Only start next track if audio actually stopped (song ended while DJ was speaking)
+    if(!djRodoActive&&isPlaying&&(!audioEl||audioEl.paused||audioEl.ended)){
+      playTrack(smartNextIdx());
+    }
   });
 }
 
