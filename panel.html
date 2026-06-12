@@ -1022,7 +1022,7 @@ input:checked + .toggle-slider::before{background:var(--red);transform:translate
       <div style="margin-top:10px;padding:8px 10px;background:var(--navy2);border:1px solid var(--border2);border-radius:7px;display:flex;align-items:center;gap:8px">
         <span style="font-size:10px;color:var(--text3);font-family:'Share Tech Mono',monospace;white-space:nowrap">VOZ:</span>
         <select id="spotVozSelect" class="inp" style="margin-bottom:0;font-size:11px;padding:5px 8px;flex:1">
-          <option value="callum">🎙️ Callum — Locutor mexicano profesional</option>
+          <option value="eleguar">🎙️ Eleguar — Locutor latinoamericano nativo</option>
         </select>
       </div>
 
@@ -1102,7 +1102,7 @@ input:checked + .toggle-slider::before{background:var(--red);transform:translate
           <div class="prod-row">
             <span class="prod-label">Voz</span>
             <select class="prod-select" id="capsulaVozSel">
-              <option value="callum">Callum — Locutor mexicano profesional</option>
+              <option value="eleguar">Eleguar — Locutor latinoamericano nativo</option>
             </select>
           </div>
           <div class="prod-row">
@@ -1142,7 +1142,7 @@ input:checked + .toggle-slider::before{background:var(--red);transform:translate
           <div class="prod-row">
             <span class="prod-label">Voz</span>
             <select id="djRodoVoice" style="flex:1;background:var(--navy2);border:1px solid var(--border2);border-radius:5px;color:var(--text2);padding:4px 6px;font-size:11px" onchange="saveDJRodoConfig()">
-              <option value="callum">Callum — Locutor mexicano profesional</option>
+              <option value="eleguar">Eleguar — Locutor latinoamericano nativo</option>
             </select>
           </div>
           <div class="prod-row">
@@ -1734,12 +1734,12 @@ setTimeout(()=>{
 
 // Voices pool — Callum: locutor latinoamericano mexicano profesional
 const VOICES={
-  callum:{id:'N2lVS1w4EtoT3dr4eOWO', label:'Callum'},
+  eleguar:{id:'T7QGPtToiqH4S8VlIkMJ', label:'Eleguar'},
 };
 const VOICE_ROTATION=['callum'];
 let voiceRotIdx=0;
 function pickVoiceId(){
-  return VOICES.callum;
+  return VOICES.eleguar;
 }
 
 // ---- HORA RADIO ----
@@ -2865,7 +2865,7 @@ function buildCapsulaText(hora){
 }
 
 function pickCapsulaVoz(){
-  return VOICES.callum;
+  return VOICES.eleguar;
 }
 
 function playLiveSFX(){
@@ -3532,7 +3532,7 @@ async function playDJRodo(type){
     showToast('DJ Rodo: falta clave ElevenLabs');
     return;
   }
-  const voiceId=VOICES.callum.id;
+  const voiceId=VOICES.eleguar.id;
   try{
     const r=await fetch(`/api/elevenlabs/${voiceId}`,{
       method:'POST',
