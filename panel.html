@@ -1824,47 +1824,52 @@ INSTRUCCIONES PARA INTEGRAR LA HORA:
 `:'';
   // Elige apertura aleatoria para forzar variedad entre spots
   const aperturas=[
-    'escena de pesca: el momento exacto donde el equipo malo arruina la oportunidad',
-    'dolor del pescador: la frustración de perder una pieza por equipo que falla',
-    'comparación: la diferencia que se siente entre equipo bueno y equipo barato',
-    'urgencia: hay peces, hay condiciones, pero sin el equipo correcto no pasa nada',
-    'aspiración: el pescador que llega bien equipado vs el que improvisa',
-    'desafío directo: pregunta que hace pensar al oyente sobre su equipo actual',
-    'dato sensorial: el sonido, tacto o sensación de equipo de calidad en acción',
-    'historia de 2 oraciones: alguien que falló por equipo malo, luego cambió',
+    'escena vívida: el momento exacto en que el equipo correcto marca la diferencia en el agua',
+    'sensación de dominio: cómo se siente tener el control total cuando el pez pega fuerte',
+    'urgencia de temporada: las condiciones están dadas, la pregunta es si el equipo está a la altura',
+    'aspiración: el pescador que llega preparado y lo demuestra en el agua',
+    'desafío personal: ¿tu equipo actual está a la altura de lo que vas a enfrentar?',
+    'dato sensorial: el sonido, tacto o sensación de equipo profesional en acción',
+    'escena de éxito: la diferencia entre regresar con historia o regresar con excusas',
+    'confianza: el pescador que conoce su equipo no improvisa, domina',
   ];
   const apertura=aperturas[Math.floor(Math.random()*aperturas.length)];
 
   const estilosVenta={
-    'eufórico':'URGENCIA + EMOCIÓN: alta energía, frases cortas y explosivas, sensación de que hay que ir YA a Terrapesca.',
-    'dinámico':'CONFIANZA + ACCIÓN: ritmo ágil, beneficio claro, cierre contundente.',
-    'elegante':'ASPIRACIÓN + CALIDAD: tono premium, el pescador que no se conforma con menos.',
-    'urgente':'ESCASEZ + AHORA: el momento es hoy, el equipo se acaba, no hay segunda oportunidad.',
+    'eufórico':'ENERGÍA + CONFIANZA: alta energía, frases cortas y directas, el producto es la decisión obvia.',
+    'dinámico':'ACCIÓN + BENEFICIO: ritmo ágil, qué ganas con este producto, cierre contundente.',
+    'elegante':'ASPIRACIÓN + CALIDAD: tono premium, el pescador profesional elige con criterio.',
+    'urgente':'MOMENTO + DECISIÓN: las condiciones están ahora, el equipo correcto marca la diferencia hoy.',
   };
   const estrategia=estilosVenta[estilo]||estilosVenta['eufórico'];
 
-  return `Eres el mejor guionista de radio comercial de México. Creas spots que hacen que la gente QUIERA ir a comprar ahora mismo.
+  return `Eres el mejor guionista de radio comercial de México. Creas spots que posicionan productos con autoridad y hacen que el oyente quiera ir a Terrapesca ahora mismo.
 
 PRODUCTO(S) A ANUNCIAR:
 ${contenido}
 
-MISIÓN: Un spot de 15-20 segundos que sea 100% único para ESTE producto específico. No genérico. No podría funcionar para otro artículo.
+MISIÓN: Un spot de 15-20 segundos 100% específico para ESTE producto. Que no pudiera funcionar para ningún otro artículo.
 
-ESTRATEGIA DE VENTA: ${estrategia}
+ESTRATEGIA: ${estrategia}
 
-APERTURA OBLIGATORIA (elige esta técnica): ${apertura}
+APERTURA (usa esta técnica): ${apertura}
 
 REGLAS DE ORO:
-- Primera frase: gancho de impacto. Sin saludos, sin presentación, sin contexto.
-- Menciona el producto por nombre exacto mínimo 1 vez, máximo 2.
-- Convierte características en beneficios concretos: no "alta resistencia" → "aguanta la pelea sin temblarte la mano".
-- Disparo de compra claro: "pregunta por él en Terrapesca", "pídelo hoy", "ve a Terrapesca".
+- Primera frase: impacto directo. Sin saludos, sin presentación.
+- Menciona el producto por nombre exacto 1 o 2 veces.
+- Beneficios concretos: no características técnicas — qué SIENTE o LOGRA el pescador con él.
+- Llamado a acción claro: "pregunta por él en Terrapesca", "pídelo hoy", "encuéntralo en Terrapesca".
 - Cierre de marca: "${cfg.slogan}"
-- Cada spot debe sonar DIFERENTE a cualquier otro. Varía estructura, ritmo, ángulo de venta.
+- Varía la estructura en cada spot: apertura, ritmo y ángulo de venta diferentes cada vez.
 
-PROHIBIDO: "Hey pescador", "Hola amigos", "Atención", saludos, introducciones lentas, frases genéricas de radio barata, mencionar precios, inventar especificaciones técnicas.
+ABSOLUTAMENTE PROHIBIDO:
+- Mencionar, insinuar o comparar con otras marcas o competidores.
+- Frases como "no es equipo corriente", "a diferencia de otros", "mejor que la competencia", "equipos baratos", "equipo malo", "equipo que falla", "lo corriente".
+- El producto se vende por sus propios méritos, no atacando a nadie.
+- Saludos, introducciones lentas, frases de radio genérica, mencionar precios.
+- Inventar especificaciones técnicas no confirmadas.
 ${horaBlock}
-FORMATO: Entrega ÚNICAMENTE el texto final del spot. Sin etiquetas, sin títulos, sin explicaciones. Solo el texto que va a narrar la voz.`;
+FORMATO: Entrega ÚNICAMENTE el texto final del spot. Sin etiquetas, sin títulos, sin explicaciones.`;
 }
 
 // ---- GENERATE SPOT ----
