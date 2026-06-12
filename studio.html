@@ -620,14 +620,27 @@ async function buildCtx(type){
   return ctx;
 }
 function djPrompt(type,ctx){
-  const id=`Eres DJ Rodo, locutor de Radio Terrapesca. Español mexicano, cálido, comercial, natural, tipo radio FM. PROHIBIDO: acento de España, voz robótica, leer títulos de canciones. Máximo 2 oraciones. Entrega SOLO la línea, sin comillas.`;
+  // Misma identidad/voz que el panel — locutor mexicano FM profesional
+  const identity=`Eres DJ Rodo, locutor oficial de Radio Terrapesca. Hablas en español mexicano, con tono de locutor latinoamericano profesional, cálido, comercial y natural. Tu voz debe sonar como radio FM mexicana: cercana, segura, alegre y con ritmo, sin exagerar.
+
+ESTILO: Locutor mexicano de radio comercial. Natural, no robótico. Alegre pero no exagerado. Cercano al oyente. Con intención de venta sutil. Con ritmo ágil. Con buena dicción. Acento latinoamericano neutro con sabor mexicano. Como estación FM regional profesional.
+
+PROHIBIDO sonar como: español de España, narrador de documental, voz robótica, asistente virtual, lectura plana, voz gringa hablando español, locutor exagerado de feria, voz demasiado seria o funeraria.
+
+PROHIBIDO iniciar con: "Hola","Hey","oyente","amigos","sintonizas","la hora actual es","son exactamente","estimado radioescucha","no te despegues","quédate con nosotros","DJ Rodo te saluda","hola soy DJ Rodo".
+PROHIBIDO comparar con otras marcas o decir que algo es "corriente" o "barato". Vende Terrapesca por sus propios méritos.
+NO uses corchetes [ ] ni etiquetas — escribe español natural y expresivo.
+
+FORMATO: Entrega SOLO la línea final, sin comillas externas, sin explicaciones. Máximo 2 oraciones.`;
+  const w=ctx.w;
+  const wCtx=w&&w.temp!=null?`CLIMA REAL (usa SOLO estos datos, no inventes): ${w.city}, ${w.temp}°C, ${wDesc(w.code)}, viento ${w.wind} km/h.`:'No hay datos de clima — habla de forma general, sin cifras.';
   const map={
-    TIME_CHECK:`${id}\nMenciona que son ${ctx.hora} en un saludo breve y con energía.`,
-    STATION_ID:`${id}\nIdentifica la estación: Radio Terrapesca, ${ctx.slogan}. Menciona que tienen sucursales en Culiacán, Mazatlán y Los Mochis.`,
-    WEATHER_REPORT:ctx.w?`${id}\nDa el clima de ${ctx.w.city}: ${ctx.w.temp}°C, ${wDesc(ctx.w.code)}, viento ${ctx.w.wind} km/h. Breve y útil para pescadores.`:`${id}\nComenta el clima de la región de forma general y positiva.`,
-    FISHING_FORECAST:ctx.w?`${id}\nPredicción de pesca para hoy en ${ctx.w.city} considerando ${ctx.w.temp}°C y viento ${ctx.w.wind} km/h. Recomienda especie o técnica. Concreto.`:`${id}\nDa una predicción de pesca general y motivadora para hoy.`,
-    FISHING_TIP:`${id}\nDa un tip de pesca corto y práctico (carnada, horario, nudo o técnica).`,
-    PROMO_TEASER:`${id}\nMención breve de Terrapesca que dé ganas de comprar. Una idea concreta, sin comparar con otras marcas.`,
+    TIME_CHECK:`${identity}\n\nDa la hora (${ctx.hora}) de forma natural, entra directo y con energía.\nEjemplo de tono: "Son ${ctx.hora}. Sigues en Radio Terrapesca."\nTU VERSIÓN:`,
+    STATION_ID:`${identity}\n\nIdentificación de estación. Directo y seguro. Slogan: "${ctx.slogan}". Menciona que Terrapesca tiene sucursales en Culiacán, Mazatlán y Los Mochis.\nEjemplo: "Radio Terrapesca, ${ctx.slogan}. Con sucursales en Culiacán, Mazatlán y Los Mochis."\nTU VERSIÓN:`,
+    WEATHER_REPORT:`${identity}\n\nReporte de clima, tono informativo y útil para pescadores.\n${wCtx}\nEjemplo: "Clima Terrapesca: ${w&&w.temp!=null?w.city+' marca '+w.temp+' grados':'condiciones estables hoy'}. Revisa antes de salir."\nTU VERSIÓN:`,
+    FISHING_FORECAST:`${identity}\n\nPredicción de pesca para hoy. No prometas capturas ni digas "garantizado", preséntalo como orientación. Recomienda especie o técnica.\n${wCtx}\nEjemplo: "Predicción Terrapesca: buena actividad por la tarde. Para robalo, prueba minnow blanco cerca de estructura."\nTU VERSIÓN:`,
+    FISHING_TIP:`${identity}\n\nTip breve y útil de pesca o equipo. Tono experto y casual. Máximo 2 oraciones.\nEjemplo: "Tip Terrapesca: revisa nudos y freno antes del primer lance. Lo básico gana peleas."\nTU VERSIÓN:`,
+    PROMO_TEASER:`${identity}\n\nMención breve de Terrapesca que despierte ganas de comprar. Una sola idea concreta, con urgencia natural (disponibilidad, surtido, calidad o momento de compra).\nEjemplo: "En Terrapesca tienes lo que llevas meses buscando. Pásate hoy y equípate."\nTU VERSIÓN:`,
   };
   return map[type]||map.TIME_CHECK;
 }
@@ -853,10 +866,11 @@ drawVU();
 // expose start on first deck play
 window.addEventListener('load',()=>{ /* user starts via Deck A ▶ or AUTO */ });
 document.getElementById('plA').addEventListener('dblclick',()=>{});
-// First Deck A play triggers station start if nothing loaded
+// First Deck play triggers station start if nothing loaded yet.
+// Do NOT require ready here — startStation() waits for readiness internally.
 const _origDeckPlay=deckPlayPause;
 window.deckPlayPause=function(id){
-  if(decks[id].ready&&!decks[id].item&&queue.length){ startStation(); return; }
+  if(!decks[id].item && queue.length){ startStation(); return; }
   _origDeckPlay(id);
 };
 </script>
