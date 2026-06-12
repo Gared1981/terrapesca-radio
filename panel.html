@@ -2193,6 +2193,7 @@ function playTrack(idx,opts={}){
         ytPlayer.loadVideoById(vid);
         ytPlayer.setVolume(parseInt(document.getElementById('volS').value)||80);
         setTimeout(()=>{try{ytPlayer.playVideo();}catch(e){}},250); // force play (mobile/autoplay)
+        startProg(); // start the elapsed/remaining timer for YouTube tracks
       }catch(e){console.warn('[YT] load error',e);showToast('⚠️ Error al cargar video','error');}
     };
     if(!vid){showToast('⚠️ Esta canción no tiene ID de YouTube','error');}
