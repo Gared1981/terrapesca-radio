@@ -1501,8 +1501,7 @@ let selV = cfg.voice;
 
 // STATE
 let playlist=[],curIdx=-1,isPlaying=false,isShuffle=false,isRepeat=false;
-let _watchdogCT = -1;
-let _watchdogAt = 0;
+let _watchdogAt = Date.now();
 let spotsLibrary=[]; // separate spots library (not part of playlist)
 let schedule=[]; // programming calendar entries
 let songsSinceSpot=0;
@@ -2090,8 +2089,10 @@ function startCrossfade(nextIdx,outgoing){
     fadeVolumeTo(outgoing,0,CROSSFADE_MS,()=>{
       outgoing.pause();outgoing.src='';
       audioEl=audioEl2;audioEl2=null;
-      audioEl.removeEventListener('timeupdate',updateProg); // detach if already there
+      audioEl.removeEventListener('timeupdate',updateProg);
+      audioEl.removeEventListener('timeupdate',_onAudioTimeUpdate);
       audioEl.addEventListener('timeupdate',updateProg);
+      audioEl.addEventListener('timeupdate',_onAudioTimeUpdate);
       audioEl.addEventListener('ended',handleEnded);
       startProg();
       const ni=smartNextIdx();
@@ -2160,9 +2161,10 @@ function playTrack(idx,opts={}){
     incoming.volume=audioEl?0:targetVol; // silent if we'll crossfade from outgoing
     incoming.addEventListener('loadedmetadata',()=>{document.getElementById('tT').textContent=fmt(incoming.duration);});
     incoming.addEventListener('ended',handleEnded);
-    incoming.addEventListener('waiting',()=>{_watchdogAt=Date.now()-300;}); // near-stall → skip after 400ms
-    incoming.addEventListener('stalled',()=>{_watchdogAt=Date.now()-350;});  // stalled → skip immediately
     incoming.addEventListener('timeupdate',updateProg);
+    incoming.addEventListener('timeupdate',_onAudioTimeUpdate);
+    incoming.addEventListener('waiting',()=>{/* buffering — watchdog tolerates up to 5s */});
+    incoming.addEventListener('stalled',()=>{/* stalled — watchdog will catch actual freeze */});
     const outgoing=audioEl;
     audioEl=incoming;
     incoming.play().then(()=>{
@@ -2213,16 +2215,17 @@ function setPlayUI(p){
   document.getElementById('viz').classList.toggle('spot-mode',isS);
   document.getElementById('btnPlay').classList.toggle('spot-m',isS);
 }
+// Watchdog: timeupdate resets the timer; if >5s without timeupdate → stalled
+function _onAudioTimeUpdate(){_watchdogAt=Date.now();}
 function _silenceWatchdog(){
   if(!isPlaying||!audioEl||audioEl.paused||audioEl.ended||djRodoActive) return;
-  const ct=audioEl.currentTime;
-  if(ct!==_watchdogCT){_watchdogCT=ct;_watchdogAt=Date.now();return;}
-  if(Date.now()-_watchdogAt>400){
+  if(Date.now()-_watchdogAt>5000){
     _watchdogAt=Date.now();
+    console.warn('[watchdog] stall detected → next track');
     nextTrack();
   }
 }
-setInterval(_silenceWatchdog,200);
+setInterval(_silenceWatchdog,1000);
 
 function stopAll(){
   cancelCrossfade();
