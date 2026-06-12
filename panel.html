@@ -2264,7 +2264,7 @@ function handleEnded(){
 
   // DJ Rodo / Cápsula — solo entre canciones, nunca durante spots
   if(t&&t.type!=='spot'&&!djRodoActive){
-    const ni=smartNextIdx();
+    const ni=smartNextIdx(); // pin next index once — same song DJ mentions AND plays
     const nextT=playlist[ni];
     if(nextT&&nextT.type!=='spot'){
       const djOn=document.getElementById('djRodoEnabled')?.checked;
@@ -2277,13 +2277,13 @@ function handleEnded(){
           if(mode==='over_music'){
             // Start next song first, then DJ talks over it with ducking
             playTrack(ni);
-            setTimeout(()=>{ if(!djRodoActive) playDJRodo(interv).catch(()=>{}); },600);
+            setTimeout(()=>{ if(!djRodoActive) playDJRodo(interv,ni).catch(()=>{}); },600);
           }else{
-            // DJ speaks between songs, then next song starts
+            // DJ speaks between songs, then exactly that same song starts
             cancelCrossfade();
-            playDJRodo(interv).catch(()=>{}).finally(()=>{
+            playDJRodo(interv,ni).catch(()=>{}).finally(()=>{
               const needsTrack=!audioEl||audioEl.paused||audioEl.ended;
-              if(needsTrack) playTrack(smartNextIdx());
+              if(needsTrack) playTrack(ni);
             });
           }
           return;
@@ -2293,7 +2293,7 @@ function handleEnded(){
         cancelCrossfade();
         playCapsule().catch(()=>{}).finally(()=>{
           const needsTrack=!audioEl||audioEl.paused||audioEl.ended;
-          if(needsTrack) playTrack(smartNextIdx());
+          if(needsTrack) playTrack(ni);
         });
         return;
       }
@@ -3400,9 +3400,9 @@ function buildWeatherForecastScript(weather,forecast){
   return script;
 }
 
-function buildDJRodoContext(type){
+function buildDJRodoContext(type,overrideNextIdx){
   const cur=playlist[curIdx]||null;
-  const nextIdx=(curIdx+1)%playlist.length;
+  const nextIdx=overrideNextIdx!=null?overrideNextIdx:smartNextIdx();
   const nxt=playlist[nextIdx]||null;
   const hora=getHoraRadio();
   const lastPhrase=djRodoLastPhrases.length?djRodoLastPhrases[djRodoLastPhrases.length-1]:'';
@@ -3639,7 +3639,7 @@ function getDJRodoFallback(type,ctx){
   return opts[Math.floor(Math.random()*opts.length)];
 }
 
-async function generateDJScript(type){
+async function generateDJScript(type,nextIdx){
   if(!cfg.anthropicKey) return null;
   // Pre-fetch weather/forecast data for relevant types before building prompt
   if(type==='WEATHER_REPORT'||type==='FISHING_FORECAST'){
@@ -3648,7 +3648,7 @@ async function generateDJScript(type){
       getFishingForecast().catch(()=>null),
     ]);
   }
-  const ctx=buildDJRodoContext(type);
+  const ctx=buildDJRodoContext(type,nextIdx);
   const prompt=buildDJRodoPrompt(type,ctx);
   try{
     const r=await fetch('/api/anthropic',{
@@ -3666,9 +3666,9 @@ async function generateDJScript(type){
   }catch(e){return null}
 }
 
-async function playDJRodo(type){
+async function playDJRodo(type,nextIdx){
   if(djRodoActive){return;} // prevent overlap
-  const ctx=buildDJRodoContext(type);
+  const ctx=buildDJRodoContext(type,nextIdx);
   let script=null;
   const cacheKey=type+'_'+ctx.hora.slice(0,5);
   if(djRodoAudioCache.has(cacheKey)){
@@ -3684,9 +3684,9 @@ async function playDJRodo(type){
     await playDJAudio(url,type);
     return;
   }
-  script=await generateDJScript(type);
+  script=await generateDJScript(type,nextIdx);
   if(!script){
-    const fbCtx=buildDJRodoContext(type);
+    const fbCtx=buildDJRodoContext(type,nextIdx);
     script=getDJRodoFallback(type,fbCtx);
   }
   updateDJCounters(type);
