@@ -1272,6 +1272,33 @@ input:checked + .toggle-slider::before{background:var(--red);transform:translate
       </div>
     </div>
 
+    <!-- PROGRAMMING CALENDAR -->
+    <div style="background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px">
+      <div class="sec-lbl" style="margin-bottom:12px">📅 Programación</div>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:10px">
+        <div style="display:flex;gap:6px;align-items:center">
+          <select class="inp" id="schedSpot" style="flex:1;padding:5px 8px;font-size:11px">
+            <option value="-1">— sin spots —</option>
+          </select>
+          <input class="inp" id="schedTime" type="time" style="width:90px;padding:5px 8px;font-size:11px"/>
+        </div>
+        <div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center">
+          <span style="font-size:10px;color:var(--text2);margin-right:2px">Días:</span>
+          <label style="display:flex;align-items:center;gap:2px;font-size:10px;cursor:pointer"><input type="checkbox" id="sched-day-lun" checked/> L</label>
+          <label style="display:flex;align-items:center;gap:2px;font-size:10px;cursor:pointer"><input type="checkbox" id="sched-day-mar" checked/> M</label>
+          <label style="display:flex;align-items:center;gap:2px;font-size:10px;cursor:pointer"><input type="checkbox" id="sched-day-mie" checked/> X</label>
+          <label style="display:flex;align-items:center;gap:2px;font-size:10px;cursor:pointer"><input type="checkbox" id="sched-day-jue" checked/> J</label>
+          <label style="display:flex;align-items:center;gap:2px;font-size:10px;cursor:pointer"><input type="checkbox" id="sched-day-vie" checked/> V</label>
+          <label style="display:flex;align-items:center;gap:2px;font-size:10px;cursor:pointer"><input type="checkbox" id="sched-day-sab"/> S</label>
+          <label style="display:flex;align-items:center;gap:2px;font-size:10px;cursor:pointer"><input type="checkbox" id="sched-day-dom"/> D</label>
+        </div>
+        <button class="btn-m primary" style="width:100%;font-size:11px" onclick="addScheduleEntry()">+ Agregar entrada</button>
+      </div>
+      <div id="schedList" style="max-height:200px;overflow-y:auto">
+        <div class="pl-empty" style="padding:12px 0"><p style="font-size:11px">Sin entradas programadas</p></div>
+      </div>
+    </div>
+
   </div><!-- /left-col -->
 
   <!-- PLAYLIST -->
@@ -1284,6 +1311,20 @@ input:checked + .toggle-slider::before{background:var(--red);transform:translate
       <div class="pl-empty">
         <div class="ei">🎶</div>
         <p>Agrega canciones para comenzar</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- SPOTS LIBRARY -->
+  <div class="pl-card" style="margin-top:10px">
+    <div class="pl-hdr">
+      <div class="sec-lbl" style="margin:0">🎙️ Spots</div>
+      <span class="pl-cnt" id="spotsCnt">0 spots</span>
+    </div>
+    <div class="pl-list" id="spotsList" style="max-height:220px">
+      <div class="pl-empty">
+        <div class="ei">🎙️</div>
+        <p>Genera spots con IA para verlos aquí</p>
       </div>
     </div>
   </div>
@@ -2103,6 +2144,59 @@ function handleEnded(){
   _handlingEnded=false;
   nextTrack();
 }
+// Play a spot from spotsLibrary.
+// opts.auto=true → duck music (auto spot between songs)
+// default (manual) → stop music first, play at full vol, then resume music
+function playSpotManual(spot, opts={}){
+  if(!spot||!spot.url) return;
+  if(opts.auto){
+    // Auto spot: duck music and overlay
+    if(currentSpotAu){currentSpotAu.pause();currentSpotAu.src='';currentSpotAu=null;}
+    startMusicDucking();
+    playJingle();
+    const au=new Audio(spot.url);
+    currentSpotAu=au;
+    au.volume=parseInt(document.getElementById('volS').value)/100;
+    au.play().catch(()=>{});
+    au.addEventListener('ended',()=>{
+      if(currentSpotAu===au) currentSpotAu=null;
+      stopJingle();
+      releaseMusicDucking();
+      nextTrack();
+    });
+    au.addEventListener('error',()=>{
+      if(currentSpotAu===au) currentSpotAu=null;
+      stopJingle();releaseMusicDucking();nextTrack();
+    });
+  } else {
+    // Manual spot: pause music, play spot at full volume, then resume
+    const wasPlaying=isPlaying;
+    const resumeIdx=curIdx;
+    if(audioEl){audioEl.pause();}
+    if(ytReady&&ytPlayer) try{ytPlayer.pauseVideo();}catch(e){}
+    if(currentSpotAu){currentSpotAu.pause();currentSpotAu.src='';currentSpotAu=null;}
+    playJingle();
+    const au=new Audio(spot.url);
+    currentSpotAu=au;
+    au.volume=parseInt(document.getElementById('volS').value)/100;
+    au.play().catch(()=>{});
+    au.addEventListener('ended',()=>{
+      if(currentSpotAu===au) currentSpotAu=null;
+      stopJingle();
+      if(wasPlaying&&resumeIdx>=0&&resumeIdx<playlist.length){
+        const t=playlist[resumeIdx];
+        if(audioEl&&t&&t.type!=='yt'){audioEl.play().catch(()=>{});}
+        else if(t&&t.type==='yt'&&ytReady){try{ytPlayer.playVideo();}catch(e){}}
+      }
+    });
+    au.addEventListener('error',()=>{
+      if(currentSpotAu===au) currentSpotAu=null;
+      stopJingle();
+    });
+  }
+  sendWS({type:'SPOT',track:{type:'spot',name:spot.name,b64:spot.b64||null,jingleB64:jingleB64||null}});
+}
+
 function nextTrack(){if(!playlist.length)return;playTrack(smartNextIdx())}
 function prevTrack(){if(!playlist.length)return;playTrack(curIdx<=0?playlist.length-1:curIdx-1)}
 function toggleShuffle(){isShuffle=!isShuffle;document.getElementById('btnSh').classList.toggle('active',isShuffle);triggerSave()}
@@ -2227,19 +2321,18 @@ function onDragEnd(e){
 
 function renderPlaylist(){
   const list=document.getElementById('plList');
-  const s=playlist.filter(t=>t.type!=='spot').length;
-  const sp=playlist.filter(t=>t.type==='spot').length;
-  document.getElementById('plCnt').textContent=s+' canción'+(s!==1?'es':'')+(sp?' · '+sp+' spot'+(sp!==1?'s':''):'');
+  const s=playlist.length;
+  document.getElementById('plCnt').textContent=s+' canción'+(s!==1?'es':'');
   if(!playlist.length){list.innerHTML='<div class="pl-empty"><div class="ei">🎶</div><p>Agrega canciones para comenzar</p></div>';return}
-  const ic={yt:'▶',mp3:'🎵',spot:'🎙️'};
+  const ic={yt:'▶',mp3:'🎵'};
   list.innerHTML=playlist.map((t,i)=>{
     const act=i===curIdx;
     const num=act&&isPlaying?`<div style="display:flex;gap:2px;align-items:flex-end;height:12px"><span style="width:3px;background:var(--red);border-radius:1px;animation:dot-dance .6s ease-in-out infinite alternate"></span><span style="width:3px;background:var(--red);border-radius:1px;animation:dot-dance .6s .2s ease-in-out infinite alternate"></span><span style="width:3px;background:var(--red);border-radius:1px;animation:dot-dance .6s .4s ease-in-out infinite alternate"></span></div>`:(i+1);
     const thumbEl=t.type==='yt'&&t.ytId
       ?`<img class="pl-thumb" src="https://img.youtube.com/vi/${t.ytId}/default.jpg" onerror="this.src='${TP_LOGO}'" alt="" loading="lazy">`
       :`<div class="tr-ic ${t.type}">${ic[t.type]||'🎵'}</div>`;
-    const sub=t.type==='yt'?('YouTube'+(t.channelTitle?' · '+t.channelTitle:'')):t.type==='mp3'?'MP3':'Spot IA';
-    return `<div class="tr ${act?'active':''} ${t.type==='spot'?'spot-r':''}"
+    const sub=t.type==='yt'?('YouTube'+(t.channelTitle?' · '+t.channelTitle:'')):t.type==='mp3'?'MP3':'Pista';
+    return `<div class="tr ${act?'active':''}"
       draggable="true"
       onclick="playTrack(${i})"
       ondragstart="onDragStart(event,${i})"
@@ -2254,6 +2347,102 @@ function renderPlaylist(){
     </div>`;
   }).join('');
 }
+
+function renderSpots(){
+  const cnt=document.getElementById('spotsCnt');
+  const list=document.getElementById('spotsList');
+  if(!cnt||!list) return;
+  cnt.textContent=spotsLibrary.length+' spot'+(spotsLibrary.length!==1?'s':'');
+  if(!spotsLibrary.length){
+    list.innerHTML='<div class="pl-empty"><div class="ei">🎙️</div><p>Genera spots con IA para verlos aquí</p></div>';
+    return;
+  }
+  list.innerHTML=spotsLibrary.map((s,i)=>`
+    <div class="tr" style="padding:8px 10px">
+      <div class="tr-ic spot">🎙️</div>
+      <div class="tr-info"><div class="tr-nm" style="font-size:12px">${s.name}</div><div class="tr-tp">Spot IA</div></div>
+      <button class="tr-del" style="color:var(--green);border-color:var(--green)" title="Reproducir" onclick="playSpotManual(spotsLibrary[${i}])">▶</button>
+      <button class="tr-del" onclick="spotsLibrary.splice(${i},1);renderSpots();renderSchedule();triggerSave()" title="Eliminar">✕</button>
+    </div>`).join('');
+}
+
+// ---- SCHEDULE / PROGRAMMING CALENDAR ----
+let _scheduleNextId=1;
+
+function addScheduleEntry(){
+  const spotSel=document.getElementById('schedSpot');
+  const timeEl=document.getElementById('schedTime');
+  if(!spotSel||!timeEl) return;
+  const spotIdx=parseInt(spotSel.value);
+  const time=timeEl.value;
+  if(isNaN(spotIdx)||spotIdx<0||!spotsLibrary[spotIdx]){showToast('Selecciona un spot','error');return;}
+  if(!time){showToast('Ingresa la hora','error');return;}
+  const days=['lun','mar','mie','jue','vie','sab','dom'].filter(d=>document.getElementById('sched-day-'+d)?.checked);
+  if(!days.length){showToast('Selecciona al menos un día','error');return;}
+  schedule.push({id:_scheduleNextId++,name:spotsLibrary[spotIdx].name,spotIdx,days,time,enabled:true});
+  renderSchedule();
+  triggerSave();
+  timeEl.value='';
+  showToast('Entrada agregada al calendario','success');
+}
+
+function removeScheduleEntry(id){
+  const i=schedule.findIndex(e=>e.id===id);
+  if(i>=0){schedule.splice(i,1);renderSchedule();triggerSave();}
+}
+
+function toggleScheduleEntry(id){
+  const e=schedule.find(e=>e.id===id);
+  if(e){e.enabled=!e.enabled;renderSchedule();triggerSave();}
+}
+
+function renderSchedule(){
+  const list=document.getElementById('schedList');
+  if(!list) return;
+  // Update spot dropdown
+  const spotSel=document.getElementById('schedSpot');
+  if(spotSel){
+    const prev=spotSel.value;
+    spotSel.innerHTML=spotsLibrary.length
+      ?spotsLibrary.map((s,i)=>`<option value="${i}">${s.name}</option>`).join('')
+      :'<option value="-1">— sin spots —</option>';
+    spotSel.value=prev;
+  }
+  if(!schedule.length){
+    list.innerHTML='<div class="pl-empty" style="padding:12px 0"><p style="font-size:11px">Sin entradas programadas</p></div>';
+    return;
+  }
+  const dayLabel={lun:'L',mar:'M',mie:'X',jue:'J',vie:'V',sab:'S',dom:'D'};
+  list.innerHTML=schedule.map(e=>{
+    const chips=e.days.map(d=>`<span style="display:inline-block;padding:1px 5px;border-radius:3px;font-size:9px;font-weight:600;background:var(--navy4);color:var(--text2);margin-right:2px">${dayLabel[d]||d}</span>`).join('');
+    return `<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border2)">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:11px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${e.name}</div>
+        <div style="font-size:10px;color:var(--text2);margin-top:2px">${e.time} · ${chips}</div>
+      </div>
+      <button onclick="toggleScheduleEntry(${e.id})" style="background:${e.enabled?'var(--green-dim)':'var(--navy4)'};border:1px solid ${e.enabled?'var(--green)':'var(--border)'};color:${e.enabled?'var(--green)':'var(--text3)'};border-radius:4px;padding:3px 7px;font-size:10px;cursor:pointer">${e.enabled?'ON':'OFF'}</button>
+      <button class="tr-del" onclick="removeScheduleEntry(${e.id})" title="Eliminar">✕</button>
+    </div>`;
+  }).join('');
+}
+
+function checkSchedule(){
+  const now=new Date();
+  const hhmm=now.getHours().toString().padStart(2,'0')+':'+now.getMinutes().toString().padStart(2,'0');
+  const day=['dom','lun','mar','mie','jue','vie','sab'][now.getDay()];
+  for(const entry of schedule){
+    if(!entry.enabled) continue;
+    if(entry.time!==hhmm) continue;
+    if(!entry.days.includes(day)) continue;
+    const spot=spotsLibrary[entry.spotIdx];
+    if(!spot) continue;
+    const key=hhmm+'-'+now.toDateString();
+    if(entry._lastFired===key) continue;
+    entry._lastFired=key;
+    playSpotManual(spot);
+  }
+}
+setInterval(checkSchedule,30000);
 
 // ---- JINGLE ----
 function loadJingle(e){
@@ -2403,6 +2592,18 @@ const StorageService={
   async getSession(){
     return idbGet('session','current');
   },
+  async saveSpots(spots){
+    try{await idbPut('session',{key:'spotsLibrary',items:spots,savedAt:Date.now()});}catch(e){}
+  },
+  async getSpots(){
+    try{const d=await idbGet('session','spotsLibrary');return d?d.items:null;}catch(e){return null;}
+  },
+  async saveSchedule(sched){
+    try{await idbPut('session',{key:'schedule',items:sched,savedAt:Date.now()});}catch(e){}
+  },
+  async getSchedule(){
+    try{const d=await idbGet('session','schedule');return d?d.items:null;}catch(e){return null;}
+  },
   async exportBackup(){
     const items=(await this.getPlaylist())||[];
     const session=await this.getSession();
@@ -2443,6 +2644,8 @@ async function doAutoSave(){
       jingleB64,jingleVolume,
       jingleName:document.getElementById('jingleName')?.textContent||'',
     });
+    await StorageService.saveSpots(spotsLibrary.map(s=>({type:'spot',name:s.name,b64:s.b64||null,script:s.script||''})));
+    await StorageService.saveSchedule(schedule.map(e=>({id:e.id,name:e.name,spotIdx:e.spotIdx,days:e.days,time:e.time,enabled:e.enabled})));
     updateSaveInd('saved');
   }catch(e){updateSaveInd('error')}
 }
@@ -2510,6 +2713,30 @@ async function restoreSession(){
       document.getElementById('restoreBannerMsg').textContent=msg;
       document.getElementById('restoreBanner').style.display='flex';
       setTimeout(dismissRestoreBanner,40000);
+    }
+    // Restore spotsLibrary
+    const savedSpots=await StorageService.getSpots();
+    if(savedSpots&&savedSpots.length){
+      spotsLibrary=savedSpots.map(s=>{
+        // Recreate blob URL from b64 if available
+        let url=s.url||null;
+        if(!url&&s.b64){
+          try{
+            const bin=atob(s.b64),arr=new Uint8Array(bin.length);
+            for(let j=0;j<bin.length;j++) arr[j]=bin.charCodeAt(j);
+            url=URL.createObjectURL(new Blob([arr],{type:'audio/mpeg'}));
+          }catch(err){}
+        }
+        return {...s,url};
+      });
+      renderSpots();
+    }
+    // Restore schedule
+    const savedSchedule=await StorageService.getSchedule();
+    if(savedSchedule&&savedSchedule.length){
+      schedule=savedSchedule;
+      _scheduleNextId=Math.max(...schedule.map(e=>e.id||0))+1;
+      renderSchedule();
     }
   }catch(e){console.error('Restore error:',e)}
 }
