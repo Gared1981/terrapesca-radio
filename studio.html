@@ -454,6 +454,7 @@ const cfg={
   ws:localStorage.getItem('tp_ws')||'',
   elKey:localStorage.getItem('tp_el')||'',
   antKey:localStorage.getItem('tp_ant')||'',
+  ytKey:localStorage.getItem('tp_yt')||'',
   slogan:localStorage.getItem('tp_slogan')||'La estación oficial de Terrapesca',
 };
 
@@ -1206,13 +1207,55 @@ function esc(s){return (s||'').replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':
 function pushHistory(it){history.unshift({name:it.name,artist:it.artist||(it.spot?'Spot':''),tm:new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'})});history=history.slice(0,40);renderHistory();}
 
 /* ================= QUEUE OPS ================= */
-function getYTId(u){if(/^[\w-]{11}$/.test(u))return u;const m=u.match(/(?:youtu\.be\/|[?&]v=|\/embed\/|shorts\/)([\w-]{11})/);return m?m[1]:null;}
-function addYTLink(){
-  const inp=document.getElementById('ytInput');const id=getYTId(inp.value.trim());
+function getYTId(u){
+  if(/^[\w-]{11}$/.test(u)) return u;
+  // Handles youtube.com, music.youtube.com, youtu.be, shorts, embed, live
+  const m=u.match(/(?:youtu\.be\/|[?&]v=|\/embed\/|\/shorts\/|\/live\/)([\w-]{11})/);
+  return m?m[1]:null;
+}
+function getYTPlaylistId(u){
+  const m=u.match(/[?&]list=([\w-]+)/);
+  return m?m[1]:null;
+}
+async function addYTLink(){
+  const inp=document.getElementById('ytInput');
+  const raw=inp.value.trim();
+  if(!raw){return;}
+
+  // Check if it's a playlist link
+  const plId=getYTPlaylistId(raw);
+  if(plId){
+    inp.value='';
+    if(!cfg.ytKey){toast('Necesitas clave de YouTube API en ⚙️ CONFIG para importar playlists','error');return;}
+    toast('Cargando playlist…','ok');
+    try{
+      const baseUrl=cfg.ws.replace('wss://','https://').replace('ws://','http://').replace(/\/$/,'');
+      const r=await fetch(`${baseUrl}/api/ytplaylist?playlistId=${plId}&key=${cfg.ytKey}`);
+      const d=await r.json();
+      if(d.error) throw new Error(d.error.message||JSON.stringify(d.error));
+      const items=(d.items||[]).filter(x=>x.snippet?.resourceId?.videoId);
+      if(!items.length) throw new Error('Playlist vacía o privada');
+      let added=0;
+      items.forEach(it=>{
+        const vid=it.snippet.resourceId.videoId;
+        const title=it.snippet.title||'YouTube';
+        const channel=it.snippet.videoOwnerChannelTitle||'';
+        if(!queue.find(q=>q.ytId===vid)){
+          queue.push({ytId:vid,name:title,artist:channel});
+          added++;
+        }
+      });
+      renderQueue();
+      toast(`✅ ${added} canciones agregadas de la playlist`,'ok');
+    }catch(e){toast('Error cargando playlist: '+e.message,'error');}
+    return;
+  }
+
+  // Single video
+  const id=getYTId(raw);
   if(!id){toast('Link o ID no válido','error');return;}
   queue.push({ytId:id,name:'YouTube '+(queue.length+1),artist:''});
   inp.value='';renderQueue();toast('Agregada a la cola','ok');
-  // fetch title in background
   fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${id}&format=json`).then(r=>r.json()).then(d=>{
     const q=queue.find(x=>x.ytId===id);if(q){q.name=d.title||q.name;q.artist=d.author_name||'';renderQueue();}
   }).catch(()=>{});
@@ -1573,6 +1616,7 @@ function saveSettings(){
   cfg.ws=localStorage.getItem('tp_ws')||'';
   cfg.elKey=localStorage.getItem('tp_el')||'';
   cfg.antKey=localStorage.getItem('tp_ant')||'';
+  cfg.ytKey=localStorage.getItem('tp_yt')||'';
   cfg.slogan=localStorage.getItem('tp_slogan')||'La estación oficial de Terrapesca';
   // Sync selectors on DJ card
   const wc=localStorage.getItem('tp_weather_city')||'auto';
