@@ -579,9 +579,8 @@ function buildPlayers(){
         height:'100%',width:'100%',
         playerVars:{autoplay:0,controls:0,modestbranding:1,rel:0,playsinline:1,origin:location.origin},
         events:{
-          onReady:()=>{d.ready=true;d.player.setVolume(0);lowQ(d);console.log('[YT] deck '+(d.id?'B':'A')+' READY');},
+          onReady:()=>{d.ready=true;d.player.setVolume(0);console.log('[YT] deck '+(d.id?'B':'A')+' READY');},
           onStateChange:(e)=>onDeckState(d,e),
-          onPlaybackQualityChange:()=>lowQ(d), // keep forcing 240p — minimal decode
           onError:(e)=>{
             console.warn('[YT] error',e.data,'deck',d.id);
             if(d.id===activeDeck && !_xfading && !djActive){ toast('⚠️ Video no disponible, saltando…',''); advanceNoXfade(); }
@@ -591,12 +590,10 @@ function buildPlayers(){
     }catch(err){ console.error('[YT] player build failed',err); }
   });
 }
-// Force the lowest video resolution so YouTube spends almost no CPU/bandwidth
-// decoding video — we only care about the audio. Huge fluidity win.
-function lowQ(d){
-  try{ d.player.setPlaybackQuality('small'); }catch(_){}
-  try{ d.player.setPlaybackQualityRange&&d.player.setPlaybackQualityRange('small','small'); }catch(_){}
-}
+// NOTE: We do NOT force playback quality. Forcing a fixed resolution fights
+// YouTube's adaptive bitrate (which lowers quality automatically when bandwidth
+// drops) and each forced change triggers a re-buffer — the source of the stutter.
+// The players are small, so YouTube already serves low-res by default.
 // The YouTube API calls this global when ready
 window.onYouTubeIframeAPIReady=buildPlayers;
 // Safety: if the API already loaded before this script ran, build now;
@@ -612,7 +609,6 @@ function onDeckState(d,e){
   if(e.data===YT.PlayerState.PLAYING){
     clearTimeout(d._bufTimeout);
     d.playing=true;
-    lowQ(d); // re-assert 240p every time playback (re)starts
     try{d.dur=d.player.getDuration()||0;}catch(_){}
     updateOnAir();
   }
@@ -702,7 +698,6 @@ function prebufferNext(item){
   try{
     d.player.loadVideoById(it.ytId);
     d.player.setVolume(0);
-    lowQ(d);
   }catch(_){}
   renderDeck(other);
 }
