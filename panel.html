@@ -1989,7 +1989,7 @@ async function generateSpot(){
         text:stripElTags(script),
         model_id:'eleven_multilingual_v2',
         language_code:'es',
-        voice_settings:{stability:0.12,similarity_boost:0.85,style:0.90,use_speaker_boost:true}
+        voice_settings:{stability:0.05,similarity_boost:0.75,style:1.0,use_speaker_boost:true}
       })
     });
     if(!tr.ok){const er=await tr.json().catch(()=>({}));throw new Error(er.detail?.message||'Error ElevenLabs')}
@@ -3113,7 +3113,7 @@ async function playCapsule(){
       headers:{'Content-Type':'application/json','xi-api-key':cfg.apiKey},
       body:JSON.stringify({
         text:stripElTags(text),model_id:'eleven_multilingual_v2',language_code:'es',
-        voice_settings:{stability:0.12,similarity_boost:0.85,style:0.90,use_speaker_boost:true}
+        voice_settings:{stability:0.05,similarity_boost:0.75,style:1.0,use_speaker_boost:true}
       })
     });
     if(!tr.ok) throw new Error('ElevenLabs capsule error');
@@ -3532,22 +3532,22 @@ function _djTagsForLevel(){
 
 function buildDJRodoPrompt(type,ctx){
   const tagsInstructions=_djTagsForLevel();
-  const identity=`Eres DJ Rodo, locutor de Radio Terrapesca. Hablas español mexicano con IMPACTO COMERCIAL TOTAL: voz potente, ritmo rápido y claro, urgencia real, sonrisa vendedora, actitud de remate.
+  const identity=`Eres DJ Rodo. Radio Terrapesca. Español mexicano. Locutor de campaña agresiva de ventas — el tipo que mueve mercancía en radio regional.
 
-ENTREGA: Como spot de radio FM de alto impacto en campaña fuerte de tienda. Directo, seguro, dinámico. Mueve al oyente a actuar YA.
-RITMO: Rápido pero claro. Pausa breve antes de dato importante. Cierre contundente.
-ENERGÍA: Intensa pero sin caricatura. Locutor profesional FM en modo campaña agresiva de ventas.
-VOZ: Potente, segura, con urgencia comercial real. Énfasis fuerte en acción y beneficio.
+REGLA DE ORO: Cada frase debe sonar como si la dijera alguien que de verdad quiere que el oyente llegue hoy a la tienda. Urgencia REAL. No actuada.
 
-PROHIBIDO: español de España · narrador de documental · lectura plana · lento · elegante de más · institucional · caricaturesco.
+ESCRITURA PARA SÍNTESIS DE VOZ: Frases cortísimas. Golpe directo. Verbos de acción al inicio. Una idea por frase. El sintetizador lee exactamente lo que escribas — hazlo sonar dinámico desde el texto. Usa coma donde hay pausa natural. Punto donde hay golpe fuerte.
+MAL: "Te invitamos a visitar nuestras instalaciones y conocer nuestra gran variedad de productos."
+BIEN: "¡Llega hoy a Terrapesca. Todo lo que necesitas, en un solo lugar!"
+
+CUANDO menciones canciones: título y artista con energía, corto. "¡Viene 'La Chona' de Los Tucanes!" No más.
+PROHIBIDO: frases largas · "te invitamos" · "contamos con" · "no te pierdas" · "quédate" · español de España · tono institucional · texto de más de 25 palabras.
 PROHIBIDO iniciar con: "Hola" · "Hey" · "amigos" · "oyente" · "sintonizas" · "estimado" · "DJ Rodo" · "hola soy".
-CUANDO menciones canciones: di siempre el TÍTULO y el GRUPO/ARTISTA con energía. Ejemplo: "¡Viene 'La Chona' de Los Tucanes de Tijuana!"
-PROHIBIDO comparar marcas o hablar de competencia. Vende Terrapesca por sus propios méritos.
-NO uses corchetes [ ] ni etiquetas — escribe español natural, directo y vendedor.
+NO uses corchetes ni etiquetas. Texto final listo para grabar.
 
 ${tagsInstructions}
 
-FORMATO: SOLO la línea final. Sin comillas externas. Sin explicaciones. Máximo 2 oraciones cortas y potentes.`;
+FORMATO: SOLO el guión. Sin comillas. 1-2 frases MUY cortas. Máximo 20 palabras total.`;
 
   const hora=ctx.hora;
   const slogan=ctx.stationSlogan||'Música, pesca, marina y outdoor';
@@ -3810,7 +3810,7 @@ async function playDJRodo(type,nextIdx){
         text:stripElTags(script),
         model_id:'eleven_multilingual_v2',
         language_code:'es',
-        voice_settings:{stability:0.12,similarity_boost:0.85,style:0.90,use_speaker_boost:true}
+        voice_settings:{stability:0.05,similarity_boost:0.75,style:1.0,use_speaker_boost:true}
       })
     });
     if(!r.ok) throw new Error('EL error '+r.status);

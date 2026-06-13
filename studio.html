@@ -676,7 +676,7 @@ async function playDJ(type){
     const r=await fetch(`/api/elevenlabs/${djVoiceId()}`,{
       method:'POST',headers:{'Content-Type':'application/json','xi-api-key':cfg.elKey},
       body:JSON.stringify({text:stripElTags(script||''),model_id:'eleven_multilingual_v2',language_code:'es',
-        voice_settings:{stability:0.12,similarity_boost:0.85,style:0.90,use_speaker_boost:true}})
+        voice_settings:{stability:0.05,similarity_boost:0.75,style:1.0,use_speaker_boost:true}})
     });
     if(!r.ok) throw new Error('EL '+r.status);
     const ab=await r.arrayBuffer();
@@ -787,19 +787,19 @@ async function buildCtx(type){
   return ctx;
 }
 function djPrompt(type,ctx){
-  const identity=`Eres DJ Rodo, locutor de Radio Terrapesca. Hablas español mexicano con IMPACTO COMERCIAL TOTAL: voz potente, ritmo rápido y claro, urgencia real, sonrisa vendedora, actitud de remate.
+  const identity=`Eres DJ Rodo. Radio Terrapesca. Español mexicano. Locutor de campaña agresiva de ventas — el tipo que mueve mercancía en radio regional.
 
-ENTREGA: Como spot de radio de alto impacto en campaña fuerte de tienda. Directo, seguro, dinámico. Mueve al oyente a actuar YA.
-RITMO: Rápido pero claro. Pausa breve antes de dato importante. Cierre contundente.
-ENERGÍA: Intensa pero sin caricatura. Locutor profesional FM en modo campaña agresiva de ventas.
-VOZ: Potente, segura, con urgencia comercial real. Énfasis fuerte en acción y beneficio.
+REGLA DE ORO: Cada frase debe sonar como si la dijera alguien que de verdad quiere que el oyente llegue hoy a la tienda. Urgencia REAL. No actuada.
 
-PROHIBIDO: español de España · narrador de documental · lectura plana · lento · elegante de más · institucional · caricaturesco.
+ESCRITURA PARA SÍNTESIS DE VOZ: Frases cortísimas. Golpe directo. Verbos de acción al inicio. Una idea por frase. El sintetizador lee exactamente lo que escribas — hazlo sonar dinámico desde el texto. Usa coma donde hay pausa natural. Punto donde hay golpe fuerte.
+MAL: "Te invitamos a visitar nuestras instalaciones y conocer nuestra gran variedad de productos."
+BIEN: "¡Llega hoy a Terrapesca. Todo lo que necesitas, en un solo lugar!"
+
+PROHIBIDO: frases largas · "te invitamos" · "contamos con" · "no te pierdas" · "quédate" · español de España · tono institucional · adjetivos suaves · texto de más de 25 palabras.
 PROHIBIDO iniciar con: "Hola" · "Hey" · "amigos" · "oyente" · "sintonizas" · "estimado" · "DJ Rodo" · "hola soy".
-PROHIBIDO comparar marcas o hablar de competencia. Vende Terrapesca por sus propios méritos.
-NO uses corchetes [ ] ni etiquetas — escribe español natural, directo y vendedor.
+NO uses corchetes ni etiquetas. Texto final listo para grabar.
 
-FORMATO: SOLO la línea final. Sin comillas externas. Máximo 2 oraciones cortas y potentes.`;
+FORMATO: SOLO el guión. Sin comillas. 1-2 frases MUY cortas. Máximo 20 palabras total.`;
   const w=ctx.w;
   const wCtx=w&&w.temp!=null?`CLIMA REAL (usa SOLO estos datos, no inventes): ${w.city}, ${w.temp}°C, ${wDesc(w.code)}, viento ${w.wind} km/h.`:'No hay datos de clima — habla de forma general, sin cifras.';
   const queueLines=(ctx.queue||[]).map(x=>`  ${x.i}: "${x.name}" — ${x.artist||'artista desconocido'}`).join('\n');
@@ -1059,13 +1059,15 @@ async function genSpotAI(){
   }catch(e){_sgStatus('Error generando guión','var(--red)');}
 }
 function _spotPrompt(topic){
-  return `Eres el redactor de spots de Radio Terrapesca. Escribe un spot de radio de ALTO IMPACTO COMERCIAL en español mexicano sobre: "${topic}".
+  return `Redactor de spots de radio. Escribe un spot de MÁXIMO IMPACTO COMERCIAL en español mexicano sobre: "${topic}".
 
-ESTILO: Locutor mexicano FM en campaña agresiva de ventas. Directo, potente, con urgencia real. Ritmo rápido y claro. Sonrisa vendedora. Cierre contundente que mueva al oyente a visitar la tienda HOY.
-ENERGÍA: Intensa pero sin caricatura. Como spot de remate de tienda en radio regional.
-Menciona "Terrapesca" al menos una vez. Máximo 3 oraciones cortas y poderosas.
-Usa verbos de acción: ven, llega, aprovecha, equípate, pesca, no te quedes sin...
-NO uses corchetes [ ], etiquetas, ni comillas externas. SOLO el guión final listo para grabar.`;
+ESCRITURA PARA SÍNTESIS DE VOZ: Frases ultracortas. Verbo de acción primero. Punto contundente al final. El sintetizador lee exactamente lo que escribas — cada coma es una pausa, cada punto es un golpe.
+MAL: "En Terrapesca contamos con los mejores productos para la pesca."
+BIEN: "Terrapesca tiene todo. ¡Llega hoy y equípate!"
+
+Menciona "Terrapesca" una vez. Máximo 3 frases cortísimas. Total: menos de 25 palabras.
+Verbos: llega, ven, aprovecha, equípate, pesca, agarra, no te quedes sin.
+NO uses corchetes, etiquetas, comillas externas, ni texto de introducción. SOLO el guión final.`;
 }
 async function previewSpotScript(){
   const script=document.getElementById('spotScript').value.trim();
@@ -1077,7 +1079,7 @@ async function previewSpotScript(){
     const r=await fetch(`/api/elevenlabs/${djVoiceId()}`,{method:'POST',
       headers:{'Content-Type':'application/json','xi-api-key':cfg.elKey},
       body:JSON.stringify({text:stripElTags(script),model_id:'eleven_multilingual_v2',language_code:'es',
-        voice_settings:{stability:0.10,similarity_boost:0.85,style:0.92,use_speaker_boost:true}})
+        voice_settings:{stability:0.05,similarity_boost:0.75,style:1.0,use_speaker_boost:true}})
     });
     if(!r.ok) throw new Error('EL '+r.status);
     const ab=await r.arrayBuffer();
@@ -1096,7 +1098,7 @@ async function createSpotAudio(){
     const r=await fetch(`/api/elevenlabs/${djVoiceId()}`,{method:'POST',
       headers:{'Content-Type':'application/json','xi-api-key':cfg.elKey},
       body:JSON.stringify({text:stripElTags(script),model_id:'eleven_multilingual_v2',language_code:'es',
-        voice_settings:{stability:0.10,similarity_boost:0.85,style:0.92,use_speaker_boost:true}})
+        voice_settings:{stability:0.05,similarity_boost:0.75,style:1.0,use_speaker_boost:true}})
     });
     if(!r.ok) throw new Error('EL '+r.status);
     const ab=await r.arrayBuffer();
