@@ -57,7 +57,9 @@ header{display:flex;align-items:center;justify-content:space-between;gap:10px;
 .deck-state.playing{color:var(--grn)}
 .deck-state.cued{color:var(--amber)}
 .deck-thumb{width:100%;aspect-ratio:16/7;border-radius:9px;background:#000 center/cover;border:1px solid var(--line);margin-bottom:10px;position:relative;overflow:hidden}
-.deck-thumb iframe,.deck-thumb>div{width:100%;height:100%;border:0;display:block}
+/* The YT iframe stays full-size (so audio keeps playing) but is made invisible —
+   the deck shows the cover-art background instead of decoding/painting video. */
+.deck-thumb iframe,.deck-thumb>div{width:100%;height:100%;border:0;display:block;opacity:0;pointer-events:none}
 .deck-title{font-size:13px;font-weight:700;line-height:1.25;height:34px;overflow:hidden;margin-bottom:2px}
 .deck-artist{font-size:11px;color:var(--txt2);margin-bottom:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .deck-time{display:flex;justify-content:space-between;font-family:var(--mono);font-size:15px;color:var(--cyan);margin-bottom:6px}
@@ -262,7 +264,7 @@ input[type=range]::-moz-range-thumb{width:18px;height:24px;border-radius:5px;bac
 
     <div class="deck B" id="deckB">
       <div class="deck-top"><span class="deck-id">DECK B</span><span class="deck-state" id="stB">vacío</span></div>
-      <div class="deck-thumb" id="thB" style="visibility:hidden;height:1px;min-height:0;overflow:hidden;margin:0;padding:0;border:0"><div id="ytB" style="width:1px;height:1px"></div></div>
+      <div class="deck-thumb" id="thB"><div id="ytB"></div></div>
       <div class="deck-title" id="tiB">—</div>
       <div class="deck-artist" id="arB"></div>
       <div class="deck-time"><span id="elB">0:00</span><span class="rem" id="reB">-0:00</span></div>
@@ -547,7 +549,8 @@ function _freshQueue(){ return queue.filter(q=>!_playedHistory.includes(q.ytId))
 let spots=[];
 let history=[];
 const CROSSFADE_SECS=10;
-const PREBUFFER_AHEAD=18; // seconds before end: start deck B at vol=0 so it buffers
+const PREBUFFER_AHEAD=13; // start buffering next deck 3s before the crossfade window
+                          // (at forced 240p that's plenty; minimal intro loss)
 let master=0.85;
 let flags={auto:true,duck:true,dj:true,aiSelect:true};
 let _djNextSong=-1;
@@ -576,8 +579,9 @@ function buildPlayers(){
         height:'100%',width:'100%',
         playerVars:{autoplay:0,controls:0,modestbranding:1,rel:0,playsinline:1,origin:location.origin},
         events:{
-          onReady:()=>{d.ready=true;d.player.setVolume(0);console.log('[YT] deck '+(d.id?'B':'A')+' READY');},
+          onReady:()=>{d.ready=true;d.player.setVolume(0);lowQ(d);console.log('[YT] deck '+(d.id?'B':'A')+' READY');},
           onStateChange:(e)=>onDeckState(d,e),
+          onPlaybackQualityChange:()=>lowQ(d), // keep forcing 240p — minimal decode
           onError:(e)=>{
             console.warn('[YT] error',e.data,'deck',d.id);
             if(d.id===activeDeck && !_xfading && !djActive){ toast('⚠️ Video no disponible, saltando…',''); advanceNoXfade(); }
@@ -586,6 +590,12 @@ function buildPlayers(){
       });
     }catch(err){ console.error('[YT] player build failed',err); }
   });
+}
+// Force the lowest video resolution so YouTube spends almost no CPU/bandwidth
+// decoding video — we only care about the audio. Huge fluidity win.
+function lowQ(d){
+  try{ d.player.setPlaybackQuality('small'); }catch(_){}
+  try{ d.player.setPlaybackQualityRange&&d.player.setPlaybackQualityRange('small','small'); }catch(_){}
 }
 // The YouTube API calls this global when ready
 window.onYouTubeIframeAPIReady=buildPlayers;
@@ -602,6 +612,7 @@ function onDeckState(d,e){
   if(e.data===YT.PlayerState.PLAYING){
     clearTimeout(d._bufTimeout);
     d.playing=true;
+    lowQ(d); // re-assert 240p every time playback (re)starts
     try{d.dur=d.player.getDuration()||0;}catch(_){}
     updateOnAir();
   }
@@ -676,18 +687,24 @@ function cueDeck(id,item){
   renderDeck(id);
 }
 let _prebufDone=false; // track if we already started the prebuffer for this song
-function prebufferNext(){
-  // Called 18s before end: start deck B at vol=0 so YouTube downloads the song.
-  // This gives 8 extra seconds of buffer before crossfade (at 10s mark).
+function prebufferNext(item){
+  // Called PREBUFFER_AHEAD seconds before the song ends: start the inactive deck
+  // at vol=0 so YouTube downloads/buffers it before the crossfade begins.
+  // At forced 240p the buffer fills in ~2-3s, so the lead is short and the
+  // crossfade is seamless (no stutter, no silence).
   const other=activeDeck===0?1:0;
   const d=decks[other];
-  if(!d.ready||!d.item||d.playing||_prebufDone) return;
+  if(!d.ready||d.playing||_prebufDone) return;
+  const it=item||d.item;
+  if(!it) return;
   _prebufDone=true;
-  d.vol=0;
+  d.item=it; d.dur=0; d.vol=0;
   try{
-    d.player.loadVideoById(d.item.ytId);
+    d.player.loadVideoById(it.ytId);
     d.player.setVolume(0);
+    lowQ(d);
   }catch(_){}
+  renderDeck(other);
 }
 function deckPlayPause(id){
   const d=decks[id]; if(!d.ready) return;
@@ -774,14 +791,12 @@ setInterval(()=>{
   d.dur=dur; updateDeckTime(d.id,ct,dur);
   if(!flags.auto||dur<=0) return;
   const rem=dur-ct;
-  // Pre-buffer next song 18s before end so YouTube starts downloading before crossfade
-  if(rem<=PREBUFFER_AHEAD && rem>CROSSFADE_SECS){
+  // Pre-buffer next song before end so YouTube downloads it before the crossfade
+  if(rem<=PREBUFFER_AHEAD && rem>CROSSFADE_SECS && !_prebufDone){
     const other=activeDeck===0?1:0;
     const after=(queuePos+1)%queue.length;
-    if(queue[after] && !decks[other].item){
-      cueDeck(other, queue[after]);
-    }
-    prebufferNext();
+    const next=decks[other].item||queue[after];
+    if(next) prebufferNext(next);
   }
   if(rem<=CROSSFADE_SECS && rem>0){
     if(flags.dj && djShouldFire()){ djBetweenThenCrossfade(); }
