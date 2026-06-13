@@ -1834,9 +1834,31 @@ function setMood(m){
   _selectedMood=m;
   document.querySelectorAll('#moodRow .exp-btn').forEach(b=>b.classList.toggle('on',b.dataset.m===m));
 }
+function _stopAllDecks(){
+  // Stop both decks cleanly before a fresh start
+  _xfading=false;
+  decks.forEach(d=>{
+    try{d.player.stopVideo();}catch(_){}
+    d.playing=false; d.vol=0; d.item=null;
+  });
+  activeDeck=0;
+  setCrossfader(0);
+  setOnAir(false);
+}
 async function startWithMood(){
   if(!queue.length){toast('Agrega canciones a la cola primero','error');return;}
   const mood=_selectedMood==='auto'?_moodByHour():(MOODS[_selectedMood]||_moodByHour());
+
+  const _launch=(idx)=>{
+    waitReady(()=>{
+      _stopAllDecks();
+      activeDeck=0;
+      loadDeck(0,queue[idx],true); queuePos=idx;
+      const nxt=(idx+1)%queue.length; if(queue[nxt]) cueDeck(1,queue[nxt]);
+      setCrossfader(0); renderQueue();
+      toast(`▶ "${queue[idx].name}" — ${mood.mood}`,'ok');
+    });
+  };
 
   if(cfg.antKey && queue.length>1){
     toast(`🎙️ Rodo elige canción para "${mood.mood}"…`,'ok');
@@ -1851,25 +1873,11 @@ async function startWithMood(){
       const raw=(d.content?.[0]?.text||'').trim();
       let idx=0;
       try{const p=JSON.parse(raw);idx=Number.isInteger(p.idx)&&p.idx>=0&&p.idx<queue.length?p.idx:0;}catch(_){}
-      waitReady(()=>{
-        const other=activeDeck===0?1:0;
-        loadDeck(activeDeck,queue[idx],true); queuePos=idx;
-        const nxt=(idx+1)%queue.length; if(queue[nxt]) cueDeck(other,queue[nxt]);
-        setCrossfader(activeDeck===0?0:100); renderQueue();
-        toast(`▶ "${queue[idx].name}" — ${mood.mood}`,'ok');
-      });
-      return;
+      _launch(idx); return;
     }catch(_){}
   }
   // Fallback: random
-  const idx=Math.floor(Math.random()*queue.length);
-  waitReady(()=>{
-    const other=activeDeck===0?1:0;
-    loadDeck(activeDeck,queue[idx],true); queuePos=idx;
-    const nxt=(idx+1)%queue.length; if(queue[nxt]) cueDeck(other,queue[nxt]);
-    setCrossfader(activeDeck===0?0:100); renderQueue();
-    toast(`▶ "${queue[idx].name}" — ${mood.mood}`,'ok');
-  });
+  _launch(Math.floor(Math.random()*queue.length));
 }
 /* ===== /MOOD-BASED START ===== */
 
