@@ -960,19 +960,23 @@ async function buildCtx(type){
   const ctx={hora:horaRadio(),slogan:cfg.slogan};
   if(type==='WEATHER_REPORT'||type==='FISHING_FORECAST'){ctx.w=await getWeather();}
   if(type==='VENTA_NOCTURNA'||type==='VENTA_OPEN'){
-    // Pick a random promo to highlight
-    ctx.promo=CAMPAIGN.promos[Math.floor(Math.random()*CAMPAIGN.promos.length)];
     ctx.campaign=CAMPAIGN;
   }
   if(type==='SONG_BRIDGE'){
-    // Build a short queue list for AI song selection
-    // Avoid the currently playing song; pick from next few options
     const cur=decks[activeDeck]?.item;
     const opts=queue.map((q,i)=>({i,name:q.name||'YouTube',artist:q.artist||''}))
       .filter(x=>!cur||queue[x.i].ytId!==cur.ytId)
-      .slice(0,8); // show up to 8 options
+      .slice(0,8);
     ctx.queue=opts;
     ctx.currentSong=cur?{name:cur.name||'',artist:cur.artist||''}:null;
+    // Mood by hour
+    const h=new Date().getHours();
+    ctx.mood=h>=6&&h<9   ?{mood:'Mañana activa',desc:'energía de arranque, optimismo, ritmo que despierta'}
+            :h>=9&&h<12  ?{mood:'Mañana plena', desc:'dinámica, alegre, tropical, sube el ánimo'}
+            :h>=12&&h<15 ?{mood:'Mediodía',     desc:'veraniego, fiestero, bailable, tropical'}
+            :h>=15&&h<18 ?{mood:'Tarde',        desc:'relajado pero con ritmo, buena vibra, aventurero'}
+            :h>=18&&h<21 ?{mood:'Noche festiva',desc:'festivo, movido, bailable, energía de evento'}
+            :             {mood:'Noche',         desc:'suave, tranquilo, romántico, relajado'};
   }
   return ctx;
 }
@@ -1002,36 +1006,33 @@ FORMATO: SOLO el guión. Sin comillas. 1-2 frases MUY cortas. Máximo 20 palabra
     FISHING_TIP:`${identity}\n\nTip de pesca o equipo: corto, útil, con autoridad de experto. Termina con impulso a actuar.\nEjemplo: "Tip Terrapesca: revisa nudos antes del primer lance. Un nudo malo pierde el pez. ¡Cuídate en el agua!"\nTU VERSIÓN:`,
     PROMO_TEASER:`${identity}\n\nMención de Terrapesca con urgencia de compra. Una idea concreta, fuerte, con cierre que mueva al oyente a visitar hoy. Disponibilidad, surtido, oportunidad o momento de compra.\nEjemplo: "Terrapesca tiene todo lo que necesitas y más. ¡Pásate hoy, equípate y pesca como los grandes!"\nTU VERSIÓN:`,
     VENTA_NOCTURNA:(()=>{
-      const c=ctx.campaign;const p=ctx.promo;
-      const tipos=['mención general','horarios por sucursal','promoción específica','urgencia comercial','producto destacado','seguridad','cierre de marca'];
-      const tipo=tipos[Math.floor(Math.random()*tipos.length)];
+      const c=ctx.campaign;
       const esEventDay=_isEventDay();
+      const tipos=['mención de fecha','horarios por sucursal','recordatorio breve','anticipación','cierre con marca'];
+      const tipo=tipos[Math.floor(Math.random()*tipos.length)];
       return `${identity}
 
 MODO CAMPAÑA — VENTA NOCTURNA TERRAPESCA.
-Fecha: ${c.eventDate}.
-Horarios: Los Mochis y Mazatlán ${c.horarios.mazatlan}. Culiacán ${c.horarios.culiacan}.
-Marca cierre: "${c.marca}. ${c.frase}."
-Restricción: "${c.restricciones}"
-Promoción sugerida para esta intervención: ${p}
+Tu único mensaje: recordar LA FECHA y LOS HORARIOS. Nada más.
+Fecha del evento: ${c.eventDate}.
+Horarios: Culiacán ${c.horarios.culiacan}. Los Mochis y Mazatlán ${c.horarios.mazatlan}.
+Marca cierre opcional: "${c.marca}."
 
-TIPO DE INTERVENCIÓN SOLICITADA: ${tipo}
-${esEventDay?'HOY ES EL DÍA DEL EVENTO. Urgencia máxima. Es hoy o no es.':'La venta es el '+c.eventDate+'. Genera anticipación, no hagas sonar que ya está pasando.'}
+TIPO: ${tipo}
+${esEventDay?'HOY ES EL DÍA. Urgencia real. Habla como si el evento fuera en horas.':'Genera anticipación. El evento es el '+c.eventDate+'. No hagas sonar que ya está pasando.'}
 
-REGLAS ESTRICTAS:
-- NO inventes promociones distintas a las autorizadas
-- NO prometas capturas de pesca
-- NO menciones precios específicos
+REGLAS:
+- SOLO menciona la fecha y/o los horarios — NADA de promociones, descuentos ni productos
 - Máximo 2 frases, 20 palabras en total
-- Cierra ALGUNAS menciones con "${c.marca}. ${c.frase}." — no todas
-- Frases prohibidas: "amantes de la pesca", "público en general", "atención clientes", "no te lo puedes perder"
-- Frases permitidas al cerrar: "Seguimos con más música." / "Continuamos con la programación."
-- Habla como DJ en cabina, no como anuncio grabado
+- Tono: DJ en cabina, natural, no institucional
+- Varía cada vez: no repitas siempre la misma frase
+- Frases prohibidas: "amantes de la pesca", "no te lo puedes perder", "atención clientes"
 
-EJEMPLOS DEL TONO CORRECTO:
-"Este 19 de junio se viene la Venta Nocturna. Si traías equipo en la mira, no lo dejes para después."
-"Antes de seguir, dato rápido: 2x1 en zapato acuático este ${c.eventDate} en Terrapesca. Solo por un día."
-"Kayaks al 20% de descuento. Solo el ${c.eventDate}. Lo bueno se va rápido. Continuamos con música."
+EJEMPLOS CORRECTOS:
+"Este ${c.eventDate} se viene la Venta Nocturna Terrapesca. Anótalo, no lo dejes pasar."
+"Dato rápido: Culiacán de 9 a 5, Los Mochis y Mazatlán de 6 a 10. ${c.eventDate}. Seguimos."
+"${c.eventDate}, Venta Nocturna Terrapesca. Un solo día. Date la vuelta."
+"Ya falta poco: ${c.eventDate}, tres sucursales, un día de oportunidades. ${c.marca}."
 
 TU INTERVENCIÓN:`;
     })(),
@@ -1052,7 +1053,10 @@ Genera una bienvenida de 20-30 segundos que:
 - Tono: locutor de evento en vivo, festivo pero ordenado, urgencia real
 
 TU BIENVENIDA:`,
-    SONG_BRIDGE:`${identity}\n\nEres el DJ. Elige la SIGUIENTE canción y anúnciala con TÍTULO y ARTISTA — con energía de locutor en vivo.\n${curLine}\n\nCOLA DISPONIBLE (elige UNA):\n${queueLines||'  (cola vacía)'}\n\nReglas:\n- Elige la que más fluya con la hora (${ctx.hora})\n- Anúnciala con nombre y artista con ritmo y actitud\n- Máximo 2 oraciones\n- NO menciones índices ni números\n\nResponde SOLO con este JSON exacto (sin markdown, sin backticks):\n{"script":"tu guión aquí","cmd":{"action":"load_song","idx":N}}`,
+    SONG_BRIDGE:(()=>{
+      const m=ctx.mood||{mood:'',desc:''};
+      return `${identity}\n\nEres el DJ. Elige la SIGUIENTE canción basándote en el ESTADO DE ÁNIMO del momento y anúnciala con TÍTULO y ARTISTA.\n${curLine}\n\nESTADO DE ÁNIMO ACTUAL — ${m.mood} (${ctx.hora}):\n${m.desc}.\nElige la canción de la cola que MEJOR encaje con este estado de ánimo y este momento del día.\nSi ninguna encaja perfectamente, elige la que más se acerque.\n\nCOLA DISPONIBLE (elige UNA):\n${queueLines||'  (cola vacía)'}\n\nReglas:\n- Elige con criterio de DJ profesional según el estado de ánimo y la hora\n- Anúnciala con nombre y artista, con ritmo y actitud de locutor en vivo\n- Máximo 2 oraciones\n- NO menciones índices ni números\n- NO expliques por qué elegiste esa canción\n\nResponde SOLO con este JSON exacto (sin markdown, sin backticks):\n{"script":"tu guión aquí","cmd":{"action":"load_song","idx":N}}`;
+    })(),
   };
   return map[type]||map.TIME_CHECK;
 }
@@ -1073,7 +1077,7 @@ function djFallback(type,ctx){
     FISHING_FORECAST:ctx.w&&ctx.w.temp!=null?`Para hoy en ${ctx.w.city}, con ${ctx.w.temp} grados, buen momento para robalo cerca de estructura.`:`Hoy es buen día para la pesca, prepara tu equipo.`,
     FISHING_TIP:`Tip de pesca: al amanecer y al atardecer es cuando más pica. Aprovecha esas horas.`,
     PROMO_TEASER:`En Terrapesca tienes todo para tu próxima jornada. Pásate y equípate.`,
-    VENTA_NOCTURNA:`Este ${CAMPAIGN.eventDate} es la Venta Nocturna Terrapesca. Promociones especiales, solo por un día. No lo dejes para después.`,
+    VENTA_NOCTURNA:`Este ${CAMPAIGN.eventDate} es la Venta Nocturna Terrapesca. Culiacán de 9 a 5, Mazatlán y Los Mochis de 6 a 10. Un solo día.`,
     VENTA_OPEN:`¡Bienvenidos a la Venta Nocturna Terrapesca! Arrancamos ahora. Kayaks al 20, combos vara más carrete al 20, señuelos al 15. De 6 a 10 de la noche. Acércate a un colaborador con cualquier pregunta. ${CAMPAIGN.marca}. ${CAMPAIGN.frase}.`,
   };
   return f[type]||f.TIME_CHECK;
