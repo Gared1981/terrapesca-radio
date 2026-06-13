@@ -392,7 +392,15 @@ input[type=range]::-moz-range-thumb{width:18px;height:24px;border-radius:5px;bac
       <button class="primary" onclick="createSpotAudio()">🎙️ Crear Audio</button>
       <button onclick="previewSpotScript()">▶ Preview</button>
     </div>
-    <input style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--line2);background:#060d0a;color:var(--txt);font-size:12px;margin-bottom:6px" id="spotTopic" placeholder="Tema del spot (ej: apertura temporada, descuento carnadas, ropa de pesca…)"/>
+    <div style="display:flex;gap:8px;margin-bottom:6px;align-items:center">
+      <input style="flex:1;padding:8px 10px;border-radius:8px;border:1px solid var(--line2);background:#060d0a;color:var(--txt);font-size:12px" id="spotTopic" placeholder="Tema del spot (ej: apertura temporada, descuento carnadas, ropa de pesca…)"/>
+      <select id="spotEstilo" style="padding:8px 10px;border-radius:8px;border:1px solid var(--line2);background:#060d0a;color:var(--txt);font-size:11px;font-family:var(--mono);cursor:pointer">
+        <option value="eufórico">⚡ Eufórico</option>
+        <option value="dinámico">🚀 Dinámico</option>
+        <option value="elegante">✨ Elegante</option>
+        <option value="urgente">🔥 Urgente</option>
+      </select>
+    </div>
     <textarea id="spotScript" placeholder="El guión del spot aparecerá aquí. También puedes escribir uno manualmente."></textarea>
     <div class="row2">
       <input id="spotName" placeholder="Nombre del spot (para guardarlo)"/>
@@ -1193,41 +1201,88 @@ setInterval(()=>{
 function _sgStatus(m,col){const e=document.getElementById('spotGenStatus');if(e){e.textContent=m;e.style.color=col||'var(--txt3)';}}
 function _titleCase(s){return s.split(' ').map(w=>w.charAt(0).toUpperCase()+w.slice(1)).join(' ');}
 
+function _buildSpotPrompt(contenido, estilo){
+  const estiloTags={
+    'eufórico': '[fast-paced][energetic][excited]',
+    'dinámico': '[fast-paced][energetic][confident]',
+    'elegante': '[confident][warmly][natural delivery]',
+    'urgente':  '[fast-paced][energetic][dramatically]',
+  };
+  const aperturas=[
+    'escena vívida: el momento exacto en que el equipo correcto marca la diferencia en el agua',
+    'sensación de dominio: cómo se siente tener el control total cuando el pez pega fuerte',
+    'urgencia de temporada: las condiciones están dadas, la pregunta es si el equipo está a la altura',
+    'aspiración: el pescador que llega preparado y lo demuestra en el agua',
+    'desafío personal: ¿tu equipo actual está a la altura de lo que vas a enfrentar?',
+    'dato sensorial: el sonido, tacto o sensación de equipo profesional en acción',
+    'escena de éxito: la diferencia entre regresar con historia o regresar con excusas',
+    'confianza: el pescador que conoce su equipo no improvisa, domina',
+  ];
+  const apertura=aperturas[Math.floor(Math.random()*aperturas.length)];
+  const estilosVenta={
+    'eufórico':'ENERGÍA + CONFIANZA: alta energía, frases cortas y directas, el producto es la decisión obvia.',
+    'dinámico':'ACCIÓN + BENEFICIO: ritmo ágil, qué ganas con este producto, cierre contundente.',
+    'elegante':'ASPIRACIÓN + CALIDAD: tono premium, el pescador profesional elige con criterio.',
+    'urgente':'MOMENTO + DECISIÓN: las condiciones están ahora, el equipo correcto marca la diferencia hoy.',
+  };
+  const estrategia=estilosVenta[estilo]||estilosVenta['eufórico'];
+  const slogan=cfg.slogan||'Terrapesca, todo para pescar';
+
+  return `Eres el mejor guionista de radio comercial de México. Creas spots que posicionan productos con autoridad y hacen que el oyente quiera ir a Terrapesca ahora mismo.
+
+PRODUCTO(S) A ANUNCIAR:
+${contenido}
+
+MISIÓN: Un spot de 15-20 segundos 100% específico para ESTE producto. Que no pudiera funcionar para ningún otro artículo.
+
+ESTRATEGIA: ${estrategia}
+
+APERTURA (usa esta técnica): ${apertura}
+
+REGLAS DE ORO:
+- Primera frase: impacto directo. Sin saludos, sin presentación.
+- Menciona el producto por nombre exacto 1 o 2 veces.
+- Beneficios concretos: no características técnicas — qué SIENTE o LOGRA el pescador con él.
+- Llamado a acción claro: "pregunta por él en Terrapesca", "pídelo hoy", "encuéntralo en Terrapesca".
+- Cierre de marca: "${slogan}"
+- Varía la estructura en cada spot: apertura, ritmo y ángulo de venta diferentes cada vez.
+
+ABSOLUTAMENTE PROHIBIDO:
+- Mencionar, insinuar o comparar con otras marcas o competidores.
+- Frases como "no es equipo corriente", "a diferencia de otros", "mejor que la competencia", "equipos baratos", "equipo malo", "equipo que falla", "lo corriente".
+- El producto se vende por sus propios méritos, no atacando a nadie.
+- Saludos, introducciones lentas, frases de radio genérica, mencionar precios.
+- Inventar especificaciones técnicas no confirmadas.
+
+FORMATO DE RESPUESTA — dos partes obligatorias:
+TITULO: [título creativo y corto del spot, máximo 6 palabras, en español]
+GUION: [texto final del spot listo para narrar, sin etiquetas]`;
+}
+
 async function genSpotAI(){
   const topic=document.getElementById('spotTopic').value.trim();
   if(!topic){_sgStatus('Escribe el tema del spot primero','var(--amber)');return;}
-  if(!cfg.antKey){_sgStatus('Falta clave Anthropic (configura en panel)','var(--red)');return;}
-  _sgStatus('Generando guión…','var(--cyan)');
+  if(!cfg.antKey){_sgStatus('Falta clave Anthropic (⚙️ CONFIG)','var(--red)');return;}
+  const estilo=document.getElementById('spotEstilo')?.value||'eufórico';
+  _sgStatus(`Generando guión (${estilo})…`,'var(--cyan)');
   try{
     const r=await fetch('/api/anthropic',{method:'POST',
       headers:{'Content-Type':'application/json','x-api-key':cfg.antKey},
-      body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:280,
-        messages:[{role:'user',content:_spotPrompt(topic)}]})
+      body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1200,
+        messages:[{role:'user',content:_buildSpotPrompt(topic,estilo)}]})
     });
     const d=await r.json();
     const raw=(d.content?.[0]?.text||'').trim();
-    // Parse JSON response {title, script}
-    let title=topic, script=raw;
-    try{ const p=JSON.parse(raw); title=p.title||topic; script=p.script||raw; }catch(_){}
+    if(!raw) throw new Error('Sin respuesta de IA');
+    const titleMatch=raw.match(/TITULO:\s*(.+)/i);
+    const guionMatch=raw.match(/GUION:\s*([\s\S]+)/i);
+    const title=titleMatch?titleMatch[1].trim():topic;
+    const script=guionMatch?guionMatch[1].trim():raw;
     document.getElementById('spotScript').value=script;
-    // Auto-fill name if empty
     if(!document.getElementById('spotName').value.trim())
       document.getElementById('spotName').value=title;
     _sgStatus('Guión listo — revisa y haz clic en Crear Audio','var(--grn)');
-  }catch(e){_sgStatus('Error generando guión','var(--red)');}
-}
-function _spotPrompt(topic){
-  return `Redactor de spots de radio. Crea un spot de MÁXIMO IMPACTO COMERCIAL en español mexicano sobre: "${topic}".
-
-ESCRITURA PARA SÍNTESIS DE VOZ: Frases ultracortas. Verbo de acción primero. Punto contundente al final. El sintetizador lee exactamente lo que escribas — cada coma es una pausa, cada punto es un golpe.
-MAL: "En Terrapesca contamos con los mejores productos para la pesca."
-BIEN: "Terrapesca tiene todo. ¡Llega hoy y equípate!"
-
-Menciona "Terrapesca" una vez. Máximo 3 frases cortísimas. Total: menos de 25 palabras.
-Verbos: llega, ven, aprovecha, equípate, pesca, agarra, no te quedes sin.
-
-Responde SOLO con este JSON (sin markdown, sin backticks):
-{"title":"Título corto del spot (3-5 palabras, descriptivo)","script":"guión final listo para grabar"}`;
+  }catch(e){_sgStatus('Error generando guión: '+e.message,'var(--red)');}
 }
 async function previewSpotScript(){
   const script=document.getElementById('spotScript').value.trim();
