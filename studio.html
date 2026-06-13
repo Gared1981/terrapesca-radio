@@ -511,8 +511,8 @@ function _wsSendCurrentState(){
   let pos=0; try{pos=d.player.getCurrentTime()||0;}catch(_){}
   _wsPlayTrack(d.item, pos);
 }
-// Sync pulse every 30s so late-joining sucursales always get the signal
-setInterval(()=>{ if(_swsOk) _wsSendCurrentState(); }, 30000);
+// Sync pulse every 60s — enough for sucursales re-joining; skips if crossfading to avoid hitch
+setInterval(()=>{ if(_swsOk && !_xfading && !djActive) _wsSendCurrentState(); }, 60000);
 function _wsSend(msg){
   if(!_sws||_sws.readyState!==WebSocket.OPEN) return;
   try{ _sws.send(JSON.stringify(msg)); }catch(_){}
