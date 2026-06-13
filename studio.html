@@ -543,6 +543,7 @@ let queuePos=-1;       // index in queue of the song currently on the ACTIVE dec
 let spots=[];
 let history=[];
 const CROSSFADE_SECS=10;
+const CROSSFADE_TRIGGER_AHEAD=16; // start watching earlier than the xfade itself
 let master=0.85;
 let flags={auto:true,duck:true,dj:true,aiSelect:true}; // aiSelect: DJ Rodo elige la siguiente canción
 let _djNextSong=-1;   // song index Rodo requested; -1 = no preference
@@ -601,9 +602,24 @@ function onDeckState(d,e){
     updateOnAir();
   }
   if(e.data===YT.PlayerState.PAUSED){d.playing=false;updateOnAir();}
+  if(e.data===YT.PlayerState.BUFFERING){
+    // If the active deck stalls for more than 5s while it should be playing, skip it
+    if(d.id===activeDeck && !_xfading && !djActive){
+      clearTimeout(d._bufTimeout);
+      d._bufTimeout=setTimeout(()=>{
+        try{
+          const st=d.player.getPlayerState();
+          if(st===YT.PlayerState.BUFFERING){ advanceNoXfade(); }
+        }catch(_){}
+      },5000);
+    }
+  }
+  if(e.data===YT.PlayerState.PLAYING){
+    clearTimeout(d._bufTimeout);
+  }
   if(e.data===YT.PlayerState.ENDED){
     if(d.id===activeDeck){
-      if(djActive){ _endedDuringDJ=true; } // wait until Rodo finishes, then advance
+      if(djActive){ _endedDuringDJ=true; }
       else if(!_xfading){ advanceNoXfade(); }
     }
   }
@@ -654,7 +670,21 @@ function loadDeck(id,item,play){
 function cueDeck(id,item){
   const d=decks[id]; if(!d.ready||!item) return;
   d.item=item; d.dur=0; d.vol=0;
-  try{ d.player.cueVideoById(item.ytId); d.player.setVolume(0); }catch(_){}
+  try{
+    // loadVideoById + immediate pause forces YouTube to buffer the video,
+    // avoiding the startup stall when the crossfade begins
+    d.player.loadVideoById(item.ytId);
+    d.player.setVolume(0);
+    // Pause after a short moment so it buffers but doesn't audibly play
+    setTimeout(()=>{
+      try{
+        if(d.item?.ytId===item.ytId && !d.playing){
+          d.player.pauseVideo();
+          d.player.setVolume(0);
+        }
+      }catch(_){}
+    }, 1800);
+  }catch(_){}
   renderDeck(id);
 }
 function deckPlayPause(id){
@@ -684,9 +714,11 @@ function doCrossfade(){
     advanceQueueInto(nxt.id); return;
   }
   _xfading=true;
-  try{ nxt.player.playVideo(); }catch(_){}
-  const dur=CROSSFADE_SECS*1000, steps=30, iv=dur/steps; let s=0;
-  const startCur=cur.vol, startNxt=0;
+  try{ nxt.player.setVolume(0); nxt.player.playVideo(); }catch(_){}
+  // 400ms for next deck to resume from buffer before fading in
+  setTimeout(()=>{
+  const dur=CROSSFADE_SECS*1000, steps=60, iv=dur/steps; let s=0;
+  const startCur=cur.vol;
   const t=setInterval(()=>{
     s++; const p=s/steps;
     cur.vol=Math.max(0,startCur*(1-p));
@@ -698,20 +730,18 @@ function doCrossfade(){
       try{cur.player.pauseVideo();}catch(_){}
       cur.vol=0; nxt.vol=1;
       activeDeck=nxt.id;
-      // advance queue pointer to the song now playing
       queuePos=queue.findIndex(q=>q.ytId===nxt.item.ytId);
       if(queuePos<0) queuePos=0;
       setCrossfader(activeDeck===0?0:100);
-      // preload the following song into the now-free deck
       const after=(queuePos+1)%queue.length;
       if(queue.length>1 && queue[after]) cueDeck(cur.id,queue[after]);
       _xfading=false;
       renderQueue();
-      // Notify sucursales — send current playback position so they sync
       let _syncPos=0; try{_syncPos=nxt.player.getCurrentTime()||0;}catch(_){}
       _wsPlayTrack(nxt.item, _syncPos);
     }
   },iv);
+  },400);
 }
 function advanceQueueInto(id){
   const next=(queuePos+1)%queue.length;
@@ -737,6 +767,14 @@ setInterval(()=>{
   d.dur=dur; updateDeckTime(d.id,ct,dur);
   if(!flags.auto||dur<=0) return;
   const rem=dur-ct;
+  // Pre-buffer next song earlier so it's ready when crossfade starts
+  if(rem<=CROSSFADE_TRIGGER_AHEAD && rem>CROSSFADE_SECS){
+    const other=activeDeck===0?1:0;
+    const after=(queuePos+1)%queue.length;
+    if(queue[after] && (!decks[other].item || decks[other].item.ytId!==queue[after].ytId)){
+      cueDeck(other, queue[after]);
+    }
+  }
   if(rem<=CROSSFADE_SECS && rem>0){
     if(flags.dj && djShouldFire()){ djBetweenThenCrossfade(); }
     else { doCrossfade(); }
@@ -1424,7 +1462,7 @@ setInterval(()=>{
   const now=Date.now();
   if(ct!==_wdLastPos){ _wdLastPos=ct; _wdLastCheck=now; return; }
   // Position hasn't changed in 6 seconds while we expect playback
-  if(now-_wdLastCheck>6000 && d.playing){
+  if(now-_wdLastCheck>4000 && d.playing){
     _wdLastCheck=now; _wdLastPos=0;
     console.warn('[watchdog] stall detected — advancing');
     advanceNoXfade();
