@@ -295,12 +295,24 @@ function _connectServerWS(){
   if(!url.startsWith('ws')) url=(location.protocol==='https:'?'wss://':'ws://')+url.replace(/^https?:\/\//,'');
   try{
     _sws=new WebSocket(url);
-    _sws.onopen=()=>{ _swsOk=true; console.log('[Studio→WS] conectado'); };
+    _sws.onopen=()=>{
+      _swsOk=true; console.log('[Studio→WS] conectado');
+      // Send current playing track so sucursales that just connected get the signal
+      setTimeout(_wsSendCurrentState, 800);
+    };
     _sws.onclose=()=>{ _swsOk=false; setTimeout(_connectServerWS,5000); };
     _sws.onerror=()=>{ _swsOk=false; };
     _sws.onmessage=()=>{}; // ignore inbound
   }catch(e){ console.warn('[Studio→WS]',e.message); }
 }
+function _wsSendCurrentState(){
+  const d=decks[activeDeck];
+  if(!d||!d.item) return;
+  let pos=0; try{pos=d.player.getCurrentTime()||0;}catch(_){}
+  _wsPlayTrack(d.item, pos);
+}
+// Sync pulse every 30s so late-joining sucursales always get the signal
+setInterval(()=>{ if(_swsOk) _wsSendCurrentState(); }, 30000);
 function _wsSend(msg){
   if(!_sws||_sws.readyState!==WebSocket.OPEN) return;
   try{ _sws.send(JSON.stringify(msg)); }catch(_){}
