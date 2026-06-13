@@ -442,8 +442,9 @@ input[type=range]::-moz-range-thumb{
 .spot-banner-text{flex:1;color:#ffd700;font-weight:500;line-height:1.4;font-size:12px}
 .spot-banner.mic-banner .spot-banner-text{color:var(--red)}
 
-#yt-container{display:none}
-#yt-container iframe{width:1px;height:1px;opacity:0;pointer-events:none;position:fixed;bottom:0;right:0}
+/* YouTube player must have real dimensions — browsers block audio in 0/1px iframes */
+#yt-container{position:fixed;bottom:0;right:0;width:200px;height:113px;z-index:-1;pointer-events:none;opacity:0.01}
+#yt-container>div,#yt-container iframe{width:100%;height:100%;border:0;display:block}
 
 /* ── RESPONSIVE ── */
 @media(max-width:520px){
@@ -729,7 +730,6 @@ function onYouTubeIframeAPIReady(){
 function playRemote(track, position){
   if(track.type!=='yt'){ updateNP(track,false); return; }
   stopLocal();
-  document.getElementById('yt-container').style.display='block';
   if(!ytReady){ _pendingPlay={track,pos:position}; showTapOverlay(track); updateNP(track,false); return; }
   try{
     ytPlayer.loadVideoById(track.ytId);
@@ -836,7 +836,6 @@ function stopLocal(){
   clearInterval(progInt);clearInterval(meterInt);
   document.getElementById('pF').style.width='0%';
   document.getElementById('tC').textContent='0:00';
-  document.getElementById('yt-container').style.display='none';
   document.getElementById('meterFill').style.width='0%';
 }
 
