@@ -447,6 +447,8 @@ const server = http.createServer((req, res) => {
     filePath = path.join(__dirname, 'panel.html');
   } else if (req.url === '/studio' || req.url === '/studio.html') {
     filePath = path.join(__dirname, 'studio.html');
+  } else if (req.url === '/tienda' || req.url === '/tienda.html') {
+    filePath = path.join(__dirname, 'tienda.html');
   } else if (req.url === '/sucursal' || req.url === '/sucursal.html') {
     filePath = path.join(__dirname, 'sucursal.html');
   } else if (req.url === '/listen' || req.url === '/listen.html') {

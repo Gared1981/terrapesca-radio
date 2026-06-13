@@ -377,6 +377,7 @@ input[type=range]::-moz-range-thumb{width:18px;height:24px;border-radius:5px;bac
       </div>
     </div>
     <div class="dj-cue" id="djCue">Próxima intervención…</div>
+    <div id="campaignBanner" style="display:none;background:linear-gradient(90deg,#1a0a00,#2a1500);border:1px solid #ff6600;border-radius:8px;padding:8px 12px;margin-bottom:8px;font-size:11px;font-family:var(--mono);color:#ffaa44;letter-spacing:.5px"></div>
     <div class="dj-now" id="djNow">DJ Rodo habla entre canciones: hora, clima, tips de pesca, promos y spots — en rotación.</div>
     <div class="dj-controls">
       <button onclick="djInterveneNow()">▶ Intervención ahora</button>
@@ -740,7 +741,56 @@ let djFreq='media';
 let _djSongCount=0;
 let _djRotIdx=0;
 const DJ_SONGS_BETWEEN={baja:3,media:2,alta:1};
-const DJ_ROTATION=['TIME_CHECK','SPOT','STATION_ID','WEATHER_REPORT','FISHING_TIP','SONG_BRIDGE','SPOT','PROMO_TEASER','FISHING_FORECAST','SPOT','STATION_ID','WEATHER_REPORT','SONG_BRIDGE','TIME_CHECK'];
+
+/* ================= CAMPAÑA VENTA NOCTURNA ================= */
+const CAMPAIGN={
+  eventDate:'19 de junio',
+  endISO:'2026-06-19T18:00:00-07:00', // 6 PM hora Mazatlán
+  marca:'Terrapesca Marine & Outdoors',
+  frase:'Equipa tu aventura',
+  restricciones:'Aplican restricciones. Hasta agotar existencias.',
+  horarios:{culiacan:'9 de la mañana a 5 de la tarde',mazatlan:'6 de la tarde a 10 de la noche',losMochis:'6 de la tarde a 10 de la noche'},
+  promos:[
+    '20% de descuento en kayaks',
+    '20% de descuento en combos de vara más carrete, no aplica Shimano',
+    '15% de descuento en varas, carretes y señuelos, no aplica Shimano',
+    '15% de descuento en líneas de pesca, no aplica Shimano',
+    '2x1 en zapato acuático',
+    '15% de descuento en hieleras',
+    '15% de descuento en Victorinox y navajas',
+    '15% de descuento en ropa y accesorios',
+    '15% en camisas Maja Sportswear, pregunta por existencias',
+    'Señuelo Sarda de Rapala 18 centímetros — presencia fuerte, movimiento natural, para ir por peces grandes',
+    'Chalecos salvavidas para lancha, pesca, kayak y actividades acuáticas',
+  ],
+};
+function _campaignActive(){return new Date()<new Date(CAMPAIGN.endISO);}
+function _isEventDay(){
+  const mzt=new Date(new Date().toLocaleString('en-US',{timeZone:'America/Mazatlan'}));
+  return mzt.getMonth()===5&&mzt.getDate()===19;
+}
+function _isEventOpen(){
+  const mzt=new Date(new Date().toLocaleString('en-US',{timeZone:'America/Mazatlan'}));
+  return mzt.getMonth()===5&&mzt.getDate()===19&&mzt.getHours()>=18;
+}
+let _eventOpenFired=false;
+setInterval(async()=>{
+  if(_eventOpenFired||!flags.dj) return;
+  if(_isEventOpen()){
+    _eventOpenFired=true;
+    // Interrupt music for grand opening announcement
+    const d=decks[activeDeck];
+    try{d.player.setVolume(15);}catch(_){}
+    await playDJ('VENTA_OPEN');
+    try{d.player.setVolume(dvol(d));}catch(_){}
+  }
+},30000);
+/* ================= /CAMPAÑA ================= */
+
+const DJ_ROTATION_NORMAL=['TIME_CHECK','SPOT','STATION_ID','WEATHER_REPORT','FISHING_TIP','SONG_BRIDGE','SPOT','PROMO_TEASER','FISHING_FORECAST','SPOT','STATION_ID','WEATHER_REPORT','SONG_BRIDGE','TIME_CHECK'];
+const DJ_ROTATION_CAMPAIGN=['VENTA_NOCTURNA','SPOT','TIME_CHECK','VENTA_NOCTURNA','WEATHER_REPORT','SONG_BRIDGE','VENTA_NOCTURNA','FISHING_TIP','VENTA_NOCTURNA','SPOT','STATION_ID','VENTA_NOCTURNA','SONG_BRIDGE','VENTA_NOCTURNA'];
+function _djRotation(){return _campaignActive()?DJ_ROTATION_CAMPAIGN:DJ_ROTATION_NORMAL;}
+
 function setDJFreq(f){djFreq=f;document.querySelectorAll('#djFreqCtrl .s').forEach(s=>s.classList.toggle('on',s.dataset.f===f));refreshDJStatus();}
 function djShouldFire(){
   if(!flags.dj) return false;
@@ -750,8 +800,9 @@ function djShouldFire(){
   return false;
 }
 function nextDJItem(){
-  for(let i=0;i<DJ_ROTATION.length;i++){
-    const it=DJ_ROTATION[_djRotIdx%DJ_ROTATION.length];_djRotIdx++;
+  const rot=_djRotation();
+  for(let i=0;i<rot.length;i++){
+    const it=rot[_djRotIdx%rot.length];_djRotIdx++;
     if(it==='SPOT'){ if(spots.length) return {kind:'spot'}; continue; }
     return {kind:'dj',type:it};
   }
@@ -862,7 +913,7 @@ async function genDJScript(type){
   const ctx=await buildCtx(type);
   if(!cfg.antKey) return {script:djFallback(type,ctx),cmd:null};
   try{
-    const tokens=type==='SONG_BRIDGE'?220:140;
+    const tokens=type==='SONG_BRIDGE'?220:type==='VENTA_OPEN'?300:140;
     const r=await fetch('/api/anthropic',{
       method:'POST',headers:{'Content-Type':'application/json','x-api-key':cfg.antKey},
       body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:tokens,
@@ -908,6 +959,11 @@ function wDesc(code){const m={0:'despejado',1:'mayormente despejado',2:'parcialm
 async function buildCtx(type){
   const ctx={hora:horaRadio(),slogan:cfg.slogan};
   if(type==='WEATHER_REPORT'||type==='FISHING_FORECAST'){ctx.w=await getWeather();}
+  if(type==='VENTA_NOCTURNA'||type==='VENTA_OPEN'){
+    // Pick a random promo to highlight
+    ctx.promo=CAMPAIGN.promos[Math.floor(Math.random()*CAMPAIGN.promos.length)];
+    ctx.campaign=CAMPAIGN;
+  }
   if(type==='SONG_BRIDGE'){
     // Build a short queue list for AI song selection
     // Avoid the currently playing song; pick from next few options
@@ -945,6 +1001,57 @@ FORMATO: SOLO el guión. Sin comillas. 1-2 frases MUY cortas. Máximo 20 palabra
     FISHING_FORECAST:`${identity}\n\nPredicción de pesca con energía de experto y urgencia de salir hoy. No prometas capturas, sí recomienda especie o técnica con confianza.\n${wCtx}\nEjemplo: "Predicción Terrapesca: tarde activa para robalo cerca de estructura. Minnow blanco, freno apretado. ¡Sal hoy!"\nTU VERSIÓN:`,
     FISHING_TIP:`${identity}\n\nTip de pesca o equipo: corto, útil, con autoridad de experto. Termina con impulso a actuar.\nEjemplo: "Tip Terrapesca: revisa nudos antes del primer lance. Un nudo malo pierde el pez. ¡Cuídate en el agua!"\nTU VERSIÓN:`,
     PROMO_TEASER:`${identity}\n\nMención de Terrapesca con urgencia de compra. Una idea concreta, fuerte, con cierre que mueva al oyente a visitar hoy. Disponibilidad, surtido, oportunidad o momento de compra.\nEjemplo: "Terrapesca tiene todo lo que necesitas y más. ¡Pásate hoy, equípate y pesca como los grandes!"\nTU VERSIÓN:`,
+    VENTA_NOCTURNA:(()=>{
+      const c=ctx.campaign;const p=ctx.promo;
+      const tipos=['mención general','horarios por sucursal','promoción específica','urgencia comercial','producto destacado','seguridad','cierre de marca'];
+      const tipo=tipos[Math.floor(Math.random()*tipos.length)];
+      const esEventDay=_isEventDay();
+      return `${identity}
+
+MODO CAMPAÑA — VENTA NOCTURNA TERRAPESCA.
+Fecha: ${c.eventDate}.
+Horarios: Los Mochis y Mazatlán ${c.horarios.mazatlan}. Culiacán ${c.horarios.culiacan}.
+Marca cierre: "${c.marca}. ${c.frase}."
+Restricción: "${c.restricciones}"
+Promoción sugerida para esta intervención: ${p}
+
+TIPO DE INTERVENCIÓN SOLICITADA: ${tipo}
+${esEventDay?'HOY ES EL DÍA DEL EVENTO. Urgencia máxima. Es hoy o no es.':'La venta es el '+c.eventDate+'. Genera anticipación, no hagas sonar que ya está pasando.'}
+
+REGLAS ESTRICTAS:
+- NO inventes promociones distintas a las autorizadas
+- NO prometas capturas de pesca
+- NO menciones precios específicos
+- Máximo 2 frases, 20 palabras en total
+- Cierra ALGUNAS menciones con "${c.marca}. ${c.frase}." — no todas
+- Frases prohibidas: "amantes de la pesca", "público en general", "atención clientes", "no te lo puedes perder"
+- Frases permitidas al cerrar: "Seguimos con más música." / "Continuamos con la programación."
+- Habla como DJ en cabina, no como anuncio grabado
+
+EJEMPLOS DEL TONO CORRECTO:
+"Este 19 de junio se viene la Venta Nocturna. Si traías equipo en la mira, no lo dejes para después."
+"Antes de seguir, dato rápido: 2x1 en zapato acuático este ${c.eventDate} en Terrapesca. Solo por un día."
+"Kayaks al 20% de descuento. Solo el ${c.eventDate}. Lo bueno se va rápido. Continuamos con música."
+
+TU INTERVENCIÓN:`;
+    })(),
+    VENTA_OPEN:`${identity}
+
+MOMENTO ESPECIAL: Son las 6 de la tarde del ${CAMPAIGN.eventDate}. LA VENTA NOCTURNA ACABA DE COMENZAR.
+Rodo interrumpe la música para dar la bienvenida oficial a todos los que están en tienda.
+Sucursales activas AHORA: Mazatlán y Los Mochis. De 6 de la tarde a 10 de la noche.
+(Culiacán cerró a las 5.)
+
+Genera una bienvenida de 20-30 segundos que:
+- Interrumpa con energía total, como locutor de evento en vivo
+- Dé la bienvenida a todos los pescadores presentes en tienda
+- Repase rápido las promociones estrella: 20% kayaks, 20% combos vara+carrete sin Shimano, 15% varas y señuelos, 2x1 zapato acuático
+- Invite a comprar de forma ordenada y acercarse a los colaboradores si hay dudas
+- Cierre con: "${CAMPAIGN.marca}. ${CAMPAIGN.frase}."
+- Máximo 50 palabras
+- Tono: locutor de evento en vivo, festivo pero ordenado, urgencia real
+
+TU BIENVENIDA:`,
     SONG_BRIDGE:`${identity}\n\nEres el DJ. Elige la SIGUIENTE canción y anúnciala con TÍTULO y ARTISTA — con energía de locutor en vivo.\n${curLine}\n\nCOLA DISPONIBLE (elige UNA):\n${queueLines||'  (cola vacía)'}\n\nReglas:\n- Elige la que más fluya con la hora (${ctx.hora})\n- Anúnciala con nombre y artista con ritmo y actitud\n- Máximo 2 oraciones\n- NO menciones índices ni números\n\nResponde SOLO con este JSON exacto (sin markdown, sin backticks):\n{"script":"tu guión aquí","cmd":{"action":"load_song","idx":N}}`,
   };
   return map[type]||map.TIME_CHECK;
@@ -966,6 +1073,8 @@ function djFallback(type,ctx){
     FISHING_FORECAST:ctx.w&&ctx.w.temp!=null?`Para hoy en ${ctx.w.city}, con ${ctx.w.temp} grados, buen momento para robalo cerca de estructura.`:`Hoy es buen día para la pesca, prepara tu equipo.`,
     FISHING_TIP:`Tip de pesca: al amanecer y al atardecer es cuando más pica. Aprovecha esas horas.`,
     PROMO_TEASER:`En Terrapesca tienes todo para tu próxima jornada. Pásate y equípate.`,
+    VENTA_NOCTURNA:`Este ${CAMPAIGN.eventDate} es la Venta Nocturna Terrapesca. Promociones especiales, solo por un día. No lo dejes para después.`,
+    VENTA_OPEN:`¡Bienvenidos a la Venta Nocturna Terrapesca! Arrancamos ahora. Kayaks al 20, combos vara más carrete al 20, señuelos al 15. De 6 a 10 de la noche. Acércate a un colaborador con cualquier pregunta. ${CAMPAIGN.marca}. ${CAMPAIGN.frase}.`,
   };
   return f[type]||f.TIME_CHECK;
 }
@@ -1168,11 +1277,13 @@ function djStatusInfo(){
   if(!flags.dj) return {text:'DJ Rodo desactivado',soon:false};
   const left=Math.max(0,(DJ_SONGS_BETWEEN[djFreq]||2)-_djSongCount);
   // peek next rotation item without consuming
-  let peek=DJ_ROTATION[_djRotIdx%DJ_ROTATION.length], k=_djRotIdx;
-  while(peek==='SPOT' && !spots.length){ k++; peek=DJ_ROTATION[k%DJ_ROTATION.length]; }
+  const rot=_djRotation();
+  let peek=rot[_djRotIdx%rot.length], k=_djRotIdx;
+  while(peek==='SPOT' && !spots.length){ k++; peek=rot[k%rot.length]; }
   const labels={TIME_CHECK:'⏰ Hora',STATION_ID:'📻 Sucursales',WEATHER_REPORT:'🌤 Clima',
     FISHING_TIP:'🎣 Tip de pesca',PROMO_TEASER:'🛒 Promo',FISHING_FORECAST:'🐟 Predicción de pesca',
-    SPOT:'📢 Spot',SONG_BRIDGE:flags.aiSelect?'🎵 Rodo elige canción':'🎵 Puente musical'};
+    SPOT:'📢 Spot',SONG_BRIDGE:flags.aiSelect?'🎵 Rodo elige canción':'🎵 Puente musical',
+    VENTA_NOCTURNA:'🔥 Venta Nocturna',VENTA_OPEN:'🎉 APERTURA VENTA NOCTURNA'};
   const nextLabel=peek==='SPOT'?'📢 Spot':(labels[peek]||peek);
   if(left<=0) return {text:`🎙️ Rodo entra al terminar esta canción → ${nextLabel}`,soon:true};
   return {text:`Próxima intervención en ${left} canción${left>1?'es':''} → ${nextLabel}`,soon:false};
@@ -1546,6 +1657,18 @@ _connectServerWS();
 loadShared();
 loadJingleFromIDB();
 drawVU();
+// Campaign banner
+(function(){
+  const b=document.getElementById('campaignBanner');
+  if(!b) return;
+  if(_campaignActive()){
+    const day=_isEventDay();
+    b.style.display='block';
+    b.innerHTML=day
+      ? '🔴 HOY ES LA VENTA NOCTURNA — Los Mochis y Mazatlán 6-10 PM · Culiacán 9 AM-5 PM · Rodo en modo campaña'
+      : `🟠 CAMPAÑA ACTIVA — Venta Nocturna Terrapesca · ${CAMPAIGN.eventDate} · Rodo menciona la venta entre canciones`;
+  }
+})();
 // expose start on first deck play
 window.addEventListener('load',()=>{ /* user starts via Deck A ▶ or AUTO */ });
 document.getElementById('plA').addEventListener('dblclick',()=>{});
