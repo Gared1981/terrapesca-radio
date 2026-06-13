@@ -286,6 +286,37 @@ const cfg={
   antKey:localStorage.getItem('tp_ant')||'',
   slogan:localStorage.getItem('tp_slogan')||'La estación oficial de Terrapesca',
 };
+
+/* ================= SERVER SYNC — transmite a sucursales ================= */
+let _sws=null, _swsOk=false;
+function _connectServerWS(){
+  let url=cfg.ws||((location.protocol==='https:'?'wss://':'ws://')+location.host);
+  if(!url) return;
+  if(!url.startsWith('ws')) url=(location.protocol==='https:'?'wss://':'ws://')+url.replace(/^https?:\/\//,'');
+  try{
+    _sws=new WebSocket(url);
+    _sws.onopen=()=>{ _swsOk=true; console.log('[Studio→WS] conectado'); };
+    _sws.onclose=()=>{ _swsOk=false; setTimeout(_connectServerWS,5000); };
+    _sws.onerror=()=>{ _swsOk=false; };
+    _sws.onmessage=()=>{}; // ignore inbound
+  }catch(e){ console.warn('[Studio→WS]',e.message); }
+}
+function _wsSend(msg){
+  if(!_sws||_sws.readyState!==WebSocket.OPEN) return;
+  try{ _sws.send(JSON.stringify(msg)); }catch(_){}
+}
+function _wsPlayTrack(item, positionSecs){
+  if(!item||!item.ytId) return;
+  _wsSend({ type:'PLAY', track:{type:'yt',ytId:item.ytId,name:item.name||'',channelTitle:item.artist||''}, position:Math.round(positionSecs||0) });
+}
+function _wsSpotAudio(ab, name){
+  // Convert ArrayBuffer → base64 and relay as SPOT to all sucursal listeners
+  try{
+    const u8=new Uint8Array(ab);
+    let b=''; for(let i=0;i<u8.length;i++) b+=String.fromCharCode(u8[i]);
+    _wsSend({ type:'SPOT', track:{b64:btoa(b), name:name||'DJ Rodo — Terrapesca'} });
+  }catch(e){ console.warn('[Studio→WS] spot encode error',e); }
+}
 const VOICES={
   eleguar:{id:'T7QGPtToiqH4S8VlIkMJ'},
   latinFem:{id:'9EU0h6CVtEDS6vriwwq5'},
@@ -399,7 +430,14 @@ function loadDeck(id,item,play){
     if(play!==false){ setTimeout(()=>{try{d.player.playVideo();}catch(_){}} ,200); }
     else { setTimeout(()=>{try{d.player.pauseVideo();}catch(_){}} ,350); } // preload paused
   }catch(_){}
-  renderDeck(id); if(play!==false) pushHistory(item);
+  renderDeck(id);
+  if(play!==false){
+    pushHistory(item);
+    // Only notify server when this deck is (or will be) the active one
+    if(id===activeDeck || !decks[activeDeck===0?1:0].playing){
+      _wsPlayTrack(item, 0);
+    }
+  }
 }
 function cueDeck(id,item){
   const d=decks[id]; if(!d.ready||!item) return;
@@ -457,6 +495,9 @@ function doCrossfade(){
       if(queue.length>1 && queue[after]) cueDeck(cur.id,queue[after]);
       _xfading=false;
       renderQueue();
+      // Notify sucursales — send current playback position so they sync
+      let _syncPos=0; try{_syncPos=nxt.player.getCurrentTime()||0;}catch(_){}
+      _wsPlayTrack(nxt.item, _syncPos);
     }
   },iv);
 }
@@ -592,6 +633,7 @@ async function playDJ(type){
     const ab=await r.arrayBuffer();
     // Duck ONLY now — when Rodo actually starts speaking (not during generation)
     setDJState('al aire');
+    _wsSpotAudio(ab, `🎙️ DJ Rodo — ${type}`); // relay voice to sucursales
     if(flags.duck) duckTo(0.18);
     await playClip(URL.createObjectURL(new Blob([ab],{type:'audio/mpeg'})));
   }catch(e){ /* fallback: brief silence handled below */ }
@@ -621,6 +663,7 @@ async function playSpot(){
     for(let i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);
     document.getElementById('djNow').textContent='📢 '+(sp.name||'Spot Terrapesca');
     pushHistory({name:sp.name||'Spot',artist:'Spot publicitario',spot:true});
+    _wsSpotAudio(arr.buffer, sp.name||'Spot Terrapesca'); // relay to sucursales
     // Duck right as the spot starts playing
     if(flags.duck) duckTo(0.12);
     await playClip(URL.createObjectURL(new Blob([arr],{type:'audio/mpeg'})));
@@ -953,6 +996,7 @@ async function loadShared(){
 setDJFreq('media');
 refreshDJStatus();
 document.getElementById('autoBtn').style.color='var(--grn)';
+_connectServerWS(); // connect to server so sucursales receive the studio stream
 loadShared();
 drawVU();
 // expose start on first deck play
