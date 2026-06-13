@@ -1989,7 +1989,7 @@ async function generateSpot(){
         text:stripElTags(script),
         model_id:'eleven_multilingual_v2',
         language_code:'es',
-        voice_settings:{stability:0.05,similarity_boost:0.75,style:1.0,use_speaker_boost:true}
+        voice_settings:{stability:0.22,similarity_boost:0.82,style:0.80,use_speaker_boost:true}
       })
     });
     if(!tr.ok){const er=await tr.json().catch(()=>({}));throw new Error(er.detail?.message||'Error ElevenLabs')}
@@ -3113,7 +3113,7 @@ async function playCapsule(){
       headers:{'Content-Type':'application/json','xi-api-key':cfg.apiKey},
       body:JSON.stringify({
         text:stripElTags(text),model_id:'eleven_multilingual_v2',language_code:'es',
-        voice_settings:{stability:0.05,similarity_boost:0.75,style:1.0,use_speaker_boost:true}
+        voice_settings:{stability:0.22,similarity_boost:0.82,style:0.80,use_speaker_boost:true}
       })
     });
     if(!tr.ok) throw new Error('ElevenLabs capsule error');
@@ -3810,7 +3810,7 @@ async function playDJRodo(type,nextIdx){
         text:stripElTags(script),
         model_id:'eleven_multilingual_v2',
         language_code:'es',
-        voice_settings:{stability:0.05,similarity_boost:0.75,style:1.0,use_speaker_boost:true}
+        voice_settings:{stability:0.22,similarity_boost:0.82,style:0.80,use_speaker_boost:true}
       })
     });
     if(!r.ok) throw new Error('EL error '+r.status);

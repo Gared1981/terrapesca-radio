@@ -676,7 +676,7 @@ async function playDJ(type){
     const r=await fetch(`/api/elevenlabs/${djVoiceId()}`,{
       method:'POST',headers:{'Content-Type':'application/json','xi-api-key':cfg.elKey},
       body:JSON.stringify({text:stripElTags(script||''),model_id:'eleven_multilingual_v2',language_code:'es',
-        voice_settings:{stability:0.05,similarity_boost:0.75,style:1.0,use_speaker_boost:true}})
+        voice_settings:{stability:0.22,similarity_boost:0.82,style:0.80,use_speaker_boost:true}})
     });
     if(!r.ok) throw new Error('EL '+r.status);
     const ab=await r.arrayBuffer();
@@ -924,12 +924,27 @@ function renderSpots(){
     </div>`).join('');
 }
 async function deleteSpot(i){
-  spots.splice(i,1);
-  const db=await openDB();
-  const tx=db.transaction('session','readwrite');
-  tx.objectStore('session').put({key:'spotsLibrary',items:spots.map(s=>({name:s.name,b64:s.b64}))});
+  // Remove from in-memory array
+  const removed=spots.splice(i,1)[0];
   renderSpots();
-  toast('Spot eliminado','ok');
+  // Persist: read current IDB record, remove only the matching entry by b64 prefix
+  try{
+    const db=await openDB();
+    await new Promise((res,rej)=>{
+      const tx=db.transaction('session','readwrite');
+      const store=tx.objectStore('session');
+      const req=store.get('spotsLibrary');
+      req.onsuccess=()=>{
+        const all=req.result?.items||[];
+        // Remove by matching name+b64 so we don't accidentally wipe unrelated entries
+        const updated=all.filter(s=>!(s.name===removed.name && s.b64===removed.b64));
+        const put=store.put({key:'spotsLibrary',items:updated});
+        put.onsuccess=()=>res(); put.onerror=()=>rej(put.error);
+      };
+      req.onerror=()=>rej(req.error);
+    });
+    toast(`"${removed?.name||'Spot'}" eliminado`,'ok');
+  }catch(e){ toast('Error al guardar cambio','error'); }
 }
 function renderHistory(){
   document.getElementById('hCnt').textContent=history.length;
@@ -1102,7 +1117,7 @@ async function previewSpotScript(){
     const r=await fetch(`/api/elevenlabs/${djVoiceId()}`,{method:'POST',
       headers:{'Content-Type':'application/json','xi-api-key':cfg.elKey},
       body:JSON.stringify({text:stripElTags(script),model_id:'eleven_multilingual_v2',language_code:'es',
-        voice_settings:{stability:0.05,similarity_boost:0.75,style:1.0,use_speaker_boost:true}})
+        voice_settings:{stability:0.22,similarity_boost:0.82,style:0.80,use_speaker_boost:true}})
     });
     if(!r.ok) throw new Error('EL '+r.status);
     const ab=await r.arrayBuffer();
@@ -1123,7 +1138,7 @@ async function createSpotAudio(){
     const r=await fetch(`/api/elevenlabs/${djVoiceId()}`,{method:'POST',
       headers:{'Content-Type':'application/json','xi-api-key':cfg.elKey},
       body:JSON.stringify({text:stripElTags(script),model_id:'eleven_multilingual_v2',language_code:'es',
-        voice_settings:{stability:0.05,similarity_boost:0.75,style:1.0,use_speaker_boost:true}})
+        voice_settings:{stability:0.22,similarity_boost:0.82,style:0.80,use_speaker_boost:true}})
     });
     if(!r.ok) throw new Error('EL '+r.status);
     const ab=await r.arrayBuffer();
