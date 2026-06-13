@@ -909,13 +909,27 @@ function renderQueue(){
 function renderSpots(){
   document.getElementById('spCnt').textContent=spots.length;
   const L=document.getElementById('spotsList');
-  if(!spots.length){L.innerHTML='<div class="empty">Sin spots — genera en el panel</div>';return;}
+  if(!spots.length){L.innerHTML='<div class="empty">Sin spots — genera uno arriba o en el panel</div>';return;}
   L.innerHTML=spots.map((s,i)=>`
-    <div class="row" onclick="playSpotIdx(${i})">
-      <span class="n">📢</span>
-      <div class="meta"><div class="t">${esc(s.name||'Spot')}</div><div class="s">Spot publicitario</div></div>
-      <div class="acts"><button onclick="event.stopPropagation();playSpotIdx(${i})">▶</button></div>
+    <div class="row" onclick="playSpotIdx(${i})" title="${esc(s.name||'Spot')}">
+      <span class="n" style="font-size:14px">📢</span>
+      <div class="meta">
+        <div class="t" style="font-size:13px;font-weight:700;color:var(--txt)">${esc(s.name||'Spot '+(i+1))}</div>
+        <div class="s" style="font-size:10px;color:var(--txt3);font-family:var(--mono);letter-spacing:.3px">SPOT · TAP PARA ESCUCHAR</div>
+      </div>
+      <div class="acts">
+        <button onclick="event.stopPropagation();playSpotIdx(${i})" title="Reproducir" style="background:rgba(31,214,91,.1);border-color:var(--grn2);color:var(--grn)">▶</button>
+        <button onclick="event.stopPropagation();deleteSpot(${i})" title="Eliminar">✕</button>
+      </div>
     </div>`).join('');
+}
+async function deleteSpot(i){
+  spots.splice(i,1);
+  const db=await openDB();
+  const tx=db.transaction('session','readwrite');
+  tx.objectStore('session').put({key:'spotsLibrary',items:spots.map(s=>({name:s.name,b64:s.b64}))});
+  renderSpots();
+  toast('Spot eliminado','ok');
 }
 function renderHistory(){
   document.getElementById('hCnt').textContent=history.length;
@@ -1040,6 +1054,7 @@ setInterval(()=>{
 
 /* ================= SPOT GENERATOR ================= */
 function _sgStatus(m,col){const e=document.getElementById('spotGenStatus');if(e){e.textContent=m;e.style.color=col||'var(--txt3)';}}
+function _titleCase(s){return s.split(' ').map(w=>w.charAt(0).toUpperCase()+w.slice(1)).join(' ');}
 
 async function genSpotAI(){
   const topic=document.getElementById('spotTopic').value.trim();
@@ -1049,17 +1064,23 @@ async function genSpotAI(){
   try{
     const r=await fetch('/api/anthropic',{method:'POST',
       headers:{'Content-Type':'application/json','x-api-key':cfg.antKey},
-      body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:220,
+      body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:280,
         messages:[{role:'user',content:_spotPrompt(topic)}]})
     });
     const d=await r.json();
-    const script=(d.content?.[0]?.text||'').trim();
+    const raw=(d.content?.[0]?.text||'').trim();
+    // Parse JSON response {title, script}
+    let title=topic, script=raw;
+    try{ const p=JSON.parse(raw); title=p.title||topic; script=p.script||raw; }catch(_){}
     document.getElementById('spotScript').value=script;
+    // Auto-fill name if empty
+    if(!document.getElementById('spotName').value.trim())
+      document.getElementById('spotName').value=title;
     _sgStatus('Guión listo — revisa y haz clic en Crear Audio','var(--grn)');
   }catch(e){_sgStatus('Error generando guión','var(--red)');}
 }
 function _spotPrompt(topic){
-  return `Redactor de spots de radio. Escribe un spot de MÁXIMO IMPACTO COMERCIAL en español mexicano sobre: "${topic}".
+  return `Redactor de spots de radio. Crea un spot de MÁXIMO IMPACTO COMERCIAL en español mexicano sobre: "${topic}".
 
 ESCRITURA PARA SÍNTESIS DE VOZ: Frases ultracortas. Verbo de acción primero. Punto contundente al final. El sintetizador lee exactamente lo que escribas — cada coma es una pausa, cada punto es un golpe.
 MAL: "En Terrapesca contamos con los mejores productos para la pesca."
@@ -1067,7 +1088,9 @@ BIEN: "Terrapesca tiene todo. ¡Llega hoy y equípate!"
 
 Menciona "Terrapesca" una vez. Máximo 3 frases cortísimas. Total: menos de 25 palabras.
 Verbos: llega, ven, aprovecha, equípate, pesca, agarra, no te quedes sin.
-NO uses corchetes, etiquetas, comillas externas, ni texto de introducción. SOLO el guión final.`;
+
+Responde SOLO con este JSON (sin markdown, sin backticks):
+{"title":"Título corto del spot (3-5 palabras, descriptivo)","script":"guión final listo para grabar"}`;
 }
 async function previewSpotScript(){
   const script=document.getElementById('spotScript').value.trim();
@@ -1090,7 +1113,9 @@ async function previewSpotScript(){
 }
 async function createSpotAudio(){
   const script=document.getElementById('spotScript').value.trim();
-  const name=(document.getElementById('spotName').value.trim())||('Spot '+(spots.length+1));
+  const topic=document.getElementById('spotTopic').value.trim();
+  const name=(document.getElementById('spotName').value.trim())||(topic?_titleCase(topic):('Spot '+(spots.length+1)));
+  if(!document.getElementById('spotName').value.trim() && name) document.getElementById('spotName').value=name;
   if(!script){_sgStatus('Escribe o genera un guión primero','var(--amber)');return;}
   if(!cfg.elKey){_sgStatus('Falta clave ElevenLabs','var(--red)');return;}
   _sgStatus('Generando audio…','var(--cyan)');
