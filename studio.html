@@ -552,10 +552,10 @@ let master=0.85;
 let flags={auto:true,duck:true,dj:true,aiSelect:true}; // aiSelect: DJ Rodo elige la siguiente canción
 let _djNextSong=-1;   // song index Rodo requested; -1 = no preference
 
-/* Two decks. Each: {player, ready, item, dur, playing, vol, gain} */
+/* Two decks. Each: {player, ready, item, dur, playing, vol, gain, silentRun} */
 const decks=[
-  {id:0,el:'ytA',player:null,ready:false,item:null,dur:0,playing:false,vol:1,gain:1.0},
-  {id:1,el:'ytB',player:null,ready:false,item:null,dur:0,playing:false,vol:1,gain:1.0},
+  {id:0,el:'ytA',player:null,ready:false,item:null,dur:0,playing:false,vol:1,gain:1.0,silentRun:false},
+  {id:1,el:'ytB',player:null,ready:false,item:null,dur:0,playing:false,vol:1,gain:1.0,silentRun:false},
 ];
 // Compute final YouTube volume (0-100) for a deck
 function dvol(d){ return Math.round(Math.max(0, Math.min(1, d.vol * (d.gain||1))) * master * 100); }
@@ -602,19 +602,22 @@ window.onYouTubeIframeAPIReady=buildPlayers;
 function onDeckState(d,e){
   if(e.data===YT.PlayerState.PLAYING){
     clearTimeout(d._bufTimeout);
-    if(d.prewarming){
-      // Pause immediately — we only wanted YouTube to buffer, not play audibly
-      d.prewarming=false; d.buffered=true;
-      try{ d.player.pauseVideo(); d.player.setVolume(0); }catch(_){}
-      return; // don't set d.playing=true
+    if(d.silentRun){
+      // Deck B running silently for pre-buffer — keep volume at 0, mark as ready
+      try{d.player.setVolume(0);}catch(_){}
+      d.playing=false; // not "audibly" playing
+      return;
     }
     d.playing=true;
     try{d.dur=d.player.getDuration()||0;}catch(_){}
     updateOnAir();
   }
-  else if(e.data===YT.PlayerState.PAUSED){d.playing=false;updateOnAir();}
+  else if(e.data===YT.PlayerState.PAUSED){
+    if(!d.silentRun){ d.playing=false; updateOnAir(); }
+  }
   else if(e.data===YT.PlayerState.BUFFERING){
-    if(d.id===activeDeck && !_xfading && !djActive){
+    // Only stall-skip on the active audible deck
+    if(d.id===activeDeck && !d.silentRun && !_xfading && !djActive){
       clearTimeout(d._bufTimeout);
       d._bufTimeout=setTimeout(()=>{
         try{ if(d.player.getPlayerState()===YT.PlayerState.BUFFERING) advanceNoXfade(); }catch(_){}
@@ -622,6 +625,7 @@ function onDeckState(d,e){
     }
   }
   else if(e.data===YT.PlayerState.ENDED){
+    if(d.silentRun){ d.silentRun=false; return; } // silent deck ended — no action
     d.playing=false;
     if(d.id===activeDeck){
       if(djActive){ _endedDuringDJ=true; }
@@ -655,7 +659,7 @@ function startStation(){
 }
 function loadDeck(id,item,play){
   const d=decks[id]; if(!d.ready||!item) return;
-  d.item=item; d.dur=0; d.prewarming=false;
+  d.item=item; d.dur=0; d.silentRun=false;
   if(play!==false) _trackPlayed(item.ytId);
   try{
     d.player.loadVideoById(item.ytId);
@@ -674,25 +678,19 @@ function loadDeck(id,item,play){
   }
 }
 function cueDeck(id,item){
-  const d=decks[id]; if(!d.ready||!item) return;
-  d.item=item; d.dur=0; d.vol=0;
-  try{ d.player.cueVideoById(item.ytId); d.player.setVolume(0); }catch(_){}
-  renderDeck(id);
-}
-function prewarmDeck(id,item){
-  // Force YouTube to buffer the next song without audible playback.
-  // Uses loadVideoById (triggers real download) + prewarming flag so the
-  // PLAYING state handler knows to immediately pause without setting d.playing=true.
+  // Load next song silently so it's fully buffered when crossfade starts.
+  // The deck runs at vol=0 in the background — no stutter at transition.
   const d=decks[id]; if(!d.ready||!item||d.playing) return;
-  if(d.prewarming) return; // already warming
-  if(d.item?.ytId===item.ytId && d.buffered) return; // already buffered
-  d.item=item; d.dur=0; d.vol=0; d.prewarming=true; d.buffered=false;
+  if(d.item?.ytId===item.ytId) return; // already loaded
+  d.item=item; d.dur=0; d.vol=0; d.silentRun=true;
   try{
     d.player.loadVideoById(item.ytId);
     d.player.setVolume(0);
-  }catch(_){ d.prewarming=false; }
+    // playVideo is called by loadVideoById internally; silentRun flag keeps vol=0
+  }catch(_){ d.silentRun=false; }
   renderDeck(id);
 }
+function prewarmDeck(id,item){ cueDeck(id,item); } // alias kept for compatibility
 function deckPlayPause(id){
   const d=decks[id]; if(!d.ready) return;
   if(!d.item){deckCueFromQueue(id);return;}
@@ -720,8 +718,11 @@ function doCrossfade(){
   if(!nxt.item){ advanceQueueInto(nxt.id); return; }
   _xfading=true;
   const _xfadeSafe=setTimeout(()=>{ if(_xfading){ _xfading=false; } },14000);
-  nxt.prewarming=false; // allow PLAYING handler to run normally during crossfade
-  try{ nxt.player.setVolume(0); nxt.player.playVideo(); }catch(_){}
+  // Deck B may be silently running already — just promote it to audible
+  nxt.silentRun=false;
+  try{ nxt.player.setVolume(0); }catch(_){}
+  // If deck B wasn't running silently, start it now (fallback)
+  try{ if(nxt.player.getPlayerState()!==1) nxt.player.playVideo(); }catch(_){}
   setTimeout(()=>{
     const dur=CROSSFADE_SECS*1000, steps=60, iv=dur/steps; let s=0;
     const startCur=cur.vol;
@@ -734,9 +735,9 @@ function doCrossfade(){
       try{nxt.player.setVolume(dvol(nxt));}catch(_){}
       if(s>=steps){
         clearInterval(t); clearTimeout(_xfadeSafe);
-        try{cur.player.pauseVideo();}catch(_){}
-        cur.vol=1; cur.playing=false; // reset for next use
-        nxt.vol=1;
+        cur.silentRun=false; cur.playing=false; cur.vol=1;
+        try{cur.player.stopVideo();}catch(_){} // full stop on the old deck
+        nxt.vol=1; nxt.silentRun=false;
         activeDeck=nxt.id;
         const foundPos=queue.findIndex(q=>q.ytId===nxtItem.ytId);
         queuePos=foundPos>=0?foundPos:queuePos; // don't reset to 0 if not found
@@ -1855,7 +1856,7 @@ function _stopAllDecks(){
   decks.forEach(d=>{
     clearTimeout(d._bufTimeout);
     try{d.player.stopVideo();}catch(_){}
-    d.playing=false; d.vol=1; d.item=null; d.prewarming=false; d.buffered=false;
+    d.playing=false; d.vol=1; d.item=null; d.silentRun=false;
   });
   activeDeck=0;
   setCrossfader(0);
