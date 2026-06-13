@@ -1217,6 +1217,28 @@ function getYTPlaylistId(u){
   const m=u.match(/[?&]list=([\w-]+)/);
   return m?m[1]:null;
 }
+function _loadPlaylistViaIframe(plId){
+  return new Promise((resolve,reject)=>{
+    // Use whichever deck player is ready
+    const player=decks[0].player||decks[1].player;
+    if(!player){reject(new Error('Reproductor no listo'));return;}
+    const timeout=setTimeout(()=>reject(new Error('Timeout')),15000);
+    player.cuePlaylist({listType:'playlist',list:plId,index:0});
+    let polls=0;
+    const poll=setInterval(()=>{
+      polls++;
+      const ids=player.getPlaylist?player.getPlaylist():null;
+      if(ids&&ids.length>0){
+        clearInterval(poll);clearTimeout(timeout);
+        // Restore what was playing
+        const cur=decks[0].item;
+        if(cur) try{player.cueVideoById(cur.ytId);}catch(_){}
+        else try{player.stopVideo();}catch(_){}
+        resolve(ids);
+      }else if(polls>60){clearInterval(poll);clearTimeout(timeout);reject(new Error('No se obtuvieron IDs'));}
+    },250);
+  });
+}
 async function addYTLink(){
   const inp=document.getElementById('ytInput');
   const raw=inp.value.trim();
@@ -1226,28 +1248,49 @@ async function addYTLink(){
   const plId=getYTPlaylistId(raw);
   if(plId){
     inp.value='';
-    if(!cfg.ytKey){toast('Necesitas clave de YouTube API en ⚙️ CONFIG para importar playlists','error');return;}
     toast('Cargando playlist…','ok');
     try{
-      const baseUrl=cfg.ws.replace('wss://','https://').replace('ws://','http://').replace(/\/$/,'');
-      const r=await fetch(`${baseUrl}/api/ytplaylist?playlistId=${plId}&key=${cfg.ytKey}`);
-      const d=await r.json();
-      if(d.error) throw new Error(d.error.message||JSON.stringify(d.error));
-      const items=(d.items||[]).filter(x=>x.snippet?.resourceId?.videoId);
-      if(!items.length) throw new Error('Playlist vacía o privada');
+      const videoIds=await _loadPlaylistViaIframe(plId);
+      if(!videoIds.length) throw new Error('Playlist vacía o privada');
+      toast(`Obteniendo títulos de ${videoIds.length} canciones…`,'ok');
       let added=0;
-      items.forEach(it=>{
-        const vid=it.snippet.resourceId.videoId;
-        const title=it.snippet.title||'YouTube';
-        const channel=it.snippet.videoOwnerChannelTitle||'';
-        if(!queue.find(q=>q.ytId===vid)){
-          queue.push({ytId:vid,name:title,artist:channel});
-          added++;
-        }
-      });
+      for(const vid of videoIds){
+        if(queue.find(q=>q.ytId===vid)) continue;
+        let title='YouTube',channel='';
+        try{
+          const r=await fetch(`/api/ytmeta/${vid}`);
+          if(r.ok){const d=await r.json();title=d.title||vid;channel=d.author_name||'';}
+        }catch(_){}
+        queue.push({ytId:vid,name:title,artist:channel});
+        added++;
+        if(added%5===0){renderQueue();toast(`Cargando… ${added}/${videoIds.length}`,'ok');}
+      }
       renderQueue();
       toast(`✅ ${added} canciones agregadas de la playlist`,'ok');
-    }catch(e){toast('Error cargando playlist: '+e.message,'error');}
+    }catch(e){
+      // Fallback: YouTube Data API if key available
+      if(cfg.ytKey){
+        try{
+          const r=await fetch(`/api/ytplaylist?playlistId=${plId}&key=${cfg.ytKey}`);
+          const d=await r.json();
+          if(d.error) throw new Error(d.error.message||JSON.stringify(d.error));
+          const items=(d.items||[]).filter(x=>x.snippet?.resourceId?.videoId);
+          if(!items.length) throw new Error('Playlist vacía o privada');
+          let added=0;
+          items.forEach(it=>{
+            const vid=it.snippet.resourceId.videoId;
+            if(!queue.find(q=>q.ytId===vid)){
+              queue.push({ytId:vid,name:it.snippet.title||'YouTube',artist:it.snippet.videoOwnerChannelTitle||''});
+              added++;
+            }
+          });
+          renderQueue();
+          toast(`✅ ${added} canciones agregadas`,'ok');
+        }catch(e2){toast('Error: '+e2.message,'error');}
+      } else {
+        toast('No se pudo cargar la playlist: '+e.message,'error');
+      }
+    }
     return;
   }
 
