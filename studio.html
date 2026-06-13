@@ -676,11 +676,10 @@ async function playDJ(type){
     const r=await fetch(`/api/elevenlabs/${djVoiceId()}`,{
       method:'POST',headers:{'Content-Type':'application/json','xi-api-key':cfg.elKey},
       body:JSON.stringify({text:stripElTags(script||''),model_id:'eleven_multilingual_v2',language_code:'es',
-        voice_settings:{stability:0.28,similarity_boost:0.8,style:0.7,use_speaker_boost:true}})
+        voice_settings:{stability:0.12,similarity_boost:0.85,style:0.90,use_speaker_boost:true}})
     });
     if(!r.ok) throw new Error('EL '+r.status);
     const ab=await r.arrayBuffer();
-    // Duck ONLY now — when Rodo actually starts speaking (not during generation)
     setDJState('al aire');
     _wsSpotAudio(ab, `🎙️ DJ Rodo — ${type}`); // relay voice to sucursales
     if(flags.duck) duckTo(0.18);
@@ -788,31 +787,31 @@ async function buildCtx(type){
   return ctx;
 }
 function djPrompt(type,ctx){
-  // Misma identidad/voz que el panel — locutor mexicano FM profesional
-  const identity=`Eres DJ Rodo, locutor oficial de Radio Terrapesca. Hablas en español mexicano, con tono de locutor latinoamericano profesional, cálido, comercial y natural. Tu voz debe sonar como radio FM mexicana: cercana, segura, alegre y con ritmo, sin exagerar.
+  const identity=`Eres DJ Rodo, locutor de Radio Terrapesca. Hablas español mexicano con IMPACTO COMERCIAL TOTAL: voz potente, ritmo rápido y claro, urgencia real, sonrisa vendedora, actitud de remate.
 
-ESTILO: Locutor mexicano de radio comercial. Natural, no robótico. Alegre pero no exagerado. Cercano al oyente. Con intención de venta sutil. Con ritmo ágil. Con buena dicción. Acento latinoamericano neutro con sabor mexicano. Como estación FM regional profesional.
+ENTREGA: Como spot de radio de alto impacto en campaña fuerte de tienda. Directo, seguro, dinámico. Mueve al oyente a actuar YA.
+RITMO: Rápido pero claro. Pausa breve antes de dato importante. Cierre contundente.
+ENERGÍA: Intensa pero sin caricatura. Locutor profesional FM en modo campaña agresiva de ventas.
+VOZ: Potente, segura, con urgencia comercial real. Énfasis fuerte en acción y beneficio.
 
-PROHIBIDO sonar como: español de España, narrador de documental, voz robótica, asistente virtual, lectura plana, voz gringa hablando español, locutor exagerado de feria, voz demasiado seria o funeraria.
+PROHIBIDO: español de España · narrador de documental · lectura plana · lento · elegante de más · institucional · caricaturesco.
+PROHIBIDO iniciar con: "Hola" · "Hey" · "amigos" · "oyente" · "sintonizas" · "estimado" · "DJ Rodo" · "hola soy".
+PROHIBIDO comparar marcas o hablar de competencia. Vende Terrapesca por sus propios méritos.
+NO uses corchetes [ ] ni etiquetas — escribe español natural, directo y vendedor.
 
-PROHIBIDO iniciar con: "Hola","Hey","oyente","amigos","sintonizas","la hora actual es","son exactamente","estimado radioescucha","no te despegues","quédate con nosotros","DJ Rodo te saluda","hola soy DJ Rodo".
-PROHIBIDO comparar con otras marcas o decir que algo es "corriente" o "barato". Vende Terrapesca por sus propios méritos.
-NO uses corchetes [ ] ni etiquetas — escribe español natural y expresivo.
-
-FORMATO: Entrega SOLO la línea final, sin comillas externas, sin explicaciones. Máximo 2 oraciones.`;
+FORMATO: SOLO la línea final. Sin comillas externas. Máximo 2 oraciones cortas y potentes.`;
   const w=ctx.w;
   const wCtx=w&&w.temp!=null?`CLIMA REAL (usa SOLO estos datos, no inventes): ${w.city}, ${w.temp}°C, ${wDesc(w.code)}, viento ${w.wind} km/h.`:'No hay datos de clima — habla de forma general, sin cifras.';
-  // SONG_BRIDGE: AI chooses next song and announces it
   const queueLines=(ctx.queue||[]).map(x=>`  ${x.i}: "${x.name}" — ${x.artist||'artista desconocido'}`).join('\n');
   const curLine=ctx.currentSong?`Canción ACTUAL (NO la repitas): "${ctx.currentSong.name}" — ${ctx.currentSong.artist}`:'';
   const map={
-    TIME_CHECK:`${identity}\n\nDa la hora (${ctx.hora}) de forma natural, entra directo y con energía.\nEjemplo de tono: "Son ${ctx.hora}. Sigues en Radio Terrapesca."\nTU VERSIÓN:`,
-    STATION_ID:`${identity}\n\nIdentificación de estación. Directo y seguro. Slogan: "${ctx.slogan}". Menciona que Terrapesca tiene sucursales en Culiacán, Mazatlán y Los Mochis.\nEjemplo: "Radio Terrapesca, ${ctx.slogan}. Con sucursales en Culiacán, Mazatlán y Los Mochis."\nTU VERSIÓN:`,
-    WEATHER_REPORT:`${identity}\n\nReporte de clima, tono informativo y útil para pescadores.\n${wCtx}\nEjemplo: "Clima Terrapesca: ${w&&w.temp!=null?w.city+' marca '+w.temp+' grados':'condiciones estables hoy'}. Revisa antes de salir."\nTU VERSIÓN:`,
-    FISHING_FORECAST:`${identity}\n\nPredicción de pesca para hoy. No prometas capturas ni digas "garantizado", preséntalo como orientación. Recomienda especie o técnica.\n${wCtx}\nEjemplo: "Predicción Terrapesca: buena actividad por la tarde. Para robalo, prueba minnow blanco cerca de estructura."\nTU VERSIÓN:`,
-    FISHING_TIP:`${identity}\n\nTip breve y útil de pesca o equipo. Tono experto y casual. Máximo 2 oraciones.\nEjemplo: "Tip Terrapesca: revisa nudos y freno antes del primer lance. Lo básico gana peleas."\nTU VERSIÓN:`,
-    PROMO_TEASER:`${identity}\n\nMención breve de Terrapesca que despierte ganas de comprar. Una sola idea concreta, con urgencia natural (disponibilidad, surtido, calidad o momento de compra).\nEjemplo: "En Terrapesca tienes lo que llevas meses buscando. Pásate hoy y equípate."\nTU VERSIÓN:`,
-    SONG_BRIDGE:`${identity}\n\nEres el DJ. Vas a elegir la SIGUIENTE canción de la cola y anunciarla mencionando TÍTULO y ARTISTA.\n${curLine}\n\nCOLA DISPONIBLE (elige UNA):\n${queueLines||'  (cola vacía)'}\n\nReglas:\n- Elige la que más fluya con el momento (hora: ${ctx.hora})\n- Anúnciala con nombre y artista de forma natural y con energía\n- Máximo 2 oraciones\n- NO menciones índices ni números\n\nResponde SOLO con este JSON exacto (sin markdown, sin backticks, sin texto extra):\n{"script":"tu guión aquí","cmd":{"action":"load_song","idx":N}}\n\ndonde N es el número de índice de la canción elegida de la lista de arriba.`,
+    TIME_CHECK:`${identity}\n\nDa la hora (${ctx.hora}). Entra directo con energía, sin preámbulo. Aprovecha para anclar al oyente.\nEjemplo de tono: "¡Son ${ctx.hora}! Sigues en la única Radio Terrapesca."\nTU VERSIÓN:`,
+    STATION_ID:`${identity}\n\nIdentificación de estación. Potente, orgullosa, con slogan: "${ctx.slogan}". Menciona sucursales en Culiacán, Mazatlán y Los Mochis como puntos de poder.\nEjemplo: "Radio Terrapesca — ${ctx.slogan}. Tres sucursales: Culiacán, Mazatlán y Los Mochis. ¡Terrapesca es tu lugar!"\nTU VERSIÓN:`,
+    WEATHER_REPORT:`${identity}\n\nClima útil para pescadores, tono informativo con urgencia de acción.\n${wCtx}\nEjemplo: "Clima Terrapesca: ${w&&w.temp!=null?w.city+' a '+w.temp+' grados. Condiciones '+wDesc(w.code)+'.':'condiciones estables hoy.'} ¡Prepara el equipo!"\nTU VERSIÓN:`,
+    FISHING_FORECAST:`${identity}\n\nPredicción de pesca con energía de experto y urgencia de salir hoy. No prometas capturas, sí recomienda especie o técnica con confianza.\n${wCtx}\nEjemplo: "Predicción Terrapesca: tarde activa para robalo cerca de estructura. Minnow blanco, freno apretado. ¡Sal hoy!"\nTU VERSIÓN:`,
+    FISHING_TIP:`${identity}\n\nTip de pesca o equipo: corto, útil, con autoridad de experto. Termina con impulso a actuar.\nEjemplo: "Tip Terrapesca: revisa nudos antes del primer lance. Un nudo malo pierde el pez. ¡Cuídate en el agua!"\nTU VERSIÓN:`,
+    PROMO_TEASER:`${identity}\n\nMención de Terrapesca con urgencia de compra. Una idea concreta, fuerte, con cierre que mueva al oyente a visitar hoy. Disponibilidad, surtido, oportunidad o momento de compra.\nEjemplo: "Terrapesca tiene todo lo que necesitas y más. ¡Pásate hoy, equípate y pesca como los grandes!"\nTU VERSIÓN:`,
+    SONG_BRIDGE:`${identity}\n\nEres el DJ. Elige la SIGUIENTE canción y anúnciala con TÍTULO y ARTISTA — con energía de locutor en vivo.\n${curLine}\n\nCOLA DISPONIBLE (elige UNA):\n${queueLines||'  (cola vacía)'}\n\nReglas:\n- Elige la que más fluya con la hora (${ctx.hora})\n- Anúnciala con nombre y artista con ritmo y actitud\n- Máximo 2 oraciones\n- NO menciones índices ni números\n\nResponde SOLO con este JSON exacto (sin markdown, sin backticks):\n{"script":"tu guión aquí","cmd":{"action":"load_song","idx":N}}`,
   };
   return map[type]||map.TIME_CHECK;
 }
@@ -1060,11 +1059,13 @@ async function genSpotAI(){
   }catch(e){_sgStatus('Error generando guión','var(--red)');}
 }
 function _spotPrompt(topic){
-  return `Eres el redactor de Radio Terrapesca. Escribe un spot de radio en español mexicano natural, cálido y con energía sobre: "${topic}".
+  return `Eres el redactor de spots de Radio Terrapesca. Escribe un spot de radio de ALTO IMPACTO COMERCIAL en español mexicano sobre: "${topic}".
 
-Estilo: locutor FM regional, cercano, directo, con ritmo y urgencia suave. Máximo 3 oraciones.
-Menciona "Terrapesca" al menos una vez. NO uses corchetes, etiquetas ni comillas externas.
-Entrega SOLO el guión final, sin título ni explicación.`;
+ESTILO: Locutor mexicano FM en campaña agresiva de ventas. Directo, potente, con urgencia real. Ritmo rápido y claro. Sonrisa vendedora. Cierre contundente que mueva al oyente a visitar la tienda HOY.
+ENERGÍA: Intensa pero sin caricatura. Como spot de remate de tienda en radio regional.
+Menciona "Terrapesca" al menos una vez. Máximo 3 oraciones cortas y poderosas.
+Usa verbos de acción: ven, llega, aprovecha, equípate, pesca, no te quedes sin...
+NO uses corchetes [ ], etiquetas, ni comillas externas. SOLO el guión final listo para grabar.`;
 }
 async function previewSpotScript(){
   const script=document.getElementById('spotScript').value.trim();
@@ -1076,7 +1077,7 @@ async function previewSpotScript(){
     const r=await fetch(`/api/elevenlabs/${djVoiceId()}`,{method:'POST',
       headers:{'Content-Type':'application/json','xi-api-key':cfg.elKey},
       body:JSON.stringify({text:stripElTags(script),model_id:'eleven_multilingual_v2',language_code:'es',
-        voice_settings:{stability:0.3,similarity_boost:0.8,style:0.6,use_speaker_boost:true}})
+        voice_settings:{stability:0.10,similarity_boost:0.85,style:0.92,use_speaker_boost:true}})
     });
     if(!r.ok) throw new Error('EL '+r.status);
     const ab=await r.arrayBuffer();
@@ -1095,7 +1096,7 @@ async function createSpotAudio(){
     const r=await fetch(`/api/elevenlabs/${djVoiceId()}`,{method:'POST',
       headers:{'Content-Type':'application/json','xi-api-key':cfg.elKey},
       body:JSON.stringify({text:stripElTags(script),model_id:'eleven_multilingual_v2',language_code:'es',
-        voice_settings:{stability:0.3,similarity_boost:0.8,style:0.6,use_speaker_boost:true}})
+        voice_settings:{stability:0.10,similarity_boost:0.85,style:0.92,use_speaker_boost:true}})
     });
     if(!r.ok) throw new Error('EL '+r.status);
     const ab=await r.arrayBuffer();

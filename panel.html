@@ -1989,7 +1989,7 @@ async function generateSpot(){
         text:stripElTags(script),
         model_id:'eleven_multilingual_v2',
         language_code:'es',
-        voice_settings:{stability:0.25,similarity_boost:0.8,style:0.75,use_speaker_boost:true}
+        voice_settings:{stability:0.12,similarity_boost:0.85,style:0.90,use_speaker_boost:true}
       })
     });
     if(!tr.ok){const er=await tr.json().catch(()=>({}));throw new Error(er.detail?.message||'Error ElevenLabs')}
@@ -3113,7 +3113,7 @@ async function playCapsule(){
       headers:{'Content-Type':'application/json','xi-api-key':cfg.apiKey},
       body:JSON.stringify({
         text:stripElTags(text),model_id:'eleven_multilingual_v2',language_code:'es',
-        voice_settings:{stability:0.25,similarity_boost:0.8,style:0.75,use_speaker_boost:true}
+        voice_settings:{stability:0.12,similarity_boost:0.85,style:0.90,use_speaker_boost:true}
       })
     });
     if(!tr.ok) throw new Error('ElevenLabs capsule error');
@@ -3532,18 +3532,22 @@ function _djTagsForLevel(){
 
 function buildDJRodoPrompt(type,ctx){
   const tagsInstructions=_djTagsForLevel();
-  const identity=`Eres DJ Rodo, locutor oficial de Radio Terrapesca. Hablas en español mexicano, con tono de locutor latinoamericano profesional, cálido, comercial y natural. Tu voz debe sonar como radio FM mexicana: cercana, segura, alegre y con ritmo, sin exagerar.
+  const identity=`Eres DJ Rodo, locutor de Radio Terrapesca. Hablas español mexicano con IMPACTO COMERCIAL TOTAL: voz potente, ritmo rápido y claro, urgencia real, sonrisa vendedora, actitud de remate.
 
-ESTILO: Locutor mexicano de radio comercial. Natural, no robótico. Alegre pero no exagerado. Cercano al oyente. Con intención de venta sutil. Con ritmo ágil. Con buena dicción. Acento latinoamericano neutro con sabor mexicano. Como estación FM regional profesional.
+ENTREGA: Como spot de radio FM de alto impacto en campaña fuerte de tienda. Directo, seguro, dinámico. Mueve al oyente a actuar YA.
+RITMO: Rápido pero claro. Pausa breve antes de dato importante. Cierre contundente.
+ENERGÍA: Intensa pero sin caricatura. Locutor profesional FM en modo campaña agresiva de ventas.
+VOZ: Potente, segura, con urgencia comercial real. Énfasis fuerte en acción y beneficio.
 
-PROHIBIDO sonar como: español de España, narrador de documental, voz robótica, asistente virtual, lectura plana, voz gringa hablando español, locutor exagerado de feria, voz demasiado seria o funeraria.
-
-PROHIBIDO iniciar con: "Hola","Hey","oyente","amigos","sintonizas","la hora actual es","son exactamente","estimado radioescucha","no te despegues","quédate con nosotros","DJ Rodo te saluda","hola soy DJ Rodo".
-CUANDO menciones canciones: di siempre el TÍTULO y el GRUPO/ARTISTA. Ejemplo: "Viene 'Bohemian Rhapsody' de Queen" o "Acabamos de escuchar 'La Chona' de Los Tucanes". Nunca menciones solo el título sin el artista.
+PROHIBIDO: español de España · narrador de documental · lectura plana · lento · elegante de más · institucional · caricaturesco.
+PROHIBIDO iniciar con: "Hola" · "Hey" · "amigos" · "oyente" · "sintonizas" · "estimado" · "DJ Rodo" · "hola soy".
+CUANDO menciones canciones: di siempre el TÍTULO y el GRUPO/ARTISTA con energía. Ejemplo: "¡Viene 'La Chona' de Los Tucanes de Tijuana!"
+PROHIBIDO comparar marcas o hablar de competencia. Vende Terrapesca por sus propios méritos.
+NO uses corchetes [ ] ni etiquetas — escribe español natural, directo y vendedor.
 
 ${tagsInstructions}
 
-FORMATO: Entrega SOLO la línea lista para ElevenLabs v3. Sin comillas externas. Sin explicaciones. Máximo 2 oraciones.`;
+FORMATO: SOLO la línea final. Sin comillas externas. Sin explicaciones. Máximo 2 oraciones cortas y potentes.`;
 
   const hora=ctx.hora;
   const slogan=ctx.stationSlogan||'Música, pesca, marina y outdoor';
@@ -3806,7 +3810,7 @@ async function playDJRodo(type,nextIdx){
         text:stripElTags(script),
         model_id:'eleven_multilingual_v2',
         language_code:'es',
-        voice_settings:{stability:0.25,similarity_boost:0.8,style:0.75,use_speaker_boost:true}
+        voice_settings:{stability:0.12,similarity_boost:0.85,style:0.90,use_speaker_boost:true}
       })
     });
     if(!r.ok) throw new Error('EL error '+r.status);
