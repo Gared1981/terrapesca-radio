@@ -379,6 +379,17 @@ input[type=range]::-moz-range-thumb{width:18px;height:24px;border-radius:5px;bac
     <div class="dj-cue" id="djCue">Próxima intervención…</div>
     <div id="campaignBanner" style="display:none;background:linear-gradient(90deg,#1a0a00,#2a1500);border:1px solid #ff6600;border-radius:8px;padding:8px 12px;margin-bottom:8px;font-size:11px;font-family:var(--mono);color:#ffaa44;letter-spacing:.5px"></div>
     <div class="dj-now" id="djNow">DJ Rodo habla entre canciones: hora, clima, tips de pesca, promos y spots — en rotación.</div>
+    <!-- Estado de ánimo para inicio aleatorio -->
+    <div style="margin-top:8px;font-size:9px;font-family:var(--mono);color:var(--txt3);letter-spacing:1px;margin-bottom:4px">INICIO CON ESTADO DE ÁNIMO</div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-bottom:6px" id="moodRow">
+      <div class="exp-btn" data-m="auto" onclick="setMood('auto')" title="Elige según la hora actual">🕐 AUTO</div>
+      <div class="exp-btn" data-m="manana" onclick="setMood('manana')">☀️ MAÑANA</div>
+      <div class="exp-btn" data-m="mediodia" onclick="setMood('mediodia')">🌞 MEDIODÍA</div>
+      <div class="exp-btn" data-m="tarde" onclick="setMood('tarde')">🌅 TARDE</div>
+      <div class="exp-btn" data-m="noche_fest" onclick="setMood('noche_fest')">🎉 NOCHE</div>
+      <div class="exp-btn" data-m="noche" onclick="setMood('noche')">🌙 TRASNOCHE</div>
+    </div>
+    <button onclick="startWithMood()" style="width:100%;padding:10px;border-radius:8px;border:1px solid #7b4dd6;background:linear-gradient(90deg,#1a0a2e,#0e0820);color:#c9a2ff;font-size:11px;font-family:var(--mono);letter-spacing:1px;cursor:pointer;margin-bottom:8px">🎲 RODO ELIGE CANCIÓN SEGÚN ESTADO DE ÁNIMO</button>
     <div class="dj-controls">
       <button onclick="djInterveneNow()">▶ Intervención ahora</button>
       <button onclick="testWeather()">🌤 Probar clima</button>
@@ -1712,6 +1723,66 @@ function setExpLevel(e){
   document.querySelectorAll('#expRow .exp-btn').forEach(b=>b.classList.toggle('on',b.dataset.e===e));
 }
 function getVoiceSettings(){ return {...EXP_PRESETS[_expLevel]||EXP_PRESETS.natural, use_speaker_boost:true}; }
+
+/* ===== MOOD-BASED START ===== */
+let _selectedMood='auto';
+const MOODS={
+  manana:    {mood:'Mañana activa',  desc:'energía de arranque, optimismo, ritmo que despierta'},
+  mediodia:  {mood:'Mediodía',       desc:'veraniego, fiestero, bailable, tropical'},
+  tarde:     {mood:'Tarde relajada', desc:'relajado pero con ritmo, buena vibra, aventurero'},
+  noche_fest:{mood:'Noche festiva',  desc:'festivo, movido, bailable, energía de evento'},
+  noche:     {mood:'Trasnoche',      desc:'suave, tranquilo, romántico, relajado'},
+};
+function _moodByHour(){
+  const h=new Date().getHours();
+  if(h>=6&&h<12)  return MOODS.manana;
+  if(h>=12&&h<15) return MOODS.mediodia;
+  if(h>=15&&h<18) return MOODS.tarde;
+  if(h>=18&&h<21) return MOODS.noche_fest;
+  return MOODS.noche;
+}
+function setMood(m){
+  _selectedMood=m;
+  document.querySelectorAll('#moodRow .exp-btn').forEach(b=>b.classList.toggle('on',b.dataset.m===m));
+}
+async function startWithMood(){
+  if(!queue.length){toast('Agrega canciones a la cola primero','error');return;}
+  const mood=_selectedMood==='auto'?_moodByHour():(MOODS[_selectedMood]||_moodByHour());
+
+  if(cfg.antKey && queue.length>1){
+    toast(`🎙️ Rodo elige canción para "${mood.mood}"…`,'ok');
+    try{
+      const opts=queue.map((q,i)=>`${i}: "${q.name}"${q.artist?' — '+q.artist:''}`).join('\n');
+      const r=await fetch('/api/anthropic',{method:'POST',
+        headers:{'Content-Type':'application/json','x-api-key':cfg.antKey},
+        body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:80,
+          messages:[{role:'user',content:`Eres DJ Rodo. Estado de ánimo: ${mood.mood} — ${mood.desc}.\n\nElige la canción de esta lista que MEJOR arranque la sesión para este estado de ánimo:\n${opts}\n\nResponde SOLO con este JSON (sin markdown):\n{"idx":N}`}]})
+      });
+      const d=await r.json();
+      const raw=(d.content?.[0]?.text||'').trim();
+      let idx=0;
+      try{const p=JSON.parse(raw);idx=Number.isInteger(p.idx)&&p.idx>=0&&p.idx<queue.length?p.idx:0;}catch(_){}
+      waitReady(()=>{
+        const other=activeDeck===0?1:0;
+        loadDeck(activeDeck,queue[idx],true); queuePos=idx;
+        const nxt=(idx+1)%queue.length; if(queue[nxt]) cueDeck(other,queue[nxt]);
+        setCrossfader(activeDeck===0?0:100); renderQueue();
+        toast(`▶ "${queue[idx].name}" — ${mood.mood}`,'ok');
+      });
+      return;
+    }catch(_){}
+  }
+  // Fallback: random
+  const idx=Math.floor(Math.random()*queue.length);
+  waitReady(()=>{
+    const other=activeDeck===0?1:0;
+    loadDeck(activeDeck,queue[idx],true); queuePos=idx;
+    const nxt=(idx+1)%queue.length; if(queue[nxt]) cueDeck(other,queue[nxt]);
+    setCrossfader(activeDeck===0?0:100); renderQueue();
+    toast(`▶ "${queue[idx].name}" — ${mood.mood}`,'ok');
+  });
+}
+/* ===== /MOOD-BASED START ===== */
 
 /* ================= VOICE HELPERS (updated to use selectors) ================= */
 function djVoiceId(){
