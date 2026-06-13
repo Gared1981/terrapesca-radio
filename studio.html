@@ -540,6 +540,10 @@ function fmt(s){if(!s||isNaN(s)||s<0)return'0:00';const m=Math.floor(s/60),x=Mat
 /* ================= STATE ================= */
 let queue=[];          // [{ytId,name,artist}]
 let queuePos=-1;       // index in queue of the song currently on the ACTIVE deck
+const _playedHistory=[]; // recent ytIds to avoid repeats in random/AI selection
+const HISTORY_MAX=10;
+function _trackPlayed(ytId){ if(!ytId)return; _playedHistory.push(ytId); if(_playedHistory.length>HISTORY_MAX)_playedHistory.shift(); }
+function _freshQueue(){ return queue.filter(q=>!_playedHistory.includes(q.ytId)); }
 let spots=[];
 let history=[];
 const CROSSFADE_SECS=10;
@@ -597,8 +601,14 @@ window.onYouTubeIframeAPIReady=buildPlayers;
 })();
 function onDeckState(d,e){
   if(e.data===YT.PlayerState.PLAYING){
-    d.playing=true;
     clearTimeout(d._bufTimeout);
+    if(d.prewarming){
+      // Pause immediately — we only wanted YouTube to buffer, not play audibly
+      d.prewarming=false; d.buffered=true;
+      try{ d.player.pauseVideo(); d.player.setVolume(0); }catch(_){}
+      return; // don't set d.playing=true
+    }
+    d.playing=true;
     try{d.dur=d.player.getDuration()||0;}catch(_){}
     updateOnAir();
   }
@@ -645,13 +655,14 @@ function startStation(){
 }
 function loadDeck(id,item,play){
   const d=decks[id]; if(!d.ready||!item) return;
-  d.item=item; d.dur=0;
+  d.item=item; d.dur=0; d.prewarming=false;
+  if(play!==false) _trackPlayed(item.ytId);
   try{
     d.player.loadVideoById(item.ytId);
     d.player.setVolume(dvol(d));
     d.vol=1;
     if(play!==false){ setTimeout(()=>{try{d.player.playVideo();}catch(_){}} ,200); }
-    else { setTimeout(()=>{try{d.player.pauseVideo();}catch(_){}} ,350); } // preload paused
+    else { setTimeout(()=>{try{d.player.pauseVideo();}catch(_){}} ,350); }
   }catch(_){}
   renderDeck(id);
   if(play!==false){
@@ -663,17 +674,24 @@ function loadDeck(id,item,play){
   }
 }
 function cueDeck(id,item){
-  // Safe cue — no autoplay, no dual-deck issue
   const d=decks[id]; if(!d.ready||!item) return;
   d.item=item; d.dur=0; d.vol=0;
   try{ d.player.cueVideoById(item.ytId); d.player.setVolume(0); }catch(_){}
   renderDeck(id);
 }
 function prewarmDeck(id,item){
-  // Pre-buffer without triggering PLAYING: cue the video so YouTube loads it
+  // Force YouTube to buffer the next song without audible playback.
+  // Uses loadVideoById (triggers real download) + prewarming flag so the
+  // PLAYING state handler knows to immediately pause without setting d.playing=true.
   const d=decks[id]; if(!d.ready||!item||d.playing) return;
-  if(d.item?.ytId===item.ytId) return; // already cued
-  cueDeck(id,item); // safe: uses cueVideoById, no autoplay
+  if(d.prewarming) return; // already warming
+  if(d.item?.ytId===item.ytId && d.buffered) return; // already buffered
+  d.item=item; d.dur=0; d.vol=0; d.prewarming=true; d.buffered=false;
+  try{
+    d.player.loadVideoById(item.ytId);
+    d.player.setVolume(0);
+  }catch(_){ d.prewarming=false; }
+  renderDeck(id);
 }
 function deckPlayPause(id){
   const d=decks[id]; if(!d.ready) return;
@@ -700,9 +718,9 @@ function doCrossfade(){
   const cur=decks[activeDeck];
   const nxt=decks[activeDeck===0?1:0];
   if(!nxt.item){ advanceQueueInto(nxt.id); return; }
-  _xfading=true; // set immediately — before any async
-  // Safety: if crossfade never completes (stall), reset after 14s
+  _xfading=true;
   const _xfadeSafe=setTimeout(()=>{ if(_xfading){ _xfading=false; } },14000);
+  nxt.prewarming=false; // allow PLAYING handler to run normally during crossfade
   try{ nxt.player.setVolume(0); nxt.player.playVideo(); }catch(_){}
   setTimeout(()=>{
     const dur=CROSSFADE_SECS*1000, steps=60, iv=dur/steps; let s=0;
@@ -726,6 +744,7 @@ function doCrossfade(){
         const after=(queuePos+1)%queue.length;
         if(queue.length>1 && queue[after]) cueDeck(cur.id,queue[after]);
         _xfading=false;
+        _trackPlayed(nxtItem.ytId);
         renderQueue();
         let _syncPos=0; try{_syncPos=nxt.player.getCurrentTime()||0;}catch(_){}
         _wsPlayTrack(nxtItem, _syncPos);
@@ -1836,7 +1855,7 @@ function _stopAllDecks(){
   decks.forEach(d=>{
     clearTimeout(d._bufTimeout);
     try{d.player.stopVideo();}catch(_){}
-    d.playing=false; d.vol=1; d.item=null; // vol=1 so dvol() works correctly on next use
+    d.playing=false; d.vol=1; d.item=null; d.prewarming=false; d.buffered=false;
   });
   activeDeck=0;
   setCrossfader(0);
@@ -1857,24 +1876,30 @@ async function startWithMood(){
     });
   };
 
-  if(cfg.antKey && queue.length>1){
+  // Candidates: prefer unplayed songs
+  const fresh=_freshQueue();
+  const candidates=fresh.length?fresh:queue;
+
+  if(cfg.antKey && candidates.length>1){
     toast(`🎙️ Rodo elige canción para "${mood.mood}"…`,'ok');
     try{
-      const opts=queue.map((q,i)=>`${i}: "${q.name}"${q.artist?' — '+q.artist:''}`).join('\n');
+      // Pass only candidates (unplayed) with their real queue indices
+      const opts=candidates.map(c=>{const i=queue.indexOf(c);return `${i}: "${c.name}"${c.artist?' — '+c.artist:''}`;}).join('\n');
       const r=await fetch('/api/anthropic',{method:'POST',
         headers:{'Content-Type':'application/json','x-api-key':cfg.antKey},
         body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:80,
-          messages:[{role:'user',content:`Eres DJ Rodo. Estado de ánimo: ${mood.mood} — ${mood.desc}.\n\nElige la canción de esta lista que MEJOR arranque la sesión para este estado de ánimo:\n${opts}\n\nResponde SOLO con este JSON (sin markdown):\n{"idx":N}`}]})
+          messages:[{role:'user',content:`Eres DJ Rodo. Estado de ánimo: ${mood.mood} — ${mood.desc}.\nCANCIONES DISPONIBLES (no repetidas recientemente):\n${opts}\n\nElige la que MEJOR encaje. Responde SOLO con este JSON:\n{"idx":N}`}]})
       });
       const d=await r.json();
       const raw=(d.content?.[0]?.text||'').trim();
-      let idx=0;
-      try{const p=JSON.parse(raw);idx=Number.isInteger(p.idx)&&p.idx>=0&&p.idx<queue.length?p.idx:0;}catch(_){}
+      let idx=queue.indexOf(candidates[0]);
+      try{const p=JSON.parse(raw);if(Number.isInteger(p.idx)&&p.idx>=0&&p.idx<queue.length)idx=p.idx;}catch(_){}
       _launch(idx); return;
     }catch(_){}
   }
-  // Fallback: random
-  _launch(Math.floor(Math.random()*queue.length));
+  // Fallback: random from unplayed
+  const pick=candidates[Math.floor(Math.random()*candidates.length)];
+  _launch(queue.indexOf(pick));
 }
 /* ===== /MOOD-BASED START ===== */
 
