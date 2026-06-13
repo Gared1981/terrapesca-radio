@@ -347,6 +347,64 @@ const server = http.createServer((req, res) => {
   }
 
   // ── Proxy YouTube oEmbed ──
+  // ── /api/scrape — fetch a URL and return plain text (for spot generator) ──
+  if (req.url === '/api/scrape' && req.method === 'POST') {
+    let body = '';
+    req.on('data', c => body += c);
+    req.on('end', () => {
+      let targetUrl;
+      try { targetUrl = new URL(JSON.parse(body).url); } catch(e) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'URL inválida' }));
+      }
+      const lib = targetUrl.protocol === 'https:' ? https : http;
+      const options = {
+        hostname: targetUrl.hostname,
+        path: targetUrl.pathname + targetUrl.search,
+        method: 'GET',
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (compatible; TerrapescaBot/1.0)',
+          'Accept': 'text/html,application/xhtml+xml',
+          'Accept-Language': 'es-MX,es;q=0.9',
+        },
+        timeout: 10000,
+      };
+      const scrapeReq = lib.request(options, (scrapeRes) => {
+        // Follow one redirect
+        if ((scrapeRes.statusCode === 301 || scrapeRes.statusCode === 302) && scrapeRes.headers.location) {
+          try {
+            const redir = new URL(scrapeRes.headers.location, targetUrl.href);
+            const rLib = redir.protocol === 'https:' ? https : http;
+            const rOpts = { hostname: redir.hostname, path: redir.pathname + redir.search, method: 'GET',
+              headers: options.headers, timeout: 10000 };
+            const rReq = rLib.request(rOpts, (rRes) => {
+              let raw = '';
+              rRes.on('data', c => raw += c);
+              rRes.on('end', () => {
+                res.setHeader('Access-Control-Allow-Origin', '*');
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ html: raw.slice(0, 80000) }));
+              });
+            });
+            rReq.on('error', e => { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); });
+            rReq.end();
+          } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+          return;
+        }
+        let raw = '';
+        scrapeRes.on('data', c => raw += c);
+        scrapeRes.on('end', () => {
+          res.setHeader('Access-Control-Allow-Origin', '*');
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ html: raw.slice(0, 80000) }));
+        });
+      });
+      scrapeReq.on('error', e => { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); });
+      scrapeReq.end();
+    });
+    return;
+  }
+
   if (req.url.startsWith('/api/ytmeta/') && req.method === 'GET') {
     const videoId = req.url.replace('/api/ytmeta/', '').split('?')[0].trim();
     const oembedPath = `/oembed?url=https://www.youtube.com/watch?v=${encodeURIComponent(videoId)}&format=json`;

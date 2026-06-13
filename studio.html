@@ -393,13 +393,17 @@ input[type=range]::-moz-range-thumb{width:18px;height:24px;border-radius:5px;bac
       <button onclick="previewSpotScript()">▶ Preview</button>
     </div>
     <div style="display:flex;gap:8px;margin-bottom:6px;align-items:center">
-      <input style="flex:1;padding:8px 10px;border-radius:8px;border:1px solid var(--line2);background:#060d0a;color:var(--txt);font-size:12px" id="spotTopic" placeholder="Tema del spot (ej: apertura temporada, descuento carnadas, ropa de pesca…)"/>
+      <input style="flex:1;padding:8px 10px;border-radius:8px;border:1px solid var(--line2);background:#060d0a;color:var(--txt);font-size:12px" id="spotTopic" placeholder="Tema del spot o pega un enlace de producto…"/>
       <select id="spotEstilo" style="padding:8px 10px;border-radius:8px;border:1px solid var(--line2);background:#060d0a;color:var(--txt);font-size:11px;font-family:var(--mono);cursor:pointer">
         <option value="eufórico">⚡ Eufórico</option>
         <option value="dinámico">🚀 Dinámico</option>
         <option value="elegante">✨ Elegante</option>
         <option value="urgente">🔥 Urgente</option>
       </select>
+    </div>
+    <div style="margin-bottom:6px;display:flex;gap:8px;align-items:center">
+      <input style="flex:1;padding:8px 10px;border-radius:8px;border:1px solid var(--line2);background:#060d0a;color:var(--txt);font-size:12px" id="spotUrl" placeholder="🔗 Pega enlace de página de producto (opcional)…"/>
+      <button onclick="importSpotUrl()" style="padding:8px 12px;border-radius:8px;border:1px solid #2a3a5a;background:#0a1828;color:#6ab4ff;font-size:11px;font-family:var(--mono);cursor:pointer;white-space:nowrap">📥 Importar</button>
     </div>
     <textarea id="spotScript" placeholder="El guión del spot aparecerá aquí. También puedes escribir uno manualmente."></textarea>
     <div class="row2">
@@ -1200,6 +1204,61 @@ setInterval(()=>{
 /* ================= SPOT GENERATOR ================= */
 function _sgStatus(m,col){const e=document.getElementById('spotGenStatus');if(e){e.textContent=m;e.style.color=col||'var(--txt3)';}}
 function _titleCase(s){return s.split(' ').map(w=>w.charAt(0).toUpperCase()+w.slice(1)).join(' ');}
+
+function _htmlToText(html){
+  // Strip tags, decode entities, collapse whitespace
+  return html
+    .replace(/<script[\s\S]*?<\/script>/gi,'')
+    .replace(/<style[\s\S]*?<\/style>/gi,'')
+    .replace(/<[^>]+>/g,' ')
+    .replace(/&nbsp;/g,' ').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&#?\w+;/g,' ')
+    .replace(/\s{2,}/g,' ').trim()
+    .slice(0,3000);
+}
+
+async function importSpotUrl(){
+  const url=document.getElementById('spotUrl').value.trim();
+  if(!url){_sgStatus('Pega un enlace primero','var(--amber)');return;}
+  if(!url.startsWith('http')){_sgStatus('El enlace debe empezar con http','var(--amber)');return;}
+  if(!cfg.antKey){_sgStatus('Falta clave Anthropic (⚙️ CONFIG)','var(--red)');return;}
+  _sgStatus('Leyendo página…','var(--cyan)');
+  try{
+    const r=await fetch('/api/scrape',{method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({url})
+    });
+    const d=await r.json();
+    if(d.error) throw new Error(d.error);
+    const text=_htmlToText(d.html||'');
+    if(!text) throw new Error('No se pudo leer el contenido');
+
+    // Ask Claude to extract product info
+    _sgStatus('Extrayendo info del producto…','var(--cyan)');
+    const extract=await fetch('/api/anthropic',{method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':cfg.antKey},
+      body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:400,
+        messages:[{role:'user',content:`Del siguiente texto extraído de una página de producto, extrae SOLO:
+- Nombre exacto del producto
+- Características clave (máximo 3 bullets)
+- Beneficios para el pescador (si los menciona)
+
+Texto:
+${text}
+
+Responde en español. Formato:
+PRODUCTO: [nombre]
+DESCRIPCIÓN: [característica 1]. [característica 2]. [característica 3].
+BENEFICIOS: [beneficios concretos para el usuario]`}]})
+    });
+    const ed=await extract.json();
+    const info=(ed.content?.[0]?.text||'').trim();
+    if(!info) throw new Error('No se pudo extraer info');
+
+    document.getElementById('spotTopic').value=info;
+    document.getElementById('spotUrl').value='';
+    _sgStatus('Info extraída — haz clic en "Generar guión con IA"','var(--grn)');
+  }catch(e){_sgStatus('Error: '+e.message,'var(--red)');}
+}
 
 function _buildSpotPrompt(contenido, estilo){
   const estiloTags={
