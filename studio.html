@@ -598,26 +598,21 @@ window.onYouTubeIframeAPIReady=buildPlayers;
 function onDeckState(d,e){
   if(e.data===YT.PlayerState.PLAYING){
     d.playing=true;
+    clearTimeout(d._bufTimeout);
     try{d.dur=d.player.getDuration()||0;}catch(_){}
     updateOnAir();
   }
-  if(e.data===YT.PlayerState.PAUSED){d.playing=false;updateOnAir();}
-  if(e.data===YT.PlayerState.BUFFERING){
-    // If the active deck stalls for more than 5s while it should be playing, skip it
+  else if(e.data===YT.PlayerState.PAUSED){d.playing=false;updateOnAir();}
+  else if(e.data===YT.PlayerState.BUFFERING){
     if(d.id===activeDeck && !_xfading && !djActive){
       clearTimeout(d._bufTimeout);
       d._bufTimeout=setTimeout(()=>{
-        try{
-          const st=d.player.getPlayerState();
-          if(st===YT.PlayerState.BUFFERING){ advanceNoXfade(); }
-        }catch(_){}
+        try{ if(d.player.getPlayerState()===YT.PlayerState.BUFFERING) advanceNoXfade(); }catch(_){}
       },5000);
     }
   }
-  if(e.data===YT.PlayerState.PLAYING){
-    clearTimeout(d._bufTimeout);
-  }
-  if(e.data===YT.PlayerState.ENDED){
+  else if(e.data===YT.PlayerState.ENDED){
+    d.playing=false;
     if(d.id===activeDeck){
       if(djActive){ _endedDuringDJ=true; }
       else if(!_xfading){ advanceNoXfade(); }
@@ -675,16 +670,10 @@ function cueDeck(id,item){
   renderDeck(id);
 }
 function prewarmDeck(id,item){
-  // Called ~16s before crossfade: briefly load to force YouTube to buffer, then pause
+  // Pre-buffer without triggering PLAYING: cue the video so YouTube loads it
   const d=decks[id]; if(!d.ready||!item||d.playing) return;
-  if(d.item?.ytId!==item.ytId) cueDeck(id,item);
-  try{
-    d.player.loadVideoById(item.ytId);
-    d.player.setVolume(0);
-    setTimeout(()=>{
-      try{ if(d.item?.ytId===item.ytId&&!d.playing){ d.player.pauseVideo(); d.player.setVolume(0); } }catch(_){}
-    },300);
-  }catch(_){}
+  if(d.item?.ytId===item.ytId) return; // already cued
+  cueDeck(id,item); // safe: uses cueVideoById, no autoplay
 }
 function deckPlayPause(id){
   const d=decks[id]; if(!d.ready) return;
@@ -707,39 +696,41 @@ function deckCueFromQueue(id){
 /* core: crossfade active → other deck (which is preloaded) */
 function forceCrossfade(){ if(!_xfading) doCrossfade(); }
 function doCrossfade(){
+  if(_xfading) return; // guard: prevent double-call from 250ms watcher
   const cur=decks[activeDeck];
   const nxt=decks[activeDeck===0?1:0];
-  if(!nxt.item){ // nothing preloaded → just advance
-    advanceQueueInto(nxt.id); return;
-  }
-  _xfading=true;
+  if(!nxt.item){ advanceQueueInto(nxt.id); return; }
+  _xfading=true; // set immediately — before any async
+  // Safety: if crossfade never completes (stall), reset after 14s
+  const _xfadeSafe=setTimeout(()=>{ if(_xfading){ _xfading=false; } },14000);
   try{ nxt.player.setVolume(0); nxt.player.playVideo(); }catch(_){}
-  // 400ms for next deck to resume from buffer before fading in
   setTimeout(()=>{
-  const dur=CROSSFADE_SECS*1000, steps=60, iv=dur/steps; let s=0;
-  const startCur=cur.vol;
-  const t=setInterval(()=>{
-    s++; const p=s/steps;
-    cur.vol=Math.max(0,startCur*(1-p));
-    nxt.vol=Math.min(1,p);
-    try{cur.player.setVolume(dvol(cur));}catch(_){}
-    try{nxt.player.setVolume(dvol(nxt));}catch(_){}
-    if(s>=steps){
-      clearInterval(t);
-      try{cur.player.pauseVideo();}catch(_){}
-      cur.vol=0; nxt.vol=1;
-      activeDeck=nxt.id;
-      queuePos=queue.findIndex(q=>q.ytId===nxt.item.ytId);
-      if(queuePos<0) queuePos=0;
-      setCrossfader(activeDeck===0?0:100);
-      const after=(queuePos+1)%queue.length;
-      if(queue.length>1 && queue[after]) cueDeck(cur.id,queue[after]);
-      _xfading=false;
-      renderQueue();
-      let _syncPos=0; try{_syncPos=nxt.player.getCurrentTime()||0;}catch(_){}
-      _wsPlayTrack(nxt.item, _syncPos);
-    }
-  },iv);
+    const dur=CROSSFADE_SECS*1000, steps=60, iv=dur/steps; let s=0;
+    const startCur=cur.vol;
+    const nxtItem=nxt.item; // capture before async
+    const t=setInterval(()=>{
+      s++; const p=s/steps;
+      cur.vol=Math.max(0,startCur*(1-p));
+      nxt.vol=Math.min(1,p);
+      try{cur.player.setVolume(dvol(cur));}catch(_){}
+      try{nxt.player.setVolume(dvol(nxt));}catch(_){}
+      if(s>=steps){
+        clearInterval(t); clearTimeout(_xfadeSafe);
+        try{cur.player.pauseVideo();}catch(_){}
+        cur.vol=1; cur.playing=false; // reset for next use
+        nxt.vol=1;
+        activeDeck=nxt.id;
+        const foundPos=queue.findIndex(q=>q.ytId===nxtItem.ytId);
+        queuePos=foundPos>=0?foundPos:queuePos; // don't reset to 0 if not found
+        setCrossfader(activeDeck===0?0:100);
+        const after=(queuePos+1)%queue.length;
+        if(queue.length>1 && queue[after]) cueDeck(cur.id,queue[after]);
+        _xfading=false;
+        renderQueue();
+        let _syncPos=0; try{_syncPos=nxt.player.getCurrentTime()||0;}catch(_){}
+        _wsPlayTrack(nxtItem, _syncPos);
+      }
+    },iv);
   },400);
 }
 function advanceQueueInto(id){
@@ -896,7 +887,13 @@ async function djBetweenThenCrossfade(){
       loadDeck(other, chosen, false);
     }
   }
-  if(!_xfading) doCrossfade();
+  // Only crossfade if active deck is still playing; if it ended during DJ,
+  // _endedDuringDJ was set and playDJ's finally block already called advanceNoXfade
+  if(!_xfading && decks[activeDeck].playing) doCrossfade();
+  else if(!_xfading && !decks[activeDeck].playing && !decks[other].playing){
+    // Both stopped (e.g. very short song ended during API call) — force start next
+    advanceQueueInto(other);
+  }
 }
 function djInterveneNow(){
   if(djActive){return;}
@@ -1834,11 +1831,12 @@ function setMood(m){
   document.querySelectorAll('#moodRow .exp-btn').forEach(b=>b.classList.toggle('on',b.dataset.m===m));
 }
 function _stopAllDecks(){
-  // Stop both decks cleanly before a fresh start
   _xfading=false;
+  djActive=false;
   decks.forEach(d=>{
+    clearTimeout(d._bufTimeout);
     try{d.player.stopVideo();}catch(_){}
-    d.playing=false; d.vol=0; d.item=null;
+    d.playing=false; d.vol=1; d.item=null; // vol=1 so dvol() works correctly on next use
   });
   activeDeck=0;
   setCrossfader(0);
