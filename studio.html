@@ -668,24 +668,23 @@ function loadDeck(id,item,play){
   }
 }
 function cueDeck(id,item){
+  // Safe cue — no autoplay, no dual-deck issue
   const d=decks[id]; if(!d.ready||!item) return;
   d.item=item; d.dur=0; d.vol=0;
+  try{ d.player.cueVideoById(item.ytId); d.player.setVolume(0); }catch(_){}
+  renderDeck(id);
+}
+function prewarmDeck(id,item){
+  // Called ~16s before crossfade: briefly load to force YouTube to buffer, then pause
+  const d=decks[id]; if(!d.ready||!item||d.playing) return;
+  if(d.item?.ytId!==item.ytId) cueDeck(id,item);
   try{
-    // loadVideoById + immediate pause forces YouTube to buffer the video,
-    // avoiding the startup stall when the crossfade begins
     d.player.loadVideoById(item.ytId);
     d.player.setVolume(0);
-    // Pause after a short moment so it buffers but doesn't audibly play
     setTimeout(()=>{
-      try{
-        if(d.item?.ytId===item.ytId && !d.playing){
-          d.player.pauseVideo();
-          d.player.setVolume(0);
-        }
-      }catch(_){}
-    }, 1800);
+      try{ if(d.item?.ytId===item.ytId&&!d.playing){ d.player.pauseVideo(); d.player.setVolume(0); } }catch(_){}
+    },300);
   }catch(_){}
-  renderDeck(id);
 }
 function deckPlayPause(id){
   const d=decks[id]; if(!d.ready) return;
@@ -767,12 +766,12 @@ setInterval(()=>{
   d.dur=dur; updateDeckTime(d.id,ct,dur);
   if(!flags.auto||dur<=0) return;
   const rem=dur-ct;
-  // Pre-buffer next song earlier so it's ready when crossfade starts
+  // Pre-warm next song earlier so YouTube buffers it before crossfade
   if(rem<=CROSSFADE_TRIGGER_AHEAD && rem>CROSSFADE_SECS){
     const other=activeDeck===0?1:0;
     const after=(queuePos+1)%queue.length;
-    if(queue[after] && (!decks[other].item || decks[other].item.ytId!==queue[after].ytId)){
-      cueDeck(other, queue[after]);
+    if(queue[after] && !decks[other].playing){
+      prewarmDeck(other, queue[after]);
     }
   }
   if(rem<=CROSSFADE_SECS && rem>0){
