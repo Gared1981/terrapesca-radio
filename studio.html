@@ -536,15 +536,24 @@ function nextDJItem(){
 /* DJ talks over the tail (ducked) then crossfade — no silence, between songs */
 async function djBetweenThenCrossfade(){
   _djNextSong=-1;
+  const other=activeDeck===0?1:0;
+
+  // Pre-load the default next song NOW — before any API call — so if the
+  // current song ends during generation there is already audio ready on deck B.
+  const defaultNext=(queuePos+1)%queue.length;
+  if(queue[defaultNext] && (!decks[other].item || decks[other].item.ytId!==queue[defaultNext].ytId)){
+    cueDeck(other, queue[defaultNext]);
+  }
+
   const item=nextDJItem();
   if(item.kind==='spot'){ await playSpot(); }
   else { await playDJ(item.type); }
-  // If Rodo chose a specific song, make sure it's loaded on the inactive deck
+
+  // If Rodo chose a different song via AI, swap it onto the inactive deck
   if(_djNextSong>=0 && queue[_djNextSong]){
-    const other=activeDeck===0?1:0;
-    // Only load if that deck doesn't already have it
-    if(!decks[other].item || decks[other].item.ytId!==queue[_djNextSong].ytId){
-      loadDeck(other,queue[_djNextSong],false);
+    const chosen=queue[_djNextSong];
+    if(!decks[other].item || decks[other].item.ytId!==chosen.ytId){
+      loadDeck(other, chosen, false);
     }
   }
   if(!_xfading) doCrossfade();
