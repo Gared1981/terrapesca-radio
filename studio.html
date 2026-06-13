@@ -301,7 +301,7 @@ let queue=[];          // [{ytId,name,artist}]
 let queuePos=-1;       // index in queue of the song currently on the ACTIVE deck
 let spots=[];
 let history=[];
-const CROSSFADE_SECS=4;
+const CROSSFADE_SECS=10;
 let master=0.85;
 let flags={auto:true,duck:true,dj:true,aiSelect:true}; // aiSelect: DJ Rodo elige la siguiente canción
 let _djNextSong=-1;   // song index Rodo requested; -1 = no preference
