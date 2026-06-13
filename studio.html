@@ -95,6 +95,22 @@ input[type=range]::-moz-range-thumb{width:18px;height:24px;border-radius:5px;bac
 .tg.on .sw{background:var(--grn2)}
 .tg.on .sw::after{left:16px;background:#eafff2}
 
+.deck-gain{display:flex;align-items:center;gap:6px;margin-top:8px;font-family:var(--mono);font-size:9px;color:var(--txt3);letter-spacing:1px}
+.deck-gain input{flex:1;height:4px}
+.deck-gain span{width:32px;text-align:right;color:var(--txt2)}
+
+/* SPOT GENERATOR */
+.spot-gen{background:linear-gradient(180deg,#0f1c10,#080f18);border:1px solid #1a3a1e;border-radius:14px;padding:12px;margin-bottom:12px}
+.spot-gen h3{font-size:11px;font-family:var(--mono);letter-spacing:1.5px;color:#4ecb6e;margin-bottom:10px}
+.spot-gen textarea{width:100%;padding:9px 10px;border-radius:8px;border:1px solid var(--line2);background:#060d0a;color:var(--txt);font-size:12px;resize:vertical;min-height:70px;font-family:inherit}
+.spot-gen .row2{display:grid;grid-template-columns:1fr auto;gap:6px;margin-top:8px}
+.spot-gen .row2 input{padding:9px 10px;border-radius:8px;border:1px solid var(--line2);background:#080f18;color:var(--txt);font-size:12px}
+.spot-gen .btns{display:flex;gap:6px;margin-bottom:8px}
+.spot-gen .btns button{flex:1;padding:9px 0;border-radius:8px;border:1px solid #2a5a2e;background:#122016;color:#7dffaa;font-size:11px;cursor:pointer;font-family:var(--mono);letter-spacing:.5px}
+.spot-gen .btns button:hover{background:#1a3022;border-color:#4ecb6e}
+.spot-gen .btns button.primary{background:linear-gradient(180deg,#1fd65b,#12a040);border-color:#2bef6e;color:#021a0a;font-weight:800}
+.spot-gen-status{font-size:10px;color:var(--txt3);margin-top:6px;min-height:14px;font-family:var(--mono)}
+
 /* SECTIONS */
 .cols{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .card{background:linear-gradient(180deg,var(--panel),var(--bg2));border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:12px}
@@ -183,10 +199,11 @@ input[type=range]::-moz-range-thumb{width:18px;height:24px;border-radius:5px;bac
       <div class="deck-artist" id="arA"></div>
       <div class="deck-time"><span id="elA">0:00</span><span class="rem" id="reA">-0:00</span></div>
       <div class="bar" onclick="seekBar(event,0)" title="Clic para adelantar"><i id="pgA"></i></div>
+      <div class="deck-gain"><span>GAIN</span><input type="range" id="gainA" min="50" max="150" value="100" oninput="setDeckGain(0,this.value)"/><span id="gainLblA">100%</span></div>
       <div class="deck-ctrls">
         <button class="dbtn play" id="plA" onclick="deckPlayPause(0)">▶</button>
-        <button class="dbtn" onclick="seekDeck(-15)" title="-15s">⏪</button>
-        <button class="dbtn" onclick="seekDeck(15)" title="+15s">⏩</button>
+        <button class="dbtn" onclick="seekDeck(-15,0)" title="-15s">⏪</button>
+        <button class="dbtn" onclick="seekDeck(15,0)" title="+15s">⏩</button>
         <button class="dbtn" onclick="forceCrossfade()" title="Mezclar a B">⇆</button>
       </div>
     </div>
@@ -219,10 +236,11 @@ input[type=range]::-moz-range-thumb{width:18px;height:24px;border-radius:5px;bac
       <div class="deck-artist" id="arB"></div>
       <div class="deck-time"><span id="elB">0:00</span><span class="rem" id="reB">-0:00</span></div>
       <div class="bar" onclick="seekBar(event,1)" title="Clic para adelantar"><i id="pgB"></i></div>
+      <div class="deck-gain"><span>GAIN</span><input type="range" id="gainB" min="50" max="150" value="100" oninput="setDeckGain(1,this.value)"/><span id="gainLblB">100%</span></div>
       <div class="deck-ctrls">
         <button class="dbtn play" id="plB" onclick="deckPlayPause(1)">▶</button>
-        <button class="dbtn" onclick="seekDeck(-15)" title="-15s">⏪</button>
-        <button class="dbtn" onclick="seekDeck(15)" title="+15s">⏩</button>
+        <button class="dbtn" onclick="seekDeck(-15,1)" title="-15s">⏪</button>
+        <button class="dbtn" onclick="seekDeck(15,1)" title="+15s">⏩</button>
         <button class="dbtn" onclick="forceCrossfade()" title="Mezclar a A">⇆</button>
       </div>
     </div>
@@ -242,6 +260,23 @@ input[type=range]::-moz-range-thumb{width:18px;height:24px;border-radius:5px;bac
       <button onclick="djInterveneNow()">▶ Intervención ahora</button>
       <button onclick="testWeather()">🌤 Probar clima</button>
     </div>
+  </div>
+
+  <!-- GENERAR SPOT -->
+  <div class="spot-gen">
+    <h3>📢 GENERADOR DE SPOTS</h3>
+    <div class="btns">
+      <button onclick="genSpotAI()">✨ Generar guión con IA</button>
+      <button class="primary" onclick="createSpotAudio()">🎙️ Crear Audio</button>
+      <button onclick="previewSpotScript()">▶ Preview</button>
+    </div>
+    <input style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--line2);background:#060d0a;color:var(--txt);font-size:12px;margin-bottom:6px" id="spotTopic" placeholder="Tema del spot (ej: apertura temporada, descuento carnadas, ropa de pesca…)"/>
+    <textarea id="spotScript" placeholder="El guión del spot aparecerá aquí. También puedes escribir uno manualmente."></textarea>
+    <div class="row2">
+      <input id="spotName" placeholder="Nombre del spot (para guardarlo)"/>
+      <button onclick="createSpotAudio()" style="padding:9px 14px;border-radius:8px;border:1px solid #2a5a2e;background:#122016;color:#7dffaa;font-size:12px;cursor:pointer;white-space:nowrap">💾 Guardar</button>
+    </div>
+    <div class="spot-gen-status" id="spotGenStatus"></div>
   </div>
 
   <div class="cols">
@@ -349,11 +384,13 @@ let master=0.85;
 let flags={auto:true,duck:true,dj:true,aiSelect:true}; // aiSelect: DJ Rodo elige la siguiente canción
 let _djNextSong=-1;   // song index Rodo requested; -1 = no preference
 
-/* Two decks. Each: {player, ready, item, dur, playing, isActive} */
+/* Two decks. Each: {player, ready, item, dur, playing, vol, gain} */
 const decks=[
-  {id:0,el:'ytA',player:null,ready:false,item:null,dur:0,playing:false,vol:1},
-  {id:1,el:'ytB',player:null,ready:false,item:null,dur:0,playing:false,vol:1},
+  {id:0,el:'ytA',player:null,ready:false,item:null,dur:0,playing:false,vol:1,gain:1.0},
+  {id:1,el:'ytB',player:null,ready:false,item:null,dur:0,playing:false,vol:1,gain:1.0},
 ];
+// Compute final YouTube volume (0-100) for a deck
+function dvol(d){ return Math.round(Math.max(0, Math.min(1, d.vol * (d.gain||1))) * master * 100); }
 let activeDeck=0;      // which deck is "on air"
 let _xfading=false;
 let djActive=false;
@@ -437,7 +474,7 @@ function loadDeck(id,item,play){
   d.item=item; d.dur=0;
   try{
     d.player.loadVideoById(item.ytId);
-    d.player.setVolume(Math.round(master*100));
+    d.player.setVolume(dvol(d));
     d.vol=1;
     if(play!==false){ setTimeout(()=>{try{d.player.playVideo();}catch(_){}} ,200); }
     else { setTimeout(()=>{try{d.player.pauseVideo();}catch(_){}} ,350); } // preload paused
@@ -491,8 +528,8 @@ function doCrossfade(){
     s++; const p=s/steps;
     cur.vol=Math.max(0,startCur*(1-p));
     nxt.vol=Math.min(1,p);
-    try{cur.player.setVolume(Math.round(cur.vol*master*100));}catch(_){}
-    try{nxt.player.setVolume(Math.round(nxt.vol*master*100));}catch(_){}
+    try{cur.player.setVolume(dvol(cur));}catch(_){}
+    try{nxt.player.setVolume(dvol(nxt));}catch(_){}
     if(s>=steps){
       clearInterval(t);
       try{cur.player.pauseVideo();}catch(_){}
@@ -558,7 +595,7 @@ function duckTo(level,ms=400){
   clearInterval(window._duck);
   window._duck=setInterval(()=>{s++;const p=s/steps;
     d.vol=start+(level-start)*p;
-    try{d.player.setVolume(Math.round(Math.max(0,d.vol)*master*100));}catch(_){}
+    try{d.player.setVolume(dvol(d));}catch(_){}
     if(s>=steps)clearInterval(window._duck);
   },iv);
 }
@@ -659,10 +696,13 @@ async function playDJ(type){
 }
 function playClip(url){
   return new Promise(res=>{
-    const a=new Audio(url);_djAudio=a;a.volume=1;
+    // Stop any existing DJ/spot audio before starting new one
+    if(_djAudio){try{_djAudio.pause();_djAudio.src='';}catch(_){}_djAudio=null;}
+    const a=new Audio(url);_djAudio=a;
+    a.volume=master; // respect master fader
     let done=false;const fin=()=>{if(done)return;done=true;try{URL.revokeObjectURL(url);}catch(_){}_djAudio=null;res();};
     a.onended=fin;a.onerror=fin;a.play().catch(fin);
-    setTimeout(fin,30000);
+    setTimeout(fin,45000);
   });
 }
 async function playSpot(){
@@ -804,11 +844,13 @@ function onCrossfader(v){
   const p=v/100; // 0 = full A, 100 = full B
   decks[0].vol=Math.min(1,2*(1-p)); decks[1].vol=Math.min(1,2*p);
   if(p<0.5){decks[0].vol=1;decks[1].vol=p*2;} else {decks[1].vol=1;decks[0].vol=(1-p)*2;}
-  decks.forEach(d=>{try{d.player.setVolume(Math.round(Math.max(0,d.vol)*master*100));}catch(_){}});
+  decks.forEach(d=>{try{d.player.setVolume(dvol(d));}catch(_){}});
   activeDeck = p<0.5?0:1;
 }
 function onMaster(v){master=v/100;document.getElementById('masterTxt').textContent=v+'%';
-  decks.forEach(d=>{try{d.player.setVolume(Math.round(Math.max(0,d.vol)*master*100));}catch(_){}});}
+  decks.forEach(d=>{try{d.player.setVolume(dvol(d));}catch(_){}});
+  if(_djAudio) _djAudio.volume=master;
+}
 function drawVU(){
   const playing=decks.some(d=>d.playing)||djActive;
   ['vuL','vuR'].forEach((id,ch)=>{
@@ -939,11 +981,17 @@ function skipNext(){
   if(decks[other].item && !_xfading){ doCrossfade(); }
   else { advanceQueueInto(other); }
 }
-/* Seek the active deck forward/back */
-function seekDeck(secs){
-  const d=decks[activeDeck]; if(!d||!d.ready) return;
+/* Seek a specific deck (or active if id omitted) forward/back */
+function seekDeck(secs,id){
+  const d=decks[id!=null?id:activeDeck]; if(!d||!d.ready) return;
   try{const ct=d.player.getCurrentTime()||0,dur=d.player.getDuration()||0;
     d.player.seekTo(Math.max(0,Math.min(dur-0.5,ct+secs)),true);}catch(_){}
+}
+/* Per-deck gain trim */
+function setDeckGain(id,val){
+  decks[id].gain=val/100;
+  document.getElementById(id?'gainLblB':'gainLblA').textContent=val+'%';
+  try{decks[id].player.setVolume(dvol(decks[id]));}catch(_){}
 }
 /* Click on a deck's progress bar to seek to that position */
 function seekBar(ev,id){
@@ -973,6 +1021,110 @@ function refreshDJStatus(){
   el.textContent=s.text;
   el.style.color=s.soon?'#ffd76a':'var(--txt2)';
   el.style.borderColor=s.soon?'rgba(245,166,35,.5)':'#241636';
+}
+
+/* ================= SILENCE WATCHDOG ================= */
+let _wdLastPos=0, _wdLastCheck=Date.now();
+setInterval(()=>{
+  if(_xfading||djActive||!decks[activeDeck]?.item) return;
+  const d=decks[activeDeck];
+  let ct=0; try{ct=d.player.getCurrentTime()||0;}catch(_){return;}
+  const now=Date.now();
+  if(ct!==_wdLastPos){ _wdLastPos=ct; _wdLastCheck=now; return; }
+  // Position hasn't changed in 6 seconds while we expect playback
+  if(now-_wdLastCheck>6000 && d.playing){
+    _wdLastCheck=now; _wdLastPos=0;
+    console.warn('[watchdog] stall detected — advancing');
+    advanceNoXfade();
+  }
+},1500);
+
+/* ================= SPOT GENERATOR ================= */
+function _sgStatus(m,col){const e=document.getElementById('spotGenStatus');if(e){e.textContent=m;e.style.color=col||'var(--txt3)';}}
+
+async function genSpotAI(){
+  const topic=document.getElementById('spotTopic').value.trim();
+  if(!topic){_sgStatus('Escribe el tema del spot primero','var(--amber)');return;}
+  if(!cfg.antKey){_sgStatus('Falta clave Anthropic (configura en panel)','var(--red)');return;}
+  _sgStatus('Generando guión…','var(--cyan)');
+  try{
+    const r=await fetch('/api/anthropic',{method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':cfg.antKey},
+      body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:220,
+        messages:[{role:'user',content:_spotPrompt(topic)}]})
+    });
+    const d=await r.json();
+    const script=(d.content?.[0]?.text||'').trim();
+    document.getElementById('spotScript').value=script;
+    _sgStatus('Guión listo — revisa y haz clic en Crear Audio','var(--grn)');
+  }catch(e){_sgStatus('Error generando guión','var(--red)');}
+}
+function _spotPrompt(topic){
+  return `Eres el redactor de Radio Terrapesca. Escribe un spot de radio en español mexicano natural, cálido y con energía sobre: "${topic}".
+
+Estilo: locutor FM regional, cercano, directo, con ritmo y urgencia suave. Máximo 3 oraciones.
+Menciona "Terrapesca" al menos una vez. NO uses corchetes, etiquetas ni comillas externas.
+Entrega SOLO el guión final, sin título ni explicación.`;
+}
+async function previewSpotScript(){
+  const script=document.getElementById('spotScript').value.trim();
+  if(!script){_sgStatus('Escribe o genera un guión primero','var(--amber)');return;}
+  if(djActive){_sgStatus('Espera a que termine el audio actual','var(--amber)');return;}
+  if(!cfg.elKey){_sgStatus('Falta clave ElevenLabs','var(--red)');return;}
+  _sgStatus('Generando preview…','var(--cyan)');
+  try{
+    const r=await fetch(`/api/elevenlabs/${djVoiceId()}`,{method:'POST',
+      headers:{'Content-Type':'application/json','xi-api-key':cfg.elKey},
+      body:JSON.stringify({text:stripElTags(script),model_id:'eleven_multilingual_v2',language_code:'es',
+        voice_settings:{stability:0.3,similarity_boost:0.8,style:0.6,use_speaker_boost:true}})
+    });
+    if(!r.ok) throw new Error('EL '+r.status);
+    const ab=await r.arrayBuffer();
+    _sgStatus('▶ Reproduciendo preview…','var(--grn)');
+    await playClip(URL.createObjectURL(new Blob([ab],{type:'audio/mpeg'})));
+    _sgStatus('Preview terminado','var(--txt3)');
+  }catch(e){_sgStatus('Error: '+e.message,'var(--red)');}
+}
+async function createSpotAudio(){
+  const script=document.getElementById('spotScript').value.trim();
+  const name=(document.getElementById('spotName').value.trim())||('Spot '+(spots.length+1));
+  if(!script){_sgStatus('Escribe o genera un guión primero','var(--amber)');return;}
+  if(!cfg.elKey){_sgStatus('Falta clave ElevenLabs','var(--red)');return;}
+  _sgStatus('Generando audio…','var(--cyan)');
+  try{
+    const r=await fetch(`/api/elevenlabs/${djVoiceId()}`,{method:'POST',
+      headers:{'Content-Type':'application/json','xi-api-key':cfg.elKey},
+      body:JSON.stringify({text:stripElTags(script),model_id:'eleven_multilingual_v2',language_code:'es',
+        voice_settings:{stability:0.3,similarity_boost:0.8,style:0.6,use_speaker_boost:true}})
+    });
+    if(!r.ok) throw new Error('EL '+r.status);
+    const ab=await r.arrayBuffer();
+    // Convert to base64
+    const u8=new Uint8Array(ab); let b='';
+    for(let i=0;i<u8.length;i++) b+=String.fromCharCode(u8[i]);
+    const b64=btoa(b);
+    await _saveSpotToIDB(name,b64);
+    _sgStatus(`✓ "${name}" guardado en la lista de spots`,'var(--grn)');
+    document.getElementById('spotName').value='';
+    toast('Spot guardado: '+name,'ok');
+  }catch(e){_sgStatus('Error: '+e.message,'var(--red)');}
+}
+async function _saveSpotToIDB(name,b64){
+  const db=await openDB();
+  return new Promise((res,rej)=>{
+    const tx=db.transaction('session','readwrite');
+    const store=tx.objectStore('session');
+    const req=store.get('spotsLibrary');
+    req.onsuccess=()=>{
+      const items=(req.result?.items||[]);
+      items.push({name,b64,ts:Date.now()});
+      store.put({key:'spotsLibrary',items});
+      spots=items.filter(s=>s.b64).map(s=>({name:s.name,b64:s.b64}));
+      renderSpots();
+      res();
+    };
+    req.onerror=rej;
+  });
 }
 
 /* ================= FLAGS ================= */
