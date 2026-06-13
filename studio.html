@@ -316,25 +316,39 @@ let _djAudio=null;
 let _endedDuringDJ=false;
 
 /* ================= YOUTUBE DUAL PLAYER ================= */
-function onYouTubeIframeAPIReady(){
+function buildPlayers(){
+  if(window._ytBuilt) return;
+  if(!window.YT || !YT.Player){ console.warn('[YT] API not ready yet'); return; }
+  window._ytBuilt=true;
+  console.log('[YT] building players…');
   decks.forEach(d=>{
-    d.player=new YT.Player(d.el,{
-      height:'100%',width:'100%',
-      playerVars:{autoplay:0,controls:0,modestbranding:1,rel:0,playsinline:1},
-      events:{
-        onReady:()=>{d.ready=true;d.player.setVolume(0);console.log('[YT] deck '+(d.id?'B':'A')+' ready');},
-        onStateChange:(e)=>onDeckState(d,e),
-        onError:(e)=>{ // 101/150 = embedding disabled, 100 = removed, 2 = bad id
-          console.warn('[YT] error',e.data,'deck',d.id);
-          if(d.id===activeDeck && !_xfading && !djActive){
-            toast('⚠️ Video no disponible, saltando…','');
-            advanceNoXfade();
-          }
-        },
-      }
-    });
+    try{
+      d.player=new YT.Player(d.el,{
+        height:'100%',width:'100%',
+        playerVars:{autoplay:0,controls:0,modestbranding:1,rel:0,playsinline:1,origin:location.origin},
+        events:{
+          onReady:()=>{d.ready=true;d.player.setVolume(0);console.log('[YT] deck '+(d.id?'B':'A')+' READY');},
+          onStateChange:(e)=>onDeckState(d,e),
+          onError:(e)=>{
+            console.warn('[YT] error',e.data,'deck',d.id);
+            if(d.id===activeDeck && !_xfading && !djActive){ toast('⚠️ Video no disponible, saltando…',''); advanceNoXfade(); }
+          },
+        }
+      });
+    }catch(err){ console.error('[YT] player build failed',err); }
   });
 }
+// The YouTube API calls this global when ready
+window.onYouTubeIframeAPIReady=buildPlayers;
+// Safety: if the API already loaded before this script ran, build now;
+// otherwise poll briefly until YT is available (covers script-order races).
+(function ensureYT(){
+  if(window.YT && YT.Player){ buildPlayers(); return; }
+  let n=0; const iv=setInterval(()=>{ n++;
+    if(window.YT && YT.Player){ clearInterval(iv); buildPlayers(); }
+    else if(n>40){ clearInterval(iv); console.error('[YT] iframe_api never loaded'); }
+  },250);
+})();
 function onDeckState(d,e){
   if(e.data===YT.PlayerState.PLAYING){
     d.playing=true;
@@ -350,10 +364,13 @@ function onDeckState(d,e){
   }
 }
 function waitReady(cb){
-  if(decks[0].ready&&decks[1].ready) return cb();
+  if(decks[0].ready) return cb(); // deck 0 is enough to start; deck 1 catches up
   let n=0;const iv=setInterval(()=>{n++;
-    if(decks[0].ready&&decks[1].ready){clearInterval(iv);cb();}
-    else if(n>30){clearInterval(iv);toast('⚠️ YouTube no cargó (revisa conexión)','error');}
+    if(decks[0].ready){clearInterval(iv);cb();}
+    else if(n>50){clearInterval(iv);
+      const msg = (window.YT&&YT.Player) ? '⚠️ El reproductor no respondió. Reintenta.' : '⚠️ No se pudo cargar YouTube (¿bloqueado por la red?)';
+      toast(msg,'error');
+    }
   },300);
 }
 
@@ -363,8 +380,11 @@ function startStation(){
   waitReady(()=>{
     queuePos=0; activeDeck=0;
     loadDeck(0,queue[0],true);
-    if(queue[1]) cueDeck(1,queue[1]); // preload next for gapless
     setCrossfader(0);
+    // Preload deck B as soon as it's ready (it may lag deck A a moment)
+    const tryCueB=()=>{ if(queue[1]){ if(decks[1].ready) cueDeck(1,queue[1]);
+      else { let n=0;const iv=setInterval(()=>{n++; if(decks[1].ready){clearInterval(iv);cueDeck(1,queue[1]);} else if(n>40)clearInterval(iv);},300); } } };
+    tryCueB();
   });
 }
 function loadDeck(id,item,play){
