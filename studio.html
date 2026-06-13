@@ -208,6 +208,7 @@ input[type=range]::-moz-range-thumb{width:18px;height:24px;border-radius:5px;bac
         <div class="tg on" id="tgAuto" onclick="toggleAuto()"><span>AUTO MIX</span><span class="sw"></span></div>
         <div class="tg on" id="tgDuck" onclick="toggleFlag('duck')"><span>DUCKING</span><span class="sw"></span></div>
         <div class="tg on" id="tgDJ" onclick="toggleFlag('dj')"><span>DJ RODO</span><span class="sw"></span></div>
+        <div class="tg on" id="tgAiSelect" onclick="toggleFlag('aiSelect')" title="DJ Rodo elige la siguiente canción y la anuncia"><span>AI SELECCIÓN</span><span class="sw"></span></div>
       </div>
     </div>
 
@@ -302,7 +303,8 @@ let spots=[];
 let history=[];
 const CROSSFADE_SECS=4;
 let master=0.85;
-let flags={auto:true,duck:true,dj:true};
+let flags={auto:true,duck:true,dj:true,aiSelect:true}; // aiSelect: DJ Rodo elige la siguiente canción
+let _djNextSong=-1;   // song index Rodo requested; -1 = no preference
 
 /* Two decks. Each: {player, ready, item, dur, playing, isActive} */
 const decks=[
@@ -514,7 +516,7 @@ let djFreq='media';
 let _djSongCount=0;
 let _djRotIdx=0;
 const DJ_SONGS_BETWEEN={baja:3,media:2,alta:1};
-const DJ_ROTATION=['TIME_CHECK','SPOT','STATION_ID','WEATHER_REPORT','FISHING_TIP','SPOT','PROMO_TEASER','FISHING_FORECAST','SPOT','STATION_ID','WEATHER_REPORT','TIME_CHECK'];
+const DJ_ROTATION=['TIME_CHECK','SPOT','STATION_ID','WEATHER_REPORT','FISHING_TIP','SONG_BRIDGE','SPOT','PROMO_TEASER','FISHING_FORECAST','SPOT','STATION_ID','WEATHER_REPORT','SONG_BRIDGE','TIME_CHECK'];
 function setDJFreq(f){djFreq=f;document.querySelectorAll('#djFreqCtrl .s').forEach(s=>s.classList.toggle('on',s.dataset.f===f));refreshDJStatus();}
 function djShouldFire(){
   if(!flags.dj) return false;
@@ -533,9 +535,18 @@ function nextDJItem(){
 }
 /* DJ talks over the tail (ducked) then crossfade — no silence, between songs */
 async function djBetweenThenCrossfade(){
+  _djNextSong=-1;
   const item=nextDJItem();
   if(item.kind==='spot'){ await playSpot(); }
   else { await playDJ(item.type); }
+  // If Rodo chose a specific song, make sure it's loaded on the inactive deck
+  if(_djNextSong>=0 && queue[_djNextSong]){
+    const other=activeDeck===0?1:0;
+    // Only load if that deck doesn't already have it
+    if(!decks[other].item || decks[other].item.ytId!==queue[_djNextSong].ytId){
+      loadDeck(other,queue[_djNextSong],false);
+    }
+  }
   if(!_xfading) doCrossfade();
 }
 function djInterveneNow(){
@@ -547,8 +558,21 @@ async function playDJ(type){
   if(djActive) return;
   djActive=true; _endedDuringDJ=false; setDJState('generando…'); setOnAir(true);
   try{
-    const script=await genDJScript(type);
+    const {script,cmd}=await genDJScript(type);
     document.getElementById('djNow').textContent=script||'…';
+
+    // Execute AI command: preload chosen song before speaking
+    if(cmd && cmd.action==='load_song' && flags.aiSelect && queue[cmd.idx]){
+      _djNextSong=cmd.idx;
+      const other=activeDeck===0?1:0;
+      const chosen=queue[cmd.idx];
+      // If not already loaded, cue it silently on the inactive deck
+      if(!decks[other].item || decks[other].item.ytId!==chosen.ytId){
+        cueDeck(other,chosen);
+      }
+      toast(`🎙️ Rodo elige: ${chosen.name||'canción'}…`,'ok');
+    }
+
     if(!cfg.elKey){toast('Falta clave ElevenLabs (config en panel)','error');throw new Error('no key');}
     const r=await fetch(`/api/elevenlabs/${djVoiceId()}`,{
       method:'POST',headers:{'Content-Type':'application/json','xi-api-key':cfg.elKey},
@@ -599,17 +623,27 @@ async function playSpot(){
 /* ---- DJ script generation (reuses /api/anthropic) ---- */
 async function genDJScript(type){
   const ctx=await buildCtx(type);
-  if(!cfg.antKey) return djFallback(type,ctx);
+  if(!cfg.antKey) return {script:djFallback(type,ctx),cmd:null};
   try{
+    const tokens=type==='SONG_BRIDGE'?220:140;
     const r=await fetch('/api/anthropic',{
       method:'POST',headers:{'Content-Type':'application/json','x-api-key':cfg.antKey},
-      body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:140,
+      body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:tokens,
         messages:[{role:'user',content:djPrompt(type,ctx)}]})
     });
-    if(!r.ok) return djFallback(type,ctx);
+    if(!r.ok) return {script:djFallback(type,ctx),cmd:null};
     const d=await r.json();
-    return (d.content?.[0]?.text||'').trim()||djFallback(type,ctx);
-  }catch(e){return djFallback(type,ctx);}
+    const raw=(d.content?.[0]?.text||'').trim();
+    // SONG_BRIDGE returns JSON with script + cmd
+    if(type==='SONG_BRIDGE' && raw.startsWith('{')){
+      try{
+        const parsed=JSON.parse(raw);
+        const cmd=parsed.cmd&&typeof parsed.cmd.idx==='number'?parsed.cmd:null;
+        return {script:parsed.script||djFallback(type,ctx),cmd};
+      }catch(_){}
+    }
+    return {script:raw||djFallback(type,ctx),cmd:null};
+  }catch(e){return {script:djFallback(type,ctx),cmd:null};}
 }
 const HORA_H=['','una','dos','tres','cuatro','cinco','seis','siete','ocho','nueve','diez','once','doce'];
 function horaRadio(){
@@ -637,6 +671,16 @@ function wDesc(code){const m={0:'despejado',1:'mayormente despejado',2:'parcialm
 async function buildCtx(type){
   const ctx={hora:horaRadio(),slogan:cfg.slogan};
   if(type==='WEATHER_REPORT'||type==='FISHING_FORECAST'){ctx.w=await getWeather();}
+  if(type==='SONG_BRIDGE'){
+    // Build a short queue list for AI song selection
+    // Avoid the currently playing song; pick from next few options
+    const cur=decks[activeDeck]?.item;
+    const opts=queue.map((q,i)=>({i,name:q.name||'YouTube',artist:q.artist||''}))
+      .filter(x=>!cur||queue[x.i].ytId!==cur.ytId)
+      .slice(0,8); // show up to 8 options
+    ctx.queue=opts;
+    ctx.currentSong=cur?{name:cur.name||'',artist:cur.artist||''}:null;
+  }
   return ctx;
 }
 function djPrompt(type,ctx){
@@ -654,6 +698,9 @@ NO uses corchetes [ ] ni etiquetas — escribe español natural y expresivo.
 FORMATO: Entrega SOLO la línea final, sin comillas externas, sin explicaciones. Máximo 2 oraciones.`;
   const w=ctx.w;
   const wCtx=w&&w.temp!=null?`CLIMA REAL (usa SOLO estos datos, no inventes): ${w.city}, ${w.temp}°C, ${wDesc(w.code)}, viento ${w.wind} km/h.`:'No hay datos de clima — habla de forma general, sin cifras.';
+  // SONG_BRIDGE: AI chooses next song and announces it
+  const queueLines=(ctx.queue||[]).map(x=>`  ${x.i}: "${x.name}" — ${x.artist||'artista desconocido'}`).join('\n');
+  const curLine=ctx.currentSong?`Canción ACTUAL (NO la repitas): "${ctx.currentSong.name}" — ${ctx.currentSong.artist}`:'';
   const map={
     TIME_CHECK:`${identity}\n\nDa la hora (${ctx.hora}) de forma natural, entra directo y con energía.\nEjemplo de tono: "Son ${ctx.hora}. Sigues en Radio Terrapesca."\nTU VERSIÓN:`,
     STATION_ID:`${identity}\n\nIdentificación de estación. Directo y seguro. Slogan: "${ctx.slogan}". Menciona que Terrapesca tiene sucursales en Culiacán, Mazatlán y Los Mochis.\nEjemplo: "Radio Terrapesca, ${ctx.slogan}. Con sucursales en Culiacán, Mazatlán y Los Mochis."\nTU VERSIÓN:`,
@@ -661,10 +708,20 @@ FORMATO: Entrega SOLO la línea final, sin comillas externas, sin explicaciones.
     FISHING_FORECAST:`${identity}\n\nPredicción de pesca para hoy. No prometas capturas ni digas "garantizado", preséntalo como orientación. Recomienda especie o técnica.\n${wCtx}\nEjemplo: "Predicción Terrapesca: buena actividad por la tarde. Para robalo, prueba minnow blanco cerca de estructura."\nTU VERSIÓN:`,
     FISHING_TIP:`${identity}\n\nTip breve y útil de pesca o equipo. Tono experto y casual. Máximo 2 oraciones.\nEjemplo: "Tip Terrapesca: revisa nudos y freno antes del primer lance. Lo básico gana peleas."\nTU VERSIÓN:`,
     PROMO_TEASER:`${identity}\n\nMención breve de Terrapesca que despierte ganas de comprar. Una sola idea concreta, con urgencia natural (disponibilidad, surtido, calidad o momento de compra).\nEjemplo: "En Terrapesca tienes lo que llevas meses buscando. Pásate hoy y equípate."\nTU VERSIÓN:`,
+    SONG_BRIDGE:`${identity}\n\nEres el DJ. Vas a elegir la SIGUIENTE canción de la cola y anunciarla mencionando TÍTULO y ARTISTA.\n${curLine}\n\nCOLA DISPONIBLE (elige UNA):\n${queueLines||'  (cola vacía)'}\n\nReglas:\n- Elige la que más fluya con el momento (hora: ${ctx.hora})\n- Anúnciala con nombre y artista de forma natural y con energía\n- Máximo 2 oraciones\n- NO menciones índices ni números\n\nResponde SOLO con este JSON exacto (sin markdown, sin backticks, sin texto extra):\n{"script":"tu guión aquí","cmd":{"action":"load_song","idx":N}}\n\ndonde N es el número de índice de la canción elegida de la lista de arriba.`,
   };
   return map[type]||map.TIME_CHECK;
 }
 function djFallback(type,ctx){
+  // For SONG_BRIDGE fallback, pick a random song from queue
+  if(type==='SONG_BRIDGE'){
+    const opts=ctx.queue||[];
+    if(opts.length){
+      const pick=opts[Math.floor(Math.random()*opts.length)];
+      return `A continuación: "${pick.name}"${pick.artist?' de '+pick.artist:''} aquí en Radio Terrapesca.`;
+    }
+    return 'Seguimos con más música aquí en Radio Terrapesca.';
+  }
   const f={
     TIME_CHECK:`Son ${ctx.hora||'un gran momento'} y seguimos contigo en Radio Terrapesca.`,
     STATION_ID:`Radio Terrapesca, ${ctx.slogan}. Con sucursales en Culiacán, Mazatlán y Los Mochis.`,
@@ -840,7 +897,8 @@ function djStatusInfo(){
   let peek=DJ_ROTATION[_djRotIdx%DJ_ROTATION.length], k=_djRotIdx;
   while(peek==='SPOT' && !spots.length){ k++; peek=DJ_ROTATION[k%DJ_ROTATION.length]; }
   const labels={TIME_CHECK:'⏰ Hora',STATION_ID:'📻 Sucursales',WEATHER_REPORT:'🌤 Clima',
-    FISHING_TIP:'🎣 Tip de pesca',PROMO_TEASER:'🛒 Promo',FISHING_FORECAST:'🐟 Predicción de pesca',SPOT:'📢 Spot'};
+    FISHING_TIP:'🎣 Tip de pesca',PROMO_TEASER:'🛒 Promo',FISHING_FORECAST:'🐟 Predicción de pesca',
+    SPOT:'📢 Spot',SONG_BRIDGE:flags.aiSelect?'🎵 Rodo elige canción':'🎵 Puente musical'};
   const nextLabel=peek==='SPOT'?'📢 Spot':(labels[peek]||peek);
   if(left<=0) return {text:`🎙️ Rodo entra al terminar esta canción → ${nextLabel}`,soon:true};
   return {text:`Próxima intervención en ${left} canción${left>1?'es':''} → ${nextLabel}`,soon:false};
@@ -855,7 +913,12 @@ function refreshDJStatus(){
 
 /* ================= FLAGS ================= */
 function toggleAuto(){flags.auto=!flags.auto;document.getElementById('tgAuto').classList.toggle('on',flags.auto);document.getElementById('autoBtn').style.color=flags.auto?'var(--grn)':'var(--txt2)';}
-function toggleFlag(k){flags[k]=!flags[k];document.getElementById(k==='duck'?'tgDuck':'tgDJ').classList.toggle('on',flags[k]);if(k==='dj')refreshDJStatus();}
+function toggleFlag(k){
+  flags[k]=!flags[k];
+  const ids={duck:'tgDuck',dj:'tgDJ',aiSelect:'tgAiSelect'};
+  if(ids[k]) document.getElementById(ids[k]).classList.toggle('on',flags[k]);
+  if(k==='dj'||k==='aiSelect') refreshDJStatus();
+}
 
 /* ================= LOAD SHARED DATA (IndexedDB de panel.html) ================= */
 const IDB_NAME='TerrapescaRadio',IDB_VER=2;
