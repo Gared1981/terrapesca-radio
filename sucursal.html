@@ -773,9 +773,11 @@ function playSpot(track){
     const blob=b64ToBlob(track.b64,'audio/mpeg');
     const url=URL.createObjectURL(blob);
     audioEl=new Audio(url);
+    audioEl._objUrl=url;
     audioEl.volume=parseInt(document.getElementById('volS').value)/100;
-    audioEl.play();
-    audioEl.addEventListener('ended',()=>{setPlayUI(false);hideSpotBanner();stopJingle()});
+    audioEl.play().catch(e=>{console.warn('[sucursal] spot play falló:',e&&e.message);setPlayUI(false);stopJingle();});
+    audioEl.addEventListener('ended',()=>{setPlayUI(false);hideSpotBanner();stopJingle();revokeAudio(audioEl);});
+    audioEl.addEventListener('error',()=>{setPlayUI(false);hideSpotBanner();stopJingle();revokeAudio(audioEl);});
     audioEl.addEventListener('timeupdate',updateProg);
     audioEl.addEventListener('loadedmetadata',()=>{document.getElementById('tT').textContent=fmt(audioEl.duration)});
     updateNP(track, true);
@@ -789,12 +791,16 @@ function playJingle(){
   const blob=b64ToBlob(jingleB64,'audio/mpeg');
   const url=URL.createObjectURL(blob);
   jingleAudio=new Audio(url);
+  jingleAudio._objUrl=url;
   jingleAudio.volume=0.25;
-  jingleAudio.loop=true;
-  jingleAudio.play().catch(()=>{});
+  jingleAudio.loop=false; // play once — never leave a jingle stuck looping
+  jingleAudio.addEventListener('ended',stopJingle);
+  // If the jingle fails to decode/play, stop safely instead of hanging
+  jingleAudio.addEventListener('error',()=>{console.warn('[sucursal] jingle error — parada segura');stopJingle();});
+  jingleAudio.play().catch(e=>{console.warn('[sucursal] jingle play falló:',e&&e.message);stopJingle();});
 }
 function stopJingle(){
-  if(jingleAudio){jingleAudio.pause();jingleAudio.currentTime=0;jingleAudio=null}
+  if(jingleAudio){try{jingleAudio.pause();jingleAudio.currentTime=0;}catch(_){} revokeAudio(jingleAudio); jingleAudio=null}
 }
 
 function playMicSpot(b64, nombre){
@@ -803,9 +809,11 @@ function playMicSpot(b64, nombre){
   const blob=b64ToBlob(b64,mime);
   const url=URL.createObjectURL(blob);
   audioEl=new Audio(url);
+  audioEl._objUrl=url;
   audioEl.volume=parseInt(document.getElementById('volS').value)/100;
-  audioEl.play().catch(()=>{});
-  audioEl.addEventListener('ended',()=>{setPlayUI(false);hideSpotBanner()});
+  audioEl.play().catch(e=>{console.warn('[sucursal] mic play falló:',e&&e.message);setPlayUI(false);});
+  audioEl.addEventListener('ended',()=>{setPlayUI(false);hideSpotBanner();revokeAudio(audioEl);});
+  audioEl.addEventListener('error',()=>{setPlayUI(false);hideSpotBanner();revokeAudio(audioEl);});
   audioEl.addEventListener('timeupdate',updateProg);
   updateNP({type:'mic',name:nombre||'🎤 Locutor en vivo'}, true);
   showSpotBanner(nombre||'Locutor en vivo','🎤',true);
@@ -818,6 +826,8 @@ function b64ToBlob(b64, mime){
   for(let i=0;i<bin.length;i++)buf[i]=bin.charCodeAt(i);
   return new Blob([buf],{type:mime});
 }
+// Free a blob URL tracked on an Audio element (prevents memory growth over long sessions)
+function revokeAudio(a){ if(a&&a._objUrl){try{URL.revokeObjectURL(a._objUrl);}catch(_){} a._objUrl=null;} }
 
 function pauseLocal(){
   if(audioEl)audioEl.pause();
@@ -830,7 +840,7 @@ function resumeLocal(){
   setPlayUI(true);
 }
 function stopLocal(){
-  if(audioEl){audioEl.pause();audioEl.src='';audioEl=null}
+  if(audioEl){audioEl.pause();revokeAudio(audioEl);audioEl.src='';audioEl=null}
   if(ytReady&&ytPlayer)try{ytPlayer.stopVideo()}catch(e){}
   stopJingle();
   clearInterval(progInt);clearInterval(meterInt);

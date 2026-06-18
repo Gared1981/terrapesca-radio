@@ -22,6 +22,7 @@ let radioState = {
 const streamClients = new Set();
 let currentStreamDestroy = null; // function to cancel current stream
 let streamBusy = false;
+let streamGen = 0; // bumped on every startStreamTrack; stale streams stop writing
 
 function writeToStreamClients(chunk) {
   streamClients.forEach(client => {
@@ -36,7 +37,7 @@ function silenceChunk(ms = 200) {
   return Buffer.alloc(Math.ceil(128000 / 8 * ms / 1000));
 }
 
-async function streamYouTubeVideo(videoId) {
+async function streamYouTubeVideo(videoId, gen) {
   if (!ytdl) throw new Error('ytdl-core not available');
   return new Promise((resolve, reject) => {
     const url = `https://www.youtube.com/watch?v=${videoId}`;
@@ -53,28 +54,30 @@ async function streamYouTubeVideo(videoId) {
       try { stream.destroy(); } catch(_) {}
     };
 
-    stream.on('data', writeToStreamClients);
+    // Only the latest stream may write — a cancelled/stale one stays silent.
+    stream.on('data', chunk => { if (gen === streamGen) writeToStreamClients(chunk); });
     stream.on('end', () => { currentStreamDestroy = null; streamBusy = false; resolve(); });
     stream.on('error', (e) => { currentStreamDestroy = null; streamBusy = false; reject(e); });
   });
 }
 
-async function streamAudioBuffer(buffer) {
+async function streamAudioBuffer(buffer, gen) {
   // Send first ~5 seconds immediately so browser starts playing fast
   const PREBUFFER = 80000; // ~5s at 128kbps
   const HEAD = Math.min(PREBUFFER, buffer.length);
   let cancelled = false;
   currentStreamDestroy = () => { cancelled = true; };
+  const stale = () => cancelled || gen !== streamGen;
 
-  writeToStreamClients(buffer.slice(0, HEAD));
-  if (cancelled || HEAD >= buffer.length) { if (!cancelled) currentStreamDestroy = null; return; }
+  if (!stale()) writeToStreamClients(buffer.slice(0, HEAD));
+  if (stale() || HEAD >= buffer.length) { if (!cancelled) currentStreamDestroy = null; return; }
 
   // Stream remainder at 1.5× real-time: 24000 bytes/s → 48KB every 2s
   // This keeps browser buffer ~1.5s ahead, absorbs jitter without excess latency
   const CHUNK = 48000;
   const INTERVAL = 2000;
   for (let i = HEAD; i < buffer.length; i += CHUNK) {
-    if (cancelled) break;
+    if (stale()) break;
     writeToStreamClients(buffer.slice(i, i + CHUNK));
     await new Promise(r => setTimeout(r, INTERVAL));
   }
@@ -83,26 +86,31 @@ async function streamAudioBuffer(buffer) {
 
 // Called when the panel sends a PLAY/SPOT WebSocket message
 function startStreamTrack(track) {
+  // Cancel any in-flight stream first, then claim a new generation so that the
+  // previous stream's async callbacks/timeouts can no longer write to clients.
   if (currentStreamDestroy) { currentStreamDestroy(); currentStreamDestroy = null; }
+  const gen = ++streamGen;
   streamBusy = false;
   if (!track) return;
 
   if (track.type === 'yt' && track.ytId && ytdl) {
     streamBusy = true;
-    streamYouTubeVideo(track.ytId)
-      .then(() => { streamBusy = false; })
+    console.log('[stream] start yt', track.ytId, '(gen', gen + ')');
+    streamYouTubeVideo(track.ytId, gen)
+      .then(() => { if (gen === streamGen) streamBusy = false; })
       .catch(e => {
-        console.error('ytdl error for', track.ytId, e.message);
-        streamBusy = false;
+        console.error('[stream] ytdl error for', track.ytId, e.message);
+        if (gen === streamGen) streamBusy = false;
         // Do NOT send invalid silence bytes — just let the connection stay open silently
       });
   } else if (track.b64) {
     // Uploaded MP3: base64-encoded audio from panel
     streamBusy = true;
+    console.log('[stream] start mp3 (gen', gen + ')');
     const buf = Buffer.from(track.b64, 'base64');
-    streamAudioBuffer(buf)
-      .then(() => { streamBusy = false; })
-      .catch(() => { streamBusy = false; });
+    streamAudioBuffer(buf, gen)
+      .then(() => { if (gen === streamGen) streamBusy = false; })
+      .catch(() => { if (gen === streamGen) streamBusy = false; });
   }
 }
 
@@ -116,13 +124,19 @@ let _keepaliveInterval = null;
 function startStreamKeepalive() {
   if (_keepaliveInterval) return;
   _keepaliveInterval = setInterval(() => {
-    if (streamClients.size > 0 && !streamBusy) {
+    // Stop the timer entirely once no one is listening — avoids a forever-running
+    // interval and lets it restart cleanly when the next client connects.
+    if (streamClients.size === 0) { clearInterval(_keepaliveInterval); _keepaliveInterval = null; return; }
+    if (!streamBusy) {
       writeToStreamClients(SILENT_BURST);
     }
   }, 3000); // every 3s during idle gaps between tracks
 }
 
 // ---- HTTP PROXY HELPERS ----
+const PROXY_TIMEOUT_MS = 15000;       // upstream APIs must answer within 15s
+const MAX_PROXY_BYTES = 8 * 1024 * 1024; // cap non-audio proxy responses at 8MB
+
 function proxyPost(hostname, path, headers, body, res) {
   const data = typeof body === 'string' ? body : JSON.stringify(body);
   const options = {
@@ -132,27 +146,57 @@ function proxyPost(hostname, path, headers, body, res) {
     headers: { ...headers, 'Content-Length': Buffer.byteLength(data) }
   };
 
+  let settled = false;
+  const fail = (code, msg) => {
+    if (settled) return; settled = true;
+    try { res.writeHead(code, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: msg })); } catch(_) {}
+  };
+
   const req = https.request(options, (apiRes) => {
     const isAudio = (apiRes.headers['content-type'] || '').includes('audio');
     res.setHeader('Access-Control-Allow-Origin', '*');
     if (isAudio) {
+      settled = true; // streaming response — headers go out now
       res.writeHead(apiRes.statusCode, { 'Content-Type': apiRes.headers['content-type'] || 'audio/mpeg' });
       apiRes.pipe(res);
     } else {
-      let raw = '';
-      apiRes.on('data', chunk => raw += chunk);
+      let raw = '', size = 0, aborted = false;
+      apiRes.on('data', chunk => {
+        if (aborted) return;
+        size += chunk.length;
+        if (size > MAX_PROXY_BYTES) { aborted = true; apiRes.destroy(); fail(502, 'Respuesta demasiado grande'); return; }
+        raw += chunk;
+      });
       apiRes.on('end', () => {
+        if (aborted || settled) return; settled = true;
         res.writeHead(apiRes.statusCode, { 'Content-Type': 'application/json' });
         res.end(raw);
       });
     }
   });
-  req.on('error', (e) => {
-    res.writeHead(500, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: e.message }));
-  });
+  req.on('error', (e) => fail(500, e.message));
+  req.setTimeout(PROXY_TIMEOUT_MS, () => { req.destroy(); fail(504, 'Tiempo de espera agotado'); });
   req.write(data);
   req.end();
+}
+
+// Read an incoming request body with a hard size cap so a huge/malicious POST
+// can't exhaust memory. Calls cb(body) on success; sends 413 and skips cb if over limit.
+const MAX_REQUEST_BYTES = 12 * 1024 * 1024; // 12MB (covers large TTS payloads, blocks abuse)
+function readLimitedBody(req, res, cb) {
+  let body = '', size = 0, aborted = false;
+  req.on('data', chunk => {
+    if (aborted) return;
+    size += chunk.length;
+    if (size > MAX_REQUEST_BYTES) {
+      aborted = true;
+      try { res.writeHead(413, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Cuerpo demasiado grande' })); } catch(_) {}
+      req.destroy();
+      return;
+    }
+    body += chunk;
+  });
+  req.on('end', () => { if (!aborted) cb(body); });
 }
 
 // ---- HTTP SERVER ----
@@ -256,9 +300,7 @@ const server = http.createServer((req, res) => {
 
   // ── Proxy Anthropic ──
   if (req.url === '/api/anthropic' && req.method === 'POST') {
-    let body = '';
-    req.on('data', chunk => body += chunk);
-    req.on('end', () => {
+    readLimitedBody(req, res, (body) => {
       const apiKey = req.headers['x-api-key'] || '';
       proxyPost('api.anthropic.com', '/v1/messages', {
         'Content-Type': 'application/json',
@@ -300,15 +342,14 @@ const server = http.createServer((req, res) => {
       res.writeHead(500, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: e.message }));
     });
+    ytReq.setTimeout(PROXY_TIMEOUT_MS, () => { ytReq.destroy(); try { res.writeHead(504, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Tiempo de espera agotado' })); } catch(_) {} });
     ytReq.end();
     return;
   }
 
   // ── Proxy ElevenLabs TTS ──
   if (req.url.startsWith('/api/elevenlabs/') && req.method === 'POST') {
-    let body = '';
-    req.on('data', chunk => body += chunk);
-    req.on('end', () => {
+    readLimitedBody(req, res, (body) => {
       const voiceId = req.url.replace('/api/elevenlabs/', '');
       const apiKey = req.headers['xi-api-key'] || '';
       proxyPost('api.elevenlabs.io', `/v1/text-to-speech/${voiceId}`, {
@@ -386,7 +427,8 @@ const server = http.createServer((req, res) => {
                 res.end(JSON.stringify({ html: raw.slice(0, 80000) }));
               });
             });
-            rReq.on('error', e => { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); });
+            rReq.on('error', e => { try { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); } catch(_) {} });
+            rReq.setTimeout(PROXY_TIMEOUT_MS, () => { rReq.destroy(); try { res.writeHead(504); res.end(JSON.stringify({ error: 'Tiempo de espera agotado' })); } catch(_) {} });
             rReq.end();
           } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
           return;
@@ -423,9 +465,9 @@ const server = http.createServer((req, res) => {
       });
     });
     oReq.on('error', (e) => {
-      res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: e.message }));
+      try { res.writeHead(500, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: e.message })); } catch(_) {}
     });
+    oReq.setTimeout(PROXY_TIMEOUT_MS, () => { oReq.destroy(); try { res.writeHead(504, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Tiempo de espera agotado' })); } catch(_) {} });
     oReq.end();
     return;
   }
@@ -477,8 +519,14 @@ function broadcast(data, excludeWs = null) {
   });
 }
 
+// Reject jingles larger than this over WS — keeps radioState small and avoids
+// re-sending a heavy blob to every new connection. (HTTP delivery is a Fase 2 item.)
+const MAX_JINGLE_B64 = 3 * 1024 * 1024; // ~2.2MB of audio
+
 wss.on('connection', (ws) => {
   console.log('Cliente conectado. Total:', wss.clients.size);
+  ws.isAlive = true;
+  ws.on('pong', () => { ws.isAlive = true; });
   ws.send(JSON.stringify({ type: 'SYNC', state: radioState }));
   if (radioState.jingleB64) ws.send(JSON.stringify({ type: 'JINGLE_SET', b64: radioState.jingleB64 }));
 
@@ -524,6 +572,10 @@ wss.on('connection', (ws) => {
           broadcast({ type: 'SPOT', track: msg.track }, ws);
           break;
         case 'JINGLE_SET':
+          if (typeof msg.b64 === 'string' && msg.b64.length > MAX_JINGLE_B64) {
+            console.warn('[ws] JINGLE_SET rechazado: demasiado grande (', msg.b64.length, 'bytes )');
+            break;
+          }
           radioState.jingleB64 = msg.b64;
           broadcast({ type: 'JINGLE_SET', b64: msg.b64 }, ws);
           break;
@@ -537,10 +589,23 @@ wss.on('connection', (ws) => {
     }
   });
 
+  ws.on('error', () => { try { ws.terminate(); } catch(_) {} });
+
   ws.on('close', () => {
     console.log('Cliente desconectado. Total:', wss.clients.size);
   });
 });
+
+// Heartbeat: every 30s ping all clients; any that didn't answer the previous
+// ping (dead/zombie sockets) get terminated so wss.clients can't grow forever.
+const _wsHeartbeat = setInterval(() => {
+  wss.clients.forEach(ws => {
+    if (ws.isAlive === false) { try { ws.terminate(); } catch(_) {} return; }
+    ws.isAlive = false;
+    try { ws.ping(); } catch(_) {}
+  });
+}, 30000);
+wss.on('close', () => clearInterval(_wsHeartbeat));
 
 server.listen(PORT, () => {
   console.log(`Terrapesca Radio corriendo en puerto ${PORT}`);

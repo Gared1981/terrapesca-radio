@@ -683,6 +683,7 @@ function cueDeck(id,item){
   renderDeck(id);
 }
 let _prebufDone=false; // track if we already started the prebuffer for this song
+let _prebufTimeout=null;
 function prebufferNext(item){
   // Called PREBUFFER_AHEAD seconds before the song ends: start the inactive deck
   // at vol=0 so YouTube downloads/buffers it before the crossfade begins.
@@ -700,6 +701,16 @@ function prebufferNext(item){
     d.player.setVolume(0);
   }catch(_){}
   renderDeck(other);
+  // Safety: if YouTube stalls loading the inactive deck (never reaches PLAYING),
+  // release the prebuffer lock so the next watcher tick can retry instead of
+  // sitting silent until the next song. The crossfade clears this on success.
+  clearTimeout(_prebufTimeout);
+  _prebufTimeout=setTimeout(()=>{
+    if(_prebufDone && !_xfading && !d.playing){
+      console.warn('[prebuffer] stalled — reset, will retry');
+      _prebufDone=false;
+    }
+  },6000);
 }
 function deckPlayPause(id){
   const d=decks[id]; if(!d.ready) return;
@@ -727,10 +738,18 @@ function doCrossfade(){
   const nxt=decks[activeDeck===0?1:0];
   if(!nxt.item){ advanceQueueInto(nxt.id); return; }
   _xfading=true;
-  const _xfadeSafe=setTimeout(()=>{ if(_xfading){ _xfading=false; } },14000);
-  try{ nxt.player.setVolume(0); }catch(_){}
-  // Deck B may already be playing (prebuffered) — if not, start it now
-  try{ if(nxt.player.getPlayerState()!==1) nxt.player.playVideo(); }catch(_){}
+  // Safety net: if the fade never completes (YouTube stall/throw), force-release
+  // the lock after 14s and log it, so the station never freezes silently.
+  const _xfadeSafe=setTimeout(()=>{ if(_xfading){ console.warn('[crossfade] safety timeout fired — forcing release'); _xfading=false; _prebufDone=false; } },14000);
+  console.log('[crossfade] start → "'+(nxt.item.name||nxt.item.ytId)+'"');
+  try{
+    try{ nxt.player.setVolume(0); }catch(_){}
+    // Deck B may already be playing (prebuffered) — if not, start it now
+    try{ if(nxt.player.getPlayerState()!==1) nxt.player.playVideo(); }catch(_){}
+  }catch(err){
+    console.error('[crossfade] start error:',err&&err.message);
+    _xfading=false; clearTimeout(_xfadeSafe); return;
+  }
   setTimeout(()=>{
     const dur=CROSSFADE_SECS*1000, steps=60, iv=dur/steps; let s=0;
     const startCur=cur.vol;
@@ -743,21 +762,30 @@ function doCrossfade(){
       try{nxt.player.setVolume(dvol(nxt));}catch(_){}
       if(s>=steps){
         clearInterval(t); clearTimeout(_xfadeSafe);
-        cur.playing=false; cur.vol=1;
-        try{cur.player.stopVideo();}catch(_){} // full stop on the old deck
-        nxt.vol=1;
-        activeDeck=nxt.id;
-        const foundPos=queue.findIndex(q=>q.ytId===nxtItem.ytId);
-        queuePos=foundPos>=0?foundPos:queuePos; // don't reset to 0 if not found
-        setCrossfader(activeDeck===0?0:100);
-        const after=(queuePos+1)%queue.length;
-        if(queue.length>1 && queue[after]) cueDeck(cur.id,queue[after]);
-        _xfading=false;
-        _prebufDone=false; // reset so next song can prebuffer
-        _trackPlayed(nxtItem.ytId);
-        renderQueue();
-        let _syncPos=0; try{_syncPos=nxt.player.getCurrentTime()||0;}catch(_){}
-        _wsPlayTrack(nxtItem, _syncPos);
+        // Finalize: protect every step so a single throw never leaves _xfading stuck true.
+        try{
+          cur.playing=false; cur.vol=1;
+          try{cur.player.stopVideo();}catch(_){} // full stop on the old deck
+          nxt.vol=1;
+          activeDeck=nxt.id;
+          const foundPos=queue.findIndex(q=>q.ytId===nxtItem.ytId);
+          queuePos=foundPos>=0?foundPos:queuePos; // don't reset to 0 if not found
+          setCrossfader(activeDeck===0?0:100);
+          const after=(queuePos+1)%queue.length;
+          if(queue.length>1 && queue[after]) cueDeck(cur.id,queue[after]);
+          _trackPlayed(nxtItem.ytId);
+          renderQueue();
+          let _syncPos=0; try{_syncPos=nxt.player.getCurrentTime()||0;}catch(_){}
+          _wsPlayTrack(nxtItem, _syncPos);
+          console.log('[crossfade] done → deck '+(activeDeck?'B':'A')+' "'+(nxtItem.name||nxtItem.ytId)+'"');
+        }catch(err){
+          console.error('[crossfade] finalize error:',err&&err.message);
+        }finally{
+          // Always release locks, even if finalize threw.
+          _xfading=false;
+          _prebufDone=false; // reset so next song can prebuffer
+          clearTimeout(_prebufTimeout);
+        }
       }
     },iv);
   },400);
@@ -1782,9 +1810,11 @@ function setJingleVol(v){ _jingleVol=v/100; document.getElementById('jingleVolPc
 function testJingle(){ if(!_jingleB64){toast('Sube un jingle primero','error');return;} playJingleOnce(); }
 function removeJingle(){ _jingleB64=null; stopJingle(); document.getElementById('jingleName').textContent='Sin jingle'; document.getElementById('jingleZone').textContent='🎵 Arrastra un MP3 o haz clic para subir jingle de fondo para spots'; openDB().then(db=>db.transaction('session','readwrite').objectStore('session').delete('studioJingle')); }
 function playJingle(){ if(!_jingleB64)return; stopJingle(); const a=b64ToAudio(_jingleB64); _jingleAudio=a; a.volume=_jingleVol*master; a.loop=true; a.play().catch(()=>{}); }
-function playJingleOnce(){ if(!_jingleB64)return; const a=b64ToAudio(_jingleB64); a.volume=_jingleVol*master; a.play().catch(()=>{}); }
-function stopJingle(){ if(_jingleAudio){try{_jingleAudio.pause();_jingleAudio.currentTime=0;}catch(_){} _jingleAudio=null;} }
-function b64ToAudio(b64){ const bin=atob(b64),buf=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++)buf[i]=bin.charCodeAt(i); return new Audio(URL.createObjectURL(new Blob([buf],{type:'audio/mpeg'}))); }
+function playJingleOnce(){ if(!_jingleB64)return; const a=b64ToAudio(_jingleB64); a.volume=_jingleVol*master; const free=()=>revokeAudio(a); a.onended=free; a.onerror=free; a.play().catch(free); }
+function stopJingle(){ if(_jingleAudio){try{_jingleAudio.pause();_jingleAudio.currentTime=0;}catch(_){} revokeAudio(_jingleAudio); _jingleAudio=null;} }
+function b64ToAudio(b64){ const bin=atob(b64),buf=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++)buf[i]=bin.charCodeAt(i); const url=URL.createObjectURL(new Blob([buf],{type:'audio/mpeg'})); const a=new Audio(url); a._objUrl=url; return a; }
+// Free the blob URL behind an Audio element created by b64ToAudio (prevents memory leaks)
+function revokeAudio(a){ if(a&&a._objUrl){try{URL.revokeObjectURL(a._objUrl);}catch(_){} a._objUrl=null;} }
 // Load jingle from IDB on start
 async function loadJingleFromIDB(){
   try{ const db=await openDB(); const r=await idbGet(db,'session','studioJingle'); if(r&&r.b64){ _jingleB64=r.b64; document.getElementById('jingleName').textContent=r.name||'Jingle'; document.getElementById('jingleZone').textContent='✓ '+(r.name||'Jingle'); } }catch(_){}
@@ -1812,7 +1842,7 @@ function playStinger(){
   return new Promise(res=>{
     const a=b64ToAudio(_stingerB64);
     a.volume=Math.min(1,_stingerVol*master);
-    let done=false; const fin=()=>{if(done)return;done=true;res();};
+    let done=false; const fin=()=>{if(done)return;done=true;revokeAudio(a);res();};
     a.onended=fin; a.onerror=fin;
     a.play().catch(fin);
     setTimeout(fin,5000); // max 5s safety
