@@ -4,6 +4,9 @@ const fs = require('fs');
 const path = require('path');
 const { WebSocketServer } = require('ws');
 
+let ytdl = null;
+try { ytdl = require('@distube/ytdl-core'); } catch(e) { console.warn('ytdl-core not available:', e.message); }
+
 const PORT = process.env.PORT || 3000;
 
 let radioState = {
@@ -15,67 +18,302 @@ let radioState = {
   lastUpdate: Date.now()
 };
 
+// ---- RADIO STREAM ENGINE ----
+const streamClients = new Set();
+let currentStreamDestroy = null; // function to cancel current stream
+let streamBusy = false;
+let streamGen = 0; // bumped on every startStreamTrack; stale streams stop writing
+
+function writeToStreamClients(chunk) {
+  streamClients.forEach(client => {
+    if (!client.destroyed && !client.writableEnded) {
+      try { client.write(chunk); } catch(_) {}
+    }
+  });
+}
+
+function silenceChunk(ms = 200) {
+  // ~200ms of MP3 silence at 128kbps ≈ 3200 bytes of zeros
+  return Buffer.alloc(Math.ceil(128000 / 8 * ms / 1000));
+}
+
+async function streamYouTubeVideo(videoId, gen) {
+  if (!ytdl) throw new Error('ytdl-core not available');
+  return new Promise((resolve, reject) => {
+    const url = `https://www.youtube.com/watch?v=${videoId}`;
+    let stream;
+    try {
+      stream = ytdl(url, {
+        filter: 'audioonly',
+        quality: 'highestaudio',
+        highWaterMark: 1 << 25 // 32MB buffer
+      });
+    } catch(e) { reject(e); return; }
+
+    currentStreamDestroy = () => {
+      try { stream.destroy(); } catch(_) {}
+    };
+
+    // Only the latest stream may write — a cancelled/stale one stays silent.
+    stream.on('data', chunk => { if (gen === streamGen) writeToStreamClients(chunk); });
+    // Only clear shared stream state if WE are still the latest generation —
+    // a stale stream that ends/errors after a new track started must NOT wipe
+    // the new generation's currentStreamDestroy/streamBusy.
+    stream.on('end', () => { if (gen === streamGen) { currentStreamDestroy = null; streamBusy = false; } resolve(); });
+    stream.on('error', (e) => { if (gen === streamGen) { currentStreamDestroy = null; streamBusy = false; } reject(e); });
+  });
+}
+
+async function streamAudioBuffer(buffer, gen) {
+  // Send first ~5 seconds immediately so browser starts playing fast
+  const PREBUFFER = 80000; // ~5s at 128kbps
+  const HEAD = Math.min(PREBUFFER, buffer.length);
+  let cancelled = false;
+  currentStreamDestroy = () => { cancelled = true; };
+  const stale = () => cancelled || gen !== streamGen;
+
+  if (!stale()) writeToStreamClients(buffer.slice(0, HEAD));
+  if (stale() || HEAD >= buffer.length) { if (!cancelled) currentStreamDestroy = null; return; }
+
+  // Stream remainder at 1.5× real-time: 24000 bytes/s → 48KB every 2s
+  // This keeps browser buffer ~1.5s ahead, absorbs jitter without excess latency
+  const CHUNK = 48000;
+  const INTERVAL = 2000;
+  for (let i = HEAD; i < buffer.length; i += CHUNK) {
+    if (stale()) break;
+    writeToStreamClients(buffer.slice(i, i + CHUNK));
+    await new Promise(r => setTimeout(r, INTERVAL));
+  }
+  if (!cancelled) currentStreamDestroy = null;
+}
+
+// Called when the panel sends a PLAY/SPOT WebSocket message
+function startStreamTrack(track) {
+  // Cancel any in-flight stream first, then claim a new generation so that the
+  // previous stream's async callbacks/timeouts can no longer write to clients.
+  if (currentStreamDestroy) { currentStreamDestroy(); currentStreamDestroy = null; }
+  const gen = ++streamGen;
+  streamBusy = false;
+  if (!track) return;
+
+  if (track.type === 'yt' && track.ytId && ytdl) {
+    streamBusy = true;
+    console.log('[stream] start yt', track.ytId, '(gen', gen + ')');
+    streamYouTubeVideo(track.ytId, gen)
+      .then(() => { if (gen === streamGen) streamBusy = false; })
+      .catch(e => {
+        console.error('[stream] ytdl error for', track.ytId, e.message);
+        if (gen === streamGen) streamBusy = false;
+        // Do NOT send invalid silence bytes — just let the connection stay open silently
+      });
+  } else if (track.b64) {
+    // Uploaded MP3: base64-encoded audio from panel
+    streamBusy = true;
+    console.log('[stream] start mp3 (gen', gen + ')');
+    const buf = Buffer.from(track.b64, 'base64');
+    streamAudioBuffer(buf, gen)
+      .then(() => { if (gen === streamGen) streamBusy = false; })
+      .catch(() => { if (gen === streamGen) streamBusy = false; });
+  }
+}
+
+// Keep stream connections alive between tracks using valid MPEG1 Layer3 silent frames.
+// Each frame: sync(FF FB) + header(90 04) + 413 bytes of zeros = 417 bytes ≈ 26ms of silence.
+// Sending 8 frames = ~208ms of valid silence keeps the browser's decoder happy during gaps.
+const SILENT_FRAME = Buffer.concat([Buffer.from([0xFF,0xFB,0x90,0x04]), Buffer.alloc(413)]);
+const SILENT_BURST = Buffer.concat(Array(8).fill(SILENT_FRAME)); // ~208ms silence
+
+let _keepaliveInterval = null;
+function startStreamKeepalive() {
+  if (_keepaliveInterval) return;
+  _keepaliveInterval = setInterval(() => {
+    // Stop the timer entirely once no one is listening — avoids a forever-running
+    // interval and lets it restart cleanly when the next client connects.
+    if (streamClients.size === 0) { clearInterval(_keepaliveInterval); _keepaliveInterval = null; return; }
+    if (!streamBusy) {
+      writeToStreamClients(SILENT_BURST);
+    }
+  }, 3000); // every 3s during idle gaps between tracks
+}
+
+// ---- HTTP PROXY HELPERS ----
+const PROXY_TIMEOUT_MS = 15000;       // upstream APIs must answer within 15s
+const MAX_PROXY_BYTES = 8 * 1024 * 1024; // cap non-audio proxy responses at 8MB
+
 function proxyPost(hostname, path, headers, body, res) {
   const data = typeof body === 'string' ? body : JSON.stringify(body);
   const options = {
     hostname,
     path,
     method: 'POST',
-    headers: {
-      ...headers,
-      'Content-Length': Buffer.byteLength(data)
-    }
+    headers: { ...headers, 'Content-Length': Buffer.byteLength(data) }
+  };
+
+  let settled = false;
+  const fail = (code, msg) => {
+    if (settled) return; settled = true;
+    try { res.writeHead(code, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: msg })); } catch(_) {}
   };
 
   const req = https.request(options, (apiRes) => {
     const isAudio = (apiRes.headers['content-type'] || '').includes('audio');
     res.setHeader('Access-Control-Allow-Origin', '*');
-
     if (isAudio) {
+      // Guard the upstream (ElevenLabs) response stream against mid-stream drops.
+      // By the time any async 'error' can fire, headers are already written, so we
+      // can only tear down cleanly — we cannot send a 502 at this point.
+      apiRes.on('error', () => { try { res.destroy(); } catch(_) {} try { apiRes.destroy(); } catch(_) {} });
+      // Destroy upstream if the client hangs up (graceful FIN or socket error).
+      res.on('error', () => { try { apiRes.destroy(); } catch(_) {} });
+      res.on('close', () => { try { apiRes.destroy(); } catch(_) {} });
+      settled = true; // streaming response — headers go out now
       res.writeHead(apiRes.statusCode, { 'Content-Type': apiRes.headers['content-type'] || 'audio/mpeg' });
       apiRes.pipe(res);
     } else {
-      let raw = '';
-      apiRes.on('data', chunk => raw += chunk);
+      // Guard the upstream (Anthropic/JSON) response stream: a mid-body drop would
+      // emit 'error' with no listener and crash the process.
+      apiRes.on('error', (e) => { fail(502, 'Error del proveedor: ' + (e && e.message || 'desconocido')); try { apiRes.destroy(); } catch(_) {} });
+      let raw = '', size = 0, aborted = false;
+      apiRes.on('data', chunk => {
+        if (aborted) return;
+        size += chunk.length;
+        if (size > MAX_PROXY_BYTES) { aborted = true; apiRes.destroy(); fail(502, 'Respuesta demasiado grande'); return; }
+        raw += chunk;
+      });
       apiRes.on('end', () => {
+        if (aborted || settled) return; settled = true;
         res.writeHead(apiRes.statusCode, { 'Content-Type': 'application/json' });
         res.end(raw);
       });
     }
   });
-
-  req.on('error', (e) => {
-    res.writeHead(500, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: e.message }));
-  });
-
+  req.on('error', (e) => fail(500, e.message));
+  req.setTimeout(PROXY_TIMEOUT_MS, () => { req.destroy(); fail(504, 'Tiempo de espera agotado'); });
   req.write(data);
   req.end();
 }
 
+// Read an incoming request body with a hard size cap so a huge/malicious POST
+// can't exhaust memory. Calls cb(body) on success; sends 413 and skips cb if over limit.
+const MAX_REQUEST_BYTES = 12 * 1024 * 1024; // 12MB (covers large TTS payloads, blocks abuse)
+function readLimitedBody(req, res, cb) {
+  let body = '', size = 0, aborted = false;
+  req.on('data', chunk => {
+    if (aborted) return;
+    size += chunk.length;
+    if (size > MAX_REQUEST_BYTES) {
+      aborted = true;
+      try { res.writeHead(413, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Cuerpo demasiado grande' })); } catch(_) {}
+      req.destroy();
+      return;
+    }
+    body += chunk;
+  });
+  req.on('end', () => { if (!aborted) cb(body); });
+}
+
+// ---- HTTP SERVER ----
 const server = http.createServer((req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, xi-api-key, x-api-key, anthropic-version');
 
-  if (req.method === 'OPTIONS') {
-    res.writeHead(204);
-    res.end();
-    return;
-  }
+  if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
 
-  // Health check
+  // ── Health check ──
   if (req.url === '/health') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ status: 'ok', clients: wss.clients.size }));
+    res.end(JSON.stringify({
+      status: 'ok',
+      clients: wss.clients.size,
+      streamClients: streamClients.size,
+      streamBusy,
+      ytdlAvailable: !!ytdl
+    }));
     return;
   }
 
-  // Proxy Anthropic
+  // ── /radio/stream — continuous HTTP audio stream ──
+  const urlPath = req.url.split('?')[0];
+  if (urlPath === '/radio/stream' || urlPath === '/live.mp3' || urlPath === '/stream.mp3') {
+    res.writeHead(200, {
+      'Content-Type': 'audio/mpeg',
+      'Transfer-Encoding': 'chunked',
+      'Cache-Control': 'no-cache, no-store',
+      'Connection': 'keep-alive',
+      'Access-Control-Allow-Origin': '*',
+      'icy-name': 'Radio Terrapesca',
+      'icy-genre': 'Fishing & Outdoor',
+      'icy-url': 'https://terrapesca.com',
+      'icy-metaint': '0',
+      'X-Content-Type-Options': 'nosniff',
+    });
+    streamClients.add(res);
+    console.log(`Stream client connected. Total: ${streamClients.size}`);
+    startStreamKeepalive();
+
+    // Only start new stream if nothing is currently streaming
+    if (radioState.isPlaying && radioState.currentTrack && !streamBusy) {
+      startStreamTrack(radioState.currentTrack);
+    }
+
+    req.on('close', () => {
+      streamClients.delete(res);
+      console.log(`Stream client disconnected. Total: ${streamClients.size}`);
+    });
+    return;
+  }
+
+  // ── /api/ytaudio/:videoId — direct audio proxy (for <audio> tag fallback) ──
+  if (req.url.startsWith('/api/ytaudio/') && req.method === 'GET') {
+    if (!ytdl) {
+      res.writeHead(503, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'ytdl not available' }));
+      return;
+    }
+    const videoId = req.url.replace('/api/ytaudio/', '').split('?')[0].trim();
+    const url = `https://www.youtube.com/watch?v=${videoId}`;
+    try {
+      res.writeHead(200, {
+        'Content-Type': 'audio/mpeg',
+        'Transfer-Encoding': 'chunked',
+        'Cache-Control': 'no-cache',
+        'Access-Control-Allow-Origin': '*'
+      });
+      const stream = ytdl(url, { filter: 'audioonly', quality: 'highestaudio' });
+      stream.pipe(res);
+      stream.on('error', () => { try { res.end(); } catch(_) {} });
+      req.on('close', () => { try { stream.destroy(); } catch(_) {} });
+    } catch(e) {
+      try { res.end(); } catch(_) {}
+    }
+    return;
+  }
+
+  // ── /api/ytinfo/:videoId — return stream URL without proxying ──
+  if (req.url.startsWith('/api/ytinfo/') && req.method === 'GET') {
+    if (!ytdl) {
+      res.writeHead(503, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'ytdl not available' }));
+      return;
+    }
+    const videoId = req.url.replace('/api/ytinfo/', '').split('?')[0].trim();
+    ytdl.getInfo(`https://www.youtube.com/watch?v=${videoId}`)
+      .then(info => {
+        const fmt = ytdl.chooseFormat(info.formats, { filter: 'audioonly', quality: 'highestaudio' });
+        res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+        res.end(JSON.stringify({ url: fmt.url, mimeType: fmt.mimeType || 'audio/mp4', title: info.videoDetails.title }));
+      })
+      .catch(e => {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: e.message }));
+      });
+    return;
+  }
+
+  // ── Proxy Anthropic ──
   if (req.url === '/api/anthropic' && req.method === 'POST') {
-    let body = '';
-    req.on('data', chunk => body += chunk);
-    req.on('end', () => {
+    readLimitedBody(req, res, (body) => {
       const apiKey = req.headers['x-api-key'] || '';
       proxyPost('api.anthropic.com', '/v1/messages', {
         'Content-Type': 'application/json',
@@ -86,11 +324,45 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // Proxy ElevenLabs TTS
+  // ── Proxy YouTube playlist items (YouTube Data API v3) ──
+  if (req.url.startsWith('/api/ytplaylist') && req.method === 'GET') {
+    const u = new URL(req.url, 'http://localhost');
+    const playlistId = u.searchParams.get('playlistId') || '';
+    const pageToken  = u.searchParams.get('pageToken')  || '';
+    const apiKey     = u.searchParams.get('key')        || '';
+    if (!playlistId || !apiKey) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'playlistId and key required' }));
+      return;
+    }
+    let ytPath = `/youtube/v3/playlistItems?part=snippet&maxResults=50&playlistId=${encodeURIComponent(playlistId)}&key=${encodeURIComponent(apiKey)}`;
+    if (pageToken) ytPath += `&pageToken=${encodeURIComponent(pageToken)}`;
+    const ytReq = https.request({
+      hostname: 'www.googleapis.com',
+      path: ytPath,
+      method: 'GET',
+      headers: { 'Accept': 'application/json' }
+    }, (apiRes) => {
+      let raw = '';
+      apiRes.on('data', chunk => raw += chunk);
+      apiRes.on('end', () => {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.writeHead(apiRes.statusCode, { 'Content-Type': 'application/json' });
+        res.end(raw);
+      });
+    });
+    ytReq.on('error', (e) => {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: e.message }));
+    });
+    ytReq.setTimeout(PROXY_TIMEOUT_MS, () => { ytReq.destroy(); try { res.writeHead(504, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Tiempo de espera agotado' })); } catch(_) {} });
+    ytReq.end();
+    return;
+  }
+
+  // ── Proxy ElevenLabs TTS ──
   if (req.url.startsWith('/api/elevenlabs/') && req.method === 'POST') {
-    let body = '';
-    req.on('data', chunk => body += chunk);
-    req.on('end', () => {
+    readLimitedBody(req, res, (body) => {
       const voiceId = req.url.replace('/api/elevenlabs/', '');
       const apiKey = req.headers['xi-api-key'] || '';
       proxyPost('api.elevenlabs.io', `/v1/text-to-speech/${voiceId}`, {
@@ -101,12 +373,141 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // Serve HTML files
+  // ── Proxy CONAGUA SINAV presas ──
+  if (req.url.startsWith('/api/conagua') && req.method === 'GET') {
+    const siReq = https.request({
+      hostname: 'sinav30.conagua.gob.mx',
+      port: 8080,
+      path: '/Presas/',
+      method: 'GET',
+      headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json' },
+      rejectUnauthorized: false
+    }, (apiRes) => {
+      let raw = '';
+      apiRes.on('data', chunk => raw += chunk);
+      apiRes.on('end', () => {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(raw);
+      });
+    });
+    siReq.on('error', (e) => {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: false, error: e.message }));
+    });
+    siReq.setTimeout(8000, () => { siReq.destroy(); });
+    siReq.end();
+    return;
+  }
+
+  // ── Proxy YouTube oEmbed ──
+  // ── /api/scrape — fetch a URL and return plain text (for spot generator) ──
+  if (req.url === '/api/scrape' && req.method === 'POST') {
+    let body = '';
+    req.on('data', c => body += c);
+    req.on('end', () => {
+      let targetUrl;
+      try { targetUrl = new URL(JSON.parse(body).url); } catch(e) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'URL inválida' }));
+      }
+      const lib = targetUrl.protocol === 'https:' ? https : http;
+      const options = {
+        hostname: targetUrl.hostname,
+        path: targetUrl.pathname + targetUrl.search,
+        method: 'GET',
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (compatible; TerrapescaBot/1.0)',
+          'Accept': 'text/html,application/xhtml+xml',
+          'Accept-Language': 'es-MX,es;q=0.9',
+        },
+        timeout: 10000,
+      };
+      const scrapeReq = lib.request(options, (scrapeRes) => {
+        // Follow one redirect
+        if ((scrapeRes.statusCode === 301 || scrapeRes.statusCode === 302) && scrapeRes.headers.location) {
+          try {
+            const redir = new URL(scrapeRes.headers.location, targetUrl.href);
+            const rLib = redir.protocol === 'https:' ? https : http;
+            const rOpts = { hostname: redir.hostname, path: redir.pathname + redir.search, method: 'GET',
+              headers: options.headers, timeout: 10000 };
+            const rReq = rLib.request(rOpts, (rRes) => {
+              let raw = '';
+              rRes.on('data', c => raw += c);
+              rRes.on('end', () => {
+                res.setHeader('Access-Control-Allow-Origin', '*');
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ html: raw.slice(0, 80000) }));
+              });
+            });
+            rReq.on('error', e => { try { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); } catch(_) {} });
+            rReq.setTimeout(PROXY_TIMEOUT_MS, () => { rReq.destroy(); try { res.writeHead(504); res.end(JSON.stringify({ error: 'Tiempo de espera agotado' })); } catch(_) {} });
+            rReq.end();
+          } catch(e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
+          return;
+        }
+        let raw = '';
+        scrapeRes.on('data', c => raw += c);
+        scrapeRes.on('end', () => {
+          res.setHeader('Access-Control-Allow-Origin', '*');
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ html: raw.slice(0, 80000) }));
+        });
+      });
+      scrapeReq.on('error', e => { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); });
+      scrapeReq.end();
+    });
+    return;
+  }
+
+  if (req.url.startsWith('/api/ytmeta/') && req.method === 'GET') {
+    const videoId = req.url.replace('/api/ytmeta/', '').split('?')[0].trim();
+    const oembedPath = `/oembed?url=https://www.youtube.com/watch?v=${encodeURIComponent(videoId)}&format=json`;
+    const oReq = https.request({
+      hostname: 'www.youtube.com',
+      path: oembedPath,
+      method: 'GET',
+      headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json' }
+    }, (apiRes) => {
+      let raw = '';
+      apiRes.on('data', chunk => raw += chunk);
+      apiRes.on('end', () => {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.writeHead(apiRes.statusCode, { 'Content-Type': 'application/json' });
+        res.end(raw);
+      });
+    });
+    oReq.on('error', (e) => {
+      try { res.writeHead(500, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: e.message })); } catch(_) {}
+    });
+    oReq.setTimeout(PROXY_TIMEOUT_MS, () => { oReq.destroy(); try { res.writeHead(504, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Tiempo de espera agotado' })); } catch(_) {} });
+    oReq.end();
+    return;
+  }
+
+  // ── Serve static files ──
+  if (req.url === '/sw.js') {
+    const swPath = path.join(__dirname, 'sw.js');
+    if (fs.existsSync(swPath)) {
+      res.writeHead(200, { 'Content-Type': 'application/javascript', 'Service-Worker-Allowed': '/' });
+      fs.createReadStream(swPath).pipe(res);
+    } else {
+      res.writeHead(404); res.end();
+    }
+    return;
+  }
+
   let filePath = null;
   if (req.url === '/' || req.url === '/panel' || req.url === '/panel.html') {
     filePath = path.join(__dirname, 'panel.html');
+  } else if (req.url === '/studio' || req.url === '/studio.html') {
+    filePath = path.join(__dirname, 'studio.html');
+  } else if (req.url === '/tienda' || req.url === '/tienda.html') {
+    filePath = path.join(__dirname, 'tienda.html');
   } else if (req.url === '/sucursal' || req.url === '/sucursal.html') {
     filePath = path.join(__dirname, 'sucursal.html');
+  } else if (req.url === '/listen' || req.url === '/listen.html') {
+    filePath = path.join(__dirname, 'listen.html');
   }
 
   if (filePath && fs.existsSync(filePath)) {
@@ -119,6 +520,7 @@ const server = http.createServer((req, res) => {
   res.end('Terrapesca Radio Server running');
 });
 
+// ---- WEBSOCKET ----
 const wss = new WebSocketServer({ server });
 
 function broadcast(data, excludeWs = null) {
@@ -130,9 +532,16 @@ function broadcast(data, excludeWs = null) {
   });
 }
 
+// Reject jingles larger than this over WS — keeps radioState small and avoids
+// re-sending a heavy blob to every new connection. (HTTP delivery is a Fase 2 item.)
+const MAX_JINGLE_B64 = 3 * 1024 * 1024; // ~2.2MB of audio
+
 wss.on('connection', (ws) => {
   console.log('Cliente conectado. Total:', wss.clients.size);
+  ws.isAlive = true;
+  ws.on('pong', () => { ws.isAlive = true; });
   ws.send(JSON.stringify({ type: 'SYNC', state: radioState }));
+  if (radioState.jingleB64) ws.send(JSON.stringify({ type: 'JINGLE_SET', b64: radioState.jingleB64 }));
 
   ws.on('message', (raw) => {
     try {
@@ -144,10 +553,13 @@ wss.on('connection', (ws) => {
           radioState.position = msg.position || 0;
           radioState.lastUpdate = Date.now();
           broadcast({ type: 'PLAY', track: msg.track, position: radioState.position }, ws);
+          // Trigger server-side stream for mobile clients
+          if (streamClients.size > 0) startStreamTrack(msg.track);
           break;
         case 'PAUSE':
           radioState.isPlaying = false;
           radioState.position = msg.position || 0;
+          if (currentStreamDestroy) { currentStreamDestroy(); currentStreamDestroy = null; }
           broadcast({ type: 'PAUSE', position: radioState.position }, ws);
           break;
         case 'RESUME':
@@ -155,6 +567,7 @@ wss.on('connection', (ws) => {
           radioState.position = msg.position || 0;
           radioState.lastUpdate = Date.now();
           broadcast({ type: 'RESUME', position: radioState.position }, ws);
+          if (streamClients.size > 0 && radioState.currentTrack) startStreamTrack(radioState.currentTrack);
           break;
         case 'VOLUME':
           radioState.volume = msg.volume;
@@ -171,17 +584,44 @@ wss.on('connection', (ws) => {
           radioState.lastUpdate = Date.now();
           broadcast({ type: 'SPOT', track: msg.track }, ws);
           break;
+        case 'JINGLE_SET':
+          if (typeof msg.b64 === 'string' && msg.b64.length > MAX_JINGLE_B64) {
+            console.warn('[ws] JINGLE_SET rechazado: demasiado grande (', msg.b64.length, 'bytes )');
+            break;
+          }
+          radioState.jingleB64 = msg.b64;
+          broadcast({ type: 'JINGLE_SET', b64: msg.b64 }, ws);
+          break;
+        case 'MIC_ONAIR':
+          radioState.micOnAir = msg.active || false;
+          broadcast({ type: 'MIC_ONAIR', active: radioState.micOnAir }, ws);
+          break;
       }
     } catch (e) {
       console.error('Error:', e.message);
     }
   });
 
+  ws.on('error', () => { try { ws.terminate(); } catch(_) {} });
+
   ws.on('close', () => {
     console.log('Cliente desconectado. Total:', wss.clients.size);
   });
 });
 
+// Heartbeat: every 30s ping all clients; any that didn't answer the previous
+// ping (dead/zombie sockets) get terminated so wss.clients can't grow forever.
+const _wsHeartbeat = setInterval(() => {
+  wss.clients.forEach(ws => {
+    if (ws.isAlive === false) { try { ws.terminate(); } catch(_) {} return; }
+    ws.isAlive = false;
+    try { ws.ping(); } catch(_) {}
+  });
+}, 30000);
+wss.on('close', () => clearInterval(_wsHeartbeat));
+
 server.listen(PORT, () => {
   console.log(`Terrapesca Radio corriendo en puerto ${PORT}`);
+  console.log(`Stream disponible en /radio/stream`);
+  console.log(`ytdl-core: ${ytdl ? 'disponible' : 'no disponible'}`);
 });

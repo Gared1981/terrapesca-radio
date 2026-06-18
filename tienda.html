@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Terrapesca — Modo Tienda</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#020b04;--card:#070f09;--grn:#00ff88;--amber:#ffb347;--red:#ff4466;--txt:#e8ffe8;--txt2:#9abba0;--mono:'Courier New',monospace}
+body{background:var(--bg);color:var(--txt);font-family:var(--mono);min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:20px}
+.logo{font-size:22px;font-weight:bold;letter-spacing:3px;color:var(--grn);margin-bottom:4px;text-align:center}
+.sub{font-size:11px;color:var(--txt2);letter-spacing:2px;margin-bottom:20px;text-align:center}
+.banner{width:100%;max-width:800px;background:linear-gradient(135deg,#0a1f0a,#001a00);border:2px solid var(--grn);border-radius:16px;padding:20px;text-align:center;margin-bottom:20px}
+.banner h2{font-size:28px;color:var(--grn);letter-spacing:2px;margin-bottom:8px}
+.banner .fecha{font-size:36px;font-weight:bold;color:#fff;margin-bottom:8px}
+.banner .marca{font-size:14px;color:var(--txt2);letter-spacing:1.5px}
+.horarios{width:100%;max-width:800px;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:20px}
+.hor-card{background:var(--card);border:1px solid #1a3a1a;border-radius:12px;padding:16px;text-align:center}
+.hor-card .city{font-size:13px;color:var(--txt2);letter-spacing:1px;margin-bottom:4px}
+.hor-card .time{font-size:18px;color:var(--amber);font-weight:bold}
+.promos{width:100%;max-width:800px;background:var(--card);border:1px solid #1a3a1a;border-radius:12px;padding:16px;margin-bottom:20px}
+.promos h3{font-size:11px;letter-spacing:2px;color:var(--txt2);margin-bottom:12px;text-align:center}
+.promo-item{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #0f1f0f;font-size:13px;color:var(--txt)}
+.promo-item:last-child{border-bottom:none}
+.promo-item .pct{color:var(--grn);font-weight:bold;min-width:60px;font-size:15px}
+.rodo-box{width:100%;max-width:800px;background:linear-gradient(180deg,#050d05,#020802);border:1px solid #2a4a2a;border-radius:12px;padding:16px;margin-bottom:20px}
+.rodo-box h3{font-size:11px;letter-spacing:2px;color:var(--txt2);margin-bottom:10px}
+#rodoText{font-size:16px;color:var(--grn);line-height:1.6;min-height:50px;font-style:italic}
+.rodo-status{font-size:11px;color:var(--txt2);margin-top:8px}
+.controls{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-bottom:20px}
+button{padding:12px 20px;border-radius:10px;border:none;font-family:var(--mono);font-size:12px;letter-spacing:1px;cursor:pointer}
+.btn-primary{background:var(--grn);color:#000;font-weight:bold}
+.btn-secondary{background:#0a1f0a;color:var(--grn);border:1px solid #2a4a2a}
+.btn-warn{background:#1a0a00;color:var(--amber);border:1px solid #4a2a00}
+.cfg-box{width:100%;max-width:800px;background:var(--card);border:1px solid #1a3a1a;border-radius:12px;padding:16px;margin-bottom:20px}
+.cfg-box h3{font-size:11px;letter-spacing:2px;color:var(--txt2);margin-bottom:12px}
+.cfg-row{display:grid;grid-template-columns:130px 1fr;gap:8px;align-items:center;margin-bottom:8px}
+.cfg-row label{font-size:11px;color:var(--txt2)}
+.cfg-row input{padding:8px 10px;border-radius:7px;border:1px solid #1a3a1a;background:#020b04;color:var(--txt);font-size:12px}
+.restriccion{font-size:10px;color:#556655;text-align:center;margin-top:12px;letter-spacing:.5px}
+#clock{font-size:40px;color:#fff;text-align:center;letter-spacing:4px;margin-bottom:16px}
+</style>
+</head>
+<body>
+
+<div class="logo">📻 TERRAPESCA RADIO</div>
+<div class="sub">MODO TIENDA — CULIACÁN</div>
+
+<div id="clock">--:--</div>
+
+<div class="banner">
+  <h2>🔥 VENTA NOCTURNA</h2>
+  <div class="fecha">19 de Junio</div>
+  <div class="marca">Terrapesca Marine &amp; Outdoors · Equipa tu aventura</div>
+</div>
+
+<div class="horarios">
+  <div class="hor-card">
+    <div class="city">📍 CULIACÁN</div>
+    <div class="time">9 AM – 5 PM</div>
+  </div>
+  <div class="hor-card">
+    <div class="city">📍 MAZATLÁN</div>
+    <div class="time">6 PM – 10 PM</div>
+  </div>
+  <div class="hor-card">
+    <div class="city">📍 LOS MOCHIS</div>
+    <div class="time">6 PM – 10 PM</div>
+  </div>
+</div>
+
+<div class="promos">
+  <h3>PROMOCIONES AUTORIZADAS</h3>
+  <div class="promo-item"><span class="pct">20%</span><span>Kayaks</span></div>
+  <div class="promo-item"><span class="pct">20%</span><span>Combos vara + carrete <em style="color:#556655">(no aplica Shimano)</em></span></div>
+  <div class="promo-item"><span class="pct">15%</span><span>Varas, carretes y señuelos <em style="color:#556655">(no aplica Shimano)</em></span></div>
+  <div class="promo-item"><span class="pct">15%</span><span>Líneas de pesca <em style="color:#556655">(no aplica Shimano)</em></span></div>
+  <div class="promo-item"><span class="pct">2×1</span><span>Zapato acuático</span></div>
+  <div class="promo-item"><span class="pct">15%</span><span>Hieleras</span></div>
+  <div class="promo-item"><span class="pct">15%</span><span>Victorinox y navajas</span></div>
+  <div class="promo-item"><span class="pct">15%</span><span>Ropa y accesorios</span></div>
+  <div class="promo-item"><span class="pct">15%</span><span>Camisas Maja Sportswear <em style="color:#556655">(preguntar existencias)</em></span></div>
+  <div class="promo-item"><span class="pct">⭐</span><span>Señuelo Sarda Rapala 18cm — presencia fuerte, movimiento natural</span></div>
+  <div class="promo-item"><span class="pct">🛟</span><span>Chalecos salvavidas — lancha, pesca, kayak y actividades acuáticas</span></div>
+  <div class="restriccion">Aplican restricciones. Hasta agotar existencias.</div>
+</div>
+
+<div class="rodo-box">
+  <h3>🎙️ DJ RODO EN TIENDA</h3>
+  <div id="rodoText">Activa a DJ Rodo para que hable con tus clientes en tienda.</div>
+  <div class="rodo-status" id="rodoStatus"></div>
+</div>
+
+<div class="controls">
+  <button class="btn-primary" onclick="startRodo()">▶ ACTIVAR RODO</button>
+  <button class="btn-secondary" onclick="genAndPlay()">🎙️ Intervención ahora</button>
+  <button class="btn-warn" onclick="stopRodo()">⏹ PARAR</button>
+</div>
+
+<div class="cfg-box">
+  <h3>⚙️ CONFIGURACIÓN</h3>
+  <div class="cfg-row"><label>ElevenLabs API</label><input id="cfgEl" type="password" placeholder="Clave ElevenLabs"/></div>
+  <div class="cfg-row"><label>Anthropic API</label><input id="cfgAnt" type="password" placeholder="Clave Anthropic"/></div>
+  <button class="btn-secondary" onclick="saveCfg()" style="margin-top:8px">💾 Guardar</button>
+</div>
+
+<script>
+const CAMPAIGN={
+  promos:[
+    '20% de descuento en kayaks',
+    '20% de descuento en combos de vara más carrete, no aplica Shimano',
+    '15% de descuento en varas, carretes y señuelos, no aplica Shimano',
+    '15% de descuento en líneas de pesca, no aplica Shimano',
+    '2x1 en zapato acuático',
+    '15% de descuento en hieleras',
+    '15% de descuento en Victorinox y navajas',
+    '15% de descuento en ropa y accesorios',
+    '15% en camisas Maja Sportswear, preguntar por existencias',
+    'Señuelo Sarda de Rapala 18 centímetros, presencia fuerte, movimiento natural',
+    'Chalecos salvavidas para lancha, pesca, kayak y actividades acuáticas',
+  ],
+  types:['general','promo','horarios','seguridad','urgencia','producto'],
+};
+const VOICES={eleguar:{id:'T7QGPtToiqH4S8VlIkMJ'},camilo:{id:'VR6AewLTigWG4xSOukaG'},mateo:{id:'TX3LPaxmHKxFdv7VOFE1'}};
+
+let _rodoTimer=null;
+let _audio=null;
+let _lastPromo=-1;
+const MIN_INTERVAL=3*60*1000; // 3 min entre intervenciones
+const MAX_INTERVAL=5*60*1000; // 5 min
+
+function cfg(){return{el:localStorage.getItem('tp_el')||'',ant:localStorage.getItem('tp_ant')||''};}
+function saveCfg(){
+  const el=document.getElementById('cfgEl').value.trim();
+  const ant=document.getElementById('cfgAnt').value.trim();
+  if(el) localStorage.setItem('tp_el',el);
+  if(ant) localStorage.setItem('tp_ant',ant);
+  setStatus('✅ Guardado');
+}
+function setStatus(t,col){const e=document.getElementById('rodoStatus');if(e){e.textContent=t;if(col)e.style.color=col;}}
+function setText(t){const e=document.getElementById('rodoText');if(e)e.textContent=t;}
+
+// Clock
+setInterval(()=>{
+  const now=new Date();
+  const h=String(now.getHours()).padStart(2,'0');
+  const m=String(now.getMinutes()).padStart(2,'0');
+  document.getElementById('clock').textContent=h+':'+m;
+},1000);
+
+function pickPromo(){
+  let idx;
+  do{idx=Math.floor(Math.random()*CAMPAIGN.promos.length);}while(idx===_lastPromo&&CAMPAIGN.promos.length>1);
+  _lastPromo=idx;
+  return CAMPAIGN.promos[idx];
+}
+
+function buildTiendaPrompt(){
+  const promo=pickPromo();
+  const tipo=CAMPAIGN.types[Math.floor(Math.random()*CAMPAIGN.types.length)];
+  const hora=new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit',hour12:true});
+  return `Eres DJ Rodo en modo TIENDA. Estás físicamente en la sucursal Culiacán de Terrapesca durante la Venta Nocturna del 19 de junio.
+El horario de Culiacán es 9 de la mañana a 5 de la tarde. Hora actual: ${hora}.
+Hablas directamente a los clientes que están DENTRO DE LA TIENDA ahora mismo.
+
+MISIÓN — intervención breve tipo locutor de tienda:
+Tipo solicitado: ${tipo}
+Promoción a mencionar: ${promo}
+
+REGLAS:
+- Habla directo a la persona que está frente al producto
+- Máximo 2 frases, 25 palabras en total
+- Tono amigable, cercano, como buen vendedor en piso
+- NO institucional, NO largo
+- Puedes decir "pregunta a un colaborador" para dudas
+- Restricciones: "Aplican restricciones. Hasta agotar existencias."
+- NO prometas capturas de pesca
+- NO inventes promociones distintas a las autorizadas
+
+EJEMPLOS:
+"Oye, los kayaks están al 20 este día. Si lo traías en mente, este es el momento. Pregunta a un colaborador."
+"El 2x1 en zapato acuático es real. Cualquier duda, nuestros colaboradores están en piso."
+"Si buscas señuelo para pez grande, el Sarda de Rapala 18 está aquí. Movimiento natural, presencia fuerte."
+
+TU INTERVENCIÓN:`;
+}
+
+async function genAndPlay(){
+  const c=cfg();
+  if(!c.el||!c.ant){setStatus('⚠️ Configura claves API primero','#ff4466');return;}
+  setStatus('Generando guión…','#ffb347');
+  try{
+    // Generate script with Anthropic
+    const r=await fetch('/api/anthropic',{method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':c.ant},
+      body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:160,
+        messages:[{role:'user',content:buildTiendaPrompt()}]})
+    });
+    const d=await r.json();
+    const script=(d.content?.[0]?.text||'').trim();
+    if(!script) throw new Error('Sin respuesta');
+    setText(script);
+    setStatus('Generando audio…','#ffb347');
+    // Generate audio with ElevenLabs
+    const voiceId=VOICES.eleguar.id;
+    const ar=await fetch(`/api/elevenlabs/${voiceId}`,{method:'POST',
+      headers:{'Content-Type':'application/json','xi-api-key':c.el},
+      body:JSON.stringify({text:script,model_id:'eleven_multilingual_v2',language_code:'es',
+        voice_settings:{stability:0.22,similarity_boost:0.82,style:0.80,use_speaker_boost:true}})
+    });
+    if(!ar.ok) throw new Error('EL '+ar.status);
+    const ab=await ar.arrayBuffer();
+    if(_audio){try{_audio.pause();_audio.src='';}catch(_){}_audio=null;}
+    const a=new Audio(URL.createObjectURL(new Blob([ab],{type:'audio/mpeg'})));
+    _audio=a; a.volume=1;
+    setStatus('▶ Reproduciendo…','#00ff88');
+    a.play().catch(e=>setStatus('Error audio: '+e.message,'#ff4466'));
+    a.onended=()=>{setStatus('Listo — próxima intervención automática','#9abba0');};
+  }catch(e){setStatus('Error: '+e.message,'#ff4466');}
+}
+
+function scheduleNext(){
+  const delay=MIN_INTERVAL+Math.random()*(MAX_INTERVAL-MIN_INTERVAL);
+  _rodoTimer=setTimeout(async()=>{
+    await genAndPlay();
+    if(_rodoTimer!==null) scheduleNext();
+  },delay);
+}
+
+function startRodo(){
+  if(_rodoTimer!==null) return;
+  setStatus('✅ Rodo activo — interviniendo cada 3-5 minutos','#00ff88');
+  genAndPlay(); // immediate first intervention
+  scheduleNext();
+}
+
+function stopRodo(){
+  clearTimeout(_rodoTimer);_rodoTimer=null;
+  if(_audio){try{_audio.pause();}catch(_){}_audio=null;}
+  setStatus('⏹ Rodo detenido');
+  setText('Activa a DJ Rodo para que hable con tus clientes en tienda.');
+}
+
+// Load saved keys
+document.getElementById('cfgEl').value=localStorage.getItem('tp_el')||'';
+document.getElementById('cfgAnt').value=localStorage.getItem('tp_ant')||'';
+</script>
+</body>
+</html>
