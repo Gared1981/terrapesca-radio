@@ -1,0 +1,69 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Commands
+
+- `npm start` — runs `node server.js` (the only script). Serves HTTP + WebSocket on `PORT` (default 3000).
+- No build, no lint, no tests exist. HTML files are plain single-file apps; changes are live on reload.
+- Deployed on Railway; clients connect to it over `wss://<railway-domain>`.
+
+## Architecture
+
+This is a real-time web radio for Terrapesca stores. One Node.js server (no framework, raw `http` +
+`ws`) acts as **(a)** static file server, **(b)** API proxy, and **(c)** audio relay. The UI is a set
+of **self-contained single-file HTML apps** (inline CSS + JS, no bundler):
+
+| File | Role |
+|---|---|
+| `studio.html` | **Actively developed** DJ cabin. Dual-deck YouTube crossfade engine, DJ Rodo (AI voice), mood/hour song selection, spot/jingle/stinger playback. This is where the playback engine lives. |
+| `panel.html` | Older/larger control panel (Los Mochis). Shares localStorage keys + IndexedDB schema with studio. |
+| `sucursal.html` | Receiver/player for branches (Culiacán, Mazatlán). Listens to WS relay only. |
+| `tienda.html` | In-store mode with auto DJ Rodo speaking to customers. |
+| `listen.html` | Public listener. |
+| `server.js` | HTTP/WS server + proxies + server-side audio stream. |
+| `sw.js` | Service worker: caches static HTML, never intercepts `/radio/stream` or `/api/*`. |
+
+### Communication model
+A controller (`studio.html` / `panel.html`) connects over WebSocket and **broadcasts** messages that
+the server relays to all other clients (`sucursal.html`, `listen.html`). Message types are enumerated in
+the `wss.on('connection')` switch in `server.js`: `PLAY`, `PAUSE`, `RESUME`, `VOLUME`,
+`PLAYLIST_UPDATE`, `SPOT`, `JINGLE_SET`, `MIC_ONAIR`. The server keeps a single `radioState` object and
+sends a `SYNC` snapshot to every newly-connected client.
+
+### Secrets model (important)
+**The server holds no API keys.** Keys live in the browser's `localStorage` and are sent as request
+headers to the server's proxy endpoints, which forward them to the upstream API:
+- `tp_el` → ElevenLabs (`xi-api-key`) → `/api/elevenlabs/:voiceId`
+- `tp_ant` → Anthropic (`x-api-key`) → `/api/anthropic`
+- `tp_yt` → YouTube Data API key (query param) → `/api/ytplaylist`
+- `tp_ws` → the `wss://` server URL the client connects to
+Other `tp_*` keys store voice/slogan/weather-city/DJ-Rodo config. Never hardcode keys or move them
+server-side.
+
+### External services
+- **Anthropic** (`claude-sonnet-4-20250514`) — DJ Rodo scripts and ad-spot copy generation.
+- **ElevenLabs** (`eleven_multilingual_v2`, `language_code: 'es'`) — Spanish TTS for DJ/spots.
+- **YouTube** — three paths: IFrame API (in-browser playback in studio/panel), `@distube/ytdl-core`
+  (server-side audio stream for mobile via `/radio/stream` and `/api/ytaudio/:id`), and YouTube Data
+  API v3 (playlist import via `/api/ytplaylist`).
+- **CONAGUA** presas data via `/api/conagua` (self-signed cert, `rejectUnauthorized:false`).
+- `/api/scrape` fetches a product page (one redirect followed, 80KB cap) so the AI can write a spot.
+
+### Audio engine (studio.html)
+Two YouTube IFrame players = deck A and deck B. The auto-mix watcher (250ms interval) reads
+`getCurrentTime`/`getDuration`; `prebufferNext()` starts the inactive deck muted ~`PREBUFFER_AHEAD`
+seconds before the end so it's buffered, then `doCrossfade()` ramps volumes over `CROSSFADE_SECS`.
+Key invariants learned from past bugs:
+- `_xfading` guards against double-crossfade (the 250ms watcher can fire twice); reset it on completion.
+- `_prebufDone` must reset to `false` after each crossfade.
+- Video is intentionally hidden (`opacity:0` on the iframe) — decks show cover art, not video.
+- **Do NOT force playback quality.** Forcing a fixed resolution fights YouTube's adaptive bitrate and
+  each forced change triggers a re-buffer (audible stutter). This was a real regression.
+- DJ Rodo: `DJ_ROTATION_NORMAL` vs `DJ_ROTATION_CAMPAIGN` (Venta Nocturna). During the campaign window
+  Rodo announces date/hours only — no promotions. Ducking lowers music when voice plays, then restores.
+
+### Persistence
+IndexedDB database `TerrapescaRadio` v2, object stores: `playlist`, `session`, `tracks` (keyPath `key`).
+The `session` store holds base64 blobs: spots library, `studioJingle`, `studioStinger`. localStorage
+holds config (`tp_*`).
