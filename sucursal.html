@@ -793,13 +793,20 @@ function playJingle(){
   jingleAudio=new Audio(url);
   jingleAudio._objUrl=url;
   jingleAudio.volume=0.25;
-  jingleAudio.loop=false; // play once — never leave a jingle stuck looping
-  jingleAudio.addEventListener('ended',stopJingle);
+  // Background bed: loop so it keeps playing under spots longer than the jingle.
+  // It is stopped by the spot's ended/error handlers and by stopLocal(); the
+  // safety timeout below guarantees it can never loop forever if no 'ended' fires.
+  jingleAudio.loop=true;
   // If the jingle fails to decode/play, stop safely instead of hanging
   jingleAudio.addEventListener('error',()=>{console.warn('[sucursal] jingle error — parada segura');stopJingle();});
   jingleAudio.play().catch(e=>{console.warn('[sucursal] jingle play falló:',e&&e.message);stopJingle();});
+  // Hard cap: even if the spot never emits 'ended', kill the bed after 3 min.
+  clearTimeout(_jingleSafety);
+  _jingleSafety=setTimeout(()=>{console.warn('[sucursal] jingle safety timeout — parada');stopJingle();},180000);
 }
+let _jingleSafety=null;
 function stopJingle(){
+  clearTimeout(_jingleSafety); _jingleSafety=null;
   if(jingleAudio){try{jingleAudio.pause();jingleAudio.currentTime=0;}catch(_){} revokeAudio(jingleAudio); jingleAudio=null}
 }
 

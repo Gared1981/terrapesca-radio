@@ -56,8 +56,11 @@ async function streamYouTubeVideo(videoId, gen) {
 
     // Only the latest stream may write — a cancelled/stale one stays silent.
     stream.on('data', chunk => { if (gen === streamGen) writeToStreamClients(chunk); });
-    stream.on('end', () => { currentStreamDestroy = null; streamBusy = false; resolve(); });
-    stream.on('error', (e) => { currentStreamDestroy = null; streamBusy = false; reject(e); });
+    // Only clear shared stream state if WE are still the latest generation —
+    // a stale stream that ends/errors after a new track started must NOT wipe
+    // the new generation's currentStreamDestroy/streamBusy.
+    stream.on('end', () => { if (gen === streamGen) { currentStreamDestroy = null; streamBusy = false; } resolve(); });
+    stream.on('error', (e) => { if (gen === streamGen) { currentStreamDestroy = null; streamBusy = false; } reject(e); });
   });
 }
 
@@ -156,10 +159,20 @@ function proxyPost(hostname, path, headers, body, res) {
     const isAudio = (apiRes.headers['content-type'] || '').includes('audio');
     res.setHeader('Access-Control-Allow-Origin', '*');
     if (isAudio) {
+      // Guard the upstream (ElevenLabs) response stream against mid-stream drops.
+      // By the time any async 'error' can fire, headers are already written, so we
+      // can only tear down cleanly — we cannot send a 502 at this point.
+      apiRes.on('error', () => { try { res.destroy(); } catch(_) {} try { apiRes.destroy(); } catch(_) {} });
+      // Destroy upstream if the client hangs up (graceful FIN or socket error).
+      res.on('error', () => { try { apiRes.destroy(); } catch(_) {} });
+      res.on('close', () => { try { apiRes.destroy(); } catch(_) {} });
       settled = true; // streaming response — headers go out now
       res.writeHead(apiRes.statusCode, { 'Content-Type': apiRes.headers['content-type'] || 'audio/mpeg' });
       apiRes.pipe(res);
     } else {
+      // Guard the upstream (Anthropic/JSON) response stream: a mid-body drop would
+      // emit 'error' with no listener and crash the process.
+      apiRes.on('error', (e) => { fail(502, 'Error del proveedor: ' + (e && e.message || 'desconocido')); try { apiRes.destroy(); } catch(_) {} });
       let raw = '', size = 0, aborted = false;
       apiRes.on('data', chunk => {
         if (aborted) return;
