@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sucursal Stream (test) — Radio Terrapesca</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 24px;
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    background: #0b1118; color: #e8eef5; padding: 24px;
+  }
+  h1 { font-size: 1.25rem; margin: 0; font-weight: 600; letter-spacing: .3px; }
+  .tag { font-size: .72rem; text-transform: uppercase; letter-spacing: 1px; color: #ffb020; }
+  .card {
+    width: 100%; max-width: 460px; background: #131c27; border: 1px solid #1f2c3a;
+    border-radius: 16px; padding: 28px 24px; text-align: center;
+    box-shadow: 0 10px 40px rgba(0,0,0,.4);
+  }
+  audio { width: 100%; margin-top: 18px; }
+  #status {
+    margin-top: 16px; font-size: .9rem; padding: 8px 14px; border-radius: 999px;
+    display: inline-block; background: #1c2836; color: #9fb3c8;
+  }
+  #status.live { background: #0f3d23; color: #54e08a; }
+  #status.err  { background: #3d160f; color: #ff6b5e; }
+  #playBtn {
+    margin-top: 18px; display: none; cursor: pointer;
+    background: #ffb020; color: #1a1205; border: 0; font-weight: 700;
+    padding: 14px 28px; border-radius: 999px; font-size: 1rem;
+  }
+  #playBtn:active { transform: scale(.97); }
+  .hint { margin-top: 18px; font-size: .72rem; color: #5d748c; line-height: 1.5; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="tag">MVP · Fase C2 · carril de prueba</div>
+    <h1>Sucursal Stream</h1>
+
+    <audio id="player" controls autoplay playsinline preload="auto" src="/radio/stream-test"></audio>
+
+    <button id="playBtn">▶ Reproducir</button>
+
+    <div id="status">Conectando…</div>
+
+    <p class="hint">
+      Escucha continua de <code>/radio/stream-test</code> vía FFmpeg (loop de 3 pistas).
+      Sin YouTube, sin WebSocket, sin IFrame. Audios sintéticos temporales.
+    </p>
+  </div>
+
+<script>
+(function(){
+  var player = document.getElementById('player');
+  var status = document.getElementById('status');
+  var playBtn = document.getElementById('playBtn');
+
+  function setStatus(text, cls){
+    status.textContent = text;
+    status.className = cls || '';
+  }
+
+  // Reflect playback state.
+  player.addEventListener('playing', function(){ setStatus('● Reproduciendo', 'live'); playBtn.style.display = 'none'; });
+  player.addEventListener('waiting', function(){ setStatus('Cargando…'); });
+  player.addEventListener('stalled', function(){ setStatus('Cargando…'); });
+  player.addEventListener('pause',   function(){ if(!player.ended) setStatus('En pausa'); });
+  player.addEventListener('error',   function(){ setStatus('Error de stream — toca Reproducir', 'err'); playBtn.style.display = 'inline-block'; });
+
+  // Autoplay can be blocked on mobile until a user gesture — surface the button.
+  function tryAutoplay(){
+    var p = player.play();
+    if (p && typeof p.then === 'function') {
+      p.then(function(){ /* 'playing' handler updates UI */ })
+       .catch(function(){
+         setStatus('Toca Reproducir para iniciar');
+         playBtn.style.display = 'inline-block';
+       });
+    }
+  }
+
+  playBtn.addEventListener('click', function(){
+    setStatus('Conectando…');
+    // Re-point the source to force a fresh connection if it errored.
+    if (player.error) { player.src = '/radio/stream-test'; player.load(); }
+    tryAutoplay();
+  });
+
+  setStatus('Conectando…');
+  tryAutoplay();
+})();
+</script>
+</body>
+</html>
