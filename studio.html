@@ -550,7 +550,7 @@ let spots=[];
 let history=[];
 const CROSSFADE_SECS=10;
 const PREBUFFER_AHEAD=13; // start buffering next deck 3s before the crossfade window
-                          // (at forced 240p that's plenty; minimal intro loss)
+                          // (minimal intro loss; _resumeActiveDeckIfStalled handles post-spot resume)
 let master=0.85;
 let flags={auto:true,duck:true,dj:true,aiSelect:true};
 let _djNextSong=-1;
@@ -848,6 +848,29 @@ function duckTo(level,ms=400){
 }
 function unduck(ms=900){ duckTo(1,ms); }
 
+/* Resume active deck if it stalled/paused during a DJ or spot intervention.
+   Called from playDJ/playSpot finally blocks. Only acts if the deck has an item
+   loaded and is NOT in PLAYING state (YT state 1). Never interferes with crossfade. */
+function _resumeActiveDeckIfStalled(){
+  if(_xfading) return;
+  const d=decks[activeDeck];
+  if(!d||!d.item||!d.ready) return;
+  let state=-1;
+  try{ state=d.player.getPlayerState(); }catch(_){ return; }
+  // YT states: -1=unstarted, 0=ended, 1=playing, 2=paused, 3=buffering, 5=cued
+  if(state===1||state===3) return; // already playing or buffering — nothing to do
+  if(state===0){
+    // Song ended naturally while spot was playing but _endedDuringDJ wasn't set
+    // (can happen if the stateChange fired after djActive was cleared). Advance.
+    console.log('[Rodo] active deck ended undetected — advancing');
+    if(!_xfading) advanceNoXfade();
+    return;
+  }
+  // Paused or unstarted — resume
+  console.log('[Rodo] active deck stalled (state '+state+') — resuming');
+  try{ d.player.playVideo(); d.playing=true; }catch(e){ console.warn('[Rodo] resume failed',e); }
+}
+
 /* ================= DJ RODO ================= */
 let djFreq='media';
 let _djSongCount=0;
@@ -991,9 +1014,11 @@ async function playDJ(type){
     await playClip(URL.createObjectURL(new Blob([ab],{type:'audio/mpeg'})));
   }catch(e){ /* fallback: brief silence handled below */ }
   finally{
+    console.log('[Rodo] DJ ended — restoring music');
     if(flags.duck) unduck();
     djActive=false; setDJState('standby');
-    if(_endedDuringDJ && !_xfading) advanceNoXfade();
+    if(_endedDuringDJ && !_xfading){ console.log('[Rodo] song ended during DJ — advancing'); advanceNoXfade(); }
+    else { _resumeActiveDeckIfStalled(); }
     if(!decks[0].playing&&!decks[1].playing&&!_endedDuringDJ) setOnAir(false);
     refreshDJStatus();
   }
@@ -1024,8 +1049,15 @@ async function playSpot(){
     playJingle(); // play background jingle during spot
     await playClip(URL.createObjectURL(new Blob([arr],{type:'audio/mpeg'})));
   }catch(e){}
-  finally{ if(flags.duck) unduck(); stopJingle(); djActive=false; setDJState('standby');
-    if(_endedDuringDJ && !_xfading) advanceNoXfade(); refreshDJStatus(); }
+  finally{
+    console.log('[Rodo] spot ended — restoring music');
+    if(flags.duck) unduck();
+    stopJingle();
+    djActive=false; setDJState('standby');
+    if(_endedDuringDJ && !_xfading){ console.log('[Rodo] song ended during spot — advancing'); advanceNoXfade(); }
+    else { _resumeActiveDeckIfStalled(); }
+    refreshDJStatus();
+  }
 }
 
 /* ---- DJ script generation (reuses /api/anthropic) ---- */
