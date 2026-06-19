@@ -639,7 +639,11 @@ let branch='', muted=false, lastVol=80, meterInt=null;
 let jingleB64=null, jingleAudio=null;
 let _pendingPlay=null; // track received before ytReady or before user gesture
 let _lastRemoteTrack=null, _lastRemotePos=0; // last PLAY track — used to resume after spots
+let _spotActive=false;          // true while a spot/DJ audio is playing in sucursal
+let _pendingPlayAfterSpot=null; // PLAY received during a spot; applied when spot ends
+let _lastLoadedYtId=null;       // ytId currently loaded in ytPlayer (avoids full reload on same track)
 let _resumeFallback=null; // deferred post-spot resume timer; cancelled if Studio sends PLAY first
+let _spotSafety=null;    // hard-cap 180s safety timer — clears _spotActive if spot stalls
 const AUTO_WS=(location.protocol==='https:'?'wss://':'ws://')+location.host;
 
 // Clock
@@ -700,7 +704,15 @@ function handleMsg(msg){
       else if(msg.state&&msg.state.currentTrack)
         updateNP(msg.state.currentTrack, false);
       break;
-    case 'PLAY': cancelResumeFallback(); playRemote(msg.track, msg.position||0); break;
+    case 'PLAY':
+      cancelResumeFallback();
+      if(_spotActive){
+        // Don't interrupt the spot — save the state and apply it when the spot ends
+        _pendingPlayAfterSpot={track:msg.track, position:msg.position||0};
+      } else {
+        playRemote(msg.track, msg.position||0);
+      }
+      break;
     case 'PAUSE': pauseLocal(); break;
     case 'RESUME': resumeLocal(); break;
     case 'SPOT': playSpot(msg.track); break;
@@ -731,22 +743,39 @@ function onYouTubeIframeAPIReady(){
 
 function playRemote(track, position){
   if(track.type!=='yt'){ updateNP(track,false); return; }
-  _lastRemoteTrack=track; _lastRemotePos=position||0;
-  stopLocal();
-  if(!ytReady){ _pendingPlay={track,pos:position}; showTapOverlay(track); updateNP(track,false); return; }
+  const pos=position||0;
+  _lastRemoteTrack=track; _lastRemotePos=pos;
+  // Stop any blob audio (spots/mic) but do NOT stopVideo on the YT player here —
+  // we decide below whether to reload or just seek, to avoid a flash from position 0.
+  if(audioEl){ try{audioEl.pause();}catch(_){} revokeAudio(audioEl); audioEl.src=''; audioEl=null; }
+  stopJingle();
+  if(!ytReady){ _pendingPlay={track,pos}; showTapOverlay(track); updateNP(track,false); return; }
+  const isSameTrack=(_lastLoadedYtId===track.ytId);
   try{
-    ytPlayer.loadVideoById(track.ytId);
-    ytPlayer.setVolume(parseInt(document.getElementById('volS').value));
-    if(position>2) setTimeout(()=>{ try{ytPlayer.seekTo(position,true);}catch(_){} },1500);
-    // handle autoplay block — if not playing after 2s show tap overlay
+    const vol=parseInt(document.getElementById('volS').value);
+    if(isSameTrack){
+      // Same video already buffered — just seek and unpause: no reload, no flash from 0.
+      console.log('[sucursal] mismo track — seekTo('+pos+') + playVideo()');
+      ytPlayer.setVolume(vol);
+      if(pos>2) try{ ytPlayer.seekTo(pos,true); }catch(_){}
+      ytPlayer.playVideo();
+    } else {
+      // Different track — load with startSeconds so it begins at the right position,
+      // never playing from 0 before seeking.
+      console.log('[sucursal] nuevo track — loadVideoById ytId='+track.ytId+' pos='+pos);
+      _lastLoadedYtId=track.ytId;
+      ytPlayer.setVolume(vol);
+      ytPlayer.loadVideoById({videoId:track.ytId, startSeconds:pos>2?pos:0});
+    }
+    // Handle autoplay block — if not playing after 2s show tap overlay
     setTimeout(()=>{
       try{
         if(ytPlayer.getPlayerState()!==YT.PlayerState.PLAYING){
-          _pendingPlay={track,pos:position}; showTapOverlay(track);
+          _pendingPlay={track,pos}; showTapOverlay(track);
         }
       }catch(_){}
     },2000);
-  }catch(_){ _pendingPlay={track,pos:position}; showTapOverlay(track); }
+  }catch(_){ _pendingPlay={track,pos}; showTapOverlay(track); }
   updateNP(track, true);
   startProg();
 }
@@ -766,31 +795,65 @@ function showTapOverlay(track){
 }
 function hideTapOverlay(){ document.getElementById('tapOverlay').classList.add('hide'); }
 
+/* Pause (not destroy) the YT player while a spot plays, so the buffer survives.
+   Only blob audio and jingle are stopped; ytPlayer keeps its loaded video. */
+function pauseMainForSpot(){
+  try{ if(ytReady&&ytPlayer) ytPlayer.pauseVideo(); }catch(_){}
+  if(audioEl&&audioEl!==null){ try{audioEl.pause();}catch(_){} }
+  stopJingle();
+}
 function playSpot(track){
   // Cancel any pending post-spot resume so it can't fire during this new spot
   cancelResumeFallback();
-  // Save current track before stopLocal() wipes it — needed to resume after spot
+  _pendingPlayAfterSpot=null;
+  // Pause (not destroy) the YT player — buffer stays intact for seamless resume
   const prevTrack=_lastRemoteTrack;
-  stopLocal();
+  pauseMainForSpot();
+  _spotActive=true;
   if(track.b64){
     // actualizar jingle si viene en el mensaje
     if(track.jingleB64)jingleB64=track.jingleB64;
     // arrancar jingle de fondo
     playJingle();
+    // M1: revoke previous spot ObjectURL if a consecutive spot arrives before the first ended
+    if(audioEl){ try{audioEl.pause();}catch(_){} revokeAudio(audioEl); audioEl.src=''; audioEl=null; }
     const blob=b64ToBlob(track.b64,'audio/mpeg');
     const url=URL.createObjectURL(blob);
     audioEl=new Audio(url);
     audioEl._objUrl=url;
     audioEl.volume=parseInt(document.getElementById('volS').value)/100;
+    // A1: safety cap — if spot stalls and never fires ended/error, _spotActive resets after 180s
+    if(_spotSafety){ clearTimeout(_spotSafety); _spotSafety=null; }
+    _spotSafety=setTimeout(()=>{
+      _spotSafety=null;
+      console.warn('[sucursal] safety timeout — spot no terminó en 180s, restaurando estado');
+      try{ if(audioEl){ audioEl.pause(); revokeAudio(audioEl); audioEl.src=''; audioEl=null; } }catch(_){}
+      setPlayUI(false); hideSpotBanner(); stopJingle();
+      _spotActive=false;
+      if(_pendingPlayAfterSpot){ const p=_pendingPlayAfterSpot; _pendingPlayAfterSpot=null; cancelResumeFallback(); playRemote(p.track,p.position); }
+      else resumeAfterSpot(prevTrack);
+    }, 180000);
     const _onSpotEnd=()=>{
+      if(_spotSafety){ clearTimeout(_spotSafety); _spotSafety=null; }
       console.log('[sucursal] spot ended — resumiendo música principal');
       setPlayUI(false); hideSpotBanner(); stopJingle(); revokeAudio(audioEl);
-      resumeAfterSpot(prevTrack);
+      audioEl=null; _spotActive=false;
+      // If Studio sent a PLAY during the spot, apply it now with correct position
+      if(_pendingPlayAfterSpot){
+        const p=_pendingPlayAfterSpot; _pendingPlayAfterSpot=null;
+        console.log('[sucursal] aplicando PLAY pendiente post-spot:',p.track.name,'pos',p.position);
+        cancelResumeFallback();
+        playRemote(p.track, p.position);
+      } else {
+        resumeAfterSpot(prevTrack);
+      }
     };
     audioEl.play().catch(e=>{
+      if(_spotSafety){ clearTimeout(_spotSafety); _spotSafety=null; }
       console.warn('[sucursal] spot play falló:',e&&e.message);
-      setPlayUI(false); stopJingle();
-      resumeAfterSpot(prevTrack);
+      setPlayUI(false); stopJingle(); audioEl=null; _spotActive=false;
+      if(_pendingPlayAfterSpot){ const p=_pendingPlayAfterSpot; _pendingPlayAfterSpot=null; cancelResumeFallback(); playRemote(p.track,p.position); }
+      else resumeAfterSpot(prevTrack);
     });
     audioEl.addEventListener('ended', _onSpotEnd);
     audioEl.addEventListener('error', _onSpotEnd);
@@ -799,6 +862,9 @@ function playSpot(track){
     updateNP(track, true);
     showSpotBanner(track.name,'🎙️',false);
     startProg();
+  } else {
+    // No audio in track — restore immediately
+    _spotActive=false;
   }
 }
 function cancelResumeFallback(){
@@ -888,6 +954,8 @@ function resumeLocal(){
 function stopLocal(){
   if(audioEl){audioEl.pause();revokeAudio(audioEl);audioEl.src='';audioEl=null}
   if(ytReady&&ytPlayer)try{ytPlayer.stopVideo()}catch(e){}
+  _lastLoadedYtId=null; // buffer cleared by stopVideo — force reload on next playRemote
+  _spotActive=false; _pendingPlayAfterSpot=null;
   stopJingle();
   clearInterval(progInt);clearInterval(meterInt);
   document.getElementById('pF').style.width='0%';
