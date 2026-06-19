@@ -5,3 +5,6 @@ node_modules/
 .env.*
 .env.local
 credentials/
+
+# Original/source audio (never versioned — only normalized output in audio-test/ is committed)
+audio-source/
