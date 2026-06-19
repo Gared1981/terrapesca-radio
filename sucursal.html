@@ -638,6 +638,8 @@ let ws=null, ytPlayer=null, ytReady=false, audioEl=null, progInt=null;
 let branch='', muted=false, lastVol=80, meterInt=null;
 let jingleB64=null, jingleAudio=null;
 let _pendingPlay=null; // track received before ytReady or before user gesture
+let _lastRemoteTrack=null, _lastRemotePos=0; // last PLAY track — used to resume after spots
+let _resumeFallback=null; // deferred post-spot resume timer; cancelled if Studio sends PLAY first
 const AUTO_WS=(location.protocol==='https:'?'wss://':'ws://')+location.host;
 
 // Clock
@@ -698,7 +700,7 @@ function handleMsg(msg){
       else if(msg.state&&msg.state.currentTrack)
         updateNP(msg.state.currentTrack, false);
       break;
-    case 'PLAY': playRemote(msg.track, msg.position||0); break;
+    case 'PLAY': cancelResumeFallback(); playRemote(msg.track, msg.position||0); break;
     case 'PAUSE': pauseLocal(); break;
     case 'RESUME': resumeLocal(); break;
     case 'SPOT': playSpot(msg.track); break;
@@ -729,6 +731,7 @@ function onYouTubeIframeAPIReady(){
 
 function playRemote(track, position){
   if(track.type!=='yt'){ updateNP(track,false); return; }
+  _lastRemoteTrack=track; _lastRemotePos=position||0;
   stopLocal();
   if(!ytReady){ _pendingPlay={track,pos:position}; showTapOverlay(track); updateNP(track,false); return; }
   try{
@@ -764,6 +767,10 @@ function showTapOverlay(track){
 function hideTapOverlay(){ document.getElementById('tapOverlay').classList.add('hide'); }
 
 function playSpot(track){
+  // Cancel any pending post-spot resume so it can't fire during this new spot
+  cancelResumeFallback();
+  // Save current track before stopLocal() wipes it — needed to resume after spot
+  const prevTrack=_lastRemoteTrack;
   stopLocal();
   if(track.b64){
     // actualizar jingle si viene en el mensaje
@@ -775,15 +782,47 @@ function playSpot(track){
     audioEl=new Audio(url);
     audioEl._objUrl=url;
     audioEl.volume=parseInt(document.getElementById('volS').value)/100;
-    audioEl.play().catch(e=>{console.warn('[sucursal] spot play falló:',e&&e.message);setPlayUI(false);stopJingle();});
-    audioEl.addEventListener('ended',()=>{setPlayUI(false);hideSpotBanner();stopJingle();revokeAudio(audioEl);});
-    audioEl.addEventListener('error',()=>{setPlayUI(false);hideSpotBanner();stopJingle();revokeAudio(audioEl);});
+    const _onSpotEnd=()=>{
+      console.log('[sucursal] spot ended — resumiendo música principal');
+      setPlayUI(false); hideSpotBanner(); stopJingle(); revokeAudio(audioEl);
+      resumeAfterSpot(prevTrack);
+    };
+    audioEl.play().catch(e=>{
+      console.warn('[sucursal] spot play falló:',e&&e.message);
+      setPlayUI(false); stopJingle();
+      resumeAfterSpot(prevTrack);
+    });
+    audioEl.addEventListener('ended', _onSpotEnd);
+    audioEl.addEventListener('error', _onSpotEnd);
     audioEl.addEventListener('timeupdate',updateProg);
     audioEl.addEventListener('loadedmetadata',()=>{document.getElementById('tT').textContent=fmt(audioEl.duration)});
     updateNP(track, true);
     showSpotBanner(track.name,'🎙️',false);
     startProg();
   }
+}
+function cancelResumeFallback(){
+  if(_resumeFallback){ clearTimeout(_resumeFallback); _resumeFallback=null; }
+}
+/* Deferred, cancellable resume after a spot ends.
+   Studio is the authority on the live position (its deck kept playing, only ducked),
+   so the correct resume is the PLAY it emits ~300ms after the spot. We therefore do
+   NOT resume immediately with a stale _lastRemotePos (that would jump backward and
+   double-load the player). Instead we arm a ~1.2s fallback: if Studio's PLAY arrives
+   first it calls cancelResumeFallback() and resumes with the correct position; if no
+   PLAY arrives (spot from panel, or WS hiccup) the fallback fires so we never sit in
+   the 30s silence. Single timer, always cleared — no leak, no reconnection loop. */
+function resumeAfterSpot(prevTrack){
+  cancelResumeFallback();
+  const target=(_lastRemoteTrack&&_lastRemoteTrack.type==='yt')?_lastRemoteTrack
+             :(prevTrack&&prevTrack.type==='yt')?prevTrack:null;
+  if(!target){ console.log('[sucursal] sin track previo — esperando próximo PLAY del servidor'); return; }
+  console.log('[sucursal] armando fallback de reanudación (1.2s) para',target.name);
+  _resumeFallback=setTimeout(()=>{
+    _resumeFallback=null;
+    console.log('[sucursal] fallback disparado — no llegó PLAY de Studio, reconectando',target.name);
+    playRemote(target, _lastRemotePos||0);
+  },1200);
 }
 function playJingle(){
   if(!jingleB64)return;

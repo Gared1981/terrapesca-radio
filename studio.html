@@ -1021,6 +1021,10 @@ async function playDJ(type){
     else { _resumeActiveDeckIfStalled(); }
     if(!decks[0].playing&&!decks[1].playing&&!_endedDuringDJ) setOnAir(false);
     refreshDJStatus();
+    // Notify sucursales after DJ so they reconnect without waiting for sync interval.
+    // Skip if a crossfade is in progress: activeDeck still points at the OLD deck mid-fade,
+    // so sending state now would push the wrong (old) track; doCrossfade emits its own PLAY.
+    setTimeout(()=>{ if(!_xfading) _wsSendCurrentState(); }, 300);
   }
 }
 function playClip(url){
@@ -1057,6 +1061,10 @@ async function playSpot(){
     if(_endedDuringDJ && !_xfading){ console.log('[Rodo] song ended during spot — advancing'); advanceNoXfade(); }
     else { _resumeActiveDeckIfStalled(); }
     refreshDJStatus();
+    // Notify sucursales so they reconnect without waiting for the 60s sync interval.
+    // Skip during a crossfade: activeDeck still points at the OLD deck mid-fade, so
+    // sending state now would push the wrong track; doCrossfade emits its own PLAY.
+    setTimeout(()=>{ if(!_xfading) _wsSendCurrentState(); }, 300);
   }
 }
 
