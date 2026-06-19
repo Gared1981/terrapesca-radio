@@ -2,6 +2,8 @@ const http = require('http');
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
+const { spawn } = require('child_process');
 const { WebSocketServer } = require('ws');
 
 let ytdl = null;
@@ -136,6 +138,81 @@ function startStreamKeepalive() {
   }, 3000); // every 3s during idle gaps between tracks
 }
 
+// ---- TEST RADIO ENGINE (Fase C2 — behind RADIO_ENGINE_TEST=1) ----
+// A parallel, isolated continuous stream: loops the 3 synthetic MP3 fixtures
+// through FFmpeg and serves them at /radio/stream-test. It does NOT touch the
+// production /radio/stream path, startStreamTrack, streamClients, or any HTML.
+// No YouTube / no ytdl-core. Engine starts lazily on first listener and stops
+// when the last one leaves.
+const ENGINE_TEST = process.env.RADIO_ENGINE_TEST === '1';
+const TEST_TRACKS = ['track1.mp3', 'track2.mp3', 'track3.mp3'];
+const testStreamClients = new Set();
+let testFfmpeg = null;
+let _testConcatFile = null;
+
+function writeToTestClients(chunk) {
+  testStreamClients.forEach(client => {
+    if (!client.destroyed && !client.writableEnded) {
+      try { client.write(chunk); } catch(_) {}
+    }
+  });
+}
+
+// Build an FFmpeg concat-demuxer list file pointing at the 3 fixtures.
+function _writeTestConcatList() {
+  const lines = TEST_TRACKS.map(name => {
+    const abs = path.join(__dirname, 'audio-test', name);
+    return "file '" + abs.replace(/'/g, "'\\''") + "'";
+  });
+  const file = path.join(os.tmpdir(), 'tp_stream_test_concat.txt');
+  fs.writeFileSync(file, lines.join('\n') + '\n');
+  return file;
+}
+
+function startTestEngine() {
+  if (testFfmpeg) return;
+  let ffmpegPath;
+  try { ffmpegPath = require('ffmpeg-static'); }
+  catch (e) { console.error('[stream-test] ffmpeg-static no disponible:', e.message); return; }
+  if (!ffmpegPath) { console.error('[stream-test] ffmpeg-static sin ruta de binario'); return; }
+  for (const name of TEST_TRACKS) {
+    const abs = path.join(__dirname, 'audio-test', name);
+    if (!fs.existsSync(abs)) { console.error('[stream-test] falta fixture:', abs); return; }
+  }
+  _testConcatFile = _writeTestConcatList();
+  // -re streams at real-time (radio pacing); -stream_loop -1 loops forever over
+  // the concat list. Fixtures are already homogeneous (44100/stereo/128k); we
+  // re-encode to keep timestamps clean across the loop boundary.
+  const args = [
+    '-hide_banner', '-loglevel', 'error',
+    '-re', '-stream_loop', '-1',
+    '-f', 'concat', '-safe', '0', '-i', _testConcatFile,
+    '-vn', '-c:a', 'libmp3lame', '-b:a', '128k', '-f', 'mp3', 'pipe:1'
+  ];
+  console.log('[stream-test] iniciando motor FFmpeg (loop de ' + TEST_TRACKS.length + ' pistas)');
+  testFfmpeg = spawn(ffmpegPath, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+  testFfmpeg.stdout.on('data', chunk => writeToTestClients(chunk));
+  testFfmpeg.stderr.on('data', d => { const s = String(d).trim(); if (s) console.error('[stream-test ffmpeg]', s); });
+  testFfmpeg.on('error', e => { console.error('[stream-test] error de proceso:', e.message); testFfmpeg = null; });
+  testFfmpeg.on('exit', (code, sig) => {
+    console.log('[stream-test] FFmpeg terminó (code ' + code + ' sig ' + sig + ')');
+    testFfmpeg = null;
+    // Auto-restart only if listeners are still attached (e.g. a mid-stream crash).
+    if (testStreamClients.size > 0) {
+      console.log('[stream-test] reiniciando motor por clientes activos');
+      setTimeout(startTestEngine, 500);
+    }
+  });
+}
+
+function stopTestEngine() {
+  if (!testFfmpeg) return;
+  console.log('[stream-test] deteniendo motor FFmpeg (sin clientes)');
+  const proc = testFfmpeg;
+  testFfmpeg = null; // null first so the exit handler won't auto-restart
+  try { proc.kill('SIGKILL'); } catch(_) {}
+}
+
 // ---- HTTP PROXY HELPERS ----
 const PROXY_TIMEOUT_MS = 15000;       // upstream APIs must answer within 15s
 const MAX_PROXY_BYTES = 8 * 1024 * 1024; // cap non-audio proxy responses at 8MB
@@ -260,6 +337,37 @@ const server = http.createServer((req, res) => {
     req.on('close', () => {
       streamClients.delete(res);
       console.log(`Stream client disconnected. Total: ${streamClients.size}`);
+    });
+    return;
+  }
+
+  // ── /radio/stream-test — Fase C2 continuous test stream (behind RADIO_ENGINE_TEST=1) ──
+  // Parallel to /radio/stream; FFmpeg loops the 3 synthetic fixtures. No production impact.
+  if (urlPath === '/radio/stream-test') {
+    if (!ENGINE_TEST) {
+      res.writeHead(503, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'RADIO_ENGINE_TEST no habilitado' }));
+      return;
+    }
+    res.writeHead(200, {
+      'Content-Type': 'audio/mpeg',
+      'Transfer-Encoding': 'chunked',
+      'Cache-Control': 'no-cache, no-store',
+      'Connection': 'keep-alive',
+      'Access-Control-Allow-Origin': '*',
+      'icy-name': 'Radio Terrapesca (test)',
+      'icy-genre': 'Test',
+      'icy-url': 'https://terrapesca.com',
+      'icy-metaint': '0',
+      'X-Content-Type-Options': 'nosniff',
+    });
+    testStreamClients.add(res);
+    console.log(`[stream-test] cliente conectado. Total: ${testStreamClients.size}`);
+    startTestEngine();
+    req.on('close', () => {
+      testStreamClients.delete(res);
+      console.log(`[stream-test] cliente desconectado. Total: ${testStreamClients.size}`);
+      if (testStreamClients.size === 0) stopTestEngine();
     });
     return;
   }
@@ -508,6 +616,8 @@ const server = http.createServer((req, res) => {
     filePath = path.join(__dirname, 'sucursal.html');
   } else if (req.url === '/listen' || req.url === '/listen.html') {
     filePath = path.join(__dirname, 'listen.html');
+  } else if (ENGINE_TEST && (req.url === '/sucursal-stream' || req.url === '/sucursal-stream.html')) {
+    filePath = path.join(__dirname, 'sucursal-stream.html');
   }
 
   if (filePath && fs.existsSync(filePath)) {
@@ -624,4 +734,7 @@ server.listen(PORT, () => {
   console.log(`Terrapesca Radio corriendo en puerto ${PORT}`);
   console.log(`Stream disponible en /radio/stream`);
   console.log(`ytdl-core: ${ytdl ? 'disponible' : 'no disponible'}`);
+  if (ENGINE_TEST) {
+    console.log(`[stream-test] HABILITADO — /radio/stream-test y /sucursal-stream activos`);
+  }
 });
