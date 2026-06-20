@@ -1,0 +1,6 @@
+[
+  { "role": "track1", "source": "audio-source/cancion1.mp3" },
+  { "role": "track2", "source": "audio-source/cancion2.mp3" },
+  { "role": "track3", "source": "audio-source/cancion3.mp3" },
+  { "role": "rodo",   "source": "audio-source/rodo.mp3" }
+]

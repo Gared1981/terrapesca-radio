@@ -3,7 +3,7 @@ const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const { spawn } = require('child_process');
+const { spawn, spawnSync } = require('child_process');
 const { WebSocketServer } = require('ws');
 
 let ytdl = null;
@@ -213,6 +213,300 @@ function stopTestEngine() {
   try { proc.kill('SIGKILL'); } catch(_) {}
 }
 
+// ---- LIVE RODO ENGINE (Fase C-LIVE — behind RADIO_ENGINE_TEST=1) ----
+// Production-ready carril: reads real music from audio-live/ (NOT audio-test/).
+// Fails loudly if audio-live/ is absent or incomplete — never falls back to test tones.
+// Rodo mixes in every LIVE_RODO_INTERVAL seconds with fade-ducking.
+const LIVE_DIR            = path.join(__dirname, 'audio-live');
+const LIVE_RODO_INTERVAL  = 360;   // 6 minutes between Rodo appearances
+const LIVE_DUCK_LEVEL     = 0.22;  // 22% ≈ -13 dB
+const LIVE_FADE_DOWN_SECS = 0.6;
+const LIVE_FADE_UP_SECS   = 1.0;
+
+const liveStreamClients = new Set();
+let liveFfmpeg       = null;
+let _liveMusicConcat = null;
+let _livePaddedPath  = null;
+let _liveRodoDur     = null;
+
+function writeToLiveClients(chunk) {
+  liveStreamClients.forEach(client => {
+    if (!client.destroyed && !client.writableEnded) {
+      try { client.write(chunk); } catch(_) {}
+    }
+  });
+}
+
+// Discover track1.mp3, track2.mp3, … trackN.mp3 sequentially (stops at first gap).
+function _discoverLiveTracks() {
+  const tracks = [];
+  for (let i = 1; ; i++) {
+    const p = path.join(LIVE_DIR, 'track' + i + '.mp3');
+    if (!fs.existsSync(p)) break;
+    tracks.push(p);
+  }
+  return tracks;
+}
+
+// Returns an error string if audio-live/ is not usable; null if ready.
+function _checkLiveReady() {
+  if (!fs.existsSync(LIVE_DIR))                      return 'carpeta audio-live/ no existe en el servidor';
+  if (!_discoverLiveTracks().length)                  return 'no hay track1.mp3 … en audio-live/';
+  if (!fs.existsSync(path.join(LIVE_DIR, 'rodo.mp3'))) return 'audio-live/rodo.mp3 no existe';
+  return null;
+}
+
+function _writeLiveMusicConcat(tracks) {
+  const lines = tracks.map(abs => "file '" + abs.replace(/'/g, "'\\''") + "'");
+  const file = path.join(os.tmpdir(), 'tp_live_music_concat.txt');
+  fs.writeFileSync(file, lines.join('\n') + '\n');
+  return file;
+}
+
+// Synchronously build [LIVE_RODO_INTERVAL s silence][rodo.mp3] — runs once per process.
+function _buildLivePaddedFile(ffmpegPath) {
+  const rodoSrc = path.join(LIVE_DIR, 'rodo.mp3');
+  const out = path.join(os.tmpdir(), 'tp_live_rodo_padded.mp3');
+  console.log('[live-engine] generando silence+rodo (' + LIVE_RODO_INTERVAL + 's + rodo.mp3)…');
+  const r = spawnSync(ffmpegPath, [
+    '-y',
+    '-f', 'lavfi', '-t', String(LIVE_RODO_INTERVAL), '-i', 'anullsrc=r=44100:cl=stereo',
+    '-i', rodoSrc,
+    '-filter_complex', '[0:a][1:a]concat=n=2:v=0:a=1[out]',
+    '-map', '[out]', '-c:a', 'libmp3lame', '-b:a', '128k', '-ar', '44100',
+    out
+  ], { encoding: 'utf8', maxBuffer: 1 << 26 });
+  if (r.status !== 0) {
+    console.error('[live-engine] fallo al generar live_rodo_padded:', (r.stderr || '').slice(-500));
+    return null;
+  }
+  console.log('[live-engine] live_rodo_padded listo →', out);
+  return out;
+}
+
+function _probeDuration(ffmpegPath, filePath) {
+  const r = spawnSync(ffmpegPath, ['-i', filePath], { encoding: 'utf8' });
+  const m = /Duration:\s*(\d+):(\d+):(\d+\.\d+)/.exec(r.stderr || '');
+  if (!m) return null;
+  return (+m[1]) * 3600 + (+m[2]) * 60 + parseFloat(m[3]);
+}
+
+function startLiveEngine() {
+  if (liveFfmpeg) return;
+  let ffmpegPath;
+  try { ffmpegPath = require('ffmpeg-static'); }
+  catch (e) { console.error('[live-engine] ffmpeg-static no disponible:', e.message); return; }
+  if (!ffmpegPath) { console.error('[live-engine] ffmpeg-static sin ruta de binario'); return; }
+
+  const err = _checkLiveReady();
+  if (err) { console.error('[live-engine] audio-live/ no listo:', err); return; }
+
+  const tracks = _discoverLiveTracks();
+  if (!_liveMusicConcat) _liveMusicConcat = _writeLiveMusicConcat(tracks);
+
+  if (_liveRodoDur === null) _liveRodoDur = _probeDuration(ffmpegPath, path.join(LIVE_DIR, 'rodo.mp3'));
+  if (!_liveRodoDur) { console.error('[live-engine] no se pudo leer duración de audio-live/rodo.mp3'); return; }
+
+  if (!_livePaddedPath) _livePaddedPath = _buildLivePaddedFile(ffmpegPath);
+  if (!_livePaddedPath) return;
+
+  // Volume automation: duck music around each Rodo appearance.
+  const T0    = LIVE_RODO_INTERVAL - LIVE_FADE_DOWN_SECS;
+  const T1    = LIVE_RODO_INTERVAL;
+  const T2    = T1 + _liveRodoDur;
+  const T3    = T2 + LIVE_FADE_UP_SECS;
+  const CYCLE = T3;
+  const UP    = (1 - LIVE_DUCK_LEVEL).toFixed(4);
+  const DL    = LIVE_DUCK_LEVEL.toFixed(4);
+
+  const volExpr =
+    `if(lt(mod(t,${CYCLE}),${T0}),1.0,` +
+    `if(lte(mod(t,${CYCLE}),${T1}),` +
+      `1.0-${UP}*(mod(t,${CYCLE})-${T0})/${LIVE_FADE_DOWN_SECS},` +
+    `if(lte(mod(t,${CYCLE}),${T2}),${DL},` +
+    `if(lte(mod(t,${CYCLE}),${T3}),` +
+      `${DL}+${UP}*(mod(t,${CYCLE})-${T2})/${LIVE_FADE_UP_SECS},` +
+    `1.0))))`;
+
+  const filterGraph =
+    `[0:a]volume=volume='${volExpr}':eval=frame[m];` +
+    `[1:a]volume=1.0[r];` +
+    `[m][r]amix=inputs=2:duration=longest:dropout_transition=3[out]`;
+
+  const args = [
+    '-hide_banner', '-loglevel', 'error',
+    '-re',
+    '-stream_loop', '-1', '-f', 'concat', '-safe', '0', '-i', _liveMusicConcat,
+    '-stream_loop', '-1', '-i', _livePaddedPath,
+    '-filter_complex', filterGraph,
+    '-map', '[out]',
+    '-vn', '-c:a', 'libmp3lame', '-b:a', '128k', '-f', 'mp3', 'pipe:1'
+  ];
+
+  console.log('[live-engine] iniciando FFmpeg (' + tracks.length + ' tracks, CYCLE=' + CYCLE.toFixed(0) + 's, rodo=' + _liveRodoDur.toFixed(1) + 's)');
+  liveFfmpeg = spawn(ffmpegPath, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+  liveFfmpeg.stdout.on('data', chunk => writeToLiveClients(chunk));
+  liveFfmpeg.stderr.on('data', d => { const s = String(d).trim(); if (s) console.error('[live-engine ffmpeg]', s); });
+  liveFfmpeg.on('error', e => { console.error('[live-engine] error de proceso:', e.message); liveFfmpeg = null; });
+  liveFfmpeg.on('exit', (code, sig) => {
+    console.log('[live-engine] FFmpeg terminó (code ' + code + ' sig ' + sig + ')');
+    liveFfmpeg = null;
+    if (liveStreamClients.size > 0) {
+      console.log('[live-engine] reiniciando por clientes activos');
+      setTimeout(startLiveEngine, 500);
+    }
+  });
+}
+
+function stopLiveEngine() {
+  if (!liveFfmpeg) return;
+  console.log('[live-engine] deteniendo motor (sin clientes)');
+  const proc = liveFfmpeg;
+  liveFfmpeg = null;
+  try { proc.kill('SIGKILL'); } catch(_) {}
+}
+
+// ---- RODO-DUCKING ENGINE (Fase C3 — behind RADIO_ENGINE_TEST=1) ----
+// Second parallel carril: same 3-track loop, DJ Rodo mixed in every
+// RODO_INTERVAL_SECS. Music ducks to DUCK_LEVEL with smooth fades.
+// Completely independent of testFfmpeg/testStreamClients — never touches C2.
+const RODO_INTERVAL_SECS = 90;   // music-only gap between Rodo appearances
+const DUCK_LEVEL         = 0.25; // 25% ≈ -12 dB
+const FADE_DOWN_SECS     = 0.5;  // seconds to ramp music down
+const FADE_UP_SECS       = 0.9;  // seconds to ramp music back up
+
+const rodoStreamClients = new Set();
+let rodoFfmpeg       = null;
+let _rodoMusicConcat = null; // separate tmpfile, same 3 tracks
+let _rodoPaddedPath  = null; // [silence][rodo.mp3] pre-baked once per process
+let _rodoDurSecs     = null; // probed duration of rodo.mp3
+
+function writeToRodoClients(chunk) {
+  rodoStreamClients.forEach(client => {
+    if (!client.destroyed && !client.writableEnded) {
+      try { client.write(chunk); } catch(_) {}
+    }
+  });
+}
+
+function _writeRodoMusicConcat() {
+  const lines = TEST_TRACKS.map(name => {
+    const abs = path.join(__dirname, 'audio-test', name);
+    return "file '" + abs.replace(/'/g, "'\\''") + "'";
+  });
+  const file = path.join(os.tmpdir(), 'tp_rodo_music_concat.txt');
+  fs.writeFileSync(file, lines.join('\n') + '\n');
+  return file;
+}
+
+// Synchronously build [RODO_INTERVAL_SECS of silence][rodo.mp3] as one MP3.
+// Blocks the event loop for ~1-3 s on first client connect; acceptable for MVP.
+function _buildRodoPaddedFile(ffmpegPath) {
+  const rodoSrc = path.join(__dirname, 'audio-test', 'rodo.mp3');
+  const out = path.join(os.tmpdir(), 'tp_rodo_padded.mp3');
+  console.log('[rodo-engine] generando silence+rodo (' + RODO_INTERVAL_SECS + 's + rodo.mp3)…');
+  const r = spawnSync(ffmpegPath, [
+    '-y',
+    '-f', 'lavfi', '-t', String(RODO_INTERVAL_SECS), '-i', 'anullsrc=r=44100:cl=stereo',
+    '-i', rodoSrc,
+    '-filter_complex', '[0:a][1:a]concat=n=2:v=0:a=1[out]',
+    '-map', '[out]', '-c:a', 'libmp3lame', '-b:a', '128k', '-ar', '44100',
+    out
+  ], { encoding: 'utf8', maxBuffer: 1 << 26 });
+  if (r.status !== 0) {
+    console.error('[rodo-engine] fallo al generar rodo_padded:', (r.stderr || '').slice(-500));
+    return null;
+  }
+  console.log('[rodo-engine] rodo_padded listo →', out);
+  return out;
+}
+
+function _probeRodoDuration(ffmpegPath) {
+  const rodoSrc = path.join(__dirname, 'audio-test', 'rodo.mp3');
+  const r = spawnSync(ffmpegPath, ['-i', rodoSrc], { encoding: 'utf8' });
+  const m = /Duration:\s*(\d+):(\d+):(\d+\.\d+)/.exec(r.stderr || '');
+  if (!m) return null;
+  return (+m[1]) * 3600 + (+m[2]) * 60 + parseFloat(m[3]);
+}
+
+function startRodoEngine() {
+  if (rodoFfmpeg) return;
+  let ffmpegPath;
+  try { ffmpegPath = require('ffmpeg-static'); }
+  catch (e) { console.error('[rodo-engine] ffmpeg-static no disponible:', e.message); return; }
+  if (!ffmpegPath) { console.error('[rodo-engine] ffmpeg-static sin ruta de binario'); return; }
+
+  for (const name of [...TEST_TRACKS, 'rodo.mp3']) {
+    const abs = path.join(__dirname, 'audio-test', name);
+    if (!fs.existsSync(abs)) { console.error('[rodo-engine] falta fixture:', abs); return; }
+  }
+
+  if (!_rodoMusicConcat) _rodoMusicConcat = _writeRodoMusicConcat();
+
+  if (_rodoDurSecs === null) _rodoDurSecs = _probeRodoDuration(ffmpegPath);
+  if (!_rodoDurSecs) { console.error('[rodo-engine] no se pudo leer duración de rodo.mp3'); return; }
+
+  if (!_rodoPaddedPath) _rodoPaddedPath = _buildRodoPaddedFile(ffmpegPath);
+  if (!_rodoPaddedPath) return;
+
+  // Volume automation timed against output clock mod CYCLE.
+  // T0: begin fade-down  T1: fully ducked  T2: rodo ends, begin fade-up  T3: fully restored
+  const T0    = RODO_INTERVAL_SECS - FADE_DOWN_SECS;
+  const T1    = RODO_INTERVAL_SECS;
+  const T2    = T1 + _rodoDurSecs;
+  const T3    = T2 + FADE_UP_SECS;
+  const CYCLE = T3;
+  const UP    = (1 - DUCK_LEVEL).toFixed(4);
+  const DL    = DUCK_LEVEL.toFixed(4);
+
+  // Single expression: full vol → linear fade-down → ducked → linear fade-up → full vol.
+  const volExpr =
+    `if(lt(mod(t,${CYCLE}),${T0}),1.0,` +
+    `if(lte(mod(t,${CYCLE}),${T1}),` +
+      `1.0-${UP}*(mod(t,${CYCLE})-${T0})/${FADE_DOWN_SECS},` +
+    `if(lte(mod(t,${CYCLE}),${T2}),${DL},` +
+    `if(lte(mod(t,${CYCLE}),${T3}),` +
+      `${DL}+${UP}*(mod(t,${CYCLE})-${T2})/${FADE_UP_SECS},` +
+    `1.0))))`;
+
+  const filterGraph =
+    `[0:a]volume=volume='${volExpr}':eval=frame[m];` +
+    `[1:a]volume=1.0[r];` +
+    `[m][r]amix=inputs=2:duration=longest:dropout_transition=3[out]`;
+
+  const args = [
+    '-hide_banner', '-loglevel', 'error',
+    '-re',
+    '-stream_loop', '-1', '-f', 'concat', '-safe', '0', '-i', _rodoMusicConcat,
+    '-stream_loop', '-1', '-i', _rodoPaddedPath,
+    '-filter_complex', filterGraph,
+    '-map', '[out]',
+    '-vn', '-c:a', 'libmp3lame', '-b:a', '128k', '-f', 'mp3', 'pipe:1'
+  ];
+
+  console.log('[rodo-engine] iniciando FFmpeg (CYCLE=' + CYCLE.toFixed(1) + 's, rodo=' + _rodoDurSecs.toFixed(1) + 's)');
+  rodoFfmpeg = spawn(ffmpegPath, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+  rodoFfmpeg.stdout.on('data', chunk => writeToRodoClients(chunk));
+  rodoFfmpeg.stderr.on('data', d => { const s = String(d).trim(); if (s) console.error('[rodo-engine ffmpeg]', s); });
+  rodoFfmpeg.on('error', e => { console.error('[rodo-engine] error de proceso:', e.message); rodoFfmpeg = null; });
+  rodoFfmpeg.on('exit', (code, sig) => {
+    console.log('[rodo-engine] FFmpeg terminó (code ' + code + ' sig ' + sig + ')');
+    rodoFfmpeg = null;
+    if (rodoStreamClients.size > 0) {
+      console.log('[rodo-engine] reiniciando por clientes activos');
+      setTimeout(startRodoEngine, 500);
+    }
+  });
+}
+
+function stopRodoEngine() {
+  if (!rodoFfmpeg) return;
+  console.log('[rodo-engine] deteniendo motor (sin clientes)');
+  const proc = rodoFfmpeg;
+  rodoFfmpeg = null; // null first — prevents auto-restart in exit handler
+  try { proc.kill('SIGKILL'); } catch(_) {}
+}
+
 // ---- HTTP PROXY HELPERS ----
 const PROXY_TIMEOUT_MS = 15000;       // upstream APIs must answer within 15s
 const MAX_PROXY_BYTES = 8 * 1024 * 1024; // cap non-audio proxy responses at 8MB
@@ -368,6 +662,73 @@ const server = http.createServer((req, res) => {
       testStreamClients.delete(res);
       console.log(`[stream-test] cliente desconectado. Total: ${testStreamClients.size}`);
       if (testStreamClients.size === 0) stopTestEngine();
+    });
+    return;
+  }
+
+  // ── /radio/stream-test-rodo — Fase C3: música + Rodo con ducking (behind RADIO_ENGINE_TEST=1) ──
+  if (urlPath === '/radio/stream-test-rodo') {
+    if (!ENGINE_TEST) {
+      res.writeHead(503, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'RADIO_ENGINE_TEST no habilitado' }));
+      return;
+    }
+    res.writeHead(200, {
+      'Content-Type': 'audio/mpeg',
+      'Transfer-Encoding': 'chunked',
+      'Cache-Control': 'no-cache, no-store',
+      'Connection': 'keep-alive',
+      'Access-Control-Allow-Origin': '*',
+      'icy-name': 'Radio Terrapesca (test + Rodo)',
+      'icy-genre': 'Test',
+      'icy-url': 'https://terrapesca.com',
+      'icy-metaint': '0',
+      'X-Content-Type-Options': 'nosniff',
+    });
+    rodoStreamClients.add(res);
+    console.log(`[rodo-engine] cliente conectado. Total: ${rodoStreamClients.size}`);
+    startRodoEngine();
+    req.on('close', () => {
+      rodoStreamClients.delete(res);
+      console.log(`[rodo-engine] cliente desconectado. Total: ${rodoStreamClients.size}`);
+      if (rodoStreamClients.size === 0) stopRodoEngine();
+    });
+    return;
+  }
+
+  // ── /radio/stream-live-rodo — Fase C-LIVE: música real + Rodo con ducking (behind RADIO_ENGINE_TEST=1) ──
+  // Uses audio-live/ ONLY. Returns 503 JSON if files are missing — never falls back to test tones.
+  if (urlPath === '/radio/stream-live-rodo') {
+    if (!ENGINE_TEST) {
+      res.writeHead(503, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'RADIO_ENGINE_TEST no habilitado' }));
+      return;
+    }
+    const liveErr = _checkLiveReady();
+    if (liveErr) {
+      res.writeHead(503, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'audio-live/ no listo: ' + liveErr }));
+      return;
+    }
+    res.writeHead(200, {
+      'Content-Type': 'audio/mpeg',
+      'Transfer-Encoding': 'chunked',
+      'Cache-Control': 'no-cache, no-store',
+      'Connection': 'keep-alive',
+      'Access-Control-Allow-Origin': '*',
+      'icy-name': 'Radio Terrapesca',
+      'icy-genre': 'Radio',
+      'icy-url': 'https://terrapesca.com',
+      'icy-metaint': '0',
+      'X-Content-Type-Options': 'nosniff',
+    });
+    liveStreamClients.add(res);
+    console.log(`[live-engine] cliente conectado. Total: ${liveStreamClients.size}`);
+    startLiveEngine();
+    req.on('close', () => {
+      liveStreamClients.delete(res);
+      console.log(`[live-engine] cliente desconectado. Total: ${liveStreamClients.size}`);
+      if (liveStreamClients.size === 0) stopLiveEngine();
     });
     return;
   }
@@ -618,6 +979,10 @@ const server = http.createServer((req, res) => {
     filePath = path.join(__dirname, 'listen.html');
   } else if (ENGINE_TEST && (req.url === '/sucursal-stream' || req.url === '/sucursal-stream.html')) {
     filePath = path.join(__dirname, 'sucursal-stream.html');
+  } else if (ENGINE_TEST && (req.url === '/sucursal-stream-rodo' || req.url === '/sucursal-stream-rodo.html')) {
+    filePath = path.join(__dirname, 'sucursal-stream-rodo.html');
+  } else if (ENGINE_TEST && (req.url === '/sucursal-live-rodo' || req.url === '/sucursal-live-rodo.html')) {
+    filePath = path.join(__dirname, 'sucursal-live-rodo.html');
   }
 
   if (filePath && fs.existsSync(filePath)) {
@@ -735,6 +1100,12 @@ server.listen(PORT, () => {
   console.log(`Stream disponible en /radio/stream`);
   console.log(`ytdl-core: ${ytdl ? 'disponible' : 'no disponible'}`);
   if (ENGINE_TEST) {
-    console.log(`[stream-test] HABILITADO — /radio/stream-test y /sucursal-stream activos`);
+    console.log(`[stream-test] HABILITADO — /radio/stream-test, /sucursal-stream, /radio/stream-test-rodo, /sucursal-stream-rodo activos`);
+    const liveReady = _checkLiveReady();
+    if (liveReady) {
+      console.log(`[live-engine] /radio/stream-live-rodo → NO LISTO: ${liveReady}`);
+    } else {
+      console.log(`[live-engine] /radio/stream-live-rodo y /sucursal-live-rodo LISTOS`);
+    }
   }
 });

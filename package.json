@@ -5,7 +5,8 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "prepare-audio": "node scripts/prepare-audio-test.js"
+    "prepare-audio": "node scripts/prepare-audio-test.js",
+    "prepare-audio-live": "node scripts/prepare-audio-live.js"
   },
   "dependencies": {
     "@distube/ytdl-core": "^4.16.12",
