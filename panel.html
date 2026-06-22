@@ -1940,6 +1940,14 @@ GUION: [texto final del spot listo para narrar, sin etiquetas]`;
 
 // ---- GENERATE SPOT ----
 async function generateSpot(){
+  // Enforce AI generation hours: 09:00–17:59 America/Mazatlan only
+  var nowMzt = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Mazatlan' }));
+  var nowH = nowMzt.getHours(), nowM = nowMzt.getMinutes();
+  var nowMins = nowH * 60 + nowM;
+  if (nowMins < 9 * 60 || nowMins >= 18 * 60) {
+    alert('La IA solo genera contenido de 9:00 AM a 6:00 PM. Fuera de horario.');
+    return;
+  }
   if(!cfg.apiKey){showToast('⚙️ Configura tu API Key de ElevenLabs','info');openConfig();return}
   if(!cfg.anthropicKey){showToast('⚙️ Configura tu API Key de Anthropic','info');openConfig();return}
 
@@ -1966,7 +1974,7 @@ async function generateSpot(){
   try{
     const sr=await fetch(`${baseUrl}/api/anthropic`,{
       method:'POST',
-      headers:{'Content-Type':'application/json','x-api-key':cfg.anthropicKey},
+      headers:{'Content-Type':'application/json','x-api-key':cfg.anthropicKey,'x-tp-ai-spot':'1'},
       body:JSON.stringify({
         model:'claude-sonnet-4-20250514',max_tokens:1200,
         messages:[{role:'user',content:buildPrompt(contenido,estilo,horaRadio)}]
@@ -3532,24 +3540,19 @@ function _djTagsForLevel(){
 
 function buildDJRodoPrompt(type,ctx){
   const tagsInstructions=_djTagsForLevel();
-  const identity=`Eres DJ Rodo. Radio Terrapesca. Español mexicano. Locutor de campaña agresiva de ventas — el tipo que mueve mercancía en radio regional.
-
-REGLA DE ORO: Cada frase debe sonar como si la dijera alguien que de verdad quiere que el oyente llegue hoy a la tienda. Urgencia REAL. No actuada.
-
-ESCRITURA PARA SÍNTESIS DE VOZ: Frases cortísimas. Golpe directo. Verbos de acción al inicio. Una idea por frase. El sintetizador lee exactamente lo que escribas — hazlo sonar dinámico desde el texto. Usa coma donde hay pausa natural. Punto donde hay golpe fuerte.
-MAL: "Te invitamos a visitar nuestras instalaciones y conocer nuestra gran variedad de productos."
-BIEN: "¡Llega hoy a Terrapesca. Todo lo que necesitas, en un solo lugar!"
-
-CUANDO menciones canciones: título y artista con energía, corto. "¡Viene 'La Chona' de Los Tucanes!" No más.
-PROHIBIDO: frases largas · "te invitamos" · "contamos con" · "no te pierdas" · "quédate" · español de España · tono institucional · texto de más de 25 palabras.
-PROHIBIDO iniciar con: "Hola" · "Hey" · "amigos" · "oyente" · "sintonizas" · "estimado" · "DJ Rodo" · "hola soy".
-NO uses corchetes ni etiquetas. Texto final listo para grabar.
+  const identity=`Eres DJ Rodo, locutor mexicano de Radio Terrapesca.
+Tu trabajo es acompañar la programación con intervenciones breves, útiles y naturales para pescadores, clientes y radioescuchas de Terrapesca.
+Solo puedes generar contenido entre 9:00 AM y 6:00 PM hora de Sinaloa/Mazatlán.
+Si estás fuera de horario, responde únicamente: "Fuera de horario autorizado para generar contenido."
+Cuando estés en horario, genera intervenciones de 10 a 20 segundos.
+No leas títulos de canciones. No menciones YouTube. No inventes datos exactos de clima, presas o mareas. No hagas afirmaciones peligrosas.
+Estilo: locutor mexicano natural, tono cálido y con energía, entra directo al valor, cierra con frase corta.
 
 ${tagsInstructions}
 
 FORMATO: SOLO el guión. Sin comillas. 1-2 frases MUY cortas. Máximo 20 palabras total.`;
 
-  const hora=ctx.hora;
+  const hora=ctx.hora||getHoraRadio?.()|| '';
   const slogan=ctx.stationSlogan||'Música, pesca, marina y outdoor';
   const cur=ctx.currentSong?`"${ctx.currentSong.title}"${ctx.currentSong.artist?' de '+ctx.currentSong.artist:''}`:'la canción anterior';
   const nxt=ctx.nextSong?`"${ctx.nextSong.title}"${ctx.nextSong.artist?' de '+ctx.nextSong.artist:''}`:'la siguiente';
@@ -3569,105 +3572,114 @@ FORMATO: SOLO el guión. Sin comillas. 1-2 frases MUY cortas. Máximo 20 palabra
   }
 
   const scripts={
-    TIME_CHECK:
-`${identity}
-
-Da la hora (${hora}) de forma natural. Entra directo.
-Ejemplo de tono: "[confident][upbeat] Son ${hora}. Sigues en Radio Terrapesca."
-TU VERSIÓN:${avoid}`,
-
-    STATION_ID:
-`${identity}
-
-ID de estación. Directo, seguro. Slogan opcional: "${slogan}"
-Ejemplo: "[radio announcer][confident] Radio Terrapesca. Música, pesca, marina y outdoor."
-TU VERSIÓN:${avoid}`,
-
-    SONG_BRIDGE:
-`${identity}
-
-Transición entre canciones. Acaba de sonar ${cur}. Ahora va ${nxt}.
-Menciona TÍTULO y ARTISTA de la siguiente. Natural, rápido, de locutor FM.
-Ejemplo: "Eso fue 'La Chona' de Los Tucanes. Ahora viene 'Vivir mi Vida' de Marc Anthony."
-TU VERSIÓN:${avoid}`,
-
-    SONG_REVIEW:
-`${identity}
-
-Comenta brevemente lo que acaba de sonar: ${cur}. Menciona TÍTULO y ARTISTA.
-Ejemplo: "[confident][upbeat] Acabamos de escuchar 'Amor Eterno' de Juan Gabriel. Clásico total."
-TU VERSIÓN:${avoid}`,
-
-    NEXT_SONG_TEASER:
-`${identity}
-
-Anuncia la siguiente canción: ${nxt}. Menciona TÍTULO y ARTISTA. Brevísimo, emocionante.
-Ejemplo: "[fast-paced][confident] Viene 'Bohemian Rhapsody' de Queen. Seguimos en Radio Terrapesca."
-TU VERSIÓN:${avoid}`,
-
-    PROMO_TEASER:
-`${identity}
-
-Mención breve de Terrapesca que despierte ganas de comprar. Una sola idea concreta, con urgencia natural. Puede mencionar disponibilidad, surtido, calidad o momento de compra.
-Ejemplo: "En Terrapesca tienen lo que llevas meses buscando. Pregunta hoy."
-TU VERSIÓN:${avoid}`,
-
     FISHING_TIP:
 `${identity}
 
-Tip breve y útil de pesca o equipo. Tono experto y casual. Máximo 2 oraciones.
-Ejemplo: "[upbeat][natural delivery] Tip Terrapesca: revisa nudos y freno antes del primer lance. Lo básico gana peleas."
+Da un tip práctico de pesca deportiva o comercial. Puede ser sobre señuelos, técnica, zona de pesca o carnada. Útil, concreto, máximo 2 oraciones.
+Ejemplo: "[upbeat][natural delivery] Tip del día: en aguas turbias, señuelo oscuro contrasta más. Más picadas, más pesca."
 TU VERSIÓN:${avoid}`,
 
     WEATHER_REPORT:
 `${identity}
 
-Reporte de clima. Usa SOLO estos datos reales, no inventes:
+Reporte de clima general para pescadores de Sinaloa. Usa SOLO estos datos reales, no inventes números:
 ${weatherCtx||'No hay datos de clima disponibles. Di que no hay reporte disponible en este momento.'}
 ${forecastCtx}
 Tono serio-informativo. Si no hay datos, no menciones cifras.
-Ejemplo: "[confident][natural delivery] Clima Terrapesca: Los Mochis marca 34 grados. Revisa condiciones antes de salir."
+Ejemplo: "[confident][natural delivery] Clima Terrapesca: viento moderado del norte en la costa. Revisa condiciones antes de salir."
 TU VERSIÓN:${avoid}`,
 
     FISHING_FORECAST:
 `${identity}
 
-Predicción de pesca. Usa SOLO estos datos:
+Condiciones generales para salir a pescar en Sinaloa. Usa SOLO estos datos:
 ${forecastCtx||'No hay predicción disponible. Di "predicción no disponible en este momento".'}
 ${weatherCtx}
-No prometas capturas. No digas "garantizado". Preséntalo como orientación.
-Ejemplo: "[fast-paced][confident] Predicción Terrapesca: actividad media por la tarde. Para robalo, prueba minnow blanco o paddle tail."
+No prometas capturas. No digas "garantizado". Preséntalo como orientación para el pescador.
+Ejemplo: "[fast-paced][confident] Buenas condiciones por la mañana en la costa. Para robalo, prueba señuelo blanco o plateado."
 TU VERSIÓN:${avoid}`,
 
-    SPOT_INTRO:
+    STATION_ID:
 `${identity}
 
-Presenta un mensaje comercial. Una sola oración. Directo.
-Ejemplo: "[fast-paced][confident] Pausa rápida para equiparte mejor. Va Terrapesca."
+ID breve de Radio Terrapesca. Directo, seguro, cálido. Slogan opcional: "${slogan}"
+Ejemplo: "[radio announcer][confident] Radio Terrapesca. Música, pesca, marina y outdoor."
 TU VERSIÓN:${avoid}`,
 
-    SPOT_OUTRO:
+    TIME_CHECK:
 `${identity}
 
-Cierra un mensaje comercial y regresa al aire. Una sola oración.
-Ejemplo: "[confident][upbeat] Terrapesca, equipo que sí responde. Seguimos con música."
+Da la hora (${hora}) de forma natural junto con un tip breve para el pescador. Entra directo.
+Ejemplo: "[confident][upbeat] Son ${hora}. Buen momento para revisar tu equipo antes de la tarde."
+TU VERSIÓN:${avoid}`,
+
+    GEAR_TIP:
+`${identity}
+
+Tip de equipo de pesca: línea, carrete, caña, señuelo o chaleco salvavidas. Práctico, útil, sin exagerar.
+Ejemplo: "[natural delivery][confident] Revisa tu línea antes de cada salida. Una línea desgastada puede costarte la pieza del día."
+TU VERSIÓN:${avoid}`,
+
+    SAFETY_TIP:
+`${identity}
+
+Tip de seguridad en pesca: uso de chaleco salvavidas, comunicación, revisión de equipo antes de zarpar. Tono responsable pero no alarmista.
+Ejemplo: "[serious][natural delivery] Antes de salir al agua, chaleco puesto y teléfono cargado. La seguridad primero."
+TU VERSIÓN:${avoid}`,
+
+    RESERVOIR_UPDATE:
+`${identity}
+
+Mención general sobre los embalses o presas de Sinaloa para pescadores. No inventes niveles ni datos exactos. Invita a verificar condiciones.
+Ejemplo: "[confident][natural delivery] Si vas a las presas de Sinaloa, verifica niveles y accesos antes de salir. Condiciones cambian."
+TU VERSIÓN:${avoid}`,
+
+    PROMO_TEASER:
+`${identity}
+
+Invitación suave a visitar Terrapesca. Una sola idea sobre disponibilidad de equipo, surtido o atención. Sin presión agresiva.
+Ejemplo: "[warm][natural delivery] En Terrapesca encuentras el equipo que necesitas. Pasa a vernos."
+TU VERSIÓN:${avoid}`,
+
+    SONG_BRIDGE:
+`${identity}
+
+Puente musical breve entre canciones. Sin mencionar títulos ni artistas. Natural, de locutor de radio.
+Ejemplo: "[natural delivery][confident] Seguimos con más música en Radio Terrapesca."
 TU VERSIÓN:${avoid}`,
 
     BLOCK_OPEN:
 `${identity}
 
-Abre un bloque musical. Breve, con energía.
-Ejemplo: "[energetic][confident] DJ Rodo te acompaña. Vamos con más música."
+Abre un bloque musical. Breve, con energía. Puedes mencionar la radio o un tip rápido.
+Ejemplo: "[energetic][confident] Arrancamos bloque musical. Radio Terrapesca, contigo en la jornada."
 TU VERSIÓN:${avoid}`,
 
     BLOCK_CLOSE:
 `${identity}
 
-Cierra un bloque musical. Breve, natural.
-Ejemplo: "[confident][natural delivery] Buena música. La jornada sigue."
+Cierra un bloque musical. Breve, natural. Puede incluir referencia a pesca o clima.
+Ejemplo: "[confident][natural delivery] Buena música. Seguimos en Radio Terrapesca."
+TU VERSIÓN:${avoid}`,
+
+    SPOT_INTRO:
+`${identity}
+
+Presenta una pausa comercial. Una sola oración. Directo y cálido.
+Ejemplo: "[fast-paced][confident] Pausa rápida. Ahora, un mensaje de Terrapesca."
+TU VERSIÓN:${avoid}`,
+
+    SPOT_OUTRO:
+`${identity}
+
+Cierra una pausa comercial y regresa al aire. Una sola oración.
+Ejemplo: "[confident][upbeat] Terrapesca, tu tienda de pesca en Sinaloa. Seguimos con música."
 TU VERSIÓN:${avoid}`,
   };
-  return scripts[type]||scripts.SONG_BRIDGE;
+  return scripts[type]||`${identity}
+
+Intervención general de 10 a 15 segundos sobre pesca, clima o equipo para los radioescuchas de Terrapesca. Útil y directo.
+TU VERSIÓN:${avoid}`;
 }
 
 function getDJRodoFallback(type,ctx){
@@ -3739,6 +3751,14 @@ function getDJRodoFallback(type,ctx){
 }
 
 async function generateDJScript(type,nextIdx){
+  // Enforce AI generation hours: 09:00–17:59 America/Mazatlan only
+  var nowMzt = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Mazatlan' }));
+  var nowH = nowMzt.getHours(), nowM = nowMzt.getMinutes();
+  var nowMins = nowH * 60 + nowM;
+  if (nowMins < 9 * 60 || nowMins >= 18 * 60) {
+    console.warn('[DJ Rodo] Fuera de horario autorizado (09:00–18:00 Mazatlan). Generacion cancelada.');
+    return null;
+  }
   if(!cfg.anthropicKey) return null;
   // Pre-fetch weather/forecast data for relevant types before building prompt
   if(type==='WEATHER_REPORT'||type==='FISHING_FORECAST'){
@@ -3752,7 +3772,7 @@ async function generateDJScript(type,nextIdx){
   try{
     const r=await fetch('/api/anthropic',{
       method:'POST',
-      headers:{'Content-Type':'application/json','x-api-key':cfg.anthropicKey},
+      headers:{'Content-Type':'application/json','x-api-key':cfg.anthropicKey,'x-tp-ai-spot':'1'},
       body:JSON.stringify({
         model:'claude-sonnet-4-20250514',
         max_tokens:140,

@@ -923,7 +923,7 @@ setInterval(async()=>{
 /* ================= /CAMPAÑA ================= */
 
 const DJ_ROTATION_NORMAL=['TIME_CHECK','SPOT','STATION_ID','WEATHER_REPORT','FISHING_TIP','SONG_BRIDGE','SPOT','PROMO_TEASER','FISHING_FORECAST','SPOT','STATION_ID','WEATHER_REPORT','SONG_BRIDGE','TIME_CHECK'];
-const DJ_ROTATION_CAMPAIGN=['VENTA_NOCTURNA','SPOT','TIME_CHECK','VENTA_NOCTURNA','WEATHER_REPORT','SONG_BRIDGE','VENTA_NOCTURNA','FISHING_TIP','VENTA_NOCTURNA','SPOT','STATION_ID','VENTA_NOCTURNA','SONG_BRIDGE','VENTA_NOCTURNA'];
+const DJ_ROTATION_CAMPAIGN=['TIME_CHECK','SPOT','STATION_ID','WEATHER_REPORT','FISHING_TIP','SONG_BRIDGE','SPOT','PROMO_TEASER','FISHING_FORECAST','SPOT','STATION_ID','WEATHER_REPORT','SONG_BRIDGE','TIME_CHECK'];
 function _djRotation(){return _campaignActive()?DJ_ROTATION_CAMPAIGN:DJ_ROTATION_NORMAL;}
 
 function setDJFreq(f){djFreq=f;document.querySelectorAll('#djFreqCtrl .s').forEach(s=>s.classList.toggle('on',s.dataset.f===f));refreshDJStatus();}
@@ -1073,9 +1073,10 @@ async function genDJScript(type){
   const ctx=await buildCtx(type);
   if(!cfg.antKey) return {script:djFallback(type,ctx),cmd:null};
   try{
+    console.log('[ai-content] generando tipo:',type);
     const tokens=type==='SONG_BRIDGE'?220:type==='VENTA_OPEN'?300:140;
     const r=await fetch('/api/anthropic',{
-      method:'POST',headers:{'Content-Type':'application/json','x-api-key':cfg.antKey},
+      method:'POST',headers:{'Content-Type':'application/json','x-api-key':cfg.antKey,'x-tp-ai-spot':'1'},
       body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:tokens,
         messages:[{role:'user',content:djPrompt(type,ctx)}]})
     });
@@ -1087,11 +1088,13 @@ async function genDJScript(type){
       try{
         const parsed=JSON.parse(raw);
         const cmd=parsed.cmd&&typeof parsed.cmd.idx==='number'?parsed.cmd:null;
+        console.log('[ai-content] '+type+' generado');
         return {script:parsed.script||djFallback(type,ctx),cmd};
       }catch(_){}
     }
+    console.log('[ai-content] '+type+' generado');
     return {script:raw||djFallback(type,ctx),cmd:null};
-  }catch(e){return {script:djFallback(type,ctx),cmd:null};}
+  }catch(e){console.error('[ai-content] error generando:',type,e);return {script:djFallback(type,ctx),cmd:null};}
 }
 const HORA_H=['','una','dos','tres','cuatro','cinco','seis','siete','ocho','nueve','diez','once','doce'];
 function horaRadio(){
@@ -1141,84 +1144,56 @@ async function buildCtx(type){
   return ctx;
 }
 function djPrompt(type,ctx){
-  const identity=`Eres DJ Rodo. Radio Terrapesca. Español mexicano. Locutor de campaña agresiva de ventas — el tipo que mueve mercancía en radio regional.
+  const hora=ctx&&ctx.hora?ctx.hora:horaRadio();
+  const systemPrompt=`Eres DJ Rodo, locutor mexicano de Radio Terrapesca.
+Tu trabajo es acompañar la programación con intervenciones breves, útiles y naturales para pescadores, clientes y radioescuchas de Terrapesca.
+Solo puedes generar contenido entre 9:00 AM y 6:00 PM hora de Sinaloa/Mazatlán.
+Si el sistema indica que estás fuera de horario, responde únicamente: "Fuera de horario autorizado para generar contenido."
+Cuando estés en horario, genera intervenciones de 10 a 20 segundos.
+No leas títulos de canciones. No menciones que la música viene de YouTube. No inventes datos exactos de clima, presas o mareas si no los tienes. No hagas afirmaciones peligrosas.
+Estilo: locutor mexicano natural, tono cálido y con energía, habla como radio en vivo, entra directo al valor, cierra con frase corta.
+ESCRITURA PARA SÍNTESIS DE VOZ: Frases cortísimas. Una idea por frase. Usa coma donde hay pausa natural. Punto donde hay golpe fuerte.
+FORMATO: SOLO el guión. Sin comillas. Sin corchetes ni etiquetas. Texto final listo para grabar.`;
 
-REGLA DE ORO: Cada frase debe sonar como si la dijera alguien que de verdad quiere que el oyente llegue hoy a la tienda. Urgencia REAL. No actuada.
+  const queueLines=(ctx&&ctx.queue||[]).map(x=>`  ${x.i}: "${x.name}" — ${x.artist||'artista desconocido'}`).join('\n');
+  const curLine=ctx&&ctx.currentSong?`Canción ACTUAL (NO la repitas ni la menciones): "${ctx.currentSong.name}" — ${ctx.currentSong.artist}`:'';
 
-ESCRITURA PARA SÍNTESIS DE VOZ: Frases cortísimas. Golpe directo. Verbos de acción al inicio. Una idea por frase. El sintetizador lee exactamente lo que escribas — hazlo sonar dinámico desde el texto. Usa coma donde hay pausa natural. Punto donde hay golpe fuerte.
-MAL: "Te invitamos a visitar nuestras instalaciones y conocer nuestra gran variedad de productos."
-BIEN: "¡Llega hoy a Terrapesca. Todo lo que necesitas, en un solo lugar!"
-
-PROHIBIDO: frases largas · "te invitamos" · "contamos con" · "no te pierdas" · "quédate" · español de España · tono institucional · adjetivos suaves · texto de más de 25 palabras.
-PROHIBIDO iniciar con: "Hola" · "Hey" · "amigos" · "oyente" · "sintonizas" · "estimado" · "DJ Rodo" · "hola soy".
-NO uses corchetes ni etiquetas. Texto final listo para grabar.
-
-FORMATO: SOLO el guión. Sin comillas. 1-2 frases MUY cortas. Máximo 20 palabras total.`;
-  const w=ctx.w;
-  const wCtx=w&&w.temp!=null?`CLIMA REAL (usa SOLO estos datos, no inventes): ${w.city}, ${w.temp}°C, ${wDesc(w.code)}, viento ${w.wind} km/h.`:'No hay datos de clima — habla de forma general, sin cifras.';
-  const queueLines=(ctx.queue||[]).map(x=>`  ${x.i}: "${x.name}" — ${x.artist||'artista desconocido'}`).join('\n');
-  const curLine=ctx.currentSong?`Canción ACTUAL (NO la repitas): "${ctx.currentSong.name}" — ${ctx.currentSong.artist}`:'';
-  const map={
-    TIME_CHECK:`${identity}\n\nDa la hora (${ctx.hora}). Entra directo con energía, sin preámbulo. Aprovecha para anclar al oyente.\nEjemplo de tono: "¡Son ${ctx.hora}! Sigues en la única Radio Terrapesca."\nTU VERSIÓN:`,
-    STATION_ID:`${identity}\n\nIdentificación de estación. Potente, orgullosa, con slogan: "${ctx.slogan}". Menciona sucursales en Culiacán, Mazatlán y Los Mochis como puntos de poder.\nEjemplo: "Radio Terrapesca — ${ctx.slogan}. Tres sucursales: Culiacán, Mazatlán y Los Mochis. ¡Terrapesca es tu lugar!"\nTU VERSIÓN:`,
-    WEATHER_REPORT:`${identity}\n\nClima útil para pescadores, tono informativo con urgencia de acción.\n${wCtx}\nEjemplo: "Clima Terrapesca: ${w&&w.temp!=null?w.city+' a '+w.temp+' grados. Condiciones '+wDesc(w.code)+'.':'condiciones estables hoy.'} ¡Prepara el equipo!"\nTU VERSIÓN:`,
-    FISHING_FORECAST:`${identity}\n\nPredicción de pesca con energía de experto y urgencia de salir hoy. No prometas capturas, sí recomienda especie o técnica con confianza.\n${wCtx}\nEjemplo: "Predicción Terrapesca: tarde activa para robalo cerca de estructura. Minnow blanco, freno apretado. ¡Sal hoy!"\nTU VERSIÓN:`,
-    FISHING_TIP:`${identity}\n\nTip de pesca o equipo: corto, útil, con autoridad de experto. Termina con impulso a actuar.\nEjemplo: "Tip Terrapesca: revisa nudos antes del primer lance. Un nudo malo pierde el pez. ¡Cuídate en el agua!"\nTU VERSIÓN:`,
-    PROMO_TEASER:`${identity}\n\nMención de Terrapesca con urgencia de compra. Una idea concreta, fuerte, con cierre que mueva al oyente a visitar hoy. Disponibilidad, surtido, oportunidad o momento de compra.\nEjemplo: "Terrapesca tiene todo lo que necesitas y más. ¡Pásate hoy, equípate y pesca como los grandes!"\nTU VERSIÓN:`,
-    VENTA_NOCTURNA:(()=>{
-      const c=ctx.campaign;
-      const esEventDay=_isEventDay();
-      const tipos=['mención de fecha','horarios por sucursal','recordatorio breve','anticipación','cierre con marca'];
-      const tipo=tipos[Math.floor(Math.random()*tipos.length)];
-      return `${identity}
-
-MODO CAMPAÑA — VENTA NOCTURNA TERRAPESCA.
-Tu único mensaje: recordar LA FECHA y LOS HORARIOS. Nada más.
-Fecha del evento: ${c.eventDate}.
-Horarios: Culiacán ${c.horarios.culiacan}. Los Mochis y Mazatlán ${c.horarios.mazatlan}.
-Marca cierre opcional: "${c.marca}."
-
-TIPO: ${tipo}
-${esEventDay?'HOY ES EL DÍA. Urgencia real. Habla como si el evento fuera en horas.':'Genera anticipación. El evento es el '+c.eventDate+'. No hagas sonar que ya está pasando.'}
-
-REGLAS:
-- SOLO menciona la fecha y/o los horarios — NADA de promociones, descuentos ni productos
-- Máximo 2 frases, 20 palabras en total
-- Tono: DJ en cabina, natural, no institucional
-- Varía cada vez: no repitas siempre la misma frase
-- Frases prohibidas: "amantes de la pesca", "no te lo puedes perder", "atención clientes"
-
-EJEMPLOS CORRECTOS:
-"Este ${c.eventDate} se viene la Venta Nocturna Terrapesca. Anótalo, no lo dejes pasar."
-"Dato rápido: Culiacán de 9 a 5, Los Mochis y Mazatlán de 6 a 10. ${c.eventDate}. Seguimos."
-"${c.eventDate}, Venta Nocturna Terrapesca. Un solo día. Date la vuelta."
-"Ya falta poco: ${c.eventDate}, tres sucursales, un día de oportunidades. ${c.marca}."
-
-TU INTERVENCIÓN:`;
-    })(),
-    VENTA_OPEN:`${identity}
-
-MOMENTO ESPECIAL: Son las 6 de la tarde del ${CAMPAIGN.eventDate}. LA VENTA NOCTURNA ACABA DE COMENZAR.
-Rodo interrumpe la música para dar la bienvenida oficial a todos los que están en tienda.
-Sucursales activas AHORA: Mazatlán y Los Mochis. De 6 de la tarde a 10 de la noche.
-(Culiacán cerró a las 5.)
-
-Genera una bienvenida de 20-30 segundos que:
-- Interrumpa con energía total, como locutor de evento en vivo
-- Dé la bienvenida a todos los pescadores presentes en tienda
-- Repase rápido las promociones estrella: 20% kayaks, 20% combos vara+carrete sin Shimano, 15% varas y señuelos, 2x1 zapato acuático
-- Invite a comprar de forma ordenada y acercarse a los colaboradores si hay dudas
-- Cierre con: "${CAMPAIGN.marca}. ${CAMPAIGN.frase}."
-- Máximo 50 palabras
-- Tono: locutor de evento en vivo, festivo pero ordenado, urgencia real
-
-TU BIENVENIDA:`,
-    SONG_BRIDGE:(()=>{
-      const m=ctx.mood||{mood:'',desc:''};
-      return `${identity}\n\nEres el DJ. Elige la SIGUIENTE canción basándote en el ESTADO DE ÁNIMO del momento y anúnciala con TÍTULO y ARTISTA.\n${curLine}\n\nESTADO DE ÁNIMO ACTUAL — ${m.mood} (${ctx.hora}):\n${m.desc}.\nElige la canción de la cola que MEJOR encaje con este estado de ánimo y este momento del día.\nSi ninguna encaja perfectamente, elige la que más se acerque.\n\nCOLA DISPONIBLE (elige UNA):\n${queueLines||'  (cola vacía)'}\n\nReglas:\n- Elige con criterio de DJ profesional según el estado de ánimo y la hora\n- Anúnciala con nombre y artista, con ritmo y actitud de locutor en vivo\n- Máximo 2 oraciones\n- NO menciones índices ni números\n- NO expliques por qué elegiste esa canción\n\nResponde SOLO con este JSON exacto (sin markdown, sin backticks):\n{"script":"tu guión aquí","cmd":{"action":"load_song","idx":N}}`;
-    })(),
+  const typePrompts={
+    FISHING_TIP:
+      `${systemPrompt}\n\nSon ${hora}. Da un tip práctico de pesca deportiva o comercial. Puede ser sobre señuelos, técnica, zona, carnada, horario de actividad de peces o comportamiento según el clima. De 10 a 15 segundos. Sin títulos de canciones. Cierra natural.`,
+    WEATHER_REPORT:
+      `${systemPrompt}\n\nSon ${hora}. Comenta el clima de forma general para pescadores de Sinaloa y Mazatlán. Habla de calor, viento, lluvia o mareas en términos generales. Si no tienes dato real, habla responsablemente en general. No inventes números exactos. De 10 a 15 segundos.`,
+    FISHING_FORECAST:
+      `${systemPrompt}\n\nSon ${hora}. Da una recomendación general de condiciones para salir a pescar hoy: zona, horario, tipo de pesca. Si no tienes datos reales, da recomendación general responsable. De 10 a 15 segundos.`,
+    STATION_ID:
+      `${systemPrompt}\n\nSon ${hora}. Identifica brevemente la estación: Radio Terrapesca. Menciona que están acompañando a pescadores y clientes de Sinaloa. Frase natural de radio. 5 a 10 segundos.`,
+    TIME_CHECK:
+      `${systemPrompt}\n\nSon ${hora}. Di la hora de forma natural como locutor de radio. Añade algo breve y útil para el oyente: recomendación de pesca, equipo, seguridad o clima general. 5 a 10 segundos.`,
+    GEAR_TIP:
+      `${systemPrompt}\n\nSon ${hora}. Da un tip sobre equipo de pesca: línea, carrete, caña, señuelo, anzuelo, chaleco, kayak o accesorio. Algo práctico y breve. Menciona Terrapesca de forma natural si encaja. De 10 a 15 segundos.`,
+    SAFETY_TIP:
+      `${systemPrompt}\n\nSon ${hora}. Da un consejo de seguridad para pescadores: en lancha, kayak, playa, presa o mar abierto. Chaleco, comunicación, viento, revisión de equipo. Frase corta y directa. De 10 a 15 segundos.`,
+    RESERVOIR_UPDATE:
+      `${systemPrompt}\n\nSon ${hora}. Comenta sobre embalses, presas o ríos de Sinaloa de forma general: pesca en presa, actividad de carpas o bagres, nivel de agua según temporada. No inventes porcentajes reales. De 10 a 15 segundos.`,
+    PROMO_TEASER:
+      `${systemPrompt}\n\nSon ${hora}. Invita de forma suave y natural a visitar Terrapesca: señuelos, varas, carretes, línea, accesorios. Sin presión. Tono de recomendación de experto. De 10 a 15 segundos.`,
+    SONG_BRIDGE:
+      `${systemPrompt}\n\nSon ${hora}. Haz un puente musical breve entre canciones. Comenta el ambiente, da ánimo al oyente, conecta con algo útil de pesca o clima. No digas el título de la canción. No menciones YouTube. 5 a 10 segundos.\n${curLine}\nCOLA DISPONIBLE (para referencia del ambiente, NO menciones números ni índices):\n${queueLines||'  (cola vacía)'}\n\nResponde SOLO con este JSON exacto (sin markdown, sin backticks):\n{"script":"tu guión aquí","cmd":{"action":"load_song","idx":0}}`,
+    BLOCK_OPEN:
+      `${systemPrompt}\n\nSon ${hora}. Abre un bloque musical de Radio Terrapesca con energía. Saluda brevemente, ubica al oyente en Sinaloa o Mazatlán, anuncia que viene buena música. 5 a 10 segundos.`,
+    BLOCK_CLOSE:
+      `${systemPrompt}\n\nSon ${hora}. Cierra un bloque de programación. Agradece al oyente, menciona Radio Terrapesca, da un mini tip o frase motivadora para pescadores. 5 a 10 segundos.`,
+    SPOT_INTRO:
+      `${systemPrompt}\n\nSon ${hora}. Introduce brevemente un anuncio o mensaje de Terrapesca. Frase de transición natural. 3 a 5 segundos.`,
+    SPOT_OUTRO:
+      `${systemPrompt}\n\nSon ${hora}. Cierra brevemente después de un anuncio. Regresa la atención a la programación musical. 3 a 5 segundos.`,
+    VENTA_NOCTURNA:
+      `${systemPrompt}\n\nSon ${hora}. Comenta brevemente sobre las actividades y novedades de Terrapesca. Tono natural de radio. 10 a 15 segundos.`,
+    VENTA_OPEN:
+      `${systemPrompt}\n\nSon ${hora}. Saluda brevemente a los clientes de Terrapesca. Menciona que hay buen surtido disponible. Tono festivo y breve. 10 a 15 segundos.`,
   };
-  return map[type]||map.TIME_CHECK;
+
+  return typePrompts[type]||`${systemPrompt}\n\nSon ${hora}. Genera una intervención breve de 10 a 15 segundos sobre pesca, clima, seguridad o equipo para oyentes de Radio Terrapesca en Sinaloa.`;
 }
 function djFallback(type,ctx){
   // For SONG_BRIDGE fallback, pick a random song from queue

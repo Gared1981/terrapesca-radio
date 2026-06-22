@@ -583,6 +583,22 @@ function readLimitedBody(req, res, cb) {
   req.on('end', () => { if (!aborted) cb(body); });
 }
 
+// Returns true if AI spot generation is allowed right now (9:00–17:59 America/Mazatlan).
+// Override for local testing: AI_SPOT_TEST_TIME=HH:MM
+function aiHoursAllowed() {
+  let h, m;
+  const testTime = process.env.AI_SPOT_TEST_TIME;
+  if (testTime && /^\d{1,2}:\d{2}$/.test(testTime)) {
+    [h, m] = testTime.split(':').map(Number);
+  } else {
+    const mzt = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Mazatlan' }));
+    h = mzt.getHours();
+    m = mzt.getMinutes();
+  }
+  const mins = h * 60 + m;
+  return mins >= 9 * 60 && mins < 18 * 60; // 09:00 to 17:59
+}
+
 // ---- HTTP SERVER ----
 const server = http.createServer((req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -782,6 +798,15 @@ const server = http.createServer((req, res) => {
 
   // ── Proxy Anthropic ──
   if (req.url === '/api/anthropic' && req.method === 'POST') {
+    if (req.headers['x-tp-ai-spot'] === '1') {
+      const allowed = aiHoursAllowed();
+      console.log(allowed ? '[ai-hours] permitido' : '[ai-hours] bloqueado fuera de horario');
+      if (!allowed) {
+        res.writeHead(403, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Generación de IA fuera de horario. Permitido solo de 9:00 AM a 6:00 PM.' }));
+        return;
+      }
+    }
     readLimitedBody(req, res, (body) => {
       const apiKey = req.headers['x-api-key'] || '';
       proxyPost('api.anthropic.com', '/v1/messages', {
