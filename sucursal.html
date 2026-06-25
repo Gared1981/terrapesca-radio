@@ -705,9 +705,12 @@ function handleMsg(msg){
         updateNP(msg.state.currentTrack, false);
       break;
     case 'PLAY':
+      console.log('[youtube-radio] play recibido');
       cancelResumeFallback();
+      _clearPostSpotWatchdog();
       if(_spotActive){
         // Don't interrupt the spot — save the state and apply it when the spot ends
+        console.log('[youtube-radio] play diferido por spot');
         _pendingPlayAfterSpot={track:msg.track, position:msg.position||0};
       } else {
         playRemote(msg.track, msg.position||0);
@@ -810,6 +813,7 @@ function playSpot(track){
   const prevTrack=_lastRemoteTrack;
   pauseMainForSpot();
   _spotActive=true;
+  console.log('[youtube-radio] spot activo');
   if(track.b64){
     // actualizar jingle si viene en el mensaje
     if(track.jingleB64)jingleB64=track.jingleB64;
@@ -843,6 +847,7 @@ function playSpot(track){
         const p=_pendingPlayAfterSpot; _pendingPlayAfterSpot=null;
         console.log('[sucursal] aplicando PLAY pendiente post-spot:',p.track.name,'pos',p.position);
         cancelResumeFallback();
+        _clearPostSpotWatchdog();
         playRemote(p.track, p.position);
       } else {
         resumeAfterSpot(prevTrack);
@@ -886,9 +891,46 @@ function resumeAfterSpot(prevTrack){
   console.log('[sucursal] armando fallback de reanudación (1.2s) para',target.name);
   _resumeFallback=setTimeout(()=>{
     _resumeFallback=null;
+    console.log('[youtube-radio] reanudando después de spot');
     console.log('[sucursal] fallback disparado — no llegó PLAY de Studio, reconectando',target.name);
     playRemote(target, _lastRemotePos||0);
   },1200);
+  _armPostSpotWatchdog(prevTrack);
+}
+
+// Post-spot audio watchdog: fires if YT player is not PLAYING 2s after spot ends.
+// Retries with backoff: 1s, 2s, 5s, 10s. Stops once playing or exhausted.
+var _postSpotWatchdog = null;
+var _postSpotTries = 0;
+var _postSpotDelays = [2000, 1000, 2000, 5000, 10000];
+
+function _armPostSpotWatchdog(prevTrack) {
+  _clearPostSpotWatchdog();
+  _postSpotTries = 0;
+  function _check() {
+    if (_spotActive) return; // spot came back, abort
+    var state = ytPlayer ? ytPlayer.getPlayerState() : -1;
+    if (state === 1) { console.log('[youtube-radio] post-spot: reproduciendo OK'); return; } // PLAYING
+    _postSpotTries++;
+    console.log('[youtube-radio] post-spot watchdog intento ' + _postSpotTries + ' estado=' + state);
+    if (state === 2 || state === -1) { // PAUSED or UNSTARTED
+      try { ytPlayer.playVideo(); } catch(e) {}
+    } else if (state === 0 || state === 5) { // ENDED or CUED
+      try { playRemote(prevTrack || _lastRemoteTrack, _lastRemotePos || 0); } catch(e) {}
+    }
+    var nextDelay = _postSpotDelays[_postSpotTries] || _postSpotDelays[_postSpotDelays.length - 1];
+    if (_postSpotTries < _postSpotDelays.length) {
+      _postSpotWatchdog = setTimeout(_check, nextDelay);
+    } else {
+      console.log('[youtube-radio] post-spot watchdog agotado');
+    }
+  }
+  _postSpotWatchdog = setTimeout(_check, _postSpotDelays[0]);
+}
+
+function _clearPostSpotWatchdog() {
+  if (_postSpotWatchdog) { clearTimeout(_postSpotWatchdog); _postSpotWatchdog = null; }
+  _postSpotTries = 0;
 }
 function playJingle(){
   if(!jingleB64)return;
