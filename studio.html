@@ -1399,7 +1399,7 @@ async function addYTLink(){
         added++;
         if(added%5===0){renderQueue();toast(`Cargando… ${added}/${videoIds.length}`,'ok');}
       }
-      renderQueue();
+      renderQueue();saveQueue();
       toast(`✅ ${added} canciones agregadas de la playlist`,'ok');
     }catch(e){
       // Fallback: YouTube Data API if key available
@@ -1432,9 +1432,9 @@ async function addYTLink(){
   const id=getYTId(raw);
   if(!id){toast('Link o ID no válido','error');return;}
   queue.push({ytId:id,name:'YouTube '+(queue.length+1),artist:''});
-  inp.value='';renderQueue();toast('Agregada a la cola','ok');
+  inp.value='';renderQueue();saveQueue();toast('Agregada a la cola','ok');
   fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${id}&format=json`).then(r=>r.json()).then(d=>{
-    const q=queue.find(x=>x.ytId===id);if(q){q.name=d.title||q.name;q.artist=d.author_name||'';renderQueue();}
+    const q=queue.find(x=>x.ytId===id);if(q){q.name=d.title||q.name;q.artist=d.author_name||'';renderQueue();saveQueue();}
   }).catch(()=>{});
 }
 function playFromQueue(i){
@@ -1445,8 +1445,8 @@ function playFromQueue(i){
     setCrossfader(activeDeck===0?0:100); renderQueue();
   });
 }
-function moveQ(i,dir){const j=i+dir;if(j<0||j>=queue.length)return;[queue[i],queue[j]]=[queue[j],queue[i]];if(queuePos===i)queuePos=j;else if(queuePos===j)queuePos=i;renderQueue();}
-function delQ(i){queue.splice(i,1);if(queuePos>=i)queuePos=Math.max(0,queuePos-1);renderQueue();}
+function moveQ(i,dir){const j=i+dir;if(j<0||j>=queue.length)return;[queue[i],queue[j]]=[queue[j],queue[i]];if(queuePos===i)queuePos=j;else if(queuePos===j)queuePos=i;renderQueue();saveQueue();}
+function delQ(i){queue.splice(i,1);if(queuePos>=i)queuePos=Math.max(0,queuePos-1);renderQueue();saveQueue();}
 function playSpotIdx(i){const sp=spots[i];if(!sp)return;const tmp=spots;spots=[sp];playSpot().finally(()=>spots=tmp);}
 
 /* Load a specific queue song into a chosen deck (A=0 / B=1) */
@@ -1768,6 +1768,20 @@ async function loadShared(){
   }catch(e){console.warn('shared load',e);}
   renderQueue();renderSpots();renderHistory();
   if(queue.length) toast(`${queue.length} canciones cargadas de la playlist`,'ok');
+}
+// Persist the current queue to IndexedDB (playlist/main) so it survives reloads.
+// Debounced to avoid hammering IDB during rapid edits.
+let _saveQueueTimer=null;
+function saveQueue(){
+  clearTimeout(_saveQueueTimer);
+  _saveQueueTimer=setTimeout(async()=>{
+    try{
+      const db=await openDB();
+      const items=queue.map(q=>({type:'yt',ytId:q.ytId,name:q.name||'YouTube',channelTitle:q.artist||''}));
+      db.transaction('playlist','readwrite').objectStore('playlist').put({key:'main',items});
+      console.log('[playlist] guardada ('+items.length+' canciones)');
+    }catch(e){console.warn('[playlist] error al guardar',e);}
+  },600);
 }
 
 /* ================= SETTINGS ================= */
