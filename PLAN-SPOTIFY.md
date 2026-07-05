@@ -96,11 +96,22 @@
 - [x] La metadata se conecta desde el load: el oyente ve qué suena y qué sigue **antes** de pulsar "Escuchar" (el audio sigue requiriendo el tap por la política de autoplay).
 - [x] MediaSession ya usaba carátula real en listen; ahora prefiere el `cover` del WS.
 
-### Fase 5 — Inteligencia y extras (opcional, 1–2 sesiones)
-- [ ] **"Radio infinita":** cuando la cola se acaba, Claude sugiere pistas nuevas (títulos/artistas afines al mood/hora) y se resuelven a videos con `/api/ytsearch` — recomendaciones de verdad, no solo dentro de la cola.
-- [ ] **Playlists por mood/hora:** materializar los `MOODS` existentes como playlists visibles ("Mañana tranquila", "Tarde de energía") que Rodo puede anunciar.
-- [ ] Estadísticas simples: top canciones por `playCount`, para que el equipo sepa qué suena más.
-- [ ] Actualizar `INSTRUCCIONES.md` al flujo real (studio + sucursal + listen).
+### Fase 5 — Inteligencia y extras ✅ COMPLETADA (núcleo)
+- [x] **"✨ Radio infinita":** botón en la cola — Claude sugiere 5 canciones reales según el mood por hora y el historial reciente (evitando lo que ya está en cola), y cada sugerencia se resuelve a un video real con `/api/ytsearch`. Las nuevas entran a la cola y a la biblioteca.
+- [x] **Estadísticas:** orden "🔥 Top canciones" (por `playCount`) y "A–Z" en la Biblioteca, además de Recientes.
+- [x] `INSTRUCCIONES.md` reescrito al flujo real: studio como control principal, sucursal/listen/tienda, claves API y troubleshooting actual.
+- [ ] *(Pendiente opcional)* Playlists por mood/hora materializadas como playlists visibles — ya es fácil con la infraestructura de playlists de Fase 3.
+- [ ] *(Pendiente opcional)* Disparo automático de "radio infinita" cuando la cola se agota (hoy la cola es circular, así que es un botón manual).
+
+---
+
+## Estado final
+
+**Las 6 fases del plan están implementadas y verificadas** (Fase 5 en su núcleo). La radio conserva
+su motor dual-deck con crossfade y DJ Rodo intactos, y ahora tiene: biblioteca persistente con
+favoritos e historial, playlists múltiples, búsqueda de YouTube, shuffle/repeat reales, barra de
+now-playing tipo Spotify, cola arrastrable, sugerencias de música por IA, y oyentes que ven carátula
+y próximas canciones.
 
 ### Qué NO hacer (decisiones explícitas)
 - **No** migrar a un framework/bundler: los archivos single-file son la arquitectura del proyecto y funcionan en las tiendas sin build.

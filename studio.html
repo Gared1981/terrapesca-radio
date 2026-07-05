@@ -509,6 +509,7 @@ input[type=range]::-moz-range-thumb{width:18px;height:24px;border-radius:5px;bac
       <div class="addrow">
         <input id="ytInput" placeholder="Pega link o ID de YouTube…"/>
         <button onclick="addYTLink()">＋</button>
+        <button onclick="aiSuggestSongs()" id="aiSuggestBtn" title="Rodo sugiere música nueva según la hora y lo que ha sonado" style="white-space:nowrap">✨ Radio infinita</button>
       </div>
       <div class="list" id="queueList"><div class="empty">Cargando playlist compartida…</div></div>
     </div>
@@ -537,7 +538,14 @@ input[type=range]::-moz-range-thumb{width:18px;height:24px;border-radius:5px;bac
   <div id="viewLib" class="xview" style="display:none">
     <div class="card">
       <h3>📚 BIBLIOTECA <span class="cnt" id="libCnt">0</span></h3>
-      <div class="addrow"><input id="libFilter" placeholder="Filtrar por título o artista…" oninput="renderLib()"/></div>
+      <div class="addrow">
+        <input id="libFilter" placeholder="Filtrar por título o artista…" oninput="renderLib()"/>
+        <select id="libSort" onchange="renderLib()" style="background:var(--panel2);color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:0 8px">
+          <option value="recent">🕒 Recientes</option>
+          <option value="top">🔥 Top canciones</option>
+          <option value="az">A–Z</option>
+        </select>
+      </div>
       <div class="list" id="libList" style="max-height:62vh"><div class="empty">Biblioteca vacía</div></div>
     </div>
   </div>
@@ -1579,6 +1587,65 @@ function _loadPlaylistViaIframe(plId){
     },250);
   });
 }
+/* ================= RADIO INFINITA (Fase 5) =================
+   Claude sugiere canciones nuevas según mood/hora e historial reciente;
+   cada sugerencia se resuelve a un video real vía /api/ytsearch. */
+let _aiSuggestBusy=false;
+async function aiSuggestSongs(){
+  if(_aiSuggestBusy) return;
+  if(!cfg.antKey){toast('Configura tu API key de Anthropic en CONFIG','error');return;}
+  if(!cfg.ytKey){toast('Configura tu YouTube API key en CONFIG','error');return;}
+  _aiSuggestBusy=true;
+  const btn=document.getElementById('aiSuggestBtn');
+  if(btn){btn.disabled=true;btn.textContent='✨ Pensando…';}
+  try{
+    const mood=_moodByHour();
+    const recent=history.slice(0,12).map(h=>`${h.name}${h.artist?' — '+h.artist:''}`).join('\n')||'(sin historial)';
+    const inQueue=queue.slice(0,25).map(q=>`${q.name}${q.artist?' — '+q.artist:''}`).join('\n')||'(cola vacía)';
+    const r=await fetch('/api/anthropic',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':cfg.antKey},
+      body:JSON.stringify({
+        model:'claude-sonnet-4-20250514',max_tokens:400,
+        messages:[{role:'user',content:
+`Eres el programador musical de Radio Terrapesca (tiendas de pesca en Sinaloa, México).
+Mood actual: ${mood.mood} — ${mood.desc}.
+Sonó recientemente:
+${recent}
+Ya está en la cola (NO las repitas):
+${inQueue}
+Sugiere 5 canciones REALES y conocidas que encajen con el mood y el estilo de lo que ha sonado (regional mexicano, banda, tropical, cumbia, éxitos latinos — según el historial). Responde SOLO este JSON, sin markdown:
+{"songs":[{"q":"artista - título"},...]}`}],
+      }),
+    });
+    const d=await r.json();
+    if(!r.ok||d.error) throw new Error(d.error?.message||d.error||'Error de IA');
+    let songs=[];
+    try{songs=(JSON.parse((d.content?.[0]?.text||'').trim()).songs||[]).map(s=>s.q).filter(Boolean);}catch(_){}
+    if(!songs.length) throw new Error('La IA no devolvió sugerencias');
+    let added=0;
+    for(const q of songs.slice(0,5)){
+      try{
+        const sr=await fetch(`/api/ytsearch?q=${encodeURIComponent(q)}&key=${encodeURIComponent(cfg.ytKey)}`);
+        const sd=await sr.json();
+        const hit=(sd.items||[]).find(it=>!queue.some(x=>x.ytId===it.ytId));
+        if(hit){
+          const tr={ytId:hit.ytId,name:hit.title,artist:hit.channel};
+          queue.push(tr);
+          libUpsert(tr,{duration:hit.duration||0});
+          added++;
+        }
+      }catch(_){}
+    }
+    if(added){renderQueue();saveQueue();toast(`✨ ${added} canciones nuevas agregadas a la cola`,'ok');}
+    else toast('No se encontraron canciones nuevas','error');
+  }catch(e){toast('⚠ '+e.message,'error');}
+  finally{
+    _aiSuggestBusy=false;
+    if(btn){btn.disabled=false;btn.textContent='✨ Radio infinita';}
+  }
+}
+
 /* ================= BÚSQUEDA (Fase 2 plan Spotify) ================= */
 let _searchResults=[];
 async function ytSearch(){
@@ -2421,7 +2488,11 @@ function _libRow(t){
 }
 function renderLib(){
   const f=(document.getElementById('libFilter').value||'').toLowerCase();
-  const items=_libCache.filter(t=>!f||(t.title||'').toLowerCase().includes(f)||(t.artist||'').toLowerCase().includes(f));
+  const sort=document.getElementById('libSort').value||'recent';
+  let items=_libCache.filter(t=>!f||(t.title||'').toLowerCase().includes(f)||(t.artist||'').toLowerCase().includes(f));
+  if(sort==='top') items=[...items].sort((a,b)=>(b.playCount||0)-(a.playCount||0));
+  else if(sort==='az') items=[...items].sort((a,b)=>(a.title||'').localeCompare(b.title||'','es'));
+  // 'recent' = orden de _libCache (lastPlayedAt/addedAt desc)
   document.getElementById('libCnt').textContent=items.length;
   document.getElementById('libList').innerHTML=items.length?items.map(_libRow).join(''):'<div class="empty">Sin resultados</div>';
 }
