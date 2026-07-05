@@ -531,7 +531,11 @@ function _wsSend(msg){
 }
 function _wsPlayTrack(item, positionSecs){
   if(!item||!item.ytId) return;
-  _wsSend({ type:'PLAY', track:{type:'yt',ytId:item.ytId,name:item.name||'',channelTitle:item.artist||''}, position:Math.round(positionSecs||0) });
+  // cover + duration enriquecen el now-playing de sucursal/listen (Fase 1).
+  // La duración puede ser 0 al cargar; el pulso de sync de 60s la refresca.
+  let dur=0; try{dur=Math.round(decks[activeDeck]?.player.getDuration()||0);}catch(_){}
+  _wsSend({ type:'PLAY', track:{type:'yt',ytId:item.ytId,name:item.name||'',channelTitle:item.artist||'',
+    cover:trackCover(item.ytId), duration:dur}, position:Math.round(positionSecs||0) });
 }
 function _wsSpotAudio(ab, name){
   // Convert ArrayBuffer → base64 and relay as SPOT to all sucursal listeners
@@ -678,7 +682,7 @@ function loadDeck(id,item,play){
   }catch(_){}
   renderDeck(id);
   if(play!==false){
-    pushHistory(item);
+    _onTrackStarted(item,id);
     // Only notify server when this deck is (or will be) the active one
     if(id===activeDeck || !decks[activeDeck===0?1:0].playing){
       _wsPlayTrack(item, 0);
@@ -786,6 +790,7 @@ function doCrossfade(){
           const after=(queuePos+1)%queue.length;
           if(queue.length>1 && queue[after]) cueDeck(cur.id,queue[after]);
           _trackPlayed(nxtItem.ytId);
+          _onTrackStarted(nxtItem,nxt.id); // historial + biblioteca (antes el auto-mix no registraba historial)
           renderQueue();
           let _syncPos=0; try{_syncPos=nxt.player.getCurrentTime()||0;}catch(_){}
           _wsPlayTrack(nxtItem, _syncPos);
@@ -1763,12 +1768,122 @@ function toggleFlag(k){
   if(k==='dj'||k==='aiSelect') refreshDJStatus();
 }
 
-/* ================= LOAD SHARED DATA (IndexedDB de panel.html) ================= */
-const IDB_NAME='TerrapescaRadio',IDB_VER=2;
+/* ================= LOAD SHARED DATA (IndexedDB compartida con panel.html) ================= */
+// v3 (Fase 1 plan Spotify): `tracks` pasa a ser la BIBLIOTECA (keyPath ytId),
+// se agregan `playlists` (multi-playlist) e `history` (historial persistente).
+// `playlist`/`session` no cambian — panel.html depende de ellas.
+// ⚠️ Si cambias IDB_VER aquí, cámbialo también en panel.html (misma base de datos;
+// abrir con versión menor lanza VersionError y rompe la otra app).
+const IDB_NAME='TerrapescaRadio',IDB_VER=3;
+function _idbUpgrade(db){
+  ['playlist','session'].forEach(s=>{if(!db.objectStoreNames.contains(s))db.createObjectStore(s,{keyPath:'key'});});
+  // `tracks` existía con keyPath 'key' pero nunca se usó — se recrea como biblioteca
+  if(db.objectStoreNames.contains('tracks')) db.deleteObjectStore('tracks');
+  db.createObjectStore('tracks',{keyPath:'ytId'});
+  if(!db.objectStoreNames.contains('playlists')) db.createObjectStore('playlists',{keyPath:'id'});
+  if(!db.objectStoreNames.contains('history')) db.createObjectStore('history',{autoIncrement:true});
+}
 function openDB(){return new Promise((res,rej)=>{const r=indexedDB.open(IDB_NAME,IDB_VER);
-  r.onupgradeneeded=()=>{const db=r.result;['playlist','session','tracks'].forEach(s=>{if(!db.objectStoreNames.contains(s))db.createObjectStore(s,{keyPath:'key'});});};
+  r.onupgradeneeded=()=>_idbUpgrade(r.result);
   r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);});}
 function idbGet(db,store,key){return new Promise((res)=>{try{const tx=db.transaction(store,'readonly').objectStore(store).get(key);tx.onsuccess=()=>res(tx.result);tx.onerror=()=>res(null);}catch(e){res(null);}});}
+function idbAll(db,store){return new Promise((res)=>{try{const tx=db.transaction(store,'readonly').objectStore(store).getAll();tx.onsuccess=()=>res(tx.result||[]);tx.onerror=()=>res([]);}catch(e){res([]);}});}
+
+/* ================= BIBLIOTECA (store `tracks`) ================= */
+function trackCover(ytId){return 'https://img.youtube.com/vi/'+ytId+'/mqdefault.jpg';}
+// Las escrituras a la biblioteca son read-modify-write async: se serializan con
+// esta cola para que dos reproducciones rápidas no pisen el playCount de la otra.
+let _libLock=Promise.resolve();
+function _libQueue(fn){const p=_libLock.then(fn,fn);_libLock=p.catch(()=>{});return p;}
+// Inserta/actualiza un track en la biblioteca preservando addedAt/playCount/liked.
+// opts.played=true registra una reproducción; opts.duration persiste la duración.
+function libUpsert(t,opts={}){
+  if(!t||!t.ytId) return Promise.resolve(null);
+  return _libQueue(async()=>{
+    try{
+      const db=await openDB();
+      const cur=await idbGet(db,'tracks',t.ytId)||{};
+      const rec={
+        ytId:t.ytId,
+        title:t.name||t.title||cur.title||'YouTube',
+        artist:t.artist||cur.artist||'',
+        cover:trackCover(t.ytId),
+        duration:opts.duration||cur.duration||0,
+        addedAt:cur.addedAt||Date.now(),
+        playCount:(cur.playCount||0)+(opts.played?1:0),
+        liked:cur.liked||false,
+        lastPlayedAt:opts.played?Date.now():(cur.lastPlayedAt||0),
+      };
+      await new Promise((res,rej)=>{const q=db.transaction('tracks','readwrite').objectStore('tracks').put(rec);q.onsuccess=res;q.onerror=()=>rej(q.error);});
+      return rec;
+    }catch(e){console.warn('[lib]',e);return null;}
+  });
+}
+function libSetLiked(ytId,liked){
+  return _libQueue(async()=>{
+    try{const db=await openDB();const cur=await idbGet(db,'tracks',ytId);
+      if(cur){cur.liked=!!liked;await new Promise((res,rej)=>{const q=db.transaction('tracks','readwrite').objectStore('tracks').put(cur);q.onsuccess=res;q.onerror=()=>rej(q.error);});}
+    }catch(e){}
+  });
+}
+async function libAll(){try{return await idbAll(await openDB(),'tracks');}catch(e){return[];}}
+
+/* ================= PLAYLISTS (store `playlists`) ================= */
+async function plAll(){try{return await idbAll(await openDB(),'playlists');}catch(e){return[];}}
+async function plSave(pl){
+  if(!pl||!pl.id) return;
+  try{const db=await openDB();db.transaction('playlists','readwrite').objectStore('playlists').put(pl);}catch(e){}
+}
+async function plDelete(id){
+  try{const db=await openDB();db.transaction('playlists','readwrite').objectStore('playlists').delete(id);}catch(e){}
+}
+
+/* ================= HISTORIAL PERSISTENTE (store `history`) ================= */
+const HIST_PERSIST_MAX=500;
+async function _histPersist(item){
+  try{
+    const db=await openDB();
+    const st=db.transaction('history','readwrite').objectStore('history');
+    st.add({ytId:item.ytId||null,name:item.name||'',artist:item.artist||'',ts:Date.now()});
+    const cnt=st.count();
+    cnt.onsuccess=()=>{
+      let toDel=cnt.result-HIST_PERSIST_MAX;
+      if(toDel<=0) return;
+      const cur=st.openCursor();
+      cur.onsuccess=e=>{const c=e.target.result;if(c&&toDel>0){c.delete();toDel--;c.continue();}};
+    };
+  }catch(e){}
+}
+async function loadHistoryIDB(){
+  try{
+    const db=await openDB();
+    const st=db.transaction('history','readonly').objectStore('history');
+    const req=st.openCursor(null,'prev');const out=[];
+    req.onsuccess=e=>{
+      const c=e.target.result;
+      if(c&&out.length<40){
+        const v=c.value;
+        out.push({name:v.name,artist:v.artist,tm:new Date(v.ts).toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'})});
+        c.continue();
+      } else { history=out; renderHistory(); }
+    };
+  }catch(e){}
+}
+
+// Hook único para "empezó a sonar una canción": historial visible + persistente +
+// playCount en biblioteca + captura de duración cuando el player ya la conoce.
+function _onTrackStarted(item,deckId){
+  if(!item||!item.ytId) return;
+  pushHistory(item);
+  _histPersist(item);
+  libUpsert(item,{played:true});
+  setTimeout(()=>{
+    try{
+      const dur=Math.round(decks[deckId].player.getDuration()||0);
+      if(dur>0&&decks[deckId].item?.ytId===item.ytId) libUpsert(item,{duration:dur});
+    }catch(_){}
+  },5000);
+}
 async function loadShared(){
   try{
     const db=await openDB();
@@ -1778,7 +1893,15 @@ async function loadShared(){
     }
     const sp=await idbGet(db,'session','spotsLibrary');
     if(sp&&sp.items){ spots=sp.items.filter(s=>s.b64).map(s=>({name:s.name,b64:s.b64})); }
+    // Fase 1: sembrar biblioteca desde la cola (idempotente) y crear la playlist
+    // por defecto la primera vez que existe el store `playlists`.
+    queue.forEach(q=>libUpsert(q));
+    const pls=await idbAll(db,'playlists');
+    if(!pls.length&&queue.length){
+      plSave({id:'main',name:'Radio Terrapesca',trackIds:queue.map(q=>q.ytId),createdAt:Date.now()});
+    }
   }catch(e){console.warn('shared load',e);}
+  loadHistoryIDB();
   renderQueue();renderSpots();renderHistory();
   if(queue.length) toast(`${queue.length} canciones cargadas de la playlist`,'ok');
 }

@@ -66,17 +66,14 @@
 - [x] `panel.html` **congelado** (banner en el archivo + nota en CLAUDE.md). Toda feature nueva va a studio.
 - [x] `sw.js` v2: cachea también `studio.html` y `sucursal.html`, y el HTML ahora es **network-first** (los deploys ya no quedan atorados en cache; el cache solo se usa offline).
 
-### Fase 1 — Modelo de datos tipo Spotify (1–2 sesiones)
+### Fase 1 — Modelo de datos tipo Spotify ✅ COMPLETADA
 *El cambio estructural más importante.*
 
-- [ ] **Track enriquecido:** `{id, ytId, title, artist, duration, cover, addedAt, playCount, liked}`. La duración se captura del player la primera vez que suena y se persiste.
-- [ ] **IndexedDB v3** (`TerrapescaRadio`):
-  - `tracks` (ya existe, hoy sin uso) → **biblioteca**: todo track que alguna vez se agregó, keyPath `ytId`.
-  - `playlists` (nuevo): `{id, name, cover, trackIds[], createdAt}`. La cola actual `playlist/main` migra a la playlist "Radio Terrapesca" para no romper panel.
-  - `history` (nuevo): `{ts, ytId}` — historial persistente, límite 500.
-  - Favoritos = flag `liked` en `tracks` + playlist virtual "Tus me gusta".
-- [ ] **Migración automática** al abrir studio: v2 → v3 sin perder la cola ni los spots.
-- [ ] Enriquecer el mensaje WS `PLAY` con `{cover, duration}` para que sucursal/listen pinten mejor su now-playing sin pedir nada extra.
+- [x] **Track enriquecido:** `{ytId, title, artist, duration, cover, addedAt, playCount, liked, lastPlayedAt}` en la biblioteca (`libUpsert`). La duración se captura del player ~5s después de empezar a sonar y se persiste. Escrituras serializadas (`_libQueue`) para que reproducciones rápidas no se pisen el `playCount`.
+- [x] **IndexedDB v3** (`TerrapescaRadio`): `tracks` recreado como **biblioteca** (keyPath `ytId`); `playlists` nuevo (`{id, name, trackIds[], createdAt}`, con playlist default "Radio Terrapesca" sembrada desde la cola); `history` nuevo (persistente, cap 500). Favoritos = flag `liked` (`libSetLiked`) — la UI llega en Fase 3.
+- [x] **Migración automática** v2 → v3 verificada en navegador: cola y spots intactos, biblioteca sembrada desde la cola, panel.html también actualizado a v3 (abrir con versión menor lanzaba `VersionError`).
+- [x] Mensaje WS `PLAY` enriquecido con `{cover, duration}`; sucursal y listen lo prefieren sobre el thumbnail derivado.
+- [x] **Bonus:** el historial ahora también registra las canciones que entran por crossfade automático (antes solo las cargadas a mano) y sobrevive recargas (`loadHistoryIDB`).
 
 ### Fase 2 — Búsqueda (1 sesión)
 - [ ] Nuevo proxy en `server.js`: `GET /api/ytsearch?q=...&key=...` → YouTube Data API v3 `search.list` (type=video, videoCategoryId=10 Música). Mismo modelo de secrets: la key `tp_yt` viaja del navegador como query param, el servidor no guarda nada.

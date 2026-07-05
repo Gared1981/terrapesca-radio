@@ -397,7 +397,7 @@ function updateNowPlaying(track) {
   document.getElementById('trackArtist').textContent = artist;
   document.getElementById('topPlaylist').textContent = name;
 
-  const artSrc = track?.thumb || (track?.ytId ? `https://img.youtube.com/vi/${track.ytId}/hqdefault.jpg` : TP_LOGO);
+  const artSrc = track?.cover || track?.thumb || (track?.ytId ? `https://img.youtube.com/vi/${track.ytId}/hqdefault.jpg` : TP_LOGO);
   document.getElementById('artImg').src = artSrc;
   document.getElementById('artImg').onerror = () => { document.getElementById('artImg').src = TP_LOGO; };
 

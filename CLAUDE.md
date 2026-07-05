@@ -69,6 +69,15 @@ Key invariants learned from past bugs:
   Rodo announces date/hours only — no promotions. Ducking lowers music when voice plays, then restores.
 
 ### Persistence
-IndexedDB database `TerrapescaRadio` v2, object stores: `playlist`, `session`, `tracks` (keyPath `key`).
-The `session` store holds base64 blobs: spots library, `studioJingle`, `studioStinger`. localStorage
-holds config (`tp_*`).
+IndexedDB database `TerrapescaRadio` **v3** — `IDB_VER` must match between studio.html and panel.html
+(opening with a lower version throws `VersionError`). Object stores:
+- `playlist`, `session` (keyPath `key`) — unchanged from v2; queue lives at `playlist/main`, `session`
+  holds base64 blobs (spots library, `studioJingle`, `studioStinger`). Shared with panel.html.
+- `tracks` (keyPath `ytId`) — the **library**: `{ytId, title, artist, duration, cover, addedAt,
+  playCount, liked, lastPlayedAt}`. Written only by studio via `libUpsert()`/`libSetLiked()`, which are
+  serialized through `_libQueue` (read-modify-write race protection). `_onTrackStarted()` is the single
+  hook for "a song started playing" (visible history + persistent history + playCount + duration capture).
+- `playlists` (keyPath `id`) — `{id, name, trackIds[], createdAt}`; default playlist `main` seeded from
+  the queue. UI arrives in Fase 3 (see PLAN-SPOTIFY.md).
+- `history` (autoIncrement) — persistent play history, capped at 500 entries.
+localStorage holds config (`tp_*`).

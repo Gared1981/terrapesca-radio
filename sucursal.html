@@ -1028,7 +1028,7 @@ function updateNP(track, playing){
   const cov=document.getElementById('npCover'), fb=document.getElementById('npCoverFb');
   if(cov&&fb){
     if(track.type==='yt'&&track.ytId){
-      cov.src='https://img.youtube.com/vi/'+track.ytId+'/mqdefault.jpg';
+      cov.src=track.cover||('https://img.youtube.com/vi/'+track.ytId+'/mqdefault.jpg');
       cov.style.display=''; fb.style.display='none';
       cov.onerror=()=>{cov.style.display='none';fb.style.display='flex';};
     } else {
