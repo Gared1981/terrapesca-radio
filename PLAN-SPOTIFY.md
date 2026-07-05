@@ -106,6 +106,12 @@
 ### Fase 6 — Rediseño visual ✅ COMPLETADA
 - [x] **Look moderno** en studio: glassmorphism (paneles translúcidos con `backdrop-filter: blur`), fondo con malla de luces ambiental (rojo/cian/violeta), radios más amplios, pestañas píldora con acento en gradiente rojo, botón de play circular con glow, barra de progreso con gradiente que crece al hover, filas con hover deslizante, scrollbars finos personalizados, toast píldora con blur y micro-transiciones en todos los botones. **Solo CSS** — ni un ID ni una clase que use el JS cambió.
 
+### Fase 7 — Listo para empezar de cero ✅ COMPLETADA
+- [x] **Portada nueva en `/`** (`index.html`): selector de rol tipo plataforma (Cabina DJ / Sucursal / Escuchar / Modo Tienda) con tarjetas glass, "Al aire ahora" en vivo vía WebSocket y estado del servidor. El panel viejo sigue en `/panel`.
+- [x] **Asistente de primer arranque** en studio (3 pasos: bienvenida → claves opcionales con explicación de qué desbloquea cada una → primera música). Aparece una sola vez y solo para instalaciones realmente nuevas (sin claves y sin cola); a los usuarios existentes se les marca el flag automáticamente.
+- [x] **Limpieza de experimentos:** eliminados los motores FFmpeg de prueba (Fase C) de `server.js` (-410 líneas), `audio-test/`, `audio-live/`, `scripts/`, `sucursal-stream*.html` y los JSON de fixtures; `package.json` sin `ffmpeg-static` ni `@google-cloud/text-to-speech`.
+- [x] Botón "🏠 INICIO" en el header del studio (antes llevaba al panel congelado); service worker v3 con la portada.
+
 ---
 
 ## Estado final — PROYECTO COMPLETO ✅

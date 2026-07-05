@@ -16,12 +16,13 @@ of **self-contained single-file HTML apps** (inline CSS + JS, no bundler):
 
 | File | Role |
 |---|---|
-| `studio.html` | **Actively developed** DJ cabin. Dual-deck YouTube crossfade engine, DJ Rodo (AI voice), mood/hour song selection, spot/jingle/stinger playback. This is where the playback engine lives. |
+| `index.html` | Landing/role portal served at `/` (Cabina / Sucursal / Escuchar / Tienda) with live now-playing via WS. |
+| `studio.html` | **Actively developed** DJ cabin. Dual-deck YouTube crossfade engine, DJ Rodo (AI voice), mood/hour song selection, spot/jingle/stinger playback, first-run onboarding wizard (`tp_onboarded`). This is where the playback engine lives. |
 | `panel.html` | **FROZEN — hotfixes only** (Fase 0, see PLAN-SPOTIFY.md). Older/larger control panel (Los Mochis). Shares localStorage keys + IndexedDB schema with studio. New features go to studio.html. |
 | `sucursal.html` | Receiver/player for branches (Culiacán, Mazatlán). Listens to WS relay only. |
 | `tienda.html` | In-store mode with auto DJ Rodo speaking to customers. |
 | `listen.html` | Public listener. |
-| `server.js` | HTTP/WS server + proxies + server-side audio stream. |
+| `server.js` | HTTP/WS server + proxies + server-side audio stream (`/radio/stream`). The experimental FFmpeg engines (Fase C, `RADIO_ENGINE_TEST`) were removed along with `audio-test/`, `audio-live/`, `scripts/` and `sucursal-stream*.html`. |
 | `sw.js` | Service worker: caches static HTML, never intercepts `/radio/stream` or `/api/*`. |
 
 ### Communication model

@@ -1,8 +1,8 @@
 // Radio Terrapesca Service Worker
 // Keeps audio alive in background and caches static assets
 
-const CACHE = 'terrapesca-radio-v2';
-const STATIC = ['/panel.html', '/listen.html', '/studio.html', '/sucursal.html'];
+const CACHE = 'terrapesca-radio-v3';
+const STATIC = ['/', '/index.html', '/panel.html', '/listen.html', '/studio.html', '/sucursal.html'];
 
 self.addEventListener('install', e => {
   e.waitUntil(

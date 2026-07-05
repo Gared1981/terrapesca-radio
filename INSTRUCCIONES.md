@@ -4,14 +4,15 @@
 
 | Archivo | Quién lo usa | Descripción |
 |---|---|---|
+| `index.html` | Todos | 🏠 Portada en `/`: elige tu rol (Cabina / Sucursal / Escuchar / Tienda) y muestra qué está al aire |
 | `server.js` | Railway | Servidor: WebSocket, proxies de API y stream de audio |
-| `studio.html` | **Cabina (Los Mochis)** | ⭐ El control principal: decks con crossfade, DJ Rodo, biblioteca, playlists y búsqueda |
-| `panel.html` | Los Mochis (legado) | Panel viejo — **congelado**, usar studio.html |
+| `studio.html` | **Cabina (Los Mochis)** | ⭐ El control principal: decks con crossfade, DJ Rodo, biblioteca, playlists y búsqueda. Con asistente de bienvenida la primera vez |
+| `panel.html` | Los Mochis (legado) | Panel viejo — **congelado**, usar studio.html (disponible en `/panel`) |
 | `sucursal.html` | Culiacán y Mazatlán | Reproductor receptor con carátula (no controla nada) |
 | `listen.html` | Público | Oyente web: carátula, próximas canciones, favoritos |
 | `tienda.html` | Tiendas | DJ Rodo autónomo hablando a clientes (sin música) |
 
-Todas las páginas se sirven desde el propio servidor: `https://TU-URL.railway.app/studio`, `/sucursal`, `/listen`, `/tienda`.
+Abre `https://TU-URL.railway.app/` y elige tu rol — o directo: `/studio`, `/sucursal`, `/listen`, `/tienda`.
 
 ---
 

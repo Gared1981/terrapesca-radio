@@ -278,7 +278,7 @@ input[type=range]::-moz-range-thumb{width:18px;height:24px;border-radius:5px;bac
     </div>
     <div class="onair" id="onair"><span class="dot"></span><span id="onairTxt">FUERA DE AIRE</span></div>
     <div class="hbtns">
-      <button class="hbtn" onclick="location.href='panel.html'">◀ PANEL</button>
+      <button class="hbtn" onclick="location.href='/'">🏠 INICIO</button>
       <button class="hbtn" onclick="skipNext()" title="Adelantar a la siguiente">⏭ SIGUIENTE</button>
       <button class="hbtn" id="autoBtn" onclick="toggleAuto()">AUTO ●</button>
       <button class="hbtn" onclick="openSettings()" title="Configuración">⚙️ CONFIG</button>
@@ -637,6 +637,56 @@ input[type=range]::-moz-range-thumb{width:18px;height:24px;border-radius:5px;bac
   <div class="npb-right">
     <span style="font-size:13px">🔊</span>
     <input type="range" class="npb-vol" id="npbVol" min="0" max="100" value="85" oninput="onMaster(this.value)">
+  </div>
+</div>
+
+<!-- ASISTENTE DE PRIMER ARRANQUE (aparece una sola vez, solo si no hay nada configurado) -->
+<div class="modal-ov hide" id="obModal">
+  <div class="modal-box" style="width:min(500px,96vw)">
+    <div style="text-align:center;margin-bottom:6px;font-size:34px" id="obIcon">📻</div>
+    <h2 style="justify-content:center;letter-spacing:1px" id="obTitle">BIENVENIDO A TU RADIO</h2>
+
+    <div id="obStep1">
+      <p style="font-size:13px;line-height:1.6;color:var(--txt2);text-align:center">
+        Esta es la <b style="color:var(--txt)">Cabina DJ</b>: desde aquí manejas la música, el DJ con IA y la
+        transmisión a tus tiendas.<br><br>
+        <b style="color:var(--txt)">Ya puedes usarla sin configurar nada:</b> pega un link de YouTube y la radio
+        suena con crossfade automático. Las claves API solo desbloquean los extras (voz de Rodo, búsqueda, IA).
+      </p>
+    </div>
+
+    <div id="obStep2" style="display:none">
+      <p style="font-size:12px;color:var(--txt2);margin-bottom:12px;text-align:center">
+        Cada clave desbloquea algo distinto — todas son opcionales y puedes agregarlas después en ⚙️ CONFIG.
+      </p>
+      <div class="cfg-row"><label>🔍 YouTube</label><input id="obYt" placeholder="Búsqueda e importar playlists"/></div>
+      <div class="cfg-row"><label>🎙 ElevenLabs</label><input id="obEl" placeholder="La voz de DJ Rodo y los spots"/></div>
+      <div class="cfg-row"><label>🤖 Anthropic</label><input id="obAnt" placeholder="Guiones de Rodo y sugerencias"/></div>
+      <p style="font-size:10px;color:var(--txt3);margin-top:10px;line-height:1.6">
+        ¿Dónde se consiguen? YouTube: console.cloud.google.com (habilita "YouTube Data API v3") ·
+        ElevenLabs: elevenlabs.io → Profile · Anthropic: console.anthropic.com → API Keys.
+        Se guardan solo en este navegador.
+      </p>
+    </div>
+
+    <div id="obStep3" style="display:none">
+      <p style="font-size:12px;color:var(--txt2);margin-bottom:12px;text-align:center">
+        Pega un link de YouTube (canción o playlist completa) para armar tu primera cola:
+      </p>
+      <div class="addrow">
+        <input id="obLink" placeholder="https://youtube.com/watch?v=…  o playlist"/>
+        <button onclick="obAddLink()">＋</button>
+      </div>
+      <p style="font-size:11px;color:var(--txt3);text-align:center" id="obLinkStatus">
+        También puedes hacerlo después con 🔍 Buscar o pegando links en la cola.
+      </p>
+    </div>
+
+    <div style="display:flex;gap:8px;margin-top:18px;align-items:center">
+      <span style="flex:1;font-family:var(--mono);font-size:10px;color:var(--txt3)" id="obDots">● ○ ○</span>
+      <button onclick="obFinish()" style="background:none;border:none;color:var(--txt3);font-size:11px;cursor:pointer">Omitir</button>
+      <button class="cfg-save" style="width:auto;margin:0;padding:10px 22px" id="obNext" onclick="obNext()">Siguiente →</button>
+    </div>
   </div>
 </div>
 
@@ -2787,6 +2837,45 @@ function npToggleLike(){
   toast(liked?'♥ Agregada a Me gusta':'Quitada de Me gusta','ok');
 }
 
+/* ================= ASISTENTE DE PRIMER ARRANQUE ================= */
+let _obStep=1;
+function _maybeOnboard(){
+  if(localStorage.getItem('tp_onboarded')) return;
+  const hasKeys=localStorage.getItem('tp_el')||localStorage.getItem('tp_ant')||localStorage.getItem('tp_yt');
+  if(hasKeys||queue.length){ localStorage.setItem('tp_onboarded','1'); return; } // usuario existente
+  document.getElementById('obModal').classList.remove('hide');
+}
+function obNext(){
+  if(_obStep===2){ // guardar claves si las pegaron
+    const set=(k,id)=>{const v=document.getElementById(id).value.trim();if(v)localStorage.setItem(k,v);};
+    set('tp_yt','obYt'); set('tp_el','obEl'); set('tp_ant','obAnt');
+    cfg.ytKey=localStorage.getItem('tp_yt')||''; cfg.elKey=localStorage.getItem('tp_el')||''; cfg.antKey=localStorage.getItem('tp_ant')||'';
+  }
+  if(_obStep>=3){ obFinish(); return; }
+  _obStep++;
+  document.getElementById('obStep1').style.display=_obStep===1?'block':'none';
+  document.getElementById('obStep2').style.display=_obStep===2?'block':'none';
+  document.getElementById('obStep3').style.display=_obStep===3?'block':'none';
+  document.getElementById('obIcon').textContent=_obStep===2?'🔑':'🎵';
+  document.getElementById('obTitle').textContent=_obStep===2?'CLAVES (OPCIONALES)':'TU PRIMERA MÚSICA';
+  document.getElementById('obDots').textContent=_obStep===2?'○ ● ○':'○ ○ ●';
+  document.getElementById('obNext').textContent=_obStep===3?'¡A tocar! 🎶':'Siguiente →';
+}
+function obAddLink(){
+  const v=document.getElementById('obLink').value.trim();
+  if(!v) return;
+  document.getElementById('ytInput').value=v;
+  document.getElementById('obLink').value='';
+  document.getElementById('obLinkStatus').textContent='⏳ Cargando…';
+  addYTLink();
+  setTimeout(()=>{document.getElementById('obLinkStatus').textContent=queue.length?('✅ '+queue.length+' en la cola — ¡dale ¡A tocar!!'):'⏳ Cargando… (las playlists tardan unos segundos)';},2500);
+}
+function obFinish(){
+  localStorage.setItem('tp_onboarded','1');
+  document.getElementById('obModal').classList.add('hide');
+  if(queue.length) toast('🎶 Listo — presiona ▶ en el Deck A o el botón AUTO para arrancar','ok');
+}
+
 /* ================= INIT ================= */
 setDJFreq('media');
 setExpLevel('natural');
@@ -2810,6 +2899,7 @@ document.getElementById('stingerZone').addEventListener('dragleave',e=>{e.curren
 document.getElementById('stingerZone').addEventListener('drop',e=>{e.preventDefault();e.currentTarget.style.borderColor='';const f=e.dataTransfer.files[0];if(f){const inp=document.getElementById('stingerFile');const dt=new DataTransfer();dt.items.add(f);inp.files=dt.files;loadStinger(inp);}});
 _connectServerWS();
 loadShared();
+setTimeout(_maybeOnboard,1500); // tras cargar la cola compartida — solo usuarios realmente nuevos
 loadJingleFromIDB();
 loadStingerFromIDB();
 drawVU();
