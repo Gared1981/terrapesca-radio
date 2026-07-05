@@ -238,40 +238,23 @@ body::before{
   align-items:start;
 }
 
-/* EQ Knob section */
-.eq-section{
-  display:flex;flex-direction:column;gap:10px;
+/* Cover art de la canción en transmisión (antes: perillas EQ decorativas) */
+.cover-section{
+  display:flex;flex-direction:column;gap:8px;align-items:center;
 }
-.eq-title{
+.cover-title{
   font-family:'Share Tech Mono',monospace;font-size:9px;
   letter-spacing:2px;color:var(--text3);text-transform:uppercase;
   text-align:center;margin-bottom:4px;
 }
-.knob-row{display:flex;flex-direction:column;align-items:center;gap:4px}
-.knob{
-  width:38px;height:38px;border-radius:50%;
+.cover-art{
+  width:100%;max-width:150px;aspect-ratio:1;border-radius:8px;
+  border:1px solid var(--navy4);object-fit:cover;
   background:radial-gradient(circle at 35% 30%, #2a4060, #0d1f38);
-  border:2px solid var(--navy4);
-  box-shadow:
-    0 3px 8px rgba(0,0,0,0.6),
-    inset 0 1px 3px rgba(255,255,255,0.06),
-    0 0 0 1px rgba(255,255,255,0.04);
-  position:relative;display:flex;align-items:center;justify-content:center;
-  cursor:default;
+  box-shadow:0 3px 12px rgba(0,0,0,0.6);
+  display:flex;align-items:center;justify-content:center;
+  font-size:38px;
 }
-.knob::after{
-  content:'';
-  position:absolute;
-  width:3px;height:12px;
-  background:var(--red);
-  border-radius:2px;
-  top:4px;
-  box-shadow:0 0 6px var(--red-glow);
-  transform-origin:bottom center;
-}
-.knob.k2::after{transform:rotate(15deg)}
-.knob.k3::after{transform:rotate(-20deg)}
-.knob-label{font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--text3);letter-spacing:1px}
 
 /* Center controls */
 .center-controls{display:flex;flex-direction:column;gap:12px}
@@ -450,7 +433,7 @@ input[type=range]::-moz-range-thumb{
 @media(max-width:520px){
   .console-wrap{padding:8px}
   .console-body{grid-template-columns:1fr;gap:10px}
-  .eq-section,.info-section{display:none}
+  .cover-section,.info-section{display:none}
   .disp-title{font-size:16px;min-height:40px}
   .ch-name{font-size:13px}
   .ch-logo{height:30px}
@@ -548,21 +531,11 @@ input[type=range]::-moz-range-thumb{
   <!-- CONSOLE BODY -->
   <div class="console-body">
 
-    <!-- LEFT: EQ Knobs -->
-    <div class="eq-section">
-      <div class="eq-title">Equalizer</div>
-      <div class="knob-row">
-        <div class="knob k1"></div>
-        <div class="knob-label">BASS</div>
-      </div>
-      <div class="knob-row">
-        <div class="knob k2"></div>
-        <div class="knob-label">MID</div>
-      </div>
-      <div class="knob-row">
-        <div class="knob k3"></div>
-        <div class="knob-label">TREBLE</div>
-      </div>
+    <!-- LEFT: Carátula de la canción en transmisión -->
+    <div class="cover-section">
+      <div class="cover-title">Sonando</div>
+      <img class="cover-art" id="npCover" alt="" style="display:none">
+      <div class="cover-art" id="npCoverFb">📻</div>
     </div>
 
     <!-- CENTER: Controls -->
@@ -1051,6 +1024,18 @@ function updateProg(){
 
 function updateNP(track, playing){
   document.getElementById('npTitle').textContent=track.name||'Sin título';
+  // Carátula: thumbnail de YouTube para música; ícono para spots/mic
+  const cov=document.getElementById('npCover'), fb=document.getElementById('npCoverFb');
+  if(cov&&fb){
+    if(track.type==='yt'&&track.ytId){
+      cov.src='https://img.youtube.com/vi/'+track.ytId+'/mqdefault.jpg';
+      cov.style.display=''; fb.style.display='none';
+      cov.onerror=()=>{cov.style.display='none';fb.style.display='flex';};
+    } else {
+      cov.style.display='none'; fb.style.display='flex';
+      fb.textContent=track.type==='spot'?'📣':track.type==='mic'?'🎤':'📻';
+    }
+  }
   const tag=document.getElementById('srcTag');
   if(track.type==='yt'){tag.textContent='♪ EN TRANSMISIÓN';tag.className='disp-src-tag mp3'}
   else if(track.type==='mp3'){tag.textContent='♪ MP3';tag.className='disp-src-tag mp3'}

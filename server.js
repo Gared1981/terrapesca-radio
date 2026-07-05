@@ -1096,6 +1096,11 @@ wss.on('connection', (ws) => {
           radioState.micOnAir = msg.active || false;
           broadcast({ type: 'MIC_ONAIR', active: radioState.micOnAir }, ws);
           break;
+        case 'NEXT_TRACK':
+        case 'PREV_TRACK':
+          // Comandos de oyentes (listen.html): se reenvían para que el controlador actúe.
+          broadcast({ type: msg.type }, ws);
+          break;
       }
     } catch (e) {
       console.error('Error:', e.message);

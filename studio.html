@@ -502,8 +502,20 @@ function _connectServerWS(){
     };
     _sws.onclose=()=>{ _swsOk=false; setTimeout(_connectServerWS,5000); };
     _sws.onerror=()=>{ _swsOk=false; };
-    _sws.onmessage=()=>{}; // ignore inbound
+    _sws.onmessage=_onRemoteCmd; // NEXT_TRACK/PREV_TRACK de oyentes; el resto se ignora
   }catch(e){ console.warn('[Studio→WS]',e.message); }
+}
+// Comandos remotos (listen.html → server → studio). Cooldown de 3s para que un
+// oyente no pueda saltar canciones en ráfaga a toda la red de sucursales.
+let _lastRemoteCmd=0;
+function _onRemoteCmd(ev){
+  let msg=null; try{ msg=JSON.parse(ev.data); }catch(_){ return; }
+  if(msg.type!=='NEXT_TRACK'&&msg.type!=='PREV_TRACK') return;
+  const now=Date.now();
+  if(now-_lastRemoteCmd<3000) return;
+  _lastRemoteCmd=now;
+  if(msg.type==='NEXT_TRACK'){ skipNext(); toast('⏭ Siguiente (pedido remoto)',''); }
+  else { const d=decks[activeDeck]; if(d&&d.item){ try{ d.player.seekTo(0,true); }catch(_){} toast('⏮ Pista reiniciada (pedido remoto)',''); } }
 }
 function _wsSendCurrentState(){
   const d=decks[activeDeck];
@@ -534,7 +546,7 @@ const VOICES={
   latinFem:{id:'9EU0h6CVtEDS6vriwwq5'},
   daniela:{id:'ajOR9IDAaubDK5qtLUqQ'},
 };
-function djVoiceId(){return (VOICES[localStorage.getItem('tp_voice_dj')||'eleguar']||VOICES.eleguar).id;}
+/* djVoiceId() se define en VOICE HELPERS (lee el selector del DOM). */
 function stripElTags(t){return t.replace(/\[[^\]]*\]/g,'').replace(/\s{2,}/g,' ').trim();}
 function toast(m,t=''){const e=document.getElementById('toast');e.textContent=m;e.className='toast show '+t;clearTimeout(window._tt);window._tt=setTimeout(()=>e.classList.remove('show'),3200);}
 function fmt(s){if(!s||isNaN(s)||s<0)return'0:00';const m=Math.floor(s/60),x=Math.floor(s%60);return m+':'+(x<10?'0':'')+x;}
@@ -923,7 +935,8 @@ setInterval(async()=>{
 /* ================= /CAMPAÑA ================= */
 
 const DJ_ROTATION_NORMAL=['TIME_CHECK','SPOT','STATION_ID','WEATHER_REPORT','FISHING_TIP','SONG_BRIDGE','SPOT','PROMO_TEASER','FISHING_FORECAST','SPOT','STATION_ID','WEATHER_REPORT','SONG_BRIDGE','TIME_CHECK'];
-const DJ_ROTATION_CAMPAIGN=['TIME_CHECK','SPOT','STATION_ID','WEATHER_REPORT','FISHING_TIP','SONG_BRIDGE','SPOT','PROMO_TEASER','FISHING_FORECAST','SPOT','STATION_ID','WEATHER_REPORT','SONG_BRIDGE','TIME_CHECK'];
+// En campaña: Rodo anuncia fecha/horarios de la venta (VENTA_NOCTURNA) en lugar de promos genéricas.
+const DJ_ROTATION_CAMPAIGN=['TIME_CHECK','SPOT','STATION_ID','WEATHER_REPORT','FISHING_TIP','SONG_BRIDGE','SPOT','VENTA_NOCTURNA','FISHING_FORECAST','SPOT','STATION_ID','WEATHER_REPORT','SONG_BRIDGE','VENTA_NOCTURNA'];
 function _djRotation(){return _campaignActive()?DJ_ROTATION_CAMPAIGN:DJ_ROTATION_NORMAL;}
 
 function setDJFreq(f){djFreq=f;document.querySelectorAll('#djFreqCtrl .s').forEach(s=>s.classList.toggle('on',s.dataset.f===f));refreshDJStatus();}
@@ -1109,7 +1122,7 @@ const WCITIES={culiacan:{n:'Culiacán',lat:24.8092,lng:-107.3938},mazatlan:{n:'M
 const WKEYS=['culiacan','mazatlan','los_mochis'];
 let _wCache={};
 async function getWeather(){
-  const key=WKEYS[Math.floor(Math.random()*WKEYS.length)];const c=WCITIES[key];
+  const key=_resolveWeatherCity();const c=WCITIES[key];
   if(_wCache[key]&&Date.now()-_wCache[key].ts<12*60000) return _wCache[key].d;
   try{
     const u=`https://api.open-meteo.com/v1/forecast?latitude=${c.lat}&longitude=${c.lng}&current=temperature_2m,weather_code,wind_speed_10m&timezone=America%2FMazatlan`;
@@ -1981,8 +1994,8 @@ function spotVoiceId(){
   return (VOICES[v]||VOICES.eleguar).id;
 }
 function _resolveWeatherCity(){
-  const v=document.getElementById('djWeatherCity')?.value||'auto';
-  if(v==='auto') return _AUTO_WEATHER_CITIES[Math.floor(Math.random()*_AUTO_WEATHER_CITIES.length)];
+  const v=document.getElementById('djWeatherCity')?.value||localStorage.getItem('tp_weather_city')||'auto';
+  if(v==='auto'||!WCITIES[v]) return WKEYS[Math.floor(Math.random()*WKEYS.length)];
   return v;
 }
 

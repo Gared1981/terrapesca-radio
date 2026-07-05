@@ -17,7 +17,7 @@ of **self-contained single-file HTML apps** (inline CSS + JS, no bundler):
 | File | Role |
 |---|---|
 | `studio.html` | **Actively developed** DJ cabin. Dual-deck YouTube crossfade engine, DJ Rodo (AI voice), mood/hour song selection, spot/jingle/stinger playback. This is where the playback engine lives. |
-| `panel.html` | Older/larger control panel (Los Mochis). Shares localStorage keys + IndexedDB schema with studio. |
+| `panel.html` | **FROZEN — hotfixes only** (Fase 0, see PLAN-SPOTIFY.md). Older/larger control panel (Los Mochis). Shares localStorage keys + IndexedDB schema with studio. New features go to studio.html. |
 | `sucursal.html` | Receiver/player for branches (Culiacán, Mazatlán). Listens to WS relay only. |
 | `tienda.html` | In-store mode with auto DJ Rodo speaking to customers. |
 | `listen.html` | Public listener. |
@@ -29,7 +29,12 @@ A controller (`studio.html` / `panel.html`) connects over WebSocket and **broadc
 the server relays to all other clients (`sucursal.html`, `listen.html`). Message types are enumerated in
 the `wss.on('connection')` switch in `server.js`: `PLAY`, `PAUSE`, `RESUME`, `VOLUME`,
 `PLAYLIST_UPDATE`, `SPOT`, `JINGLE_SET`, `MIC_ONAIR`. The server keeps a single `radioState` object and
-sends a `SYNC` snapshot to every newly-connected client.
+sends a `SYNC` snapshot to every newly-connected client. Listeners (`listen.html`) can send
+`NEXT_TRACK`/`PREV_TRACK`; the server relays them and `studio.html` handles them in `_onRemoteCmd`
+(3s cooldown so a remote listener can't spam skips across the whole network).
+
+**Roadmap:** `PLAN-SPOTIFY.md` holds the full audit and the phased plan to evolve the radio into a
+Spotify-like experience (library, playlists, search, now-playing bar) without touching the dual-deck engine.
 
 ### Secrets model (important)
 **The server holds no API keys.** Keys live in the browser's `localStorage` and are sent as request

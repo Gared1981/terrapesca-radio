@@ -57,14 +57,14 @@
 
 **Principio rector:** el motor dual-deck + DJ Rodo de `studio.html` se **conserva intacto** (es el diferenciador y ya pasó por varios bugs resueltos). Lo que se construye alrededor es la **capa de datos** (biblioteca, playlists, favoritos, historial) y la **capa de UI** (búsqueda, sidebar, now-playing bar, cola arrastrable).
 
-### Fase 0 — Limpieza y cimientos (1 sesión)
+### Fase 0 — Limpieza y cimientos ✅ COMPLETADA
 *Sin esto, todo lo demás se construye sobre arena.*
 
-- [ ] Corregir bugs 1–3 (weather cities, `djVoiceId` duplicado, rotación de campaña).
-- [ ] Manejar `NEXT_TRACK`/`PREV_TRACK` en `server.js` (relay al controlador) o quitarlos de listen.
-- [ ] Quitar affordances falsas: corazón/shuffle/repeat de listen (se reintroducen funcionando en Fase 3), perillas EQ de sucursal.
-- [ ] Declarar `panel.html` **congelado** (solo hotfixes). Toda feature nueva va a studio. Rescatar de panel solo el drag&drop de playlist y el import Excel si se usan.
-- [ ] Agregar `studio.html` y `sucursal.html` al cache de `sw.js`.
+- [x] Corregir bugs 1–3: `_resolveWeatherCity()` ahora usa `WKEYS` (el selector de ciudad de clima funciona y `getWeather()` lo respeta); eliminada la definición duplicada de `djVoiceId()`; `DJ_ROTATION_CAMPAIGN` ahora usa `VENTA_NOCTURNA` (fecha/horarios) en lugar de `PROMO_TEASER`.
+- [x] `NEXT_TRACK`/`PREV_TRACK` funcionan de punta a punta: server los relaya y studio los maneja en `_onRemoteCmd()` con cooldown de 3s (NEXT → `skipNext()`, PREV → reinicia la pista).
+- [x] Quitadas affordances falsas: corazón/shuffle/repeat de listen (se reintroducen funcionando en Fase 3/4). Las perillas EQ de sucursal se reemplazaron por **carátula real** de la canción (adelanto de Fase 4).
+- [x] `panel.html` **congelado** (banner en el archivo + nota en CLAUDE.md). Toda feature nueva va a studio.
+- [x] `sw.js` v2: cachea también `studio.html` y `sucursal.html`, y el HTML ahora es **network-first** (los deploys ya no quedan atorados en cache; el cache solo se usa offline).
 
 ### Fase 1 — Modelo de datos tipo Spotify (1–2 sesiones)
 *El cambio estructural más importante.*
