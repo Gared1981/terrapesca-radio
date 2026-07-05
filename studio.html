@@ -23,7 +23,51 @@ body::before{content:'';position:fixed;inset:0;background:
   radial-gradient(900px 500px at 20% -10%,rgba(224,36,28,.06),transparent),
   radial-gradient(900px 500px at 100% 110%,rgba(39,198,224,.05),transparent);
   pointer-events:none;z-index:0}
-.wrap{position:relative;z-index:1;max-width:1280px;margin:0 auto;padding:10px 12px 40px}
+.wrap{position:relative;z-index:1;max-width:1280px;margin:0 auto;padding:10px 12px 110px} /* padding-bottom deja lugar a la npbar */
+
+/* NAV DE VISTAS (Fase 3 — Cabina / Biblioteca / Me gusta / Playlists / Historial) */
+.viewnav{display:flex;gap:8px;margin:10px 0;overflow-x:auto;padding-bottom:2px}
+.vtab{background:var(--panel);border:1px solid var(--line);color:var(--txt2);
+  padding:8px 16px;border-radius:20px;font-size:12.5px;font-weight:600;cursor:pointer;
+  white-space:nowrap;font-family:'Inter',sans-serif}
+.vtab:hover{color:var(--txt);border-color:var(--line2)}
+.vtab.on{background:var(--txt);color:#000;border-color:var(--txt)}
+/* La cabina se oculta sin sacar los iframes del DOM (el motor sigue sonando) */
+#viewCabina.offstage{position:absolute;left:-200vw;top:0;width:100%;visibility:hidden}
+.xview .row .acts button{min-width:26px}
+.plmenu-item{display:block;width:100%;text-align:left;background:none;border:none;color:var(--txt);
+  padding:8px 10px;border-radius:6px;font-size:12.5px;cursor:pointer;font-family:'Inter',sans-serif}
+.plmenu-item:hover{background:var(--panel2)}
+
+/* NOW-PLAYING BAR (Fase 3 — barra inferior tipo Spotify) */
+.npbar{position:fixed;left:0;right:0;bottom:0;z-index:50;height:84px;
+  display:grid;grid-template-columns:1fr 2fr 1fr;align-items:center;gap:14px;
+  padding:0 16px;background:linear-gradient(180deg,#0b1422,#060b13);
+  border-top:1px solid var(--line2);box-shadow:0 -6px 24px rgba(0,0,0,.5)}
+.npb-left{display:flex;align-items:center;gap:10px;min-width:0}
+.npb-cover{width:56px;height:56px;border-radius:6px;object-fit:cover;border:1px solid var(--line2);background:var(--panel2);flex-shrink:0}
+.npb-meta{min-width:0}
+.npb-title{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.npb-artist{font-size:11px;color:var(--txt2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.npb-like{background:none;border:none;color:var(--txt2);font-size:18px;cursor:pointer;flex-shrink:0;padding:4px}
+.npb-like.on{color:var(--red)}
+.npb-center{display:flex;flex-direction:column;align-items:center;gap:6px;min-width:0}
+.npb-controls{display:flex;align-items:center;gap:14px}
+.npb-btn{background:none;border:none;color:var(--txt2);font-size:17px;cursor:pointer;padding:2px 4px;line-height:1}
+.npb-btn:hover{color:var(--txt)}
+.npb-btn.mode.on{color:var(--grn)}
+.npb-play{width:36px;height:36px;border-radius:50%;border:none;background:var(--txt);color:#000;
+  font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.npb-prog-row{display:flex;align-items:center;gap:8px;width:100%;max-width:560px}
+.npb-time{font-family:var(--mono);font-size:10px;color:var(--txt2);min-width:34px;text-align:center}
+.npb-track{flex:1;height:5px;border-radius:3px;background:var(--line);cursor:pointer;position:relative}
+.npb-fill{height:100%;border-radius:3px;background:var(--cyan);width:0%;pointer-events:none}
+.npb-right{display:flex;align-items:center;justify-content:flex-end;gap:8px}
+.npb-vol{width:110px;accent-color:var(--cyan)}
+@media(max-width:820px){
+  .npbar{grid-template-columns:1fr;height:auto;padding:8px 12px;gap:6px}
+  .npb-right{display:none}
+}
 
 /* HEADER */
 header{display:flex;align-items:center;justify-content:space-between;gap:10px;
@@ -157,7 +201,7 @@ input[type=range]::-moz-range-thumb{width:18px;height:24px;border-radius:5px;bac
 .note{font-size:10px;color:var(--txt3);margin-top:8px;line-height:1.4}
 .note b{color:var(--amber)}
 
-.toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%) translateY(80px);
+.toast{position:fixed;bottom:100px;left:50%;transform:translateX(-50%) translateY(80px);
   background:#0e1828;border:1px solid var(--line2);color:var(--txt);padding:11px 18px;border-radius:9px;
   font-size:13px;z-index:9999;transition:.3s;opacity:0;max-width:90vw}
 .toast.show{transform:translateX(-50%) translateY(0);opacity:1}
@@ -223,6 +267,16 @@ input[type=range]::-moz-range-thumb{width:18px;height:24px;border-radius:5px;bac
     </div>
   </header>
 
+  <!-- NAV DE VISTAS (Fase 3) -->
+  <nav class="viewnav" id="viewnav">
+    <button class="vtab on" data-v="cabina" onclick="showView('cabina')">🎚 Cabina</button>
+    <button class="vtab" data-v="lib" onclick="showView('lib')">📚 Biblioteca</button>
+    <button class="vtab" data-v="likes" onclick="showView('likes')">♥ Me gusta</button>
+    <button class="vtab" data-v="pls" onclick="showView('pls')">🗂 Playlists</button>
+    <button class="vtab" data-v="hist" onclick="showView('hist')">🕒 Historial</button>
+  </nav>
+
+  <div id="viewCabina">
   <!-- DECKS -->
   <div class="decks">
     <div class="deck A" id="deckA">
@@ -477,6 +531,86 @@ input[type=range]::-moz-range-thumb{width:18px;height:24px;border-radius:5px;bac
     Los medidores VU son <b>visuales/simulados</b> — YouTube no permite leer el audio real desde un iframe (restricción del navegador).
     DJ Rodo y spots reutilizan los mismos endpoints y claves del panel.
   </div>
+  </div><!-- /viewCabina -->
+
+  <!-- VISTA: BIBLIOTECA -->
+  <div id="viewLib" class="xview" style="display:none">
+    <div class="card">
+      <h3>📚 BIBLIOTECA <span class="cnt" id="libCnt">0</span></h3>
+      <div class="addrow"><input id="libFilter" placeholder="Filtrar por título o artista…" oninput="renderLib()"/></div>
+      <div class="list" id="libList" style="max-height:62vh"><div class="empty">Biblioteca vacía</div></div>
+    </div>
+  </div>
+
+  <!-- VISTA: ME GUSTA -->
+  <div id="viewLikes" class="xview" style="display:none">
+    <div class="card">
+      <h3>♥ TUS ME GUSTA <span class="cnt" id="likesCnt">0</span></h3>
+      <div class="list" id="likesList" style="max-height:66vh"><div class="empty">Aún no marcas favoritas — usa el ♡ de la barra o de la biblioteca</div></div>
+    </div>
+  </div>
+
+  <!-- VISTA: PLAYLISTS -->
+  <div id="viewPls" class="xview" style="display:none">
+    <div class="card">
+      <h3>🗂 PLAYLISTS <span class="cnt" id="plsCnt">0</span></h3>
+      <div class="addrow">
+        <input id="plNewName" placeholder="Nombre de la nueva playlist…" onkeydown="if(event.key==='Enter')plCreateUI()"/>
+        <button onclick="plCreateUI()" title="Crear playlist vacía">＋</button>
+        <button onclick="plFromQueue()" title="Guardar la cola actual como playlist" style="white-space:nowrap">💾 Desde cola</button>
+      </div>
+      <div class="list" id="plsList" style="max-height:30vh"><div class="empty">Sin playlists</div></div>
+    </div>
+    <div class="card" id="plDetailCard" style="display:none">
+      <h3 id="plDetailTitle">—</h3>
+      <div class="addrow">
+        <button onclick="plPlay(_plOpen)" style="width:auto">▶ Reproducir playlist</button>
+        <button onclick="plAppendToQueue(_plOpen)" style="width:auto">➕ Agregar a la cola</button>
+      </div>
+      <div class="list" id="plDetailList" style="max-height:45vh"></div>
+    </div>
+  </div>
+
+  <!-- VISTA: HISTORIAL COMPLETO -->
+  <div id="viewHist" class="xview" style="display:none">
+    <div class="card">
+      <h3>🕒 HISTORIAL <span class="cnt" id="histFullCnt">0</span></h3>
+      <div class="list" id="histFullList" style="max-height:66vh"><div class="empty">Aún sin reproducciones</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- Menú flotante "agregar a playlist" -->
+<div id="plMenu" style="display:none;position:fixed;z-index:200;background:#0e1828;border:1px solid var(--line2);border-radius:9px;padding:6px;min-width:180px;box-shadow:0 8px 30px rgba(0,0,0,.6)"></div>
+
+<!-- NOW-PLAYING BAR (Fase 3) — refleja el deck activo; controles globales -->
+<div class="npbar" id="npbar">
+  <div class="npb-left">
+    <img class="npb-cover" id="npbCover" alt="" src="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==">
+    <div class="npb-meta">
+      <div class="npb-title" id="npbTitle">Radio Terrapesca</div>
+      <div class="npb-artist" id="npbArtist">Sin reproducción</div>
+    </div>
+    <button class="npb-like" id="npbLike" onclick="npToggleLike()" title="Me gusta">♡</button>
+  </div>
+  <div class="npb-center">
+    <div class="npb-controls">
+      <button class="npb-btn mode" id="npbShuffle" onclick="toggleShuffle()" title="Aleatorio">🔀</button>
+      <button class="npb-btn" onclick="npPrev()" title="Reiniciar pista">⏮</button>
+      <button class="npb-play" id="npbPlay" onclick="deckPlayPause(activeDeck)" title="Play/Pausa">▶</button>
+      <button class="npb-btn" onclick="skipNext()" title="Siguiente">⏭</button>
+      <button class="npb-btn mode" id="npbRepeat" onclick="cycleRepeat()" title="Repetir">🔁</button>
+    </div>
+    <div class="npb-prog-row">
+      <span class="npb-time" id="npbNow">0:00</span>
+      <div class="npb-track" onclick="npSeek(event)"><div class="npb-fill" id="npbFill"></div></div>
+      <span class="npb-time" id="npbDur">0:00</span>
+    </div>
+  </div>
+  <div class="npb-right">
+    <span style="font-size:13px">🔊</span>
+    <input type="range" class="npb-vol" id="npbVol" min="0" max="100" value="85" oninput="onMaster(this.value)">
+  </div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -567,6 +701,37 @@ const _playedHistory=[]; // recent ytIds to avoid repeats in random/AI selection
 const HISTORY_MAX=10;
 function _trackPlayed(ytId){ if(!ytId)return; _playedHistory.push(ytId); if(_playedHistory.length>HISTORY_MAX)_playedHistory.shift(); }
 function _freshQueue(){ return queue.filter(q=>!_playedHistory.includes(q.ytId)); }
+
+/* ================= MODOS SHUFFLE / REPEAT (Fase 3) ================= */
+// Selector único de "siguiente canción" — todos los caminos del motor
+// (watcher, crossfade, DJ, cue manual) pasan por aquí.
+let shuffleMode=localStorage.getItem('tp_shuffle')==='1';
+let repeatMode=localStorage.getItem('tp_repeat')||'all'; // 'all' | 'one'
+function nextQueueIndex(from){
+  if(!queue.length) return 0;
+  const f=typeof from==='number'?((from%queue.length)+queue.length)%queue.length:queuePos;
+  if(repeatMode==='one') return f;
+  if(shuffleMode&&queue.length>1){
+    // Prefiere lo que no ha sonado recientemente; nunca repite la actual.
+    const others=queue.map((q,i)=>i).filter(i=>i!==f);
+    const fresh=others.filter(i=>!_playedHistory.includes(queue[i].ytId));
+    const pool=fresh.length?fresh:others;
+    return pool[Math.floor(Math.random()*pool.length)];
+  }
+  return (f+1)%queue.length;
+}
+function toggleShuffle(){
+  shuffleMode=!shuffleMode;
+  localStorage.setItem('tp_shuffle',shuffleMode?'1':'0');
+  _syncNPModes();
+  toast(shuffleMode?'🔀 Aleatorio activado':'Aleatorio desactivado','ok');
+}
+function cycleRepeat(){
+  repeatMode=repeatMode==='all'?'one':'all';
+  localStorage.setItem('tp_repeat',repeatMode);
+  _syncNPModes();
+  toast(repeatMode==='one'?'🔂 Repetir canción actual':'🔁 Repetir toda la cola','ok');
+}
 let spots=[];
 let history=[];
 const CROSSFADE_SECS=10;
@@ -744,9 +909,9 @@ function deckPlayPause(id){
 }
 function deckCueFromQueue(id){
   if(!queue.length){toast('Cola vacía','error');return;}
-  const next=(queuePos+1)%queue.length;
+  const next=nextQueueIndex(queuePos);
   waitReady(()=>{ loadDeck(id,queue[next],true); queuePos=next; activeDeck=id;
-    const other=id===0?1:0; const after=(next+1)%queue.length;
+    const other=id===0?1:0; const after=nextQueueIndex(next);
     if(queue[after]) cueDeck(other,queue[after]);
   });
 }
@@ -792,7 +957,7 @@ function doCrossfade(){
           const foundPos=queue.findIndex(q=>q.ytId===nxtItem.ytId);
           queuePos=foundPos>=0?foundPos:queuePos; // don't reset to 0 if not found
           setCrossfader(activeDeck===0?0:100);
-          const after=(queuePos+1)%queue.length;
+          const after=nextQueueIndex(queuePos);
           if(queue.length>1 && queue[after]) cueDeck(cur.id,queue[after]);
           _trackPlayed(nxtItem.ytId);
           _onTrackStarted(nxtItem,nxt.id); // historial + biblioteca (antes el auto-mix no registraba historial)
@@ -813,10 +978,10 @@ function doCrossfade(){
   },400);
 }
 function advanceQueueInto(id){
-  const next=(queuePos+1)%queue.length;
+  const next=nextQueueIndex(queuePos);
   loadDeck(id,queue[next],true); queuePos=next; activeDeck=id;
   setCrossfader(id===0?0:100);
-  const other=id===0?1:0; const after=(next+1)%queue.length;
+  const other=id===0?1:0; const after=nextQueueIndex(next);
   if(queue[after]) cueDeck(other,queue[after]);
   renderQueue();
 }
@@ -839,7 +1004,7 @@ setInterval(()=>{
   // Pre-buffer next song before end so YouTube downloads it before the crossfade
   if(rem<=PREBUFFER_AHEAD && rem>CROSSFADE_SECS && !_prebufDone){
     const other=activeDeck===0?1:0;
-    const after=(queuePos+1)%queue.length;
+    const after=nextQueueIndex(queuePos);
     const next=decks[other].item||queue[after];
     if(next) prebufferNext(next);
   }
@@ -973,7 +1138,7 @@ async function djBetweenThenCrossfade(){
 
   // Pre-load the default next song NOW — before any API call — so if the
   // current song ends during generation there is already audio ready on deck B.
-  const defaultNext=(queuePos+1)%queue.length;
+  const defaultNext=nextQueueIndex(queuePos);
   if(queue[defaultNext] && (!decks[other].item || decks[other].item.ytId!==queue[defaultNext].ytId)){
     cueDeck(other, queue[defaultNext]);
   }
@@ -1254,6 +1419,9 @@ function onCrossfader(v){
 function onMaster(v){master=v/100;document.getElementById('masterTxt').textContent=v+'%';
   decks.forEach(d=>{try{d.player.setVolume(dvol(d));}catch(_){}});
   if(_djAudio) _djAudio.volume=master;
+  // mantener en sync los dos sliders de master (mixer + npbar)
+  const nv=document.getElementById('npbVol'); if(nv&&+nv.value!==+v) nv.value=v;
+  const mx=document.getElementById('master'); if(mx&&+mx.value!==+v) mx.value=v;
 }
 function drawVU(){
   const playing=decks.some(d=>d.playing)||djActive;
@@ -1298,8 +1466,9 @@ function renderQueue(){
   const L=document.getElementById('queueList');
   if(!queue.length){L.innerHTML='<div class="empty">Sin canciones. Pega un link de YouTube o agrega en el panel.</div>';return;}
   L.innerHTML=queue.map((q,i)=>`
-    <div class="row ${i===queuePos?'cur':''}">
-      <span class="n">${i===queuePos?'▶':(i+1)}</span>
+    <div class="row ${i===queuePos?'cur':''}" draggable="true"
+         ondragstart="qDragStart(event,${i})" ondragover="qDragOver(event)" ondrop="qDrop(event,${i})">
+      <span class="n" style="cursor:grab" title="Arrastra para reordenar">${i===queuePos?'▶':(i+1)}</span>
       <div class="th" style="background-image:url(https://img.youtube.com/vi/${q.ytId}/default.jpg)"></div>
       <div class="meta" onclick="playFromQueue(${i})" style="cursor:pointer"><div class="t">${esc(q.name||'YouTube')}</div><div class="s">${esc(q.artist||'')}</div></div>
       <div class="acts">
@@ -1419,6 +1588,7 @@ async function ytSearch(){
         <div class="acts">
           <button onclick="searchPlayNow(${i})" title="Reproducir ya">▶</button>
           <button onclick="searchAddQueue(${i})" title="Agregar a la cola">＋</button>
+          <button onclick="searchAddPl(event,${i})" title="Agregar a playlist">🗂</button>
         </div>
       </div>`).join('')+
       '<div class="row" style="justify-content:center"><button onclick="closeSearch()" style="width:100%">✕ Cerrar resultados</button></div>';
@@ -1433,6 +1603,12 @@ function searchAddQueue(i){
   libUpsert(tr,{duration:_searchResults[i].duration||0});
   renderQueue();saveQueue();
   toast(`➕ "${tr.name}" agregada a la cola`,'ok');
+}
+function searchAddPl(ev,i){
+  const t=_searchResults[i]; if(!t) return;
+  // primero a la biblioteca (las playlists guardan solo ytIds y se resuelven contra ella)
+  libUpsert({ytId:t.ytId,name:t.title,artist:t.channel},{duration:t.duration||0}).then(refreshLib);
+  plMenuShow(ev,t.ytId);
 }
 function searchPlayNow(i){
   const tr=_searchTrack(i); if(!tr) return;
@@ -1517,11 +1693,25 @@ function playFromQueue(i){
   waitReady(()=>{
     const other=activeDeck===0?1:0;
     loadDeck(activeDeck,queue[i],true); queuePos=i;
-    const after=(i+1)%queue.length; if(queue[after]) cueDeck(other,queue[after]);
+    const after=nextQueueIndex(i); if(queue[after]) cueDeck(other,queue[after]);
     setCrossfader(activeDeck===0?0:100); renderQueue();
   });
 }
 function moveQ(i,dir){const j=i+dir;if(j<0||j>=queue.length)return;[queue[i],queue[j]]=[queue[j],queue[i]];if(queuePos===i)queuePos=j;else if(queuePos===j)queuePos=i;renderQueue();saveQueue();}
+/* Drag & drop para reordenar la cola (Fase 3) */
+let _dragIdx=null;
+function qDragStart(e,i){_dragIdx=i;e.dataTransfer.effectAllowed='move';}
+function qDragOver(e){e.preventDefault();e.dataTransfer.dropEffect='move';}
+function qDrop(e,i){
+  e.preventDefault();
+  if(_dragIdx===null||_dragIdx===i){_dragIdx=null;return;}
+  const [moved]=queue.splice(_dragIdx,1);
+  queue.splice(i,0,moved);
+  if(queuePos===_dragIdx)queuePos=i;
+  else if(_dragIdx<queuePos&&i>=queuePos)queuePos--;
+  else if(_dragIdx>queuePos&&i<=queuePos)queuePos++;
+  _dragIdx=null;renderQueue();saveQueue();
+}
 function delQ(i){queue.splice(i,1);if(queuePos>=i)queuePos=Math.max(0,queuePos-1);renderQueue();saveQueue();}
 function playSpotIdx(i){const sp=spots[i];if(!sp)return;const tmp=spots;spots=[sp];playSpot().finally(()=>spots=tmp);}
 
@@ -1549,6 +1739,11 @@ function skipNext(){
   if(!queue.length) return;
   if(djActive){toast('Espera a que termine Rodo','');return;}
   const other=activeDeck===0?1:0;
+  // Salto manual: aunque esté en repetir-una, avanza a la siguiente (como Spotify)
+  if(repeatMode==='one'&&queue.length>1){
+    const nxt=(queuePos+1)%queue.length;
+    if(queue[nxt]&&!decks[other].playing) cueDeck(other,queue[nxt]);
+  }
   if(decks[other].item && !_xfading){ doCrossfade(); }
   else { advanceQueueInto(other); }
 }
@@ -2180,10 +2375,262 @@ function _resolveWeatherCity(){
   return v;
 }
 
+/* ================= VISTAS (Fase 3): Biblioteca / Me gusta / Playlists / Historial ================= */
+let _view='cabina', _libCache=[], _plOpen=null;
+function showView(v){
+  _view=v;
+  document.querySelectorAll('.vtab').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
+  // La cabina nunca sale del DOM (los decks de YouTube deben seguir sonando)
+  document.getElementById('viewCabina').classList.toggle('offstage',v!=='cabina');
+  const views={lib:'viewLib',likes:'viewLikes',pls:'viewPls',hist:'viewHist'};
+  Object.values(views).forEach(id=>document.getElementById(id).style.display='none');
+  if(views[v]) document.getElementById(views[v]).style.display='block';
+  if(v==='lib'||v==='likes') refreshLib().then(()=>{v==='lib'?renderLib():renderLikes();});
+  if(v==='pls') refreshLib().then(renderPls);
+  if(v==='hist') refreshLib().then(renderHistFull); // biblioteca lista para "▶" desde historial
+}
+async function refreshLib(){_libCache=await libAll();_libCache.sort((a,b)=>(b.lastPlayedAt||b.addedAt||0)-(a.lastPlayedAt||a.addedAt||0));}
+function _libRow(t){
+  const inQ=queue.some(q=>q.ytId===t.ytId);
+  return `
+    <div class="row">
+      <div class="th" style="background-image:url(${t.cover||trackCover(t.ytId)})"></div>
+      <div class="meta"><div class="t">${esc(t.title||'YouTube')}</div>
+        <div class="s">${esc(t.artist||'')}${t.duration?' · '+fmt(t.duration):''}${t.playCount?' · ▶'+t.playCount:''}</div></div>
+      <div class="acts">
+        <button onclick="libToggleLike('${t.ytId}')" title="Me gusta" style="color:${t.liked?'var(--red)':'inherit'}">${t.liked?'♥':'♡'}</button>
+        <button onclick="libPlayNow('${t.ytId}')" title="Reproducir ya">▶</button>
+        <button onclick="libAddQueue('${t.ytId}')" title="${inQ?'Ya está en la cola':'Agregar a la cola'}" ${inQ?'disabled style="opacity:.4"':''}>＋</button>
+        <button onclick="plMenuShow(event,'${t.ytId}')" title="Agregar a playlist">🗂</button>
+      </div>
+    </div>`;
+}
+function renderLib(){
+  const f=(document.getElementById('libFilter').value||'').toLowerCase();
+  const items=_libCache.filter(t=>!f||(t.title||'').toLowerCase().includes(f)||(t.artist||'').toLowerCase().includes(f));
+  document.getElementById('libCnt').textContent=items.length;
+  document.getElementById('libList').innerHTML=items.length?items.map(_libRow).join(''):'<div class="empty">Sin resultados</div>';
+}
+function renderLikes(){
+  const items=_libCache.filter(t=>t.liked);
+  document.getElementById('likesCnt').textContent=items.length;
+  document.getElementById('likesList').innerHTML=items.length?items.map(_libRow).join(''):'<div class="empty">Aún no marcas favoritas — usa el ♡ de la barra o de la biblioteca</div>';
+}
+function _libTrack(ytId){const t=_libCache.find(x=>x.ytId===ytId);return t?{ytId:t.ytId,name:t.title,artist:t.artist}:null;}
+function libToggleLike(ytId){
+  const t=_libCache.find(x=>x.ytId===ytId); if(!t) return;
+  t.liked=!t.liked;
+  if(t.liked)_likedSet.add(ytId); else _likedSet.delete(ytId);
+  libSetLiked(ytId,t.liked);
+  _view==='likes'?renderLikes():renderLib();
+  _syncNPBar();
+}
+function libAddQueue(ytId){
+  const tr=_libTrack(ytId); if(!tr) return;
+  if(queue.some(q=>q.ytId===ytId)){toast('Ya está en la cola','');return;}
+  queue.push(tr); renderQueue(); saveQueue();
+  _view==='likes'?renderLikes():renderLib();
+  toast(`➕ "${tr.name}" agregada a la cola`,'ok');
+}
+function libPlayNow(ytId){
+  const tr=_libTrack(ytId); if(!tr) return;
+  let idx=queue.findIndex(q=>q.ytId===ytId);
+  if(idx<0){idx=Math.min(queuePos+1,queue.length);queue.splice(idx,0,tr);renderQueue();saveQueue();}
+  playFromQueue(idx);
+  toast(`▶ "${tr.name}"`,'ok');
+}
+
+/* ---- Playlists ---- */
+async function renderPls(){
+  const pls=await plAll();
+  document.getElementById('plsCnt').textContent=pls.length;
+  document.getElementById('plsList').innerHTML=pls.length?pls.map(p=>`
+    <div class="row">
+      <span class="n">🗂</span>
+      <div class="meta" onclick="plOpenUI('${p.id}')" style="cursor:pointer">
+        <div class="t">${esc(p.name)}</div><div class="s">${(p.trackIds||[]).length} canciones</div></div>
+      <div class="acts">
+        <button onclick="plPlay('${p.id}')" title="Reproducir">▶</button>
+        <button onclick="plDeleteUI('${p.id}')" title="Eliminar">✕</button>
+      </div>
+    </div>`).join(''):'<div class="empty">Sin playlists — crea una o guarda la cola actual</div>';
+  if(_plOpen){const p=pls.find(x=>x.id===_plOpen); if(p) plOpenUI(_plOpen); else {_plOpen=null;document.getElementById('plDetailCard').style.display='none';}}
+}
+function plCreateUI(){
+  const inp=document.getElementById('plNewName');
+  const name=(inp.value||'').trim();
+  if(!name){toast('Escribe un nombre para la playlist','error');return;}
+  inp.value='';
+  plSave({id:'pl_'+Date.now().toString(36),name,trackIds:[],createdAt:Date.now()}).then(renderPls);
+  toast(`🗂 Playlist "${name}" creada`,'ok');
+}
+function plFromQueue(){
+  if(!queue.length){toast('La cola está vacía','error');return;}
+  const name=(document.getElementById('plNewName').value||'').trim()||('Cola '+new Date().toLocaleDateString('es-MX'));
+  document.getElementById('plNewName').value='';
+  plSave({id:'pl_'+Date.now().toString(36),name,trackIds:queue.map(q=>q.ytId),createdAt:Date.now()}).then(renderPls);
+  toast(`💾 "${name}" guardada con ${queue.length} canciones`,'ok');
+}
+async function plDeleteUI(id){
+  const pls=await plAll(); const p=pls.find(x=>x.id===id);
+  if(!confirm(`¿Eliminar la playlist "${p?p.name:id}"? Las canciones siguen en la biblioteca.`)) return;
+  if(_plOpen===id){_plOpen=null;document.getElementById('plDetailCard').style.display='none';}
+  plDelete(id).then(renderPls);
+}
+async function _plResolve(id){
+  const pls=await plAll(); const p=pls.find(x=>x.id===id); if(!p) return null;
+  if(!_libCache.length) await refreshLib();
+  const tracks=(p.trackIds||[]).map(yt=>{
+    const t=_libCache.find(x=>x.ytId===yt);
+    return t?{ytId:yt,name:t.title,artist:t.artist,cover:t.cover,duration:t.duration}:{ytId:yt,name:'YouTube',artist:''};
+  });
+  return {pl:p,tracks};
+}
+async function plOpenUI(id){
+  const r=await _plResolve(id); if(!r) return;
+  _plOpen=id;
+  document.getElementById('plDetailCard').style.display='block';
+  document.getElementById('plDetailTitle').textContent='🗂 '+r.pl.name;
+  document.getElementById('plDetailList').innerHTML=r.tracks.length?r.tracks.map((t,i)=>`
+    <div class="row">
+      <span class="n">${i+1}</span>
+      <div class="th" style="background-image:url(${trackCover(t.ytId)})"></div>
+      <div class="meta"><div class="t">${esc(t.name)}</div><div class="s">${esc(t.artist||'')}${t.duration?' · '+fmt(t.duration):''}</div></div>
+      <div class="acts"><button onclick="plRemoveTrack('${id}','${t.ytId}')" title="Quitar de la playlist">✕</button></div>
+    </div>`).join(''):'<div class="empty">Playlist vacía — agrega desde la biblioteca con 🗂</div>';
+}
+async function plRemoveTrack(id,ytId){
+  const pls=await plAll(); const p=pls.find(x=>x.id===id); if(!p) return;
+  p.trackIds=(p.trackIds||[]).filter(x=>x!==ytId);
+  await plSave(p); renderPls();
+}
+async function plPlay(id){
+  const r=await _plResolve(id); if(!r||!r.tracks.length){toast('Playlist vacía','error');return;}
+  queue=r.tracks.map(t=>({ytId:t.ytId,name:t.name,artist:t.artist}));
+  queuePos=0; renderQueue(); saveQueue();
+  const anyPlaying=decks.some(d=>d.playing);
+  if(!anyPlaying) startStation(); else playFromQueue(0);
+  toast(`▶ Playlist "${r.pl.name}" (${r.tracks.length} canciones)`,'ok');
+}
+async function plAppendToQueue(id){
+  const r=await _plResolve(id); if(!r) return;
+  let added=0;
+  r.tracks.forEach(t=>{if(!queue.some(q=>q.ytId===t.ytId)){queue.push({ytId:t.ytId,name:t.name,artist:t.artist});added++;}});
+  renderQueue(); saveQueue();
+  toast(`➕ ${added} canciones agregadas a la cola`,'ok');
+}
+/* Menú flotante "agregar a playlist" */
+async function plMenuShow(ev,ytId){
+  ev.stopPropagation();
+  const menu=document.getElementById('plMenu');
+  const pls=await plAll();
+  menu.innerHTML=(pls.map(p=>`<button class="plmenu-item" onclick="plMenuAdd('${p.id}','${ytId}')">🗂 ${esc(p.name)}</button>`).join(''))+
+    `<button class="plmenu-item" style="border-top:1px solid var(--line);color:var(--cyan)" onclick="plMenuNew('${ytId}')">＋ Nueva playlist…</button>`;
+  menu.style.display='block';
+  const x=Math.min(ev.clientX,innerWidth-200), y=Math.min(ev.clientY,innerHeight-40-pls.length*34);
+  menu.style.left=x+'px'; menu.style.top=y+'px';
+}
+document.addEventListener('click',e=>{const m=document.getElementById('plMenu');if(m&&!m.contains(e.target))m.style.display='none';});
+async function plMenuAdd(id,ytId){
+  document.getElementById('plMenu').style.display='none';
+  const pls=await plAll(); const p=pls.find(x=>x.id===id); if(!p) return;
+  if((p.trackIds||[]).includes(ytId)){toast('Ya está en esa playlist','');return;}
+  p.trackIds=[...(p.trackIds||[]),ytId];
+  await plSave(p);
+  toast(`🗂 Agregada a "${p.name}"`,'ok');
+  if(_view==='pls') renderPls();
+}
+function plMenuNew(ytId){
+  document.getElementById('plMenu').style.display='none';
+  const name=(prompt('Nombre de la nueva playlist:')||'').trim();
+  if(!name) return;
+  plSave({id:'pl_'+Date.now().toString(36),name,trackIds:[ytId],createdAt:Date.now()}).then(()=>{
+    toast(`🗂 "${name}" creada con 1 canción`,'ok');
+    if(_view==='pls') renderPls();
+  });
+}
+
+/* ---- Historial completo (persistente) ---- */
+async function renderHistFull(){
+  try{
+    const db=await openDB();
+    const st=db.transaction('history','readonly').objectStore('history');
+    const req=st.openCursor(null,'prev'); const out=[];
+    req.onsuccess=e=>{
+      const c=e.target.result;
+      if(c&&out.length<150){out.push(c.value);c.continue();}
+      else{
+        document.getElementById('histFullCnt').textContent=out.length;
+        document.getElementById('histFullList').innerHTML=out.length?out.map(v=>`
+          <div class="row">
+            <div class="th" style="background-image:url(${v.ytId?trackCover(v.ytId):''})"></div>
+            <div class="meta"><div class="t">${esc(v.name||'—')}</div>
+              <div class="s">${esc(v.artist||'')} · ${new Date(v.ts).toLocaleString('es-MX',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</div></div>
+            <div class="acts">${v.ytId?`<button onclick="libPlayNow('${v.ytId}')" title="Reproducir">▶</button>`:''}</div>
+          </div>`).join(''):'<div class="empty">Aún sin reproducciones</div>';
+      }
+    };
+  }catch(e){}
+}
+
+/* ================= NOW-PLAYING BAR (Fase 3) ================= */
+let _likedSet=new Set();
+async function _loadLikedSet(){
+  try{(await libAll()).forEach(t=>{if(t.liked)_likedSet.add(t.ytId);});_syncNPBar();}catch(_){}
+}
+function _syncNPModes(){
+  document.getElementById('npbShuffle')?.classList.toggle('on',shuffleMode);
+  const rb=document.getElementById('npbRepeat');
+  if(rb){rb.classList.toggle('on',repeatMode==='one');rb.textContent=repeatMode==='one'?'🔂':'🔁';}
+}
+function _syncNPBar(){
+  const it=decks[activeDeck]?.item;
+  const t=document.getElementById('npbTitle'),a=document.getElementById('npbArtist'),
+        c=document.getElementById('npbCover'),l=document.getElementById('npbLike');
+  if(it&&t){
+    t.textContent=it.name||'YouTube'; a.textContent=it.artist||'';
+    c.src=trackCover(it.ytId);
+    const liked=_likedSet.has(it.ytId);
+    l.classList.toggle('on',liked); l.textContent=liked?'♥':'♡';
+  }
+  _syncNPModes();
+}
+setInterval(()=>{
+  const d=decks[activeDeck]; if(!d) return;
+  if(d.item){
+    const shown=document.getElementById('npbTitle').textContent;
+    if(shown!==(d.item.name||'YouTube')) _syncNPBar();
+  }
+  let ct=0,dur=0,st=-1;
+  try{ct=d.player.getCurrentTime()||0;dur=d.player.getDuration()||0;st=d.player.getPlayerState();}catch(_){}
+  document.getElementById('npbFill').style.width=(dur>0?Math.min(100,(ct/dur)*100):0)+'%';
+  document.getElementById('npbNow').textContent=fmt(ct);
+  document.getElementById('npbDur').textContent=fmt(dur);
+  document.getElementById('npbPlay').textContent=st===1?'❚❚':'▶';
+},500);
+function npPrev(){const d=decks[activeDeck];if(d&&d.item){try{d.player.seekTo(0,true);}catch(_){}}}
+function npSeek(ev){
+  const d=decks[activeDeck]; if(!d||!d.item) return;
+  const r=ev.currentTarget.getBoundingClientRect();
+  const p=Math.min(1,Math.max(0,(ev.clientX-r.left)/r.width));
+  try{const dur=d.player.getDuration()||0;if(dur>0)d.player.seekTo(dur*p,true);}catch(_){}
+}
+function npToggleLike(){
+  const it=decks[activeDeck]?.item;
+  if(!it){toast('No hay canción sonando','');return;}
+  const liked=!_likedSet.has(it.ytId);
+  if(liked)_likedSet.add(it.ytId); else _likedSet.delete(it.ytId);
+  libUpsert(it).then(()=>libSetLiked(it.ytId,liked));
+  _syncNPBar();
+  toast(liked?'♥ Agregada a Me gusta':'Quitada de Me gusta','ok');
+}
+
 /* ================= INIT ================= */
 setDJFreq('media');
 setExpLevel('natural');
 refreshDJStatus();
+_loadLikedSet();
+_syncNPModes();
 document.getElementById('autoBtn').style.color='var(--grn)';
 // Restore saved selectors
 (()=>{

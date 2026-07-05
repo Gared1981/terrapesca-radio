@@ -80,17 +80,15 @@
 - [x] En studio: caja "🔍 Buscar canciones en YouTube" arriba de la cola, resultados con carátula/título/canal/duración y acciones **▶ Reproducir ya** (inserta después de la actual y la lanza) y **➕ A la cola** (sin duplicados). Todo lo agregado entra a la biblioteca con su duración. La acción "a playlist" llega con la UI de playlists en Fase 3.
 - [x] El input de pegar URL/playlist sigue igual, y ahora también alimenta la biblioteca (`libUpsert` en los tres caminos de `addYTLink`).
 
-### Fase 3 — UI tipo Spotify en studio (2–3 sesiones)
+### Fase 3 — UI tipo Spotify en studio ✅ COMPLETADA
 *Reorganización visual sin tocar el motor de audio.*
 
-- [ ] **Layout de 3 zonas** estilo Spotify:
-  - **Sidebar izquierda:** Inicio / Buscar / Tu biblioteca + lista de playlists.
-  - **Centro:** vista activa (playlist abierta, resultados de búsqueda, historial, "Tus me gusta").
-  - **Now-playing bar inferior fija:** carátula, título/artista, controles (⏮ ⏯ ⏭, shuffle, repeat), barra de seek, volumen master, botón 🎚️ que abre la **cabina** actual (decks + mixer + Rodo) como vista avanzada.
-- [ ] **Cola arrastrable** (drag&drop — portar patrón de panel.html L2529) + "reproducir a continuación".
-- [ ] **Shuffle y repeat reales** como modos persistidos (`tp_shuffle`, `tp_repeat`), respetados por el watcher de auto-mix al elegir la siguiente pista.
-- [ ] Corazón funcional (persiste `liked`) e historial navegable ("Reproducido recientemente").
-- [ ] La cabina DJ (decks A/B, mixer, Rodo, spots) **no se rediseña** — se mueve a una vista/pestaña "Cabina". Cero cambios al motor: mismos IDs de DOM, mismos watchers.
+- [x] **Navegación por vistas** (pestañas bajo el header en lugar de sidebar — misma función, cero riesgo para el layout de la cabina): **Cabina / Biblioteca / Me gusta / Playlists / Historial**. La cabina nunca sale del DOM (se oculta con `offstage`, los decks de YouTube siguen sonando).
+- [x] **Now-playing bar inferior fija:** carátula, título/artista, ♥ funcional, controles ⏮ ⏯ ⏭ + 🔀 shuffle + 🔁/🔂 repeat, barra de seek clicable y volumen master sincronizado con el mixer.
+- [x] **Shuffle y repeat reales** persistidos (`tp_shuffle`, `tp_repeat`): `nextQueueIndex()` es ahora el selector único de "siguiente canción" para el watcher, crossfade, DJ y cues manuales. Shuffle prefiere lo no reproducido recientemente; repetir-una respeta el salto manual (⏭ avanza, como Spotify).
+- [x] **Cola arrastrable** (drag & drop) además de los botones ↑/↓; `queuePos` se reubica correctamente.
+- [x] **Biblioteca** con filtro por título/artista, duración, contador de reproducciones, ♥, ▶ ya, ➕ a la cola y 🗂 a playlist. **Me gusta** = vista filtrada. **Historial** persistente navegable con ▶.
+- [x] **Playlists funcionales:** crear, guardar la cola actual como playlist, abrir (detalle con quitar canción), ▶ reproducir (reemplaza cola), ➕ anexar a cola, eliminar. Menú flotante 🗂 "agregar a playlist" disponible en biblioteca y resultados de búsqueda.
 
 ### Fase 4 — Oyentes (sucursal + listen) (1–2 sesiones)
 - [ ] `sucursal.html`: carátula grande + fondo blur (portar el patrón de listen.html), usar `cover/duration` del WS enriquecido. Quitar decoración falsa.

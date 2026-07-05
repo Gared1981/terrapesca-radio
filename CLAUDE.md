@@ -56,6 +56,14 @@ server-side.
 - **CONAGUA** presas data via `/api/conagua` (self-signed cert, `rejectUnauthorized:false`).
 - `/api/scrape` fetches a product page (one redirect followed, 80KB cap) so the AI can write a spot.
 
+### Studio UI (Fase 3)
+studio.html has view tabs (Cabina / Biblioteca / Me gusta / Playlists / Historial) via `showView()` —
+the cabina is hidden with the `offstage` class (kept in the DOM so the YouTube decks keep playing),
+never `display:none`. A fixed bottom now-playing bar mirrors the active deck (500ms tick) with working
+heart/shuffle/repeat. **`nextQueueIndex()` is the single next-track selector** — every engine path
+(watcher, crossfade finalize, DJ pre-cue, manual cues) goes through it; it honors `shuffleMode` /
+`repeatMode` (localStorage `tp_shuffle`/`tp_repeat`). Don't reintroduce raw `(queuePos+1)%queue.length`.
+
 ### Audio engine (studio.html)
 Two YouTube IFrame players = deck A and deck B. The auto-mix watcher (250ms interval) reads
 `getCurrentTime`/`getDuration`; `prebufferNext()` starts the inactive deck muted ~`PREBUFFER_AHEAD`
