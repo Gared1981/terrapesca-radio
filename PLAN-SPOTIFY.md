@@ -90,10 +90,11 @@
 - [x] **Biblioteca** con filtro por título/artista, duración, contador de reproducciones, ♥, ▶ ya, ➕ a la cola y 🗂 a playlist. **Me gusta** = vista filtrada. **Historial** persistente navegable con ▶.
 - [x] **Playlists funcionales:** crear, guardar la cola actual como playlist, abrir (detalle con quitar canción), ▶ reproducir (reemplaza cola), ➕ anexar a cola, eliminar. Menú flotante 🗂 "agregar a playlist" disponible en biblioteca y resultados de búsqueda.
 
-### Fase 4 — Oyentes (sucursal + listen) (1–2 sesiones)
-- [ ] `sucursal.html`: carátula grande + fondo blur (portar el patrón de listen.html), usar `cover/duration` del WS enriquecido. Quitar decoración falsa.
-- [ ] `listen.html`: corazón funcional (favoritos locales del oyente), cola "próximas canciones" de solo lectura (nuevo mensaje WS `QUEUE_PREVIEW` con las siguientes 3–5 pistas, enviado por studio en cada crossfade), animación/estado "DJ Rodo al aire".
-- [ ] MediaSession con carátula real en ambos.
+### Fase 4 — Oyentes (sucursal + listen) ✅ COMPLETADA
+- [x] `sucursal.html`: carátula en la consola (desde Fase 0) + **fondo difuminado** con la misma carátula (patrón de listen). Usa `cover` del WS enriquecido. Decoración falsa eliminada en Fase 0.
+- [x] `listen.html`: **corazón funcional** (favoritos locales en `tp_listen_likes`), **"Próximas canciones"** de solo lectura vía mensaje `QUEUE_PREVIEW` (studio lo emite con cada `PLAY`, el server lo guarda en `radioState` y lo incluye en el `SYNC` para clientes nuevos), y estado "🎙 DJ Rodo al aire" cuando llega un SPOT sin video.
+- [x] La metadata se conecta desde el load: el oyente ve qué suena y qué sigue **antes** de pulsar "Escuchar" (el audio sigue requiriendo el tap por la política de autoplay).
+- [x] MediaSession ya usaba carátula real en listen; ahora prefiere el `cover` del WS.
 
 ### Fase 5 — Inteligencia y extras (opcional, 1–2 sesiones)
 - [ ] **"Radio infinita":** cuando la cola se acaba, Claude sugiere pistas nuevas (títulos/artistas afines al mood/hora) y se resuelven a videos con `/api/ytsearch` — recomendaciones de verdad, no solo dentro de la cola.

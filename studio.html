@@ -675,6 +675,20 @@ function _wsPlayTrack(item, positionSecs){
   let dur=0; try{dur=Math.round(decks[activeDeck]?.player.getDuration()||0);}catch(_){}
   _wsSend({ type:'PLAY', track:{type:'yt',ytId:item.ytId,name:item.name||'',channelTitle:item.artist||'',
     cover:trackCover(item.ytId), duration:dur}, position:Math.round(positionSecs||0) });
+  _wsQueuePreview();
+}
+// "Próximas canciones" para los oyentes (Fase 4). Con shuffle activo la vista
+// previa es aproximada (secuencial); la real se decide al momento del crossfade.
+function _wsQueuePreview(){
+  if(queue.length<2) return;
+  const items=[]; let i=queuePos;
+  for(let n=0;n<5;n++){
+    i=(i+1)%queue.length;
+    if(i===queuePos) break;
+    const q=queue[i];
+    items.push({ytId:q.ytId,name:q.name||'',artist:q.artist||'',cover:trackCover(q.ytId)});
+  }
+  _wsSend({type:'QUEUE_PREVIEW',items});
 }
 function _wsSpotAudio(ab, name){
   // Convert ArrayBuffer → base64 and relay as SPOT to all sucursal listeners

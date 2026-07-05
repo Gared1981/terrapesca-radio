@@ -31,7 +31,10 @@ the `wss.on('connection')` switch in `server.js`: `PLAY`, `PAUSE`, `RESUME`, `VO
 `PLAYLIST_UPDATE`, `SPOT`, `JINGLE_SET`, `MIC_ONAIR`. The server keeps a single `radioState` object and
 sends a `SYNC` snapshot to every newly-connected client. Listeners (`listen.html`) can send
 `NEXT_TRACK`/`PREV_TRACK`; the server relays them and `studio.html` handles them in `_onRemoteCmd`
-(3s cooldown so a remote listener can't spam skips across the whole network).
+(3s cooldown so a remote listener can't spam skips across the whole network). Studio also emits
+`QUEUE_PREVIEW` (next up-to-5 tracks) with every `PLAY`; the server stores it in
+`radioState.queuePreview` so new clients get it via `SYNC`, and listen.html renders it as
+"Próximas canciones".
 
 **Roadmap:** `PLAN-SPOTIFY.md` holds the full audit and the phased plan to evolve the radio into a
 Spotify-like experience (library, playlists, search, now-playing bar) without touching the dual-deck engine.

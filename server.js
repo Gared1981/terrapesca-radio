@@ -1165,6 +1165,11 @@ wss.on('connection', (ws) => {
           // Comandos de oyentes (listen.html): se reenvían para que el controlador actúe.
           broadcast({ type: msg.type }, ws);
           break;
+        case 'QUEUE_PREVIEW':
+          // Próximas canciones (Fase 4) — se guarda para el SYNC de clientes nuevos.
+          radioState.queuePreview = Array.isArray(msg.items) ? msg.items.slice(0, 5) : [];
+          broadcast({ type: 'QUEUE_PREVIEW', items: radioState.queuePreview }, ws);
+          break;
       }
     } catch (e) {
       console.error('Error:', e.message);

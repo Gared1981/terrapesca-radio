@@ -464,7 +464,10 @@ input[type=range]::-moz-range-thumb{
 </div>
 
 <!-- MAIN PLAYER -->
-<div class="console-wrap" style="display:none" id="mainPlayer">
+<!-- Fondo difuminado con la carátula (Fase 4) -->
+<div id="bgArt" style="position:fixed;inset:-40px;background-size:cover;background-position:center;filter:blur(48px) brightness(.28);z-index:0;pointer-events:none;transition:background-image .5s"></div>
+
+<div class="console-wrap" style="display:none;position:relative;z-index:1" id="mainPlayer">
 
   <!-- HEADER -->
   <div class="console-header">
@@ -1028,9 +1031,11 @@ function updateNP(track, playing){
   const cov=document.getElementById('npCover'), fb=document.getElementById('npCoverFb');
   if(cov&&fb){
     if(track.type==='yt'&&track.ytId){
-      cov.src=track.cover||('https://img.youtube.com/vi/'+track.ytId+'/mqdefault.jpg');
+      const src=track.cover||('https://img.youtube.com/vi/'+track.ytId+'/mqdefault.jpg');
+      cov.src=src;
       cov.style.display=''; fb.style.display='none';
       cov.onerror=()=>{cov.style.display='none';fb.style.display='flex';};
+      const bg=document.getElementById('bgArt'); if(bg) bg.style.backgroundImage=`url('${src}')`;
     } else {
       cov.style.display='none'; fb.style.display='flex';
       fb.textContent=track.type==='spot'?'📣':track.type==='mic'?'🎤':'📻';
