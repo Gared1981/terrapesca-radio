@@ -75,10 +75,10 @@
 - [x] Mensaje WS `PLAY` enriquecido con `{cover, duration}`; sucursal y listen lo prefieren sobre el thumbnail derivado.
 - [x] **Bonus:** el historial ahora también registra las canciones que entran por crossfade automático (antes solo las cargadas a mano) y sobrevive recargas (`loadHistoryIDB`).
 
-### Fase 2 — Búsqueda (1 sesión)
-- [ ] Nuevo proxy en `server.js`: `GET /api/ytsearch?q=...&key=...` → YouTube Data API v3 `search.list` (type=video, videoCategoryId=10 Música). Mismo modelo de secrets: la key `tp_yt` viaja del navegador como query param, el servidor no guarda nada.
-- [ ] En studio: caja de búsqueda con resultados (carátula, título, canal, duración vía `videos.list`) y acciones **▶ Reproducir ya / ➕ A la cola / 💾 A playlist**.
-- [ ] Mantener el input de pegar URL/playlist como está (ya funciona).
+### Fase 2 — Búsqueda ✅ COMPLETADA
+- [x] Proxy `GET /api/ytsearch?q=...&key=...` en `server.js`: `search.list` (type=video, categoría Música, 12 resultados) + `videos.list` para duraciones en una sola respuesta `{items:[{ytId,title,channel,thumb,duration}]}`. Mismo modelo de secrets (la key `tp_yt` viaja del navegador).
+- [x] En studio: caja "🔍 Buscar canciones en YouTube" arriba de la cola, resultados con carátula/título/canal/duración y acciones **▶ Reproducir ya** (inserta después de la actual y la lanza) y **➕ A la cola** (sin duplicados). Todo lo agregado entra a la biblioteca con su duración. La acción "a playlist" llega con la UI de playlists en Fase 3.
+- [x] El input de pegar URL/playlist sigue igual, y ahora también alimenta la biblioteca (`libUpsert` en los tres caminos de `addYTLink`).
 
 ### Fase 3 — UI tipo Spotify en studio (2–3 sesiones)
 *Reorganización visual sin tocar el motor de audio.*

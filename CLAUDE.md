@@ -51,7 +51,8 @@ server-side.
 - **ElevenLabs** (`eleven_multilingual_v2`, `language_code: 'es'`) — Spanish TTS for DJ/spots.
 - **YouTube** — three paths: IFrame API (in-browser playback in studio/panel), `@distube/ytdl-core`
   (server-side audio stream for mobile via `/radio/stream` and `/api/ytaudio/:id`), and YouTube Data
-  API v3 (playlist import via `/api/ytplaylist`).
+  API v3 (playlist import via `/api/ytplaylist`; song search via `/api/ytsearch` which merges
+  `search.list` + `videos.list` durations).
 - **CONAGUA** presas data via `/api/conagua` (self-signed cert, `rejectUnauthorized:false`).
 - `/api/scrape` fetches a product page (one redirect followed, 80KB cap) so the AI can write a spot.
 

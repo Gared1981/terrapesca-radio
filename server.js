@@ -854,6 +854,70 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // ── Proxy YouTube search (Fase 2 plan Spotify) ──
+  // GET /api/ytsearch?q=...&key=... → busca videos de música y devuelve
+  // items:[{ytId,title,channel,thumb,duration}] con duración en segundos
+  // (search.list + videos.list). La key viaja del navegador (tp_yt), como en /api/ytplaylist.
+  if (req.url.startsWith('/api/ytsearch') && req.method === 'GET') {
+    const u = new URL(req.url, 'http://localhost');
+    const q      = u.searchParams.get('q')   || '';
+    const apiKey = u.searchParams.get('key') || '';
+    if (!q || !apiKey) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'q and key required' }));
+      return;
+    }
+    const getJson = (path) => new Promise((resolve, reject) => {
+      const r = https.request({ hostname: 'www.googleapis.com', path, method: 'GET', headers: { 'Accept': 'application/json' } }, (apiRes) => {
+        let raw = '';
+        apiRes.on('data', c => raw += c);
+        apiRes.on('end', () => {
+          try { resolve({ status: apiRes.statusCode, json: JSON.parse(raw) }); }
+          catch (e) { reject(new Error('Respuesta inválida de YouTube')); }
+        });
+        apiRes.on('error', reject);
+      });
+      r.on('error', reject);
+      r.setTimeout(PROXY_TIMEOUT_MS, () => { r.destroy(); reject(new Error('Tiempo de espera agotado')); });
+      r.end();
+    });
+    const iso8601ToSecs = (iso) => {
+      const m = /PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/.exec(iso || '');
+      if (!m) return 0;
+      return (+m[1] || 0) * 3600 + (+m[2] || 0) * 60 + (+m[3] || 0);
+    };
+    (async () => {
+      const sr = await getJson(`/youtube/v3/search?part=snippet&type=video&videoCategoryId=10&maxResults=12&q=${encodeURIComponent(q)}&key=${encodeURIComponent(apiKey)}`);
+      if (sr.status !== 200) {
+        const msg = sr.json?.error?.message || 'Error de YouTube';
+        res.writeHead(sr.status, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: msg }));
+        return;
+      }
+      const items = (sr.json.items || []).filter(it => it.id && it.id.videoId).map(it => ({
+        ytId: it.id.videoId,
+        title: it.snippet?.title || 'YouTube',
+        channel: it.snippet?.channelTitle || '',
+        thumb: it.snippet?.thumbnails?.medium?.url || `https://img.youtube.com/vi/${it.id.videoId}/mqdefault.jpg`,
+        duration: 0,
+      }));
+      // Duraciones en una sola llamada extra (best effort — si falla, van en 0)
+      if (items.length) {
+        try {
+          const vr = await getJson(`/youtube/v3/videos?part=contentDetails&id=${items.map(i => i.ytId).join(',')}&key=${encodeURIComponent(apiKey)}`);
+          const durs = {};
+          (vr.json.items || []).forEach(v => { durs[v.id] = iso8601ToSecs(v.contentDetails?.duration); });
+          items.forEach(i => { i.duration = durs[i.ytId] || 0; });
+        } catch (_) {}
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ items }));
+    })().catch(e => {
+      try { res.writeHead(502, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: e.message })); } catch (_) {}
+    });
+    return;
+  }
+
   // ── Proxy ElevenLabs TTS ──
   if (req.url.startsWith('/api/elevenlabs/') && req.method === 'POST') {
     readLimitedBody(req, res, (body) => {
