@@ -894,6 +894,21 @@ const VOICES={
 };
 /* djVoiceId() se define en VOICE HELPERS (lee el selector del DOM). */
 function stripElTags(t){return t.replace(/\[[^\]]*\]/g,'').replace(/\s{2,}/g,' ').trim();}
+// Prepara el guión para síntesis NATURAL: fuera emojis/símbolos que el TTS lee mal
+// o pronuncia raro, guiones → comas (pausa suave en vez de corte), saltos de
+// línea → espacio (cada salto era una pausa robótica).
+function ttsPrep(t){
+  return (t||'')
+    .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}\u{200D}]/gu,'')
+    .replace(/\s*[—–]\s*/g,', ')
+    .replace(/(^|\s)-\s+/g,'$1, ')
+    .replace(/["“”«»*_#`~<>|•·]/g,'')
+    .replace(/\s*\n+\s*/g,' ')
+    .replace(/\s{2,}/g,' ')
+    .replace(/\s+([,.!?…;:])/g,'$1')
+    .replace(/,\s*,+/g,',')
+    .trim();
+}
 function toast(m,t=''){const e=document.getElementById('toast');e.textContent=m;e.className='toast show '+t;clearTimeout(window._tt);window._tt=setTimeout(()=>e.classList.remove('show'),3200);}
 function fmt(s){if(!s||isNaN(s)||s<0)return'0:00';const m=Math.floor(s/60),x=Math.floor(s%60);return m+':'+(x<10?'0':'')+x;}
 
@@ -1392,7 +1407,7 @@ async function playDJ(type){
     if(!cfg.elKey){toast('Falta clave ElevenLabs (config en panel)','error');throw new Error('no key');}
     const r=await fetch(`/api/elevenlabs/${djVoiceId()}`,{
       method:'POST',headers:{'Content-Type':'application/json','xi-api-key':cfg.elKey},
-      body:JSON.stringify({text:stripElTags(script||''),model_id:'eleven_multilingual_v2',language_code:'es',
+      body:JSON.stringify({text:ttsPrep(stripElTags(script||'')),model_id:'eleven_multilingual_v2',language_code:'es',
         voice_settings:getVoiceSettings()})
     });
     if(!r.ok) throw new Error('EL '+r.status);
@@ -1542,9 +1557,14 @@ Solo puedes generar contenido entre 9:00 AM y 6:00 PM hora de Sinaloa/Mazatlán.
 Si el sistema indica que estás fuera de horario, responde únicamente: "Fuera de horario autorizado para generar contenido."
 Cuando estés en horario, genera intervenciones de 10 a 20 segundos.
 No leas títulos de canciones. No menciones que la música viene de YouTube. No inventes datos exactos de clima, presas o mareas si no los tienes. No hagas afirmaciones peligrosas.
-Estilo: locutor mexicano natural, tono cálido y con energía, habla como radio en vivo, entra directo al valor, cierra con frase corta.
-ESCRITURA PARA SÍNTESIS DE VOZ: Frases cortísimas. Una idea por frase. Usa coma donde hay pausa natural. Punto donde hay golpe fuerte.
-FORMATO: SOLO el guión. Sin comillas. Sin corchetes ni etiquetas. Texto final listo para grabar.`;
+Estilo: locutor mexicano de carne y hueso, cálido, con energía y carisma — como si estuviera platicando al micrófono, no leyendo.
+ESCRITURA PARA VOZ NATURAL (muy importante):
+- Habla DE CORRIDO: frases conectadas que fluyen una hacia la otra, como conversación real. NUNCA escribas telegráfico ni frases sueltas de tres palabras.
+- Une las ideas con conectores naturales: "y fíjate que", "así que", "porque", "mira", "oye". Usa coma para respirar; reserva el punto solo para el cierre de una idea completa.
+- Puedes usar puntos suspensivos para una pausa expresiva… y signos de exclamación cuando la energía sube de verdad.
+- Escribe TODOS los números en palabras: "veinte por ciento", "seis de la tarde", "veintiocho grados". Nada de cifras, símbolos ni abreviaturas.
+- Cero emojis, cero listas, cero paréntesis.
+FORMATO: SOLO el guión. Sin comillas. Sin corchetes ni etiquetas. Texto final listo para narrar de corrido.`;
 
   const queueLines=(ctx&&ctx.queue||[]).map(x=>`  ${x.i}: "${x.name}" — ${x.artist||'artista desconocido'}`).join('\n');
   const curLine=ctx&&ctx.currentSong?`Canción ACTUAL (NO la repitas ni la menciones): "${ctx.currentSong.name}" — ${ctx.currentSong.artist}`:'';
@@ -2167,6 +2187,7 @@ ESTRATEGIA: ${estrategia}
 APERTURA (usa esta técnica): ${apertura}
 
 REGLAS DE ORO:
+- Escribe para ser NARRADO de corrido por un locutor real: frases que fluyen y se conectan, comas para respirar, nada telegráfico. Números siempre en palabras ("quince por ciento", no "15%").
 - Primera frase: impacto directo. Sin saludos, sin presentación.
 - Menciona el producto por nombre exacto 1 o 2 veces.
 - Beneficios concretos: no características técnicas — qué SIENTE o LOGRA el pescador con él.
@@ -2220,7 +2241,7 @@ async function previewSpotScript(){
   try{
     const r=await fetch(`/api/elevenlabs/${spotVoiceId()}`,{method:'POST',
       headers:{'Content-Type':'application/json','xi-api-key':cfg.elKey},
-      body:JSON.stringify({text:stripElTags(script),model_id:'eleven_multilingual_v2',language_code:'es',
+      body:JSON.stringify({text:ttsPrep(stripElTags(script)),model_id:'eleven_multilingual_v2',language_code:'es',
         voice_settings:getVoiceSettings()})
     });
     if(!r.ok) throw new Error('EL '+r.status);
@@ -2241,7 +2262,7 @@ async function createSpotAudio(){
   try{
     const r=await fetch(`/api/elevenlabs/${spotVoiceId()}`,{method:'POST',
       headers:{'Content-Type':'application/json','xi-api-key':cfg.elKey},
-      body:JSON.stringify({text:stripElTags(script),model_id:'eleven_multilingual_v2',language_code:'es',
+      body:JSON.stringify({text:ttsPrep(stripElTags(script)),model_id:'eleven_multilingual_v2',language_code:'es',
         voice_settings:getVoiceSettings()})
     });
     if(!r.ok) throw new Error('EL '+r.status);
@@ -2550,11 +2571,14 @@ async function loadStingerFromIDB(){
 /* ===== /STINGER ===== */
 
 /* ================= EXPRESSION LEVEL ================= */
+// Presets calibrados para eleven_multilingual_v2: stability muy baja + style muy
+// alto (los valores anteriores) producen artefactos y voz inestable/"robótica".
+// La zona natural del modelo es stability .30-.55 con style moderado.
 const EXP_PRESETS={
-  suave:  {stability:0.40,similarity_boost:0.85,style:0.55},
-  natural:{stability:0.22,similarity_boost:0.82,style:0.80},
-  fuerte: {stability:0.14,similarity_boost:0.80,style:0.90},
-  maximo: {stability:0.05,similarity_boost:0.75,style:1.0},
+  suave:  {stability:0.55,similarity_boost:0.85,style:0.20},
+  natural:{stability:0.42,similarity_boost:0.80,style:0.40},
+  fuerte: {stability:0.32,similarity_boost:0.78,style:0.60},
+  maximo: {stability:0.22,similarity_boost:0.75,style:0.80},
 };
 let _expLevel='natural';
 function setExpLevel(e){
