@@ -60,11 +60,15 @@ server-side.
 - **CONAGUA** presas data via `/api/conagua` (self-signed cert, `rejectUnauthorized:false`).
 - `/api/scrape` fetches a product page (one redirect followed, 80KB cap) so the AI can write a spot.
 
-### Studio UI (Fase 3)
-studio.html has view tabs (Cabina / Biblioteca / Me gusta / Playlists / Historial) via `showView()` —
+### Studio UI (Fase 3 + Fase 8 shell)
+studio.html is an app shell: fixed left sidebar (`.sidebar`, becomes a horizontal top bar under 900px)
+with views Inicio / Buscar / Cabina / Biblioteca / Me gusta / Historial / Playlists via `showView()` —
 the cabina is hidden with the `offstage` class (kept in the DOM so the YouTube decks keep playing),
-never `display:none`. A fixed bottom now-playing bar mirrors the active deck (500ms tick) with working
-heart/shuffle/repeat. **`nextQueueIndex()` is the single next-track selector** — every engine path
+never `display:none`. Default view is `home` (persisted per user in `tp_last_view`); `renderHome()`
+builds the greeting/hero/top/recent; search lives in its own view (`#viewSearch`, IDs `ytSearch`/
+`searchResults` moved there). Global keyboard shortcuts (space/→/L/S/R) skip when focus is in an
+input. A fixed bottom now-playing bar mirrors the active deck (500ms tick) with working
+heart/shuffle/repeat and an animated equalizer. **`nextQueueIndex()` is the single next-track selector** — every engine path
 (watcher, crossfade finalize, DJ pre-cue, manual cues) goes through it; it honors `shuffleMode` /
 `repeatMode` (localStorage `tp_shuffle`/`tp_repeat`). Don't reintroduce raw `(queuePos+1)%queue.length`.
 

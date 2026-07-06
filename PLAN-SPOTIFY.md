@@ -112,6 +112,14 @@
 - [x] **Limpieza de experimentos:** eliminados los motores FFmpeg de prueba (Fase C) de `server.js` (-410 líneas), `audio-test/`, `audio-live/`, `scripts/`, `sucursal-stream*.html` y los JSON de fixtures; `package.json` sin `ffmpeg-static` ni `@google-cloud/text-to-speech`.
 - [x] Botón "🏠 INICIO" en el header del studio (antes llevaba al panel congelado); service worker v3 con la portada.
 
+### Fase 8 — App shell 10x ✅ COMPLETADA
+- [x] **Sidebar de navegación** fija tipo plataforma (Inicio / Buscar / Cabina / Biblioteca / Me gusta / Historial / Playlists + accesos rápidos a playlists); en móvil se convierte en barra superior horizontal.
+- [x] **Vista Inicio**: saludo por hora, hero "Al aire ahora" con carátula grande y acciones (▶, ⏭, Cabina, Buscar), Top canciones, Tocadas recientemente y chips de playlists. Es la vista por defecto (se recuerda la última en `tp_last_view`).
+- [x] **Vista Buscar dedicada**: input grande centrado ("¿Qué quieres escuchar?") con la búsqueda movida desde la cola.
+- [x] **Atajos de teclado**: espacio (play/pausa), → (siguiente), L (me gusta), S (aleatorio), R (repetir) — ignorados al escribir en inputs.
+- [x] **Ecualizador animado** en la barra de reproducción cuando hay música sonando.
+- [x] El motor no cambió: la cabina sigue viva `offstage` y todos los IDs/funciones del engine quedaron intactos.
+
 ---
 
 ## Estado final — PROYECTO COMPLETO ✅
