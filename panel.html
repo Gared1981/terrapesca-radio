@@ -1,4 +1,8 @@
 <!DOCTYPE html>
+<!-- ⚠️ ARCHIVO CONGELADO (Fase 0 del plan Spotify — ver PLAN-SPOTIFY.md).
+     Solo hotfixes. Toda feature nueva va a studio.html, que tiene el motor
+     dual-deck con crossfade real. Este panel duplica DJ Rodo/spots/clima con
+     un motor inferior y será reemplazado por studio. -->
 <html lang="es">
 <head>
 <meta charset="UTF-8"/>
@@ -2761,7 +2765,9 @@ function showToast(m,t='info'){const el=document.getElementById('toast');el.text
 function fmt(s){if(!s||isNaN(s))return'0:00';const m=Math.floor(s/60),sc=Math.floor(s%60);return m+':'+(sc<10?'0':'')+sc}
 
 // ---- STORAGE / PERSISTENCE ----
-const IDB_NAME='TerrapescaRadio',IDB_VER=2;
+// ⚠️ IDB_VER debe coincidir con studio.html (misma base de datos; abrir con
+// versión menor lanza VersionError). El upgrade replica el schema v3 de studio.
+const IDB_NAME='TerrapescaRadio',IDB_VER=3;
 let idb=null;
 
 function openDB(){
@@ -2771,6 +2777,11 @@ function openDB(){
       const d=e.target.result;
       if(!d.objectStoreNames.contains('playlist')) d.createObjectStore('playlist',{keyPath:'key'});
       if(!d.objectStoreNames.contains('session'))  d.createObjectStore('session', {keyPath:'key'});
+      // v3 (schema de studio.html): biblioteca, playlists e historial persistente
+      if(d.objectStoreNames.contains('tracks')) d.deleteObjectStore('tracks');
+      d.createObjectStore('tracks',{keyPath:'ytId'});
+      if(!d.objectStoreNames.contains('playlists')) d.createObjectStore('playlists',{keyPath:'id'});
+      if(!d.objectStoreNames.contains('history')) d.createObjectStore('history',{autoIncrement:true});
     };
     req.onsuccess=e=>{idb=e.target.result;res(idb)};
     req.onerror=e=>rej(e.target.error);

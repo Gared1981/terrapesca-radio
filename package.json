@@ -1,17 +1,13 @@
 {
   "name": "terrapesca-radio-server",
-  "version": "1.0.0",
-  "description": "Servidor de radio en tiempo real para Terrapesca",
+  "version": "2.0.0",
+  "description": "Radio en tiempo real para tiendas Terrapesca — cabina DJ con crossfade, DJ Rodo (IA) y transmisión a sucursales",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "prepare-audio": "node scripts/prepare-audio-test.js",
-    "prepare-audio-live": "node scripts/prepare-audio-live.js"
+    "start": "node server.js"
   },
   "dependencies": {
     "@distube/ytdl-core": "^4.16.12",
-    "@google-cloud/text-to-speech": "^5.8.1",
-    "ffmpeg-static": "^5.3.0",
     "ws": "^8.16.0"
   },
   "engines": {

@@ -1,8 +1,8 @@
 // Radio Terrapesca Service Worker
 // Keeps audio alive in background and caches static assets
 
-const CACHE = 'terrapesca-radio-v1';
-const STATIC = ['/panel.html', '/listen.html'];
+const CACHE = 'terrapesca-radio-v3';
+const STATIC = ['/', '/index.html', '/panel.html', '/listen.html', '/studio.html', '/sucursal.html'];
 
 self.addEventListener('install', e => {
   e.waitUntil(
@@ -32,9 +32,18 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  // Cache-first for static HTML
+  // Network-first for static HTML: always serve the freshly deployed version,
+  // falling back to cache only when offline. (Cache-first left stale UIs after deploys.)
   e.respondWith(
-    caches.match(e.request).then(cached => cached || fetch(e.request))
+    fetch(e.request)
+      .then(resp => {
+        if (resp.ok) {
+          const copy = resp.clone();
+          caches.open(CACHE).then(c => c.put(e.request, copy)).catch(() => {});
+        }
+        return resp;
+      })
+      .catch(() => caches.match(e.request))
   );
 });
 

@@ -122,6 +122,16 @@ html,body{width:100%;height:100%;background:#000;color:#fff;font-family:'Inter',
 .btn-play-main:active{transform:scale(.92)}
 .btn-play-main.live{background:#ef4444;color:#fff}
 
+/* Próximas canciones (Fase 4) */
+.upnext{margin:2px 0 12px;background:rgba(255,255,255,.04);border-radius:12px;padding:10px 12px}
+.upnext-title{font-size:10px;letter-spacing:.14em;color:rgba(255,255,255,.45);margin-bottom:8px;font-weight:600}
+.un-row{display:flex;align-items:center;gap:10px;padding:4px 0}
+.un-thumb{width:34px;height:34px;border-radius:6px;object-fit:cover;flex-shrink:0;background:rgba(255,255,255,.06)}
+.un-meta{min-width:0;flex:1}
+.un-name{font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.un-artist{font-size:11px;color:rgba(255,255,255,.45);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.un-num{font-size:11px;color:rgba(255,255,255,.35);min-width:14px;text-align:center}
+
 /* Status chip */
 .status-wrap{display:flex;align-items:center;justify-content:center;margin-bottom:10px;min-height:20px}
 .status{font-size:11px;color:rgba(255,255,255,.4);letter-spacing:.05em}
@@ -197,7 +207,7 @@ html,body{width:100%;height:100%;background:#000;color:#fff;font-family:'Inter',
       <div class="track-artist" id="trackArtist">Música, pesca, marina y outdoor</div>
       <div class="track-slogan">Terrapesca, equipa tu aventura</div>
     </div>
-    <button class="btn-heart">♡</button>
+    <button class="btn-heart" id="btnHeart" onclick="toggleHeart()" title="Me gusta">♡</button>
   </div>
 
   <div class="progress-wrap">
@@ -209,20 +219,17 @@ html,body{width:100%;height:100%;background:#000;color:#fff;font-family:'Inter',
   </div>
 
   <div class="transport">
-    <!-- Shuffle (decorative) -->
-    <button class="btn-t" style="opacity:.45">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/></svg>
-    </button>
-    <!-- Prev -->
+    <!-- Prev: pide al studio reiniciar la pista (afecta a toda la red) -->
     <button class="btn-t" onclick="skipPrev()" style="font-size:28px">⏮</button>
     <!-- Play/Pause -->
     <button class="btn-play-main" id="btnPlay" onclick="togglePlay()">▶</button>
-    <!-- Next -->
+    <!-- Next: pide al studio saltar a la siguiente canción -->
     <button class="btn-t" onclick="skipNext()" style="font-size:28px">⏭</button>
-    <!-- Repeat (decorative) -->
-    <button class="btn-t" style="opacity:.45">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/></svg>
-    </button>
+  </div>
+
+  <div class="upnext" id="upnext" style="display:none">
+    <div class="upnext-title">PRÓXIMAS CANCIONES</div>
+    <div id="upnextList"></div>
   </div>
 
   <div class="status-wrap">
@@ -405,12 +412,13 @@ function updateNowPlaying(track) {
   document.getElementById('trackArtist').textContent = artist;
   document.getElementById('topPlaylist').textContent = name;
 
-  const artSrc = track?.thumb || (track?.ytId ? `https://img.youtube.com/vi/${track.ytId}/hqdefault.jpg` : TP_LOGO);
+  const artSrc = track?.cover || track?.thumb || (track?.ytId ? `https://img.youtube.com/vi/${track.ytId}/hqdefault.jpg` : TP_LOGO);
   document.getElementById('artImg').src = artSrc;
   document.getElementById('artImg').onerror = () => { document.getElementById('artImg').src = TP_LOGO; };
 
   // Update blurred background
   document.getElementById('bgArt').style.backgroundImage = `url('${artSrc}')`;
+  syncHeart();
 
   if ('mediaSession' in navigator) {
     const type = (track?.thumb || track?.ytId) ? 'image/jpeg' : 'image/png';
@@ -425,6 +433,7 @@ function updateNowPlaying(track) {
 // ── WebSocket ──
 function connectWS() {
   clearTimeout(wsTimer);
+  if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
   const url = location.origin.replace('https://', 'wss://').replace('http://', 'ws://');
   try { ws = new WebSocket(url); } catch(e) { wsTimer = setTimeout(connectWS, 4000); return; }
   ws.onclose = () => { wsTimer = setTimeout(connectWS, 4000); };
@@ -432,12 +441,56 @@ function connectWS() {
   ws.onmessage = (e) => {
     try {
       const m = JSON.parse(e.data);
-      if (m.type === 'SYNC' && m.state?.currentTrack) updateNowPlaying(m.state.currentTrack);
-      else if ((m.type === 'PLAY' || m.type === 'SPOT') && m.track) updateNowPlaying(m.track);
+      if (m.type === 'SYNC') {
+        if (m.state?.currentTrack) updateNowPlaying(m.state.currentTrack);
+        if (m.state?.queuePreview) renderUpNext(m.state.queuePreview);
+      }
+      else if ((m.type === 'PLAY' || m.type === 'SPOT') && m.track) {
+        updateNowPlaying(m.track);
+        // Un SPOT sin video es DJ Rodo o publicidad al aire
+        if (m.type === 'SPOT' && !m.track.ytId) {
+          document.getElementById('topPlaylist').textContent = '🎙 ' + (m.track.name || 'DJ Rodo al aire');
+        }
+      }
+      else if (m.type === 'QUEUE_PREVIEW') renderUpNext(m.items);
     } catch(_) {}
   };
 }
 function sendWS(d) { if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(d)); }
+
+// ── Próximas canciones (Fase 4) ──
+function renderUpNext(items) {
+  const box = document.getElementById('upnext'), list = document.getElementById('upnextList');
+  if (!Array.isArray(items) || !items.length) { box.style.display = 'none'; return; }
+  box.style.display = 'block';
+  list.innerHTML = items.slice(0, 5).map((t, i) => `
+    <div class="un-row">
+      <span class="un-num">${i + 1}</span>
+      <img class="un-thumb" src="${t.cover || ('https://img.youtube.com/vi/' + t.ytId + '/default.jpg')}" alt=""
+           onerror="this.style.visibility='hidden'">
+      <div class="un-meta"><div class="un-name">${escHtml(t.name || 'YouTube')}</div>
+        <div class="un-artist">${escHtml(t.artist || '')}</div></div>
+    </div>`).join('');
+}
+function escHtml(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+// ── Favoritos locales del oyente (Fase 4) ──
+let _likes = new Set();
+try { _likes = new Set(JSON.parse(localStorage.getItem('tp_listen_likes') || '[]')); } catch(_) {}
+function toggleHeart() {
+  const id = currentTrack?.ytId;
+  if (!id) return;
+  _likes.has(id) ? _likes.delete(id) : _likes.add(id);
+  localStorage.setItem('tp_listen_likes', JSON.stringify([..._likes]));
+  syncHeart();
+}
+function syncHeart() {
+  const b = document.getElementById('btnHeart');
+  if (!b) return;
+  const on = !!(currentTrack?.ytId && _likes.has(currentTrack.ytId));
+  b.textContent = on ? '♥' : '♡';
+  b.style.color = on ? '#ef4444' : '';
+}
 
 // ── Service Worker ──
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
@@ -455,6 +508,10 @@ document.addEventListener('visibilitychange', () => {
     navigator.mediaSession.playbackState = 'playing';
   }
 });
+
+// Conectar metadata desde el load (Fase 4): el oyente ve qué suena y las
+// próximas canciones antes de pulsar "Escuchar". El audio sigue requiriendo el tap.
+connectWS();
 </script>
 </body>
 </html>
