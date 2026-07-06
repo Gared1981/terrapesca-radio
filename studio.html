@@ -911,6 +911,9 @@ function ttsPrep(t){
 }
 function toast(m,t=''){const e=document.getElementById('toast');e.textContent=m;e.className='toast show '+t;clearTimeout(window._tt);window._tt=setTimeout(()=>e.classList.remove('show'),3200);}
 function fmt(s){if(!s||isNaN(s)||s<0)return'0:00';const m=Math.floor(s/60),x=Math.floor(s%60);return m+':'+(x<10?'0':'')+x;}
+// Extrae el texto de una respuesta de la API de Anthropic (el primer bloque
+// puede ser de otro tipo, p.ej. thinking — no asumir content[0]).
+function aiText(d){return (((d&&d.content)||[]).find(b=>b.type==='text')||{}).text||'';}
 
 /* ================= STATE ================= */
 let queue=[];          // [{ytId,name,artist}]
@@ -1483,12 +1486,12 @@ async function genDJScript(type){
     const tokens=type==='SONG_BRIDGE'?220:type==='VENTA_OPEN'?300:140;
     const r=await fetch('/api/anthropic',{
       method:'POST',headers:{'Content-Type':'application/json','x-api-key':cfg.antKey,'x-tp-ai-spot':'1'},
-      body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:tokens,
+      body:JSON.stringify({model:'claude-sonnet-5',thinking:{type:'disabled'},max_tokens:tokens,
         messages:[{role:'user',content:djPrompt(type,ctx)}]})
     });
     if(!r.ok) return {script:djFallback(type,ctx),cmd:null};
     const d=await r.json();
-    const raw=(d.content?.[0]?.text||'').trim();
+    const raw=aiText(d).trim();
     // SONG_BRIDGE returns JSON with script + cmd
     if(type==='SONG_BRIDGE' && raw.startsWith('{')){
       try{
@@ -1807,7 +1810,7 @@ async function aiSuggestSongs(){
       method:'POST',
       headers:{'Content-Type':'application/json','x-api-key':cfg.antKey},
       body:JSON.stringify({
-        model:'claude-sonnet-4-20250514',max_tokens:400,
+        model:'claude-sonnet-5',thinking:{type:'disabled'},max_tokens:400,
         messages:[{role:'user',content:
 `Eres el programador musical de Radio Terrapesca (tiendas de pesca en Sinaloa, México).
 Mood actual: ${mood.mood} — ${mood.desc}.
@@ -1822,7 +1825,7 @@ Sugiere 5 canciones REALES y conocidas que encajen con el mood y el estilo de lo
     const d=await r.json();
     if(!r.ok||d.error) throw new Error(d.error?.message||d.error||'Error de IA');
     let songs=[];
-    try{songs=(JSON.parse((d.content?.[0]?.text||'').trim()).songs||[]).map(s=>s.q).filter(Boolean);}catch(_){}
+    try{songs=(JSON.parse(aiText(d).trim()).songs||[]).map(s=>s.q).filter(Boolean);}catch(_){}
     if(!songs.length) throw new Error('La IA no devolvió sugerencias');
     let added=0;
     for(const q of songs.slice(0,5)){
@@ -2124,7 +2127,7 @@ async function importSpotUrl(){
     _sgStatus('Extrayendo info del producto…','var(--cyan)');
     const extract=await fetch('/api/anthropic',{method:'POST',
       headers:{'Content-Type':'application/json','x-api-key':cfg.antKey},
-      body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:400,
+      body:JSON.stringify({model:'claude-sonnet-5',thinking:{type:'disabled'},max_tokens:400,
         messages:[{role:'user',content:`Del siguiente texto extraído de una página de producto, extrae SOLO:
 - Nombre exacto del producto
 - Características clave (máximo 3 bullets)
@@ -2139,7 +2142,7 @@ DESCRIPCIÓN: [característica 1]. [característica 2]. [característica 3].
 BENEFICIOS: [beneficios concretos para el usuario]`}]})
     });
     const ed=await extract.json();
-    const info=(ed.content?.[0]?.text||'').trim();
+    const info=aiText(ed).trim();
     if(!info) throw new Error('No se pudo extraer info');
 
     document.getElementById('spotTopic').value=info;
@@ -2175,7 +2178,7 @@ function _buildSpotPrompt(contenido, estilo){
   const estrategia=estilosVenta[estilo]||estilosVenta['eufórico'];
   const slogan=cfg.slogan||'Terrapesca, todo para pescar';
 
-  return `Eres el mejor guionista de radio comercial de México. Creas spots que posicionan productos con autoridad y hacen que el oyente quiera ir a Terrapesca ahora mismo.
+  return `Eres el mejor guionista de radio comercial de México — nivel Cannes Lions. Creas spots modernos que suenan a marca premium, no a "anuncio de radio viejo": gancho inmediato, micro-historia sensorial y cierre que se queda en la cabeza.
 
 PRODUCTO(S) A ANUNCIAR:
 ${contenido}
@@ -2186,8 +2189,15 @@ ESTRATEGIA: ${estrategia}
 
 APERTURA (usa esta técnica): ${apertura}
 
+ESTILO MODERNO (obligatorio):
+- El gancho vive en los primeros TRES segundos: una imagen, una pregunta o una escena que atrape. Nada de "¿Buscas...?" ni "Llegó a Terrapesca...".
+- Micro-historia en segunda persona: pon al oyente EN la escena (el jalón en la línea, el sol saliendo sobre el agua, el carrete cantando).
+- Lenguaje sensorial y concreto: sonidos, texturas, momentos — no adjetivos vacíos como "increíble" o "de calidad".
+- Ritmo de lectura en voz alta: frases que fluyen con musicalidad, comas para respirar, un remate corto y contundente al final.
+- Cero clichés de radio noventera: nada de "¡Atención pescadores!", "no te lo pierdas", "el mejor del mercado".
+
 REGLAS DE ORO:
-- Escribe para ser NARRADO de corrido por un locutor real: frases que fluyen y se conectan, comas para respirar, nada telegráfico. Números siempre en palabras ("quince por ciento", no "15%").
+- Escribe para ser NARRADO de corrido por un locutor real: frases que fluyen y se conectan, nada telegráfico. Números siempre en palabras ("quince por ciento", no "15%").
 - Primera frase: impacto directo. Sin saludos, sin presentación.
 - Menciona el producto por nombre exacto 1 o 2 veces.
 - Beneficios concretos: no características técnicas — qué SIENTE o LOGRA el pescador con él.
@@ -2216,11 +2226,12 @@ async function genSpotAI(){
   try{
     const r=await fetch('/api/anthropic',{method:'POST',
       headers:{'Content-Type':'application/json','x-api-key':cfg.antKey},
-      body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1200,
+      body:JSON.stringify({model:'claude-sonnet-5',thinking:{type:'disabled'},max_tokens:1600,
         messages:[{role:'user',content:_buildSpotPrompt(topic,estilo)}]})
     });
     const d=await r.json();
-    const raw=(d.content?.[0]?.text||'').trim();
+    if(!r.ok||d.error) throw new Error(d.error?.message||d.error||('Error de API ('+r.status+')'));
+    const raw=aiText(d).trim();
     if(!raw) throw new Error('Sin respuesta de IA');
     const titleMatch=raw.match(/TITULO:\s*(.+)/i);
     const guionMatch=raw.match(/GUION:\s*([\s\S]+)/i);
@@ -2646,11 +2657,11 @@ async function startWithMood(){
       const opts=candidates.map(c=>{const i=queue.indexOf(c);return `${i}: "${c.name}"${c.artist?' — '+c.artist:''}`;}).join('\n');
       const r=await fetch('/api/anthropic',{method:'POST',
         headers:{'Content-Type':'application/json','x-api-key':cfg.antKey},
-        body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:80,
+        body:JSON.stringify({model:'claude-sonnet-5',thinking:{type:'disabled'},max_tokens:80,
           messages:[{role:'user',content:`Eres DJ Rodo. Estado de ánimo: ${mood.mood} — ${mood.desc}.\nCANCIONES DISPONIBLES (no repetidas recientemente):\n${opts}\n\nElige la que MEJOR encaje. Responde SOLO con este JSON:\n{"idx":N}`}]})
       });
       const d=await r.json();
-      const raw=(d.content?.[0]?.text||'').trim();
+      const raw=aiText(d).trim();
       let idx=queue.indexOf(candidates[0]);
       try{const p=JSON.parse(raw);if(Number.isInteger(p.idx)&&p.idx>=0&&p.idx<queue.length)idx=p.idx;}catch(_){}
       _launch(idx); return;
@@ -2891,7 +2902,7 @@ async function plMoodUI(){
       method:'POST',
       headers:{'Content-Type':'application/json','x-api-key':cfg.antKey},
       body:JSON.stringify({
-        model:'claude-sonnet-4-20250514',max_tokens:300,
+        model:'claude-sonnet-5',thinking:{type:'disabled'},max_tokens:300,
         messages:[{role:'user',content:
 `Mood: ${mood.mood} — ${mood.desc}.
 Biblioteca (índice: canción):
@@ -2903,7 +2914,7 @@ Elige de 5 a 15 canciones que encajen con el mood. Responde SOLO este JSON, sin 
     const d=await r.json();
     if(!r.ok||d.error) throw new Error(d.error?.message||d.error||'Error de IA');
     let idx=[];
-    try{idx=(JSON.parse((d.content?.[0]?.text||'').trim()).idx||[]).filter(i=>Number.isInteger(i)&&i>=0&&i<cand.length);}catch(_){}
+    try{idx=(JSON.parse(aiText(d).trim()).idx||[]).filter(i=>Number.isInteger(i)&&i>=0&&i<cand.length);}catch(_){}
     if(idx.length<3) throw new Error('La IA no eligió suficientes canciones');
     const name=mood.mood+' · '+new Date().toLocaleDateString('es-MX',{day:'2-digit',month:'short'});
     await plSave({id:'pl_'+Date.now().toString(36),name,trackIds:idx.map(i=>cand[i].ytId),createdAt:Date.now()});

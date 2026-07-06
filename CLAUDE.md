@@ -51,7 +51,9 @@ Other `tp_*` keys store voice/slogan/weather-city/DJ-Rodo config. Never hardcode
 server-side.
 
 ### External services
-- **Anthropic** (`claude-sonnet-4-20250514`) — DJ Rodo scripts and ad-spot copy generation.
+- **Anthropic** (`claude-sonnet-5`, `thinking:{type:'disabled'}` for fast short generations) — DJ Rodo
+  scripts and ad-spot copy. Responses are parsed with `aiText()` (find the `text` block — never assume
+  `content[0]`). The previous model `claude-sonnet-4-20250514` was retired 2026-06-15 (returned 404).
 - **ElevenLabs** (`eleven_multilingual_v2`, `language_code: 'es'`) — Spanish TTS for DJ/spots.
 - **YouTube** — three paths: IFrame API (in-browser playback in studio/panel), `@distube/ytdl-core`
   (server-side audio stream for mobile via `/radio/stream` and `/api/ytaudio/:id`), and YouTube Data
