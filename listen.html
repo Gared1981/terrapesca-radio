@@ -250,90 +250,126 @@ html,body{width:100%;height:100%;background:#000;color:#fff;font-family:'Inter',
 
 </div><!-- #player -->
 
-<audio id="radioAudio" preload="auto" playsinline x-webkit-airplay="allow" webkit-playsinline="true"></audio>
+<!-- Reproductor de YouTube oculto (mismo mecanismo que sucursal.html — YouTube
+     bloquea reproducción en iframes 0x0/display:none, por eso 200x113 casi invisible) -->
+<div id="yt-holder" style="position:fixed;bottom:0;right:0;width:200px;height:113px;opacity:.01;pointer-events:none;z-index:-1"></div>
 
+<script src="https://www.youtube.com/iframe_api"></script>
 <script>
 const TP_LOGO = 'https://cdn.shopify.com/s/files/1/0205/5752/9188/files/Logo-Terrapesca-01_205270e5-d546-4e33-a8d1-db0a91f1e554.png?v=1700262873';
-const audio = document.getElementById('radioAudio');
-const streamSrc = location.origin + '/radio/stream';
+const shareUrl = location.origin + '/listen';
 
 let playing = false, started = false;
-let intentionalPause = false, reconnecting = false;
 let currentTrack = null, ws = null, wsTimer = null;
-let retryTimer = null;
-let retryCount = 0;
-const MAX_RETRIES = 4;
 
-document.getElementById('streamPill').textContent = streamSrc;
-audio.volume = 0.9;
+document.getElementById('streamPill').textContent = shareUrl;
 
-// ── Audio events ──
-audio.addEventListener('playing', () => {
-  playing = true; reconnecting = false; intentionalPause = false;
-  retryCount = 0;
-  clearTimeout(retryTimer);
-  setPlayUI(true);
-  setStatus('● EN VIVO', 'live');
-  document.getElementById('liveLabel').style.display = '';
-  document.getElementById('viz').classList.remove('paused');
-});
-
-// Buffering — just show status, NEVER reconnect automatically
-audio.addEventListener('waiting', () => {
-  if (!intentionalPause && !reconnecting) setStatus('Cargando...', 'connecting');
-});
-audio.addEventListener('stalled', () => {
-  if (!intentionalPause && !reconnecting) setStatus('Cargando...', 'connecting');
-});
-
-// True network/decode error → retry with backoff, give up after MAX_RETRIES
-audio.addEventListener('error', () => {
-  if (reconnecting || !started || intentionalPause) return;
-  scheduleRetry();
-});
-
-audio.addEventListener('pause', () => {
-  playing = false;
-  setPlayUI(false);
-  document.getElementById('liveLabel').style.display = 'none';
-  document.getElementById('viz').classList.add('paused');
-  if (intentionalPause) {
-    setStatus('Pausado', '');
-  }
-  // Do NOT reconnect on pause — pauses can come from buffering or our own reconnect logic
-});
-
-function scheduleRetry() {
-  if (retryCount >= MAX_RETRIES) {
-    setStatus('Sin transmisión activa ─ toca ▶ para reintentar', 'error');
-    return;
-  }
-  retryCount++;
-  const delay = retryCount * 3000; // 3s, 6s, 9s, 12s
-  setStatus(`Reconectando... (${retryCount}/${MAX_RETRIES})`, 'connecting');
-  clearTimeout(retryTimer);
-  retryTimer = setTimeout(hardReconnect, delay);
+/* ── Reproductor YouTube sincronizado (mismo mecanismo que sucursal.html) ──
+   El audio ya no viene del stream del servidor (ytdl-core se rompe seguido);
+   se reproduce el video de YouTube oculto, sincronizado por WebSocket. */
+let ytPlayer = null, ytReady = false, _pendingPlay = null, _lastYtId = null;
+let spotAudio = null;
+// Posición "en vivo": la última posición reportada + el tiempo transcurrido
+let _livePos = { pos: 0, at: 0, playing: false };
+function _liveNow() {
+  if (!_livePos.at) return 0;
+  return _livePos.pos + (_livePos.playing ? (Date.now() - _livePos.at) / 1000 : 0);
 }
 
-function hardReconnect() {
-  if (!started || intentionalPause) return;
-  if (reconnecting) return;
-  reconnecting = true;
-  clearTimeout(retryTimer);
-  setStatus('Reconectando...', 'connecting');
-  audio.pause();
-  audio.removeAttribute('src');
-  setTimeout(() => {
-    audio.src = streamSrc + '?t=' + Date.now();
-    reconnecting = false;
-    const p = audio.play();
-    if (p && p.catch) p.catch(() => {
-      // play() itself rejected — schedule another retry
-      if (retryCount < MAX_RETRIES) scheduleRetry();
-      else setStatus('Sin transmisión activa ─ toca ▶ para reintentar', 'error');
-    });
-  }, 300);
+function onYouTubeIframeAPIReady() {
+  ytPlayer = new YT.Player('yt-holder', {
+    height: '113', width: '200',
+    playerVars: { autoplay: 1, controls: 0, modestbranding: 1, rel: 0, playsinline: 1 },
+    events: {
+      onReady: () => {
+        ytReady = true;
+        if (_pendingPlay && started) { const p = _pendingPlay; _pendingPlay = null; playRemote(p.track, p.pos); }
+      },
+      onStateChange: (e) => {
+        if (e.data === YT.PlayerState.PLAYING) {
+          playing = true; setPlayUI(true); setStatus('● EN VIVO', 'live');
+          document.getElementById('liveLabel').style.display = '';
+          document.getElementById('viz').classList.remove('paused');
+        }
+        if (e.data === YT.PlayerState.PAUSED || e.data === YT.PlayerState.ENDED) {
+          playing = false; setPlayUI(false);
+          document.getElementById('viz').classList.add('paused');
+        }
+      },
+      onError: () => { setStatus('Video no disponible — esperando la siguiente…', 'connecting'); }
+    }
+  });
 }
+
+function playRemote(track, pos) {
+  if (!track || !track.ytId) return;
+  currentTrack = track;
+  updateNowPlaying(track);
+  if (!started || !ytReady) { _pendingPlay = { track, pos: pos || 0 }; return; }
+  stopSpot();
+  try {
+    if (_lastYtId === track.ytId) {
+      // Mismo video ya cargado — solo sincronizar y reanudar (sin flash desde 0)
+      if ((pos || 0) > 2) try { ytPlayer.seekTo(pos, true); } catch (_) {}
+      ytPlayer.playVideo();
+    } else {
+      _lastYtId = track.ytId;
+      ytPlayer.loadVideoById({ videoId: track.ytId, startSeconds: (pos || 0) > 2 ? pos : 0 });
+    }
+    // Si el navegador bloqueó el autoplay, pedir un toque
+    setTimeout(() => {
+      try {
+        if (ytPlayer.getPlayerState() !== YT.PlayerState.PLAYING) {
+          setStatus('Toca ▶ para escuchar', 'connecting'); setPlayUI(false);
+        }
+      } catch (_) {}
+    }, 2000);
+  } catch (_) { _pendingPlay = { track, pos: pos || 0 }; }
+}
+
+/* Spots/DJ Rodo llegan como audio base64 — se reproducen sobre la música pausada */
+function b64ToBlob(b64, type) {
+  const bin = atob(b64); const u8 = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+  return new Blob([u8], { type });
+}
+function stopSpot() {
+  if (spotAudio) {
+    try { spotAudio.pause(); } catch (_) {}
+    if (spotAudio._u) URL.revokeObjectURL(spotAudio._u);
+    spotAudio = null;
+  }
+}
+function playSpotB64(track) {
+  if (!started) return;
+  try { if (ytReady) ytPlayer.pauseVideo(); } catch (_) {}
+  stopSpot();
+  const url = URL.createObjectURL(b64ToBlob(track.b64, 'audio/mpeg'));
+  spotAudio = new Audio(url); spotAudio._u = url; spotAudio.volume = 0.95;
+  const resume = () => {
+    stopSpot();
+    try {
+      if (ytReady && _lastYtId) {
+        const p = _liveNow();
+        if (p > 2) ytPlayer.seekTo(p, true);
+        ytPlayer.playVideo();
+      }
+    } catch (_) {}
+  };
+  spotAudio.onended = resume; spotAudio.onerror = resume;
+  spotAudio.play().catch(() => {});
+  setStatus('📣 ' + (track.name || 'Al aire'), 'live');
+}
+
+/* Progreso real de la canción */
+setInterval(() => {
+  if (!ytReady || !_lastYtId) return;
+  let c = 0, d = 0;
+  try { c = ytPlayer.getCurrentTime() || 0; d = ytPlayer.getDuration() || 0; } catch (_) { return; }
+  document.getElementById('progFill').style.width = (d > 0 ? Math.min(100, c / d * 100) : 0) + '%';
+  document.getElementById('tNow').textContent = d > 0 ? fmtT(c) + ' / ' + fmtT(d) : 'EN VIVO';
+}, 500);
+function fmtT(s) { s = Math.floor(s); return Math.floor(s / 60) + ':' + ('0' + (s % 60)).slice(-2); }
 
 // ── Start overlay tap ──
 function startListening() {
@@ -347,26 +383,24 @@ function startListening() {
   startSWPing();
   setupMediaSessionBase();
 
-  // First play — assign src once and play; only reconnect on true error
-  audio.src = streamSrc;
-  setStatus('Cargando...', 'connecting');
-  retryCount = 0;
-  const p = audio.play();
-  if (p && p.catch) p.catch(() => scheduleRetry());
+  // Reproducir lo que esté al aire (la metadata ya llegó por WS antes del tap)
+  const t = (_pendingPlay && _pendingPlay.track) || currentTrack;
+  if (t && t.ytId) { _pendingPlay = null; playRemote(t, _liveNow()); }
+  else setStatus('Esperando transmisión…', 'connecting');
 }
 
 // ── Controls ──
 function togglePlay() {
   if (!started) { startListening(); return; }
-  if (audio.paused || !playing) {
-    intentionalPause = false;
-    retryCount = 0; // manual retry always resets count
-    hardReconnect();
+  if (playing) {
+    try { if (ytReady) ytPlayer.pauseVideo(); } catch (_) {}
+    setStatus('Pausado', '');
+    document.getElementById('liveLabel').style.display = 'none';
+  } else if (currentTrack && currentTrack.ytId) {
+    // Reanudar EN VIVO: sincronizar a la posición actual de la radio
+    playRemote(currentTrack, _liveNow());
   } else {
-    intentionalPause = true;
-    reconnecting = false;
-    clearTimeout(retryTimer);
-    audio.pause();
+    setStatus('Esperando transmisión…', 'connecting');
   }
 }
 function skipPrev() { sendWS({ type: 'PREV_TRACK' }); }
@@ -383,9 +417,9 @@ function setStatus(msg, cls = '') {
   el.className = 'status ' + cls;
 }
 function copyUrl() {
-  navigator.clipboard?.writeText(streamSrc).then(() => {
+  navigator.clipboard?.writeText(shareUrl).then(() => {
     document.getElementById('streamPill').textContent = '✅ Copiado';
-    setTimeout(() => { document.getElementById('streamPill').textContent = streamSrc; }, 2000);
+    setTimeout(() => { document.getElementById('streamPill').textContent = shareUrl; }, 2000);
   }).catch(() => {});
 }
 
@@ -397,9 +431,9 @@ function setupMediaSessionBase() {
     album: 'Radio Terrapesca',
     artwork: [{ src: TP_LOGO, sizes: '512x512', type: 'image/png' }]
   });
-  navigator.mediaSession.setActionHandler('play', () => { intentionalPause = false; audio.play().catch(() => hardReconnect()); });
-  navigator.mediaSession.setActionHandler('pause', () => { intentionalPause = true; audio.pause(); });
-  navigator.mediaSession.setActionHandler('stop', () => { intentionalPause = true; audio.pause(); });
+  navigator.mediaSession.setActionHandler('play', () => { if (currentTrack?.ytId) playRemote(currentTrack, _liveNow()); });
+  navigator.mediaSession.setActionHandler('pause', () => { try { if (ytReady) ytPlayer.pauseVideo(); } catch(_) {} });
+  navigator.mediaSession.setActionHandler('stop', () => { try { if (ytReady) ytPlayer.pauseVideo(); } catch(_) {} });
   navigator.mediaSession.setActionHandler('nexttrack', skipNext);
   navigator.mediaSession.setActionHandler('previoustrack', skipPrev);
 }
@@ -441,18 +475,42 @@ function connectWS() {
   ws.onmessage = (e) => {
     try {
       const m = JSON.parse(e.data);
-      if (m.type === 'SYNC') {
-        if (m.state?.currentTrack) updateNowPlaying(m.state.currentTrack);
-        if (m.state?.queuePreview) renderUpNext(m.state.queuePreview);
-      }
-      else if ((m.type === 'PLAY' || m.type === 'SPOT') && m.track) {
-        updateNowPlaying(m.track);
-        // Un SPOT sin video es DJ Rodo o publicidad al aire
-        if (m.type === 'SPOT' && !m.track.ytId) {
-          document.getElementById('topPlaylist').textContent = '🎙 ' + (m.track.name || 'DJ Rodo al aire');
+      switch (m.type) {
+        case 'SYNC': {
+          const st = m.state || {};
+          if (st.queuePreview) renderUpNext(st.queuePreview);
+          if (st.currentTrack) {
+            _livePos = { pos: st.position || 0, at: st.lastUpdate || Date.now(), playing: !!st.isPlaying };
+            if (st.currentTrack.ytId && st.isPlaying) playRemote(st.currentTrack, _liveNow());
+            else updateNowPlaying(st.currentTrack);
+          }
+          break;
         }
+        case 'PLAY':
+          if (m.track) {
+            _livePos = { pos: m.position || 0, at: Date.now(), playing: true };
+            if (m.track.ytId) playRemote(m.track, m.position || 0);
+            else updateNowPlaying(m.track);
+          }
+          break;
+        case 'PAUSE':
+          _livePos = { pos: m.position || 0, at: Date.now(), playing: false };
+          try { if (ytReady) ytPlayer.pauseVideo(); } catch (_) {}
+          break;
+        case 'RESUME':
+          _livePos = { pos: m.position || 0, at: Date.now(), playing: true };
+          if (started && currentTrack && currentTrack.ytId) playRemote(currentTrack, m.position || 0);
+          break;
+        case 'SPOT':
+          if (m.track) {
+            document.getElementById('topPlaylist').textContent = '🎙 ' + (m.track.name || 'Al aire');
+            if (m.track.b64) playSpotB64(m.track);
+          }
+          break;
+        case 'QUEUE_PREVIEW':
+          renderUpNext(m.items);
+          break;
       }
-      else if (m.type === 'QUEUE_PREVIEW') renderUpNext(m.items);
     } catch(_) {}
   };
 }

@@ -21,7 +21,7 @@ of **self-contained single-file HTML apps** (inline CSS + JS, no bundler):
 | `panel.html` | **FROZEN — hotfixes only** (Fase 0, see PLAN-SPOTIFY.md). Older/larger control panel (Los Mochis). Shares localStorage keys + IndexedDB schema with studio. New features go to studio.html. |
 | `sucursal.html` | Receiver/player for branches (Culiacán, Mazatlán). Listens to WS relay only. |
 | `tienda.html` | In-store mode with auto DJ Rodo speaking to customers. |
-| `listen.html` | Public listener. |
+| `listen.html` | Public listener. Plays via hidden YouTube IFrame synced over WS (same mechanism as sucursal) — NOT via `/radio/stream` (ytdl-core breaks too often for the public page). Spots play from base64 over the paused player. |
 | `server.js` | HTTP/WS server + proxies + server-side audio stream (`/radio/stream`). The experimental FFmpeg engines (Fase C, `RADIO_ENGINE_TEST`) were removed along with `audio-test/`, `audio-live/`, `scripts/` and `sucursal-stream*.html`. |
 | `sw.js` | Service worker: caches static HTML, never intercepts `/radio/stream` or `/api/*`. |
 
