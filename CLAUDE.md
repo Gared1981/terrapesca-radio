@@ -21,7 +21,7 @@ of **self-contained single-file HTML apps** (inline CSS + JS, no bundler):
 | `panel.html` | **FROZEN — hotfixes only** (Fase 0, see PLAN-SPOTIFY.md). Older/larger control panel (Los Mochis). Shares localStorage keys + IndexedDB schema with studio. New features go to studio.html. |
 | `sucursal.html` | Receiver/player for branches (Culiacán, Mazatlán). Listens to WS relay only. |
 | `tienda.html` | In-store mode with auto DJ Rodo speaking to customers. |
-| `listen.html` | Public listener. |
+| `listen.html` | Public listener. Plays via hidden YouTube IFrame synced over WS (same mechanism as sucursal) — NOT via `/radio/stream` (ytdl-core breaks too often for the public page). Spots play from base64 over the paused player. |
 | `server.js` | HTTP/WS server + proxies + server-side audio stream (`/radio/stream`). The experimental FFmpeg engines (Fase C, `RADIO_ENGINE_TEST`) were removed along with `audio-test/`, `audio-live/`, `scripts/` and `sucursal-stream*.html`. |
 | `sw.js` | Service worker: caches static HTML, never intercepts `/radio/stream` or `/api/*`. |
 
@@ -51,7 +51,9 @@ Other `tp_*` keys store voice/slogan/weather-city/DJ-Rodo config. Never hardcode
 server-side.
 
 ### External services
-- **Anthropic** (`claude-sonnet-4-20250514`) — DJ Rodo scripts and ad-spot copy generation.
+- **Anthropic** (`claude-sonnet-5`, `thinking:{type:'disabled'}` for fast short generations) — DJ Rodo
+  scripts and ad-spot copy. Responses are parsed with `aiText()` (find the `text` block — never assume
+  `content[0]`). The previous model `claude-sonnet-4-20250514` was retired 2026-06-15 (returned 404).
 - **ElevenLabs** (`eleven_multilingual_v2`, `language_code: 'es'`) — Spanish TTS for DJ/spots.
 - **YouTube** — three paths: IFrame API (in-browser playback in studio/panel), `@distube/ytdl-core`
   (server-side audio stream for mobile via `/radio/stream` and `/api/ytaudio/:id`), and YouTube Data

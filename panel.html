@@ -1980,12 +1980,12 @@ async function generateSpot(){
       method:'POST',
       headers:{'Content-Type':'application/json','x-api-key':cfg.anthropicKey,'x-tp-ai-spot':'1'},
       body:JSON.stringify({
-        model:'claude-sonnet-4-20250514',max_tokens:1200,
+        model:'claude-sonnet-5',thinking:{type:'disabled'},max_tokens:1200,
         messages:[{role:'user',content:buildPrompt(contenido,estilo,horaRadio)}]
       })
     });
     const sd=await sr.json();
-    const raw=sd.content?.[0]?.text||'';
+    const raw=((sd.content||[]).find(b=>b.type==='text')||{}).text||'';
     if(!raw)throw new Error('Sin respuesta de IA');
     // Parsear TITULO y GUION del formato de respuesta
     const titleMatch=raw.match(/TITULO:\s*(.+)/i);
@@ -3785,14 +3785,14 @@ async function generateDJScript(type,nextIdx){
       method:'POST',
       headers:{'Content-Type':'application/json','x-api-key':cfg.anthropicKey,'x-tp-ai-spot':'1'},
       body:JSON.stringify({
-        model:'claude-sonnet-4-20250514',
+        model:'claude-sonnet-5',thinking:{type:'disabled'},
         max_tokens:140,
         messages:[{role:'user',content:prompt}]
       })
     });
     if(!r.ok) return null;
     const d=await r.json();
-    return d.content?.[0]?.text?.trim()||null;
+    return (((d.content||[]).find(b=>b.type==='text')||{}).text||'').trim()||null;
   }catch(e){return null}
 }
 
