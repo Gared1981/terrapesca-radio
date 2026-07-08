@@ -294,7 +294,16 @@ const TP_LOGO = 'https://cdn.shopify.com/s/files/1/0205/5752/9188/files/Logo-Ter
 const shareUrl = location.origin + '/listen';
 
 let playing = false, started = false;
-let currentTrack = null, ws = null, wsTimer = null;
+let currentTrack = null, ws = null, wsTimer = null, wsOk = false;
+
+// Diagnóstico claro de por qué no hay sonido (listen es un RECEPTOR: necesita
+// que la cabina/studio esté transmitiendo música).
+function diagnose() {
+  if (playing) return;
+  if (!wsOk) { setStatus('Conectando con la estación…', 'connecting'); return; }
+  if (currentTrack && currentTrack.ytId) return; // hay pista; el player la tomará
+  setStatus('La cabina no está al aire — abre el Studio y reproduce música', 'connecting');
+}
 
 document.getElementById('streamPill').textContent = shareUrl;
 
@@ -420,7 +429,7 @@ function startListening() {
   // Reproducir lo que esté al aire (la metadata ya llegó por WS antes del tap)
   const t = (_pendingPlay && _pendingPlay.track) || currentTrack;
   if (t && t.ytId) { _pendingPlay = null; playRemote(t, _liveNow()); }
-  else setStatus('Esperando a que la cabina transmita…', 'connecting');
+  else diagnose();
 }
 
 // ── Controls ──
@@ -434,7 +443,7 @@ function togglePlay() {
     // Reanudar EN VIVO: sincronizar a la posición actual de la radio
     playRemote(currentTrack, _liveNow());
   } else {
-    setStatus('Esperando a que la cabina transmita…', 'connecting');
+    diagnose();
   }
 }
 function skipPrev() { sendWS({ type: 'PREV_TRACK' }); }
@@ -508,7 +517,8 @@ function connectWS() {
   if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
   const url = location.origin.replace('https://', 'wss://').replace('http://', 'ws://');
   try { ws = new WebSocket(url); } catch(e) { wsTimer = setTimeout(connectWS, 4000); return; }
-  ws.onclose = () => { wsTimer = setTimeout(connectWS, 4000); };
+  ws.onopen = () => { wsOk = true; if (started && !playing) diagnose(); };
+  ws.onclose = () => { wsOk = false; if (started && !playing) setStatus('Reconectando con la estación…', 'connecting'); wsTimer = setTimeout(connectWS, 4000); };
   ws.onerror = () => {};
   ws.onmessage = (e) => {
     try {
