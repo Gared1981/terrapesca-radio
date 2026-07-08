@@ -29,8 +29,16 @@ of **self-contained single-file HTML apps** (inline CSS + JS, no bundler):
 A controller (`studio.html` / `panel.html`) connects over WebSocket and **broadcasts** messages that
 the server relays to all other clients (`sucursal.html`, `listen.html`). Message types are enumerated in
 the `wss.on('connection')` switch in `server.js`: `PLAY`, `PAUSE`, `RESUME`, `VOLUME`,
-`PLAYLIST_UPDATE`, `SPOT`, `JINGLE_SET`, `MIC_ONAIR`. The server keeps a single `radioState` object and
-sends a `SYNC` snapshot to every newly-connected client. Listeners (`listen.html`) can send
+`PLAYLIST_UPDATE`, `SPOT`, `JINGLE_SET`, `MIC_ONAIR`, `AUTOPILOT_START`/`AUTOPILOT_STOP`. The server keeps
+a single `radioState` object and sends a `SYNC` snapshot to every newly-connected client.
+
+**Radio 24/7 (autopilot):** `AUTOPILOT_START` hands the server a playlist (`[{ytId,name,artist,duration}]`);
+the server then drives playback itself — a `setTimeout` chain that broadcasts `PLAY` + `QUEUE_PREVIEW` per
+track on schedule, so listeners keep playing (each in its own YouTube IFrame) **without the studio open**.
+State persists to `.autopilot.json` (gitignored) and resumes on boot. A manual `PLAY` from a live studio
+stops autopilot (live overrides). Studio suppresses its own `_wsPlayTrack`/60s-sync while `_autopilotOn`.
+The server needs track durations → `/api/ytdur?ids=&key=` (videos.list). Railway free tier sleeps after
+30 min idle — true 24/7 needs the Hobby plan or a keep-alive ping. Listeners (`listen.html`) can send
 `NEXT_TRACK`/`PREV_TRACK`; the server relays them and `studio.html` handles them in `_onRemoteCmd`
 (3s cooldown so a remote listener can't spam skips across the whole network). Studio also emits
 `QUEUE_PREVIEW` (next up-to-5 tracks) with every `PLAY`; the server stores it in

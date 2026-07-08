@@ -8,3 +8,6 @@ credentials/
 
 # Original/source audio (never versioned — only normalized output in audio-test/ is committed)
 audio-source/
+
+# Estado de la Radio 24/7 (efímero, propio de cada servidor)
+.autopilot.json
