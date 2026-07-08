@@ -15,6 +15,7 @@ let radioState = {
   position: 0,
   volume: 80,
   playlist: [],
+  autopilotOn: false,
   lastUpdate: Date.now()
 };
 
@@ -449,6 +450,40 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // ── Duraciones de videos (para la Radio 24/7) ──
+  // GET /api/ytdur?ids=a,b,c&key=... → { durations: {id: segundos} }
+  if (req.url.startsWith('/api/ytdur') && req.method === 'GET') {
+    const u = new URL(req.url, 'http://localhost');
+    const ids    = (u.searchParams.get('ids') || '').split(',').map(s => s.trim()).filter(Boolean).slice(0, 50);
+    const apiKey = u.searchParams.get('key') || '';
+    if (!ids.length || !apiKey) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'ids and key required' }));
+      return;
+    }
+    const path = `/youtube/v3/videos?part=contentDetails&id=${ids.map(encodeURIComponent).join(',')}&key=${encodeURIComponent(apiKey)}`;
+    const r = https.request({ hostname: 'www.googleapis.com', path, method: 'GET', headers: { 'Accept': 'application/json' } }, (apiRes) => {
+      let raw = ''; apiRes.on('data', c => raw += c);
+      apiRes.on('end', () => {
+        const durations = {};
+        try {
+          const j = JSON.parse(raw);
+          (j.items || []).forEach(v => {
+            const m = /PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/.exec(v.contentDetails?.duration || '');
+            durations[v.id] = m ? (+m[1]||0)*3600 + (+m[2]||0)*60 + (+m[3]||0) : 0;
+          });
+        } catch (_) {}
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ durations }));
+      });
+    });
+    r.on('error', (e) => { try { res.writeHead(502, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: e.message })); } catch (_) {} });
+    r.setTimeout(PROXY_TIMEOUT_MS, () => { r.destroy(); try { res.writeHead(504); res.end('{}'); } catch (_) {} });
+    r.end();
+    return;
+  }
+
   // ── Proxy ElevenLabs TTS ──
   if (req.url.startsWith('/api/elevenlabs/') && req.method === 'POST') {
     readLimitedBody(req, res, (body) => {
@@ -628,6 +663,74 @@ function broadcast(data, excludeWs = null) {
 // re-sending a heavy blob to every new connection. (HTTP delivery is a Fase 2 item.)
 const MAX_JINGLE_B64 = 3 * 1024 * 1024; // ~2.2MB of audio
 
+// ═══════════════ RADIO 24/7 (piloto automático) ═══════════════
+// El servidor avanza una playlist en el tiempo y transmite PLAY a todos los
+// clientes, igual que lo haría la cabina — pero sin necesidad de tener el
+// studio abierto. El audio sigue sonando en cada navegador oyente (YouTube).
+const AP_FILE = path.join(__dirname, '.autopilot.json');
+let autopilot = { on: false, list: [], idx: 0, timer: null };
+
+function _apSave() {
+  try { fs.writeFileSync(AP_FILE, JSON.stringify({ on: autopilot.on, list: autopilot.list, idx: autopilot.idx })); } catch (_) {}
+}
+function _apCover(id) { return 'https://img.youtube.com/vi/' + id + '/mqdefault.jpg'; }
+
+function _apBroadcast() {
+  const t = autopilot.list[autopilot.idx];
+  if (!t) { stopAutopilot(); return; }
+  radioState.currentTrack = { type: 'yt', ytId: t.ytId, name: t.name || '', channelTitle: t.artist || '', cover: _apCover(t.ytId), duration: t.duration || 0 };
+  radioState.isPlaying = true;
+  radioState.position = 0;
+  radioState.lastUpdate = Date.now();
+  broadcast({ type: 'PLAY', track: radioState.currentTrack, position: 0 });
+
+  // Próximas canciones
+  const preview = [];
+  for (let i = 1; i <= 5 && i < autopilot.list.length; i++) {
+    const n = autopilot.list[(autopilot.idx + i) % autopilot.list.length];
+    preview.push({ ytId: n.ytId, name: n.name || '', artist: n.artist || '', cover: _apCover(n.ytId) });
+  }
+  radioState.queuePreview = preview;
+  broadcast({ type: 'QUEUE_PREVIEW', items: preview });
+
+  // Programar el avance a la siguiente pista (+1s de colchón entre canciones).
+  // Si no se conoce la duración, usar 210s como estimación segura.
+  const secs = (t.duration && t.duration > 0) ? t.duration : 210;
+  clearTimeout(autopilot.timer);
+  autopilot.timer = setTimeout(() => {
+    autopilot.idx = (autopilot.idx + 1) % autopilot.list.length;
+    _apSave();
+    _apBroadcast();
+  }, (secs + 1) * 1000);
+  _apSave();
+  console.log('[24/7] ▶', t.name || t.ytId, '(' + secs + 's) [' + (autopilot.idx + 1) + '/' + autopilot.list.length + ']');
+}
+
+function startAutopilot(list, startIdx) {
+  if (!Array.isArray(list) || !list.length) return;
+  autopilot.on = true;
+  radioState.autopilotOn = true;
+  autopilot.list = list.filter(x => x && x.ytId).map(x => ({ ytId: x.ytId, name: x.name || '', artist: x.artist || '', duration: +x.duration || 0 }));
+  autopilot.idx = (startIdx && startIdx < autopilot.list.length) ? startIdx : 0;
+  console.log('[24/7] iniciando con', autopilot.list.length, 'canciones');
+  broadcast({ type: 'AUTOPILOT', on: true });
+  _apBroadcast();
+}
+function stopAutopilot() {
+  autopilot.on = false;
+  radioState.autopilotOn = false;
+  clearTimeout(autopilot.timer); autopilot.timer = null;
+  _apSave();
+  broadcast({ type: 'AUTOPILOT', on: false });
+  console.log('[24/7] detenido');
+}
+function autopilotAdvance(dir) {
+  if (!autopilot.on || !autopilot.list.length) return;
+  if (dir === 'prev') autopilot.idx = (autopilot.idx - 1 + autopilot.list.length) % autopilot.list.length;
+  else autopilot.idx = (autopilot.idx + 1) % autopilot.list.length;
+  _apBroadcast();
+}
+
 wss.on('connection', (ws) => {
   console.log('Cliente conectado. Total:', wss.clients.size);
   ws.isAlive = true;
@@ -640,6 +743,8 @@ wss.on('connection', (ws) => {
       const msg = JSON.parse(raw);
       switch (msg.type) {
         case 'PLAY':
+          // Un PLAY manual (cabina en vivo) tiene prioridad sobre la Radio 24/7.
+          if (autopilot.on) stopAutopilot();
           radioState.isPlaying = true;
           radioState.currentTrack = msg.track;
           radioState.position = msg.position || 0;
@@ -690,8 +795,18 @@ wss.on('connection', (ws) => {
           break;
         case 'NEXT_TRACK':
         case 'PREV_TRACK':
-          // Comandos de oyentes (listen.html): se reenvían para que el controlador actúe.
-          broadcast({ type: msg.type }, ws);
+          // En modo 24/7 el servidor avanza la playlist; si no, se reenvía al studio.
+          if (autopilot.on) autopilotAdvance(msg.type === 'PREV_TRACK' ? 'prev' : 'next');
+          else broadcast({ type: msg.type }, ws);
+          break;
+        case 'AUTOPILOT_START':
+          // La cabina entrega su playlist (con duraciones) y el servidor toma el control 24/7.
+          startAutopilot(msg.playlist, msg.startIdx);
+          break;
+        case 'AUTOPILOT_STOP':
+          stopAutopilot();
+          radioState.isPlaying = false;
+          broadcast({ type: 'PAUSE', position: 0 });
           break;
         case 'QUEUE_PREVIEW':
           // Próximas canciones (Fase 4) — se guarda para el SYNC de clientes nuevos.
@@ -726,4 +841,12 @@ server.listen(PORT, () => {
   console.log(`Terrapesca Radio corriendo en puerto ${PORT}`);
   console.log(`Stream disponible en /radio/stream`);
   console.log(`ytdl-core: ${ytdl ? 'disponible' : 'no disponible'}`);
+  // Reanudar Radio 24/7 si estaba activa antes de reiniciar
+  try {
+    const saved = JSON.parse(fs.readFileSync(AP_FILE, 'utf8'));
+    if (saved && saved.on && Array.isArray(saved.list) && saved.list.length) {
+      console.log('[24/7] reanudando desde el disco…');
+      startAutopilot(saved.list, saved.idx || 0);
+    }
+  } catch (_) {}
 });

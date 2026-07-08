@@ -369,9 +369,22 @@ input[type=range]::-moz-range-thumb{width:18px;height:24px;border-radius:5px;bac
       <button class="hbtn" onclick="location.href='/'">🏠 INICIO</button>
       <button class="hbtn" onclick="skipNext()" title="Adelantar a la siguiente">⏭ SIGUIENTE</button>
       <button class="hbtn" id="autoBtn" onclick="toggleAuto()">AUTO ●</button>
+      <button class="hbtn" id="radio247Btn" onclick="toggleRadio247()" title="Radio 24/7: el servidor reproduce la cola solo, sin dejar esta ventana abierta">📡 24/7</button>
       <button class="hbtn" onclick="openSettings()" title="Configuración">⚙️ CONFIG</button>
     </div>
   </header>
+
+  <!-- Banner Radio 24/7 (visible solo cuando está activa) -->
+  <div id="r247Banner" style="display:none;align-items:center;gap:10px;margin-bottom:12px;padding:12px 16px;
+    background:linear-gradient(90deg,rgba(31,214,91,.14),rgba(255,255,255,.03));border:1px solid rgba(31,214,91,.4);
+    border-radius:14px;font-size:12.5px">
+    <span style="font-size:18px">📡</span>
+    <div style="flex:1">
+      <b style="color:var(--grn)">Radio 24/7 activa</b> — el servidor está reproduciendo la cola solo.
+      Puedes cerrar esta ventana; la radio sigue sonando en <b>/listen</b> y las sucursales.
+    </div>
+    <button class="hbtn" onclick="toggleRadio247()" style="white-space:nowrap">■ Detener</button>
+  </div>
 
   <div id="viewCabina">
   <!-- DECKS -->
@@ -836,8 +849,14 @@ function _connectServerWS(){
 // Comandos remotos (listen.html → server → studio). Cooldown de 3s para que un
 // oyente no pueda saltar canciones en ráfaga a toda la red de sucursales.
 let _lastRemoteCmd=0;
+let _autopilotOn=false; // Radio 24/7 activa (el servidor maneja la reproducción)
 function _onRemoteCmd(ev){
   let msg=null; try{ msg=JSON.parse(ev.data); }catch(_){ return; }
+  // Reflejar el estado de la Radio 24/7 que reporta el servidor
+  if(msg.type==='AUTOPILOT'){ _setAutopilotUI(!!msg.on); return; }
+  if(msg.type==='SYNC'){ if(msg.state&&typeof msg.state.autopilotOn==='boolean') _setAutopilotUI(msg.state.autopilotOn); return; }
+  // En modo 24/7 el servidor maneja NEXT/PREV; el studio no debe intervenir.
+  if(_autopilotOn) return;
   if(msg.type!=='NEXT_TRACK'&&msg.type!=='PREV_TRACK') return;
   const now=Date.now();
   if(now-_lastRemoteCmd<3000) return;
@@ -851,14 +870,63 @@ function _wsSendCurrentState(){
   let pos=0; try{pos=d.player.getCurrentTime()||0;}catch(_){}
   _wsPlayTrack(d.item, pos);
 }
-// Sync pulse every 60s — enough for sucursales re-joining; skips if crossfading to avoid hitch
-setInterval(()=>{ if(_swsOk && !_xfading && !djActive) _wsSendCurrentState(); }, 60000);
+// Sync pulse every 60s — enough for sucursales re-joining; skips if crossfading to avoid hitch.
+// En modo 24/7 el servidor es la fuente: el studio no transmite para no competir.
+setInterval(()=>{ if(_swsOk && !_xfading && !djActive && !_autopilotOn) _wsSendCurrentState(); }, 60000);
 function _wsSend(msg){
   if(!_sws||_sws.readyState!==WebSocket.OPEN) return;
   try{ _sws.send(JSON.stringify(msg)); }catch(_){}
 }
+
+/* ================= RADIO 24/7 (piloto automático del servidor) ================= */
+// Entrega la cola actual (con duraciones) al servidor, que la reproduce sola —
+// la cabina puede cerrarse y la radio sigue sonando en cada oyente.
+async function _buildAutopilotList(){
+  await refreshLib();
+  const list=queue.map(q=>{
+    const t=_libCache.find(x=>x.ytId===q.ytId);
+    return {ytId:q.ytId,name:q.name||'',artist:q.artist||'',duration:(t&&t.duration)||0};
+  });
+  // Completar duraciones faltantes con la YouTube API (para que el avance sea exacto)
+  const missing=[...new Set(list.filter(x=>!x.duration).map(x=>x.ytId))];
+  if(missing.length&&cfg.ytKey){
+    for(let i=0;i<missing.length;i+=50){
+      try{
+        const ids=missing.slice(i,i+50).join(',');
+        const r=await fetch(`/api/ytdur?ids=${encodeURIComponent(ids)}&key=${encodeURIComponent(cfg.ytKey)}`);
+        const d=await r.json();
+        if(d.durations) list.forEach(x=>{ if(!x.duration&&d.durations[x.ytId]) x.duration=d.durations[x.ytId]; });
+      }catch(_){}
+    }
+  }
+  return list;
+}
+async function toggleRadio247(){
+  if(_autopilotOn){
+    _wsSend({type:'AUTOPILOT_STOP'});
+    toast('Radio 24/7 detenida — vuelves a control manual','ok');
+    return;
+  }
+  if(!queue.length){ toast('Agrega canciones a la cola primero','error'); return; }
+  if(!_swsOk){ toast('Sin conexión al servidor — revisa la URL en CONFIG','error'); return; }
+  const btn=document.getElementById('radio247Btn'); if(btn) btn.textContent='📡 …';
+  const list=await _buildAutopilotList();
+  // Pausar los decks locales para no competir con el servidor
+  try{ decks.forEach(d=>{ try{d.player.pauseVideo();}catch(_){} d.playing=false; }); }catch(_){}
+  _setAutopilotUI(true); // optimista; el servidor confirma con AUTOPILOT
+  _wsSend({type:'AUTOPILOT_START',playlist:list});
+  toast(`📡 Radio 24/7 activada con ${list.length} canciones — ya puedes cerrar esta ventana`,'ok');
+}
+function _setAutopilotUI(on){
+  _autopilotOn=on;
+  const btn=document.getElementById('radio247Btn');
+  if(btn){ btn.textContent=on?'📡 24/7 ●':'📡 24/7'; btn.style.color=on?'var(--grn)':''; }
+  const banner=document.getElementById('r247Banner');
+  if(banner) banner.style.display=on?'flex':'none';
+}
 function _wsPlayTrack(item, positionSecs){
   if(!item||!item.ytId) return;
+  if(_autopilotOn) return; // en 24/7 la reproducción la maneja el servidor
   // cover + duration enriquecen el now-playing de sucursal/listen (Fase 1).
   // La duración puede ser 0 al cargar; el pulso de sync de 60s la refresca.
   let dur=0; try{dur=Math.round(decks[activeDeck]?.player.getDuration()||0);}catch(_){}
