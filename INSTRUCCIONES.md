@@ -12,31 +12,25 @@
 | `listen.html` | Público | Oyente web: carátula, próximas canciones, favoritos |
 | `tienda.html` | Tiendas | DJ Rodo autónomo hablando a clientes (sin música) |
 
-Abre `https://TU-URL.railway.app/` y elige tu rol — o directo: `/studio`, `/sucursal`, `/listen`, `/tienda`.
+Abre `https://terrapescaradio.com/` y elige tu rol — o directo: `/studio`, `/sucursal`, `/listen`, `/tienda`.
 
 ---
 
-## PASO 1 — Servidor en Railway
+## PASO 1 — Servidor en Railway + dominio propio
 
 1. Ve a **https://railway.app** e inicia sesión con GitHub
 2. **New Project → Deploy from GitHub repo** y elige este repositorio
 3. Railway detecta Node.js y despliega solo
-4. En **Settings → Networking → Generate Domain** copia la URL:
-   ```
-   terrapesca-radio-production.up.railway.app
-   ```
-5. Tu URL de WebSocket es la misma con `wss://`:
-   ```
-   wss://terrapesca-radio-production.up.railway.app
-   ```
+4. **Dominio propio (para que la URL NO cambie nunca):** en **Settings → Networking → Custom Domain** agrega `terrapescaradio.com`. Railway te dará dos registros DNS (un CNAME y un TXT) que debes pegar **donde compraste el dominio** (GoDaddy, Namecheap, etc.). Una vez propaguen (minutos a un par de horas), tu radio vive para siempre en `https://terrapescaradio.com`, sin importar redespliegues.
+5. No necesitas configurar ninguna URL en la app: cada página se conecta sola al servidor desde donde se abre.
 
 ---
 
 ## PASO 2 — Configurar la cabina (studio.html)
 
-1. Abre `https://TU-URL.railway.app/studio` en Chrome
+1. Abre `https://terrapescaradio.com/studio` en Chrome
 2. Clic en **⚙️ CONFIG** y llena:
-   - **URL del servidor**: `wss://TU-URL.railway.app`
+   - **URL del servidor**: `(automático — deja vacío el campo)`
    - **API Key de ElevenLabs** (`sk_…`) — voz de DJ Rodo y spots
    - **API Key de Anthropic** (`sk-ant-…`) — guiones de Rodo y sugerencias
    - **YouTube API Key** — búsqueda de canciones e import de playlists
@@ -53,8 +47,8 @@ Abre `https://TU-URL.railway.app/` y elige tu rol — o directo: `/studio`, `/su
 
 ## PASO 3 — Sucursales y oyentes
 
-- **Sucursales**: abrir `https://TU-URL.railway.app/sucursal` en cada tienda, elegir la sucursal y conectar. La configuración se guarda sola.
-- **Oyentes**: compartir `https://TU-URL.railway.app/listen` — ven carátula, qué suena y qué sigue; pueden marcar favoritos y (si la cabina lo permite) pedir siguiente canción.
+- **Sucursales**: abrir `https://terrapescaradio.com/sucursal` en cada tienda, elegir la sucursal y conectar. La configuración se guarda sola.
+- **Oyentes**: compartir `https://terrapescaradio.com/listen` — ven carátula, qué suena y qué sigue; pueden marcar favoritos y (si la cabina lo permite) pedir siguiente canción.
 
 ---
 
@@ -94,7 +88,7 @@ Abre `https://TU-URL.railway.app/` y elige tu rol — o directo: `/studio`, `/su
 ## Solución de problemas
 
 **"Sin conexión" en la cabina:**
-- La URL del servidor debe empezar con `wss://` (no `https://`)
+- Deja **vacío** el campo "URL del servidor" en CONFIG — se conecta solo al mismo servidor donde abriste la página (funciona con cualquier dominio)
 - Verifica que Railway esté desplegado y activo
 
 **La búsqueda no funciona:**

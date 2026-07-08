@@ -450,7 +450,7 @@ input[type=range]::-moz-range-thumb{width:18px;height:24px;border-radius:5px;bac
 
       <div class="cfg-section">
         <h4>🔑 Claves API</h4>
-        <div class="cfg-row"><label>WebSocket URL</label><input id="cfgWs" placeholder="wss://tu-servidor.railway.app"/></div>
+        <div class="cfg-row"><label>WebSocket URL</label><input id="cfgWs" placeholder="Automático (déjalo vacío) — usa este mismo servidor"/></div>
         <div class="cfg-row"><label>ElevenLabs</label><input id="cfgEl" type="password" placeholder="Clave ElevenLabs"/></div>
         <div class="cfg-row"><label>Anthropic</label><input id="cfgAnt" type="password" placeholder="Clave Anthropic/Claude"/></div>
         <div class="cfg-row"><label>YouTube API</label><input id="cfgYt" type="password" placeholder="Clave YouTube Data v3"/></div>
@@ -831,9 +831,18 @@ const cfg={
 /* ================= SERVER SYNC — transmite a sucursales ================= */
 let _sws=null, _swsOk=false;
 function _connectServerWS(){
-  let url=cfg.ws||((location.protocol==='https:'?'wss://':'ws://')+location.host);
+  // Blindaje anti "cambie y cambie": si la página se sirve desde un servidor
+  // (http/https), SIEMPRE conecta al mismo origen — así funciona con cualquier
+  // dominio (railway.app o terrapescaradio.com) sin reconfigurar nada. La URL
+  // guardada en CONFIG solo se usa como respaldo si se abre el archivo local.
+  let url;
+  if(location.protocol==='http:'||location.protocol==='https:'){
+    url=(location.protocol==='https:'?'wss://':'ws://')+location.host;
+  }else{
+    url=cfg.ws;
+    if(url&&!url.startsWith('ws')) url='wss://'+url.replace(/^https?:\/\//,'');
+  }
   if(!url) return;
-  if(!url.startsWith('ws')) url=(location.protocol==='https:'?'wss://':'ws://')+url.replace(/^https?:\/\//,'');
   try{
     _sws=new WebSocket(url);
     _sws.onopen=()=>{
