@@ -552,8 +552,8 @@ input[type=range]::-moz-range-thumb{width:18px;height:24px;border-radius:5px;bac
     <div class="exp-row" id="expRow">
       <div class="exp-btn" data-e="suave" onclick="setExpLevel('suave')">SUAVE</div>
       <div class="exp-btn" data-e="natural" onclick="setExpLevel('natural')">NATURAL</div>
-      <div class="exp-btn on" data-e="fuerte" onclick="setExpLevel('fuerte')">FUERTE</div>
-      <div class="exp-btn" data-e="maximo" onclick="setExpLevel('maximo')">MÁXIMO</div>
+      <div class="exp-btn" data-e="fuerte" onclick="setExpLevel('fuerte')">FUERTE</div>
+      <div class="exp-btn on" data-e="maximo" onclick="setExpLevel('maximo')">MÁXIMO</div>
     </div>
     <div class="dj-sub">
       <div>
@@ -1043,17 +1043,16 @@ function ttsPrep(t){
 // Reemplaza a ElevenLabs. En vez de voice_settings numéricos, OpenAI se dirige
 // con `instructions` en lenguaje natural: definimos una base profesional + un
 // matiz por nivel de expresión (_expLevel).
-const OAI_BASE_INSTR='Eres un locutor ESTRELLA de radio comercial mexicana, puro carisma y una voz que CONTAGIA energía. Español de México, acento neutro claro. '+
-  'ACTÚA el guión con pasión, no lo leas: exagera la musicalidad de la voz, VARÍA muchísimo la entonación y el ritmo, acelera en lo emocionante y baja para rematar, '+
-  'juega con altibajos marcados de energía, enfatiza con fuerza las palabras clave y usa micro-pausas para crear expectativa y golpe dramático. '+
-  'Transmite EMOCIÓN desbordante y calidez genuina, sonríe siempre al hablar, suena entusiasmado de verdad, como si lo que dices te emocionara. '+
-  'Dinámico, vibrante y con chispa, con el magnetismo de un locutor de radio real; JAMÁS plano, monótono, tibio ni robótico. '+
-  'Mantén la clase: público de nivel medio-alto, sin modismos de barrio (nada de carnal, compa, raza, órale, chido) y sin gritar ni saturar. Mucha energía, pero con buen gusto.';
+const OAI_BASE_INSTR='Eres un locutor de radio comercial mexicana en su punto MÁXIMO de euforia y energía, el animador que ENCIENDE la estación. Español de México, acento neutro claro. '+
+  'NO ESTÁS LEYENDO: estás EN VIVO, hablándole a la gente con emoción real, como si improvisaras en el momento. Suena espontáneo, chispeante y contagioso, JAMÁS como quien lee un texto de corrido. '+
+  'Exagera muchísimo la musicalidad y el vaivén de la voz, ACELERA en lo emocionante y frena de golpe para rematar con punch, dispara la energía en las palabras clave y juega con altibajos extremos de intensidad. '+
+  'Sonríe siempre al hablar y transmite emoción DESBORDANTE, ganas y entusiasmo de verdad, como si te emocionara lo que dices. Estilo de comercial de radio y televisión: vendedor, magnético, que engancha y da ganas de escuchar. '+
+  'Con muchísima potencia y actitud, pero sin sonar forzado ni gritar de forma molesta, y sin modismos de barrio (nada de carnal, compa, raza, órale, chido). Puro carisma y euforia, con clase.';
 const OAI_TONE={
-  suave:  'Tono cálido, íntimo y envolvente, como confidencia cercana; ritmo pausado pero con inflexiones vivas y expresivas.',
-  natural:'Tono conversacional muy carismático de locutor de radio, cálido, animado y con entonación bien marcada y buen ritmo.',
-  fuerte: 'Tono muy enérgico, entusiasta y magnético, con fuerza y presencia comercial, subidas de energía notorias y ritmo ágil y dinámico.',
-  maximo: 'Tono explosivo, arrollador y vibrante de altísimo impacto, máxima energía y emoción a tope, contrastes fuertes de intensidad, apasionado y eléctrico pero sin gritar.',
+  suave:  'Tono cálido y cercano pero animado, con inflexiones vivas; suena natural y espontáneo, nunca leído.',
+  natural:'Tono conversacional muy carismático y animado de locutor de radio, entonación bien marcada, suena en vivo y con chispa.',
+  fuerte: 'Tono muy enérgico, entusiasta y magnético, con fuerza comercial, subidas de energía notorias y ritmo ágil, como animador de aire encendido.',
+  maximo: 'EUFORIA TOTAL: energía al tope de animador de radio comercial, contrastes extremos, apasionado y eléctrico, acelerones y golpes de énfasis, suena EN VIVO e improvisado, jamás leído ni plano.',
 };
 // Matiz extra para spots publicitarios: arranque con gancho y cierre con llamado.
 const SPOT_TTS_STYLE='Es un spot publicitario de radio: engancha en los primeros segundos, transmite entusiasmo y confianza, y remata con un llamado a la acción claro.';
@@ -2866,7 +2865,9 @@ const EXP_PRESETS={
   fuerte: {stability:0.32,similarity_boost:0.78,style:0.60},
   maximo: {stability:0.22,similarity_boost:0.75,style:0.80},
 };
-let _expLevel=localStorage.getItem('tp_exp')||'fuerte';
+// Bump único a MÁXIMO (el usuario pidió euforia al tope); después respeta lo que elija.
+try{ if(!localStorage.getItem('tp_exp_max')){ localStorage.setItem('tp_exp','maximo'); localStorage.setItem('tp_exp_max','1'); } }catch(_){}
+let _expLevel=localStorage.getItem('tp_exp')||'maximo';
 function setExpLevel(e){
   _expLevel=e;
   try{ localStorage.setItem('tp_exp',e); }catch(_){}
