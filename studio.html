@@ -1008,6 +1008,20 @@ const VOICES={
 };
 // Migra un valor de voz legado a su equivalente OpenAI.
 function _migVoice(v){ return ({eleguar:'onyx',latinFem:'nova',daniela:'shimmer'})[v]||v||'onyx'; }
+// Recomendado una sola vez: Rodo=onyx, Spots=ash. Solo aplica si la voz
+// guardada es legada/ausente/inválida; una elección real de OpenAI se respeta.
+// El flag tp_voice_oai_set evita re-forzar en cargas posteriores.
+(function(){
+  try{
+    if(localStorage.getItem('tp_voice_oai_set')) return;
+    const leg=['eleguar','latinFem','daniela'];
+    const dj=localStorage.getItem('tp_voice_dj');
+    if(!dj||leg.includes(dj)||!VOICES[dj]) localStorage.setItem('tp_voice_dj','onyx');
+    const sp=localStorage.getItem('tp_voice_spot');
+    if(!sp||leg.includes(sp)||!VOICES[sp]) localStorage.setItem('tp_voice_spot','ash');
+    localStorage.setItem('tp_voice_oai_set','1');
+  }catch(_){}
+})();
 /* djVoice()/spotVoice() se definen en VOICE HELPERS (leen el selector del DOM). */
 function stripElTags(t){return t.replace(/\[[^\]]*\]/g,'').replace(/\s{2,}/g,' ').trim();}
 // Prepara el guión para síntesis NATURAL: fuera emojis/símbolos que el TTS lee mal
@@ -2872,8 +2886,8 @@ function djVoice(){
   return (VOICES[v]||VOICES.onyx).v;
 }
 function spotVoice(){
-  const v=localStorage.getItem('tp_voice_spot')||'onyx';
-  return (VOICES[v]||VOICES.onyx).v;
+  const v=localStorage.getItem('tp_voice_spot')||'ash';
+  return (VOICES[v]||VOICES.ash).v;
 }
 function _resolveWeatherCity(){
   const v=document.getElementById('djWeatherCity')?.value||localStorage.getItem('tp_weather_city')||'auto';
