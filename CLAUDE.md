@@ -52,6 +52,10 @@ Spotify-like experience (library, playlists, search, now-playing bar) without to
 **The server holds no API keys.** Keys live in the browser's `localStorage` and are sent as request
 headers to the server's proxy endpoints, which forward them to the upstream API:
 - `tp_oai` → OpenAI (`x-openai-key` → server sets `Authorization: Bearer`) → `/api/openai/tts`
+- `tp_vk_key` + `tp_vk_user` → VoiceKiller (`api-key` + `userid` headers) → `/api/voicekiller/tts` (POST
+  `{script,voice_name,instructions}` → returns mp3). Alternative TTS engine, selected via `tp_engine`
+  (`openai`|`voicekiller`); `tp_vk_voice` picks the VoiceKiller voice. `synthTTS()` in studio and
+  `genAndPlay()` in tienda branch on `tp_engine`.
 - `tp_ant` → Anthropic (`x-api-key`) → `/api/anthropic`
 - `tp_yt` → YouTube Data API key (query param) → `/api/ytplaylist`
 - `tp_ws` → the `wss://` server URL the client connects to
