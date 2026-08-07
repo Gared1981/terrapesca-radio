@@ -202,6 +202,9 @@ function buildTiendaPrompt(){
   return `${RODO_SYSTEM}\n\nDATOS DISPONIBLES AHORA (usa solo lo confirmado, ignora lo que no aparezca):\nHora local: ${hora}\nContexto: hablas a clientes y colaboradores que están DENTRO de la tienda en este momento.\nTipo de intervención: ${tipo}${promoLine}\n\nGenera ahora esa intervención, breve y natural, lista para reproducirse.`;
 }
 
+// Limpia un valor para header HTTP: solo ASCII imprimible (evita el error
+// "non ISO-8859-1" por caracteres invisibles al copiar/pegar llaves).
+function _hv(s){ return String(s||'').replace(/[^\x21-\x7E]/g,''); }
 async function genAndPlay(){
   const c=cfg();
   const voiceReady = c.engine==='voicekiller' ? (c.vkKey&&c.vkUser) : c.oai;
@@ -210,7 +213,7 @@ async function genAndPlay(){
   try{
     // Generate script with Anthropic
     const r=await fetch('/api/anthropic',{method:'POST',
-      headers:{'Content-Type':'application/json','x-api-key':c.ant},
+      headers:{'Content-Type':'application/json','x-api-key':_hv(c.ant)},
       body:JSON.stringify({model:'claude-sonnet-5',thinking:{type:'disabled'},max_tokens:220,
         messages:[{role:'user',content:buildTiendaPrompt()}]})
     });
@@ -223,13 +226,13 @@ async function genAndPlay(){
     let ar;
     if(c.engine==='voicekiller'){
       ar=await fetch('/api/voicekiller/tts',{method:'POST',
-        headers:{'Content-Type':'application/json','api-key':c.vkKey,'userid':c.vkUser},
+        headers:{'Content-Type':'application/json','api-key':_hv(c.vkKey),'userid':_hv(c.vkUser)},
         body:JSON.stringify({script:script.slice(0,6000),voice_name:c.vkVoice,instructions:TIENDA_TTS_INSTR.slice(0,2000)})
       });
       if(!ar.ok){ let m=''; try{m=(await ar.json()).error||'';}catch(_){} throw new Error('VoiceKiller '+ar.status+(m?': '+m:'')); }
     }else{
       ar=await fetch('/api/openai/tts',{method:'POST',
-        headers:{'Content-Type':'application/json','x-openai-key':c.oai},
+        headers:{'Content-Type':'application/json','x-openai-key':_hv(c.oai)},
         body:JSON.stringify({model:'gpt-4o-mini-tts',voice:TIENDA_VOICE,input:script,
           instructions:TIENDA_TTS_INSTR,response_format:'mp3'})
       });
