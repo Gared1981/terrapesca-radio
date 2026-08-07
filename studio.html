@@ -2812,6 +2812,8 @@ function openSettings(){
   sv('cfgEngine',localStorage.getItem('tp_engine')||'openai');
   sv('cfgVkKey',localStorage.getItem('tp_vk_key')||'');
   sv('cfgVkUser',localStorage.getItem('tp_vk_user')||'');
+  const _vkSel=document.getElementById('cfgVkVoice');
+  if(_vkSel) _vkSel.innerHTML=VK_VOICE_OPTS.map(o=>'<option value="'+o[0]+'">'+o[1]+'</option>').join('');
   sv('cfgVkVoice',localStorage.getItem('tp_vk_voice')||'Jett');
   const vr=document.getElementById('vkRows'); if(vr) vr.style.display=(localStorage.getItem('tp_engine')==='voicekiller')?'block':'none';
 }
@@ -2843,7 +2845,23 @@ function saveSettings(){
 // (OpenAI o VoiceKiller) y guarda en la clave correcta. Resuelve la confusión
 // de "no veo las voces de VoiceKiller".
 const OAI_VOICE_OPTS=[['ash','Ash (masc. expresiva)'],['onyx','Onyx (masc. grave)'],['verse','Verse (versátil)'],['echo','Echo (masc. clara)'],['nova','Nova (fem. clara)'],['shimmer','Shimmer (fem. suave)'],['coral','Coral (fem. cálida)'],['alloy','Alloy (neutra)'],['ballad','Ballad (suave)'],['fable','Fable (narrativa)'],['sage','Sage (serena)']];
-const VK_VOICE_OPTS=[['Jett','Jett (masc. enérgica)'],['Ashton','Ashton (masc.)'],['Jax','Jax (masc.)'],['Blaze','Blaze (masc.)'],['Quest','Quest (masc.)'],['Kael','Kael (masc.)'],['Jack','Jack (masc.)'],['Liam','Liam (masc.)'],['William','William (masc.)'],['North','North (masc.)'],['Stella','Stella (fem.)'],['Sienna','Sienna (fem.)'],['Harper','Harper (fem.)'],['Zoey','Zoey (fem.)'],['Coraline','Coraline (fem.)'],['Faye','Faye (neutra)']];
+// Las 55 voces de VoiceKiller. Las "⭐ recomendadas" (radio comercial) van
+// arriba — apuesta por timbre/género; confírmalas por oído. La energía la dan
+// las acting-instructions (que van al máximo), no la voz base.
+const VK_VOICE_OPTS=[
+  ['Jett','⭐ Jett (masc. enérgica)'],['Blaze','⭐ Blaze (masc. potente)'],['Jax','⭐ Jax (masc.)'],
+  ['Quest','⭐ Quest (masc.)'],['Kael','⭐ Kael (masc.)'],['Ashton','⭐ Ashton (masc.)'],['North','⭐ North (masc.)'],
+  ['Stella','⭐ Stella (fem. enérgica)'],['Storm','⭐ Storm (fem.)'],['Sienna','⭐ Sienna (fem.)'],['Harper','⭐ Harper (fem.)'],
+  ['Jack','Jack (masc.)'],['Liam','Liam (masc.)'],['William','William (masc.)'],['Oak','Oak (masc.)'],['Avery','Avery (masc.)'],
+  ['Pax','Pax (masc.)'],['Reef','Reef (masc.)'],['Rune','Rune (masc.)'],['Lyric','Lyric (masc.)'],['Indigo','Indigo (masc.)'],
+  ['Cove','Cove (masc.)'],['Quill','Quill (masc.)'],['Blair','Blair (masc.)'],['Arden','Arden (masc.)'],['Elara','Elara (masc.)'],
+  ['Juniper','Juniper (masc.)'],['Bella','Bella (masc.)'],['Sage','Sage (masc.)'],
+  ['Zoey','Zoey (fem.)'],['Coraline','Coraline (fem.)'],['Claire','Claire (fem.)'],['Lucy','Lucy (fem.)'],['Skylar','Skylar (fem.)'],
+  ['Isabella','Isabella (fem.)'],['Hannah','Hannah (fem.)'],['Nora','Nora (fem.)'],['Lily','Lily (fem.)'],['Marin','Marin (fem.)'],
+  ['Cedar','Cedar (fem.)'],['Evelyn','Evelyn (fem.)'],['Sky','Sky (fem.)'],['Riley','Riley (fem.)'],['Zen','Zen (fem.)'],
+  ['Jordan','Jordan (fem.)'],['Onyx','Onyx (fem.)'],['Haven','Haven (fem.)'],['Finch','Finch (fem.)'],['Vale','Vale (fem.)'],
+  ['Slate','Slate (fem.)'],['Wren','Wren (fem.)'],['Romy','Romy (fem.)'],['Sol','Sol (fem.)'],['Faye','Faye (neutra)']
+];
 function _refreshDJVoiceSelector(){
   const sel=document.getElementById('djVoiceSel'); if(!sel) return;
   const vk=_ttsEngine()==='voicekiller';
