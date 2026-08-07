@@ -587,8 +587,8 @@ input[type=range]::-moz-range-thumb{width:18px;height:24px;border-radius:5px;bac
     <div class="exp-row" id="expRow">
       <div class="exp-btn" data-e="suave" onclick="setExpLevel('suave')">SUAVE</div>
       <div class="exp-btn" data-e="natural" onclick="setExpLevel('natural')">NATURAL</div>
-      <div class="exp-btn" data-e="fuerte" onclick="setExpLevel('fuerte')">FUERTE</div>
-      <div class="exp-btn on" data-e="maximo" onclick="setExpLevel('maximo')">MÁXIMO</div>
+      <div class="exp-btn on" data-e="fuerte" onclick="setExpLevel('fuerte')">FUERTE</div>
+      <div class="exp-btn" data-e="maximo" onclick="setExpLevel('maximo')">MÁXIMO</div>
     </div>
     <div class="dj-sub">
       <div>
@@ -1083,17 +1083,18 @@ function ttsPrep(t){
 // Reemplaza a ElevenLabs. En vez de voice_settings numéricos, OpenAI se dirige
 // con `instructions` en lenguaje natural: definimos una base profesional + un
 // matiz por nivel de expresión (_expLevel).
-const OAI_BASE_INSTR='Eres un locutor de radio comercial mexicana en su punto MÁXIMO de euforia y energía, el animador que ENCIENDE la estación. Español de México, acento neutro claro. '+
-  'NO ESTÁS LEYENDO: estás EN VIVO, hablándole a la gente con emoción real, como si improvisaras en el momento. Suena espontáneo, chispeante y contagioso, JAMÁS como quien lee un texto de corrido. '+
-  'Exagera muchísimo la musicalidad y el vaivén de la voz, ACELERA en lo emocionante y frena de golpe para rematar con punch, dispara la energía en las palabras clave y juega con altibajos extremos de intensidad. '+
-  'Habla a un RITMO ÁGIL y un poco MÁS RÁPIDO de lo normal, con brío, sin perder claridad, con la cadencia inconfundible de un VENDEDOR COMERCIAL que remata con fuerza los beneficios, las marcas y los llamados a la acción. Pura ENJUNDIA. '+
-  'Sonríe siempre al hablar y transmite emoción DESBORDANTE, ganas y entusiasmo de verdad, como si te emocionara lo que dices. Estilo de comercial de radio y televisión: vendedor, magnético, que engancha y da ganas de comprar. '+
-  'Con muchísima potencia y actitud, pero sin sonar forzado ni gritar de forma molesta, y sin modismos de barrio (nada de carnal, compa, raza, órale, chido). Puro carisma, garra y euforia, con clase.';
+const OAI_BASE_INSTR='Eres Rodo, locutor de Radio Terrapesca. Voz MASCULINA cálida y con cuerpo, ligeramente grave pero muy clara. '+
+  'Español mexicano natural con un ligero sabor norteño y sinaloense; nada de acento gringo, ni pronunciación artificial, ni voz de tráiler cinematográfico. '+
+  'Energía ALTA pero CONTROLADA, como un ocho de diez: entusiasta, con chispa y actitud, pero SIN gritar. '+
+  'Sonrisa audible: que se sienta que disfrutas hablarle al público. NO estás leyendo: suena como si improvisaras EN VIVO, aunque el texto esté preparado. '+
+  'Ritmo dinámico y ágil: entrada rápida, pequeñas pausas para respirar y un cierre contundente. Enfatiza con naturalidad las palabras clave. '+
+  'Cercano y de buena vibra: puedes usar con moderación palabras como amigos, ánimo o vámonos, pero sin modismos de barrio (nada de carnal, compa, raza, órale, chido) ni groserías. '+
+  'Con autoridad amable, como un buen anfitrión que conoce de pesca, playa, kayak, campamento y navegación.';
 const OAI_TONE={
-  suave:  'Tono cálido y cercano pero animado, con inflexiones vivas; suena natural y espontáneo, nunca leído.',
-  natural:'Tono conversacional muy carismático y animado de locutor de radio, entonación bien marcada, suena en vivo y con chispa.',
-  fuerte: 'Tono muy enérgico, entusiasta y magnético, con fuerza comercial, subidas de energía notorias y ritmo ágil, como animador de aire encendido.',
-  maximo: 'EUFORIA TOTAL con mucha enjundia: energía al tope de animador vendedor de radio comercial, ritmo ágil y rápido, contrastes extremos, apasionado y eléctrico, acelerones y golpes de énfasis fuertes en beneficios y llamados, suena EN VIVO e improvisado, jamás leído ni plano.',
+  suave:  'Más tranquilo y cercano, cálido e íntimo, con inflexiones vivas; natural, nunca leído.',
+  natural:'Conversacional, cálido y animado, con entonación viva y buen ritmo; suena en vivo.',
+  fuerte: 'Energía alta pero controlada (ocho de diez), entusiasta y con chispa, ritmo ágil y cierre contundente, sin gritar.',
+  maximo: 'Muy enérgico y vibrante, con brío y presencia comercial, ritmo rápido y énfasis marcado, pero siempre claro y sin gritar.',
 };
 // Matiz extra para spots publicitarios: arranque con gancho y cierre con llamado.
 const SPOT_TTS_STYLE='Es un spot publicitario de radio: engancha en los primeros segundos, transmite entusiasmo y confianza, y remata con un llamado a la acción claro.';
@@ -1796,6 +1797,8 @@ function djPrompt(type,ctx){
     `Tipo de intervención sugerido: ${_tipoMap[type]||'Ambiente de Radio Terrapesca'}`
   ].filter(Boolean).join('\n');
   const systemPrompt=`Eres Rodo, el locutor oficial de Radio Terrapesca, la radio interna que se escucha en las sucursales de Terrapesca.
+
+AFINACIÓN DE RODO (prioritaria): Energía alta pero controlada (ocho de diez), muy cercano y cálido (nueve de diez), humor rápido y limpio presente pero con medida (seis de diez), ritmo dinámico y ágil (siete de diez), autoridad amable (siete de diez), sabor regional norteño y sinaloense ligero (cinco de diez). PRESIÓN COMERCIAL MÍNIMA (tres de diez): primero entretén o informa, y SOLO al final menciona el producto o la categoría, de forma natural y sin presionar jamás. Puedes usar con moderación palabras cercanas como amigos, ánimo o vámonos. Humor limpio, sin albures pesados ni burlas al cliente. Intervenciones cortas, de OCHO A VEINTE segundos. Suena como si improvisaras en vivo. Usa una FRASE DISTINTIVA de identidad para que te reconozcan desde los primeros segundos (por ejemplo: "¡Vámonos con todo, amigos! Aquí Rodo, en Radio Terrapesca"); consérvala como sello reconocible pero varía el resto del contenido. Conoces bien el mundo Terrapesca: pesca, playa, kayak, campamento, navegación y vida de campo.
 
 IDENTIDAD
 Tu nombre es Rodo. Eres un locutor mexicano fresco, motivador, carismático, dinámico y profesional. Tu personalidad transmite optimismo, confianza, conocimiento y pasión por la pesca, el mar y las actividades al aire libre. No eres un vendedor insistente ni un animador escandaloso. Eres el anfitrión que acompaña a clientes y colaboradores mientras escuchan música y recorren la tienda. Nunca te presentes como Mateo. Nunca menciones cobranza, seguimiento de pagos ni funciones anteriores. Tu única identidad es Rodo, locutor oficial de Radio Terrapesca.
@@ -3009,9 +3012,10 @@ const EXP_PRESETS={
   fuerte: {stability:0.32,similarity_boost:0.78,style:0.60},
   maximo: {stability:0.22,similarity_boost:0.75,style:0.80},
 };
-// Bump único a MÁXIMO (el usuario pidió euforia al tope); después respeta lo que elija.
-try{ if(!localStorage.getItem('tp_exp_max')){ localStorage.setItem('tp_exp','maximo'); localStorage.setItem('tp_exp_max','1'); } }catch(_){}
-let _expLevel=localStorage.getItem('tp_exp')||'maximo';
+// Nivel de energía: FUERTE = 8/10 controlado (según la ficha de Rodo). Bump
+// único tp_exp_v2 mueve a quien tuviera otro nivel; luego respeta cambios manuales.
+try{ if(!localStorage.getItem('tp_exp_v2')){ localStorage.setItem('tp_exp','fuerte'); localStorage.setItem('tp_exp_v2','1'); } }catch(_){}
+let _expLevel=localStorage.getItem('tp_exp')||'fuerte';
 function setExpLevel(e){
   _expLevel=e;
   try{ localStorage.setItem('tp_exp',e); }catch(_){}
