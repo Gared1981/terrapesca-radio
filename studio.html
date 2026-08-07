@@ -602,7 +602,7 @@ input[type=range]::-moz-range-thumb{width:18px;height:24px;border-radius:5px;bac
       </div>
       <div>
         <label>VOZ DJ</label>
-        <select id="djVoiceSel" onchange="localStorage.setItem('tp_voice_dj',this.value)">
+        <select id="djVoiceSel" onchange="_onDJVoicePick(this.value)">
           <option value="alloy">Alloy (neutra)</option>
           <option value="ash">Ash (masc. expresiva)</option>
           <option value="ballad">Ballad (suave)</option>
@@ -2833,11 +2833,30 @@ function saveSettings(){
   // Sync selectors on DJ card
   const wc=localStorage.getItem('tp_weather_city')||'auto';
   document.getElementById('djWeatherCity').value=wc;
-  document.getElementById('djVoiceSel').value=_migVoice(localStorage.getItem('tp_voice_dj'));
+  _refreshDJVoiceSelector();
   closeSettings();
   toast('Configuración guardada','ok');
   // Reconnect WS if URL changed
   _connectServerWS();
+}
+// Selector de VOZ DJ consciente del motor: muestra las voces del motor activo
+// (OpenAI o VoiceKiller) y guarda en la clave correcta. Resuelve la confusión
+// de "no veo las voces de VoiceKiller".
+const OAI_VOICE_OPTS=[['ash','Ash (masc. expresiva)'],['onyx','Onyx (masc. grave)'],['verse','Verse (versátil)'],['echo','Echo (masc. clara)'],['nova','Nova (fem. clara)'],['shimmer','Shimmer (fem. suave)'],['coral','Coral (fem. cálida)'],['alloy','Alloy (neutra)'],['ballad','Ballad (suave)'],['fable','Fable (narrativa)'],['sage','Sage (serena)']];
+const VK_VOICE_OPTS=[['Jett','Jett (masc. enérgica)'],['Ashton','Ashton (masc.)'],['Jax','Jax (masc.)'],['Blaze','Blaze (masc.)'],['Quest','Quest (masc.)'],['Kael','Kael (masc.)'],['Jack','Jack (masc.)'],['Liam','Liam (masc.)'],['William','William (masc.)'],['North','North (masc.)'],['Stella','Stella (fem.)'],['Sienna','Sienna (fem.)'],['Harper','Harper (fem.)'],['Zoey','Zoey (fem.)'],['Coraline','Coraline (fem.)'],['Faye','Faye (neutra)']];
+function _refreshDJVoiceSelector(){
+  const sel=document.getElementById('djVoiceSel'); if(!sel) return;
+  const vk=_ttsEngine()==='voicekiller';
+  const opts=vk?VK_VOICE_OPTS:OAI_VOICE_OPTS;
+  const cur=vk?(localStorage.getItem('tp_vk_voice')||'Jett'):_migVoice(localStorage.getItem('tp_voice_dj'));
+  sel.innerHTML=opts.map(o=>'<option value="'+o[0]+'">'+o[1]+'</option>').join('');
+  sel.value=cur;
+  const lbl=sel.parentElement&&sel.parentElement.querySelector('label');
+  if(lbl) lbl.textContent=vk?'VOZ (VOICEKILLER)':'VOZ DJ';
+}
+function _onDJVoicePick(v){
+  if(_ttsEngine()==='voicekiller') localStorage.setItem('tp_vk_voice',v);
+  else localStorage.setItem('tp_voice_dj',v);
 }
 
 /* ================= JINGLE ================= */
@@ -3420,9 +3439,8 @@ document.getElementById('autoBtn').style.color='var(--grn)';
 // Restore saved selectors
 (()=>{
   const wc=localStorage.getItem('tp_weather_city')||'auto';
-  const vc=_migVoice(localStorage.getItem('tp_voice_dj'));
   const el=document.getElementById('djWeatherCity'); if(el) el.value=wc;
-  const vl=document.getElementById('djVoiceSel'); if(vl) vl.value=vc;
+  _refreshDJVoiceSelector();
 })();
 // Drag & drop on jingle zone
 document.getElementById('jingleZone').addEventListener('dragover',e=>{e.preventDefault();e.currentTarget.style.borderColor='var(--cyan)';});
