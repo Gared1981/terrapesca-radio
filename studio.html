@@ -1009,14 +1009,17 @@ function ttsPrep(t){
 // Reemplaza a ElevenLabs. En vez de voice_settings numéricos, OpenAI se dirige
 // con `instructions` en lenguaje natural: definimos una base profesional + un
 // matiz por nivel de expresión (_expLevel).
-const OAI_BASE_INSTR='Eres un locutor profesional de radio mexicana. Español de México, acento neutro claro. '+
-  'Voz bien modulada, cálida y con presencia. Habla de corrido, natural y fluido, NUNCA robótico ni cortado. '+
-  'Público de nivel medio-alto: registro profesional y respetuoso, sin modismos de barrio (nada de carnal, compa, raza, órale, chido).';
+const OAI_BASE_INSTR='Eres un locutor ESTRELLA de radio mexicana, con carisma y una voz llena de vida. Español de México, acento neutro claro. '+
+  'INTERPRETA el guión, no lo leas: modula la voz con intención, VARÍA la entonación y el ritmo, sube y baja la energía según lo que dices, '+
+  'enfatiza las palabras clave y usa micro-pausas para dar énfasis dramático. Transmite EMOCIÓN genuina y calidez humana, sonríe al hablar. '+
+  'Habla de corrido, natural y fluido, con la seguridad y el magnetismo de un locutor de verdad, NUNCA plano, monótono ni robótico. '+
+  'Mantén siempre elegancia y buen gusto: público de nivel medio-alto, registro profesional y respetuoso, sin modismos de barrio '+
+  '(nada de carnal, compa, raza, órale, chido) y sin gritar. Expresivo y con chispa, pero con clase.';
 const OAI_TONE={
-  suave:  'Tono tranquilo y cercano, ritmo relajado pero fluido.',
-  natural:'Tono conversacional y natural de locutor de radio, cálido y con buen ritmo.',
-  fuerte: 'Tono enérgico y entusiasta, con fuerza y presencia comercial, ritmo dinámico.',
-  maximo: 'Tono muy vibrante y de alto impacto comercial, máxima energía y emoción, sin exagerar ni gritar.',
+  suave:  'Tono cálido, íntimo y envolvente, como confidencia cercana; ritmo pausado con inflexiones suaves y expresivas.',
+  natural:'Tono conversacional y carismático de locutor de radio, cálido y expresivo, con entonación viva y buen ritmo.',
+  fuerte: 'Tono enérgico, entusiasta y magnético, con fuerza y presencia comercial, subidas de energía y ritmo dinámico.',
+  maximo: 'Tono explosivo y vibrante de alto impacto, máxima energía y emoción, contrastes marcados de intensidad, apasionado pero sin gritar.',
 };
 // Matiz extra para spots publicitarios: arranque con gancho y cierre con llamado.
 const SPOT_TTS_STYLE='Es un spot publicitario de radio: engancha en los primeros segundos, transmite entusiasmo y confianza, y remata con un llamado a la acción claro.';
