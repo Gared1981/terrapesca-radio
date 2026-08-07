@@ -2653,15 +2653,18 @@ function saveQueue(){
 /* ================= SETTINGS ================= */
 function openSettings(){
   const m=document.getElementById('settingsModal');
-  document.getElementById('cfgWs').value=localStorage.getItem('tp_ws')||'';
-  document.getElementById('cfgOai').value=localStorage.getItem('tp_oai')||'';
-  document.getElementById('cfgAnt').value=localStorage.getItem('tp_ant')||'';
-  document.getElementById('cfgYt').value=localStorage.getItem('tp_yt')||'';
-  document.getElementById('cfgSl').value=localStorage.getItem('tp_slogan')||'';
-  document.getElementById('cfgWeatherCity').value=localStorage.getItem('tp_weather_city')||'auto';
-  document.getElementById('cfgVoiceDJ').value=_migVoice(localStorage.getItem('tp_voice_dj'));
-  document.getElementById('cfgVoiceSpot').value=_migVoice(localStorage.getItem('tp_voice_spot'));
-  m.classList.remove('hide');
+  // Abrir SIEMPRE primero: si algún campo faltara, el panel igual se abre
+  // (antes, un elemento nulo lanzaba error y CONFIG "no abría").
+  if(m) m.classList.remove('hide');
+  const sv=(id,val)=>{ const el=document.getElementById(id); if(el) el.value=val; };
+  sv('cfgWs',localStorage.getItem('tp_ws')||'');
+  sv('cfgOai',localStorage.getItem('tp_oai')||'');
+  sv('cfgAnt',localStorage.getItem('tp_ant')||'');
+  sv('cfgYt',localStorage.getItem('tp_yt')||'');
+  sv('cfgSl',localStorage.getItem('tp_slogan')||'');
+  sv('cfgWeatherCity',localStorage.getItem('tp_weather_city')||'auto');
+  sv('cfgVoiceDJ',_migVoice(localStorage.getItem('tp_voice_dj')));
+  sv('cfgVoiceSpot',_migVoice(localStorage.getItem('tp_voice_spot')));
 }
 function closeSettings(){ document.getElementById('settingsModal').classList.add('hide'); }
 function saveSettings(){
