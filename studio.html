@@ -1016,12 +1016,15 @@ function _migVoice(v){ return ({eleguar:'onyx',latinFem:'nova',daniela:'shimmer'
     if(localStorage.getItem('tp_voice_oai_set')) return;
     const leg=['eleguar','latinFem','daniela'];
     const dj=localStorage.getItem('tp_voice_dj');
-    if(!dj||leg.includes(dj)||!VOICES[dj]) localStorage.setItem('tp_voice_dj','onyx');
+    if(!dj||leg.includes(dj)||!VOICES[dj]) localStorage.setItem('tp_voice_dj','ash');
     const sp=localStorage.getItem('tp_voice_spot');
     if(!sp||leg.includes(sp)||!VOICES[sp]) localStorage.setItem('tp_voice_spot','ash');
     localStorage.setItem('tp_voice_oai_set','1');
   }catch(_){}
 })();
+// Bump único a la voz más eufórica y animada (ash) para Rodo y spots — el
+// usuario la pidió al máximo. Después respeta cualquier cambio manual.
+(function(){ try{ if(localStorage.getItem('tp_voice_ash')) return; localStorage.setItem('tp_voice_dj','ash'); localStorage.setItem('tp_voice_spot','ash'); localStorage.setItem('tp_voice_ash','1'); }catch(_){}})();
 /* djVoice()/spotVoice() se definen en VOICE HELPERS (leen el selector del DOM). */
 function stripElTags(t){return t.replace(/\[[^\]]*\]/g,'').replace(/\s{2,}/g,' ').trim();}
 // Prepara el guión para síntesis NATURAL: fuera emojis/símbolos que el TTS lee mal
@@ -2952,8 +2955,8 @@ async function startWithMood(){
 
 /* ================= VOICE HELPERS (updated to use selectors) ================= */
 function djVoice(){
-  const v=document.getElementById('djVoiceSel')?.value||localStorage.getItem('tp_voice_dj')||'onyx';
-  return (VOICES[v]||VOICES.onyx).v;
+  const v=document.getElementById('djVoiceSel')?.value||localStorage.getItem('tp_voice_dj')||'ash';
+  return (VOICES[v]||VOICES.ash).v;
 }
 function spotVoice(){
   const v=localStorage.getItem('tp_voice_spot')||'ash';

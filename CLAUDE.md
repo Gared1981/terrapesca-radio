@@ -68,7 +68,8 @@ server-side.
   tienda. Steered with a natural-language `instructions` string (professional Mexican radio register)
   instead of numeric voice settings; `_expLevel` picks the tone matiz (`OAI_TONE` in studio). All 11
   OpenAI voices are selectable (alloy/ash/ballad/coral/echo/fable/nova/onyx/sage/shimmer/verse); default
-  `onyx`. Legacy `tp_voice_*` values (eleguar/latinFem/daniela) are migrated via `_migVoice()`. Replaced
+  `ash` (most expressive/energetic; bumped from onyx via `tp_voice_ash`). Legacy `tp_voice_*` values
+  (eleguar/latinFem/daniela) are migrated via `_migVoice()`. Replaced
   ElevenLabs 2026-08.
 - **ElevenLabs** (`eleven_multilingual_v2`, `language_code: 'es'`) — *legacy* TTS; proxy still exists but
   no client calls it anymore.
