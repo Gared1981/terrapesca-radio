@@ -1098,6 +1098,11 @@ const OAI_TONE={
 const SPOT_TTS_STYLE='Es un spot publicitario de radio: engancha en los primeros segundos, transmite entusiasmo y confianza, y remata con un llamado a la acción claro.';
 // Motor de voz activo: 'openai' (default) o 'voicekiller'.
 function _ttsEngine(){ return localStorage.getItem('tp_engine')||'openai'; }
+// Devuelve un mensaje si faltan credenciales del motor activo, o '' si están OK.
+function _voiceCredsMissing(){
+  if(_ttsEngine()==='voicekiller') return (!cfg.vkKey||!cfg.vkUser)?'Faltan credenciales de VoiceKiller (config)':'';
+  return (!cfg.oaiKey)?'Falta la clave de OpenAI (config)':'';
+}
 // Sintetiza voz y devuelve un ArrayBuffer (mp3). `voice` es la voz de OpenAI
 // (se ignora en VoiceKiller, que usa su propia voz). `extra` añade matiz.
 async function synthTTS(rawText,{voice,extra}={}){
@@ -1629,7 +1634,7 @@ async function playDJ(type){
       toast(`🎙️ Rodo elige: ${chosen.name||'canción'}…`,'ok');
     }
 
-    if(!cfg.oaiKey){toast('Falta la clave de OpenAI (config)','error');throw new Error('no key');}
+    const _miss=_voiceCredsMissing(); if(_miss){toast(_miss,'error');throw new Error('no key');}
     const ab=await synthTTS(script||'',{voice:djVoice()});
     setDJState('al aire');
     _wsSpotAudio(ab, `🎙️ DJ Rodo — ${type}`); // relay voice to sucursales
@@ -1637,7 +1642,7 @@ async function playDJ(type){
     // Play stinger before Rodo speaks
     await playStinger();
     await playClip(URL.createObjectURL(new Blob([ab],{type:'audio/mpeg'})));
-  }catch(e){ /* fallback: brief silence handled below */ }
+  }catch(e){ if(e&&e.message&&e.message!=='no key') toast('No se generó la voz: '+e.message,'error'); }
   finally{
     console.log('[Rodo] DJ ended — restoring music');
     if(flags.duck) unduck();
@@ -1887,27 +1892,66 @@ Entrega EXCLUSIVAMENTE las palabras que Rodo debe pronunciar, en un solo párraf
 
   return typePrompts[type]||`${systemPrompt}\n\nSon ${hora}. Genera una intervención breve de 10 a 15 segundos sobre pesca, clima, seguridad o equipo para oyentes de Radio Terrapesca en Sinaloa.`;
 }
+// Respaldo cuando la IA no está disponible. Cada tipo tiene VARIAS variantes y
+// se elige una al azar (evitando repetir la última) para que no suene idéntico.
+let _lastFallback='';
 function djFallback(type,ctx){
-  // For SONG_BRIDGE fallback, pick a random song from queue
+  const pick=a=>{ if(a.length<2) return a[0]; let v; do{ v=a[Math.floor(Math.random()*a.length)]; }while(v===_lastFallback); _lastFallback=v; return v; };
   if(type==='SONG_BRIDGE'){
     const opts=ctx.queue||[];
     if(opts.length){
-      const pick=opts[Math.floor(Math.random()*opts.length)];
-      return `A continuación: "${pick.name}"${pick.artist?' de '+pick.artist:''} aquí en Radio Terrapesca.`;
+      const s=opts[Math.floor(Math.random()*opts.length)];
+      return pick([
+        `A continuación, "${s.name}"${s.artist?' de '+s.artist:''}, aquí en Radio Terrapesca.`,
+        `Sigue la buena música en Radio Terrapesca.`,
+        `Seguimos contigo con más música, aquí en Radio Terrapesca.`
+      ]);
     }
-    return 'Seguimos con más música aquí en Radio Terrapesca.';
+    return pick(['Seguimos con más música aquí en Radio Terrapesca.','La buena música continúa en Radio Terrapesca.']);
   }
-  const f={
-    TIME_CHECK:`Son ${ctx.hora||'un gran momento'} y seguimos contigo en Radio Terrapesca.`,
-    STATION_ID:`Radio Terrapesca, ${ctx.slogan}. Con sucursales en Culiacán, Mazatlán y Los Mochis.`,
-    WEATHER_REPORT:ctx.w&&ctx.w.temp!=null?`En ${ctx.w.city} tenemos ${ctx.w.temp} grados, ${wDesc(ctx.w.code)}. Buen día para salir a pescar.`:`El clima en la región se ve bien para la pesca de hoy.`,
-    FISHING_FORECAST:ctx.w&&ctx.w.temp!=null?`Para hoy en ${ctx.w.city}, con ${ctx.w.temp} grados, buen momento para robalo cerca de estructura.`:`Hoy es buen día para la pesca, prepara tu equipo.`,
-    FISHING_TIP:`Tip de pesca: al amanecer y al atardecer es cuando más pica. Aprovecha esas horas.`,
-    PROMO_TEASER:`En Terrapesca tienes todo para tu próxima jornada. Pásate y equípate.`,
-    VENTA_NOCTURNA:`Este ${CAMPAIGN.eventDate} es la Venta Nocturna Terrapesca. Culiacán de 9 a 5, Mazatlán y Los Mochis de 6 a 10. Un solo día.`,
-    VENTA_OPEN:`¡Bienvenidos a la Venta Nocturna Terrapesca! Arrancamos ahora. Kayaks al 20, combos vara más carrete al 20, señuelos al 15. De 6 a 10 de la noche. Acércate a un colaborador con cualquier pregunta. ${CAMPAIGN.marca}. ${CAMPAIGN.frase}.`,
+  const w=ctx.w, hasW=w&&w.temp!=null, city=hasW?w.city:'la región', t=hasW?w.temp:null, desc=hasW?wDesc(w.code):'';
+  const V={
+    TIME_CHECK:[
+      `Son ${ctx.hora||'un gran momento'} y seguimos contigo en Radio Terrapesca.`,
+      `Aquí Radio Terrapesca, acompañando tu jornada. Gracias por escucharnos.`,
+      `Continúa Radio Terrapesca, la señal que te conecta con el mar.`
+    ],
+    STATION_ID:[
+      `Radio Terrapesca, ${ctx.slogan}.`,
+      `Estás escuchando Radio Terrapesca, experiencia y equipo para vivir la pesca.`,
+      `Radio Terrapesca, acompañando tu jornada en Culiacán, Mazatlán y Los Mochis.`,
+      `Del mar, el río o la presa, la aventura comienza en Terrapesca. Esto es Radio Terrapesca.`
+    ],
+    WEATHER_REPORT: hasW ? [
+      `En ${city} tenemos ${t} grados, ${desc}. Buen momento para preparar tu equipo.`,
+      `El clima en ${city} marca ${t} grados, ${desc}. Aprovecha tu jornada.`,
+      `Ahora mismo en ${city}, ${t} grados y ${desc}. Recuerda tu equipo de seguridad.`
+    ] : [
+      `El clima en la región se ve bien para la pesca de hoy.`,
+      `Buen día en la región para salir al agua. Revisa tu equipo antes de partir.`
+    ],
+    FISHING_FORECAST: hasW ? [
+      `Para hoy en ${city}, con ${t} grados, buen momento para robalo cerca de estructura.`,
+      `Hoy en ${city}, ${t} grados: prueba temprano o al atardecer, cuando hay más actividad.`
+    ] : [
+      `Hoy es buen día para la pesca, prepara tu equipo.`,
+      `Buenas condiciones para salir hoy. Planea tu jornada con calma.`
+    ],
+    FISHING_TIP:[
+      `Un consejo: al amanecer y al atardecer es cuando más pica. Aprovecha esas horas.`,
+      `Recuerda revisar cabos, nudos y conexiones antes de cada salida.`,
+      `Ajusta el color del señuelo según el agua: claros en agua clara, llamativos en agua turbia.`,
+      `Mantén siempre a bordo tu chaleco y tu equipo de seguridad. La prevención primero.`
+    ],
+    PROMO_TEASER:[
+      `En Terrapesca tienes todo para tu próxima jornada. Acércate y equípate.`,
+      `¿Buscas equipo? Nuestros asesores en Terrapesca te ayudan a elegir lo adecuado.`,
+      `Cañas, carretes, líneas y señuelos: encuéntralo en Terrapesca.`
+    ],
+    VENTA_NOCTURNA:[`Este ${CAMPAIGN.eventDate} es la Venta Nocturna Terrapesca. Culiacán de 9 a 5, Mazatlán y Los Mochis de 6 a 10. Un solo día.`],
+    VENTA_OPEN:[`¡Bienvenidos a la Venta Nocturna Terrapesca! Arrancamos ahora. Kayaks al 20, combos vara más carrete al 20, señuelos al 15. De 6 a 10 de la noche. Acércate a un colaborador con cualquier pregunta. ${CAMPAIGN.marca}. ${CAMPAIGN.frase}.`],
   };
-  return f[type]||f.TIME_CHECK;
+  return pick(V[type]||V.TIME_CHECK);
 }
 async function testWeather(){const w=await getWeather();toast(`🌤 ${w.city}: ${w.temp!=null?w.temp+'°C':'sin datos'}`,'ok');playDJ('WEATHER_REPORT');}
 
@@ -2570,7 +2614,7 @@ async function previewSpotScript(){
   const script=document.getElementById('spotScript').value.trim();
   if(!script){_sgStatus('Escribe o genera un guión primero','var(--amber)');return;}
   if(djActive){_sgStatus('Espera a que termine el audio actual','var(--amber)');return;}
-  if(!cfg.oaiKey){_sgStatus('Falta la clave de OpenAI','var(--red)');return;}
+  {const _miss=_voiceCredsMissing(); if(_miss){_sgStatus(_miss,'var(--red)');return;}}
   _sgStatus('Generando preview…','var(--cyan)');
   try{
     const ab=await synthTTS(script,{voice:spotVoice(),extra:SPOT_TTS_STYLE});
@@ -2585,7 +2629,7 @@ async function createSpotAudio(){
   const name=(document.getElementById('spotName').value.trim())||(topic?_titleCase(topic):('Spot '+(spots.length+1)));
   if(!document.getElementById('spotName').value.trim() && name) document.getElementById('spotName').value=name;
   if(!script){_sgStatus('Escribe o genera un guión primero','var(--amber)');return;}
-  if(!cfg.oaiKey){_sgStatus('Falta la clave de OpenAI','var(--red)');return;}
+  {const _miss=_voiceCredsMissing(); if(_miss){_sgStatus(_miss,'var(--red)');return;}}
   _sgStatus('Generando audio…','var(--cyan)');
   try{
     const ab=await synthTTS(script,{voice:spotVoice(),extra:SPOT_TTS_STYLE});
