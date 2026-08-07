@@ -653,6 +653,7 @@ input[type=range]::-moz-range-thumb{width:18px;height:24px;border-radius:5px;bac
         <option value="elegante">✨ Elegante</option>
         <option value="urgente">🔥 Urgente</option>
       </select>
+      <select id="spotVoiceSel" title="Voz del spot (independiente de DJ Rodo)" onchange="_onSpotVoicePick(this.value)" style="padding:8px 10px;border-radius:8px;border:1px solid var(--line2);background:#060d0a;color:var(--txt);font-size:11px;font-family:var(--mono);cursor:pointer;max-width:150px"></select>
     </div>
     <div style="margin-bottom:6px;display:flex;gap:8px;align-items:center">
       <input style="flex:1;padding:8px 10px;border-radius:8px;border:1px solid var(--line2);background:#060d0a;color:var(--txt);font-size:12px" id="spotUrl" placeholder="🔗 Pega enlace de página de producto (opcional)…"/>
@@ -1098,6 +1099,16 @@ const OAI_TONE={
 };
 // Matiz extra para spots publicitarios: arranque con gancho y cierre con llamado.
 const SPOT_TTS_STYLE='Es un spot publicitario de radio: engancha en los primeros segundos, transmite entusiasmo y confianza, y remata con un llamado a la acción claro.';
+// Instrucciones de voz para SPOTS — independientes de la persona de Rodo.
+const SPOT_BASE_INSTR='Eres un locutor comercial de radio mexicana grabando un ANUNCIO de Terrapesca, tienda de pesca y outdoors. '+
+  'Voz clara, cálida y con energía; español mexicano natural, sin acento gringo ni voz de tráiler cinematográfico. '+
+  'Suena como comercial de radio real: enganchas en los primeros segundos, resaltas el beneficio y cierras con un llamado a la acción. Sin gritar, sin modismos de barrio.';
+// Matiz de voz por estilo del spot.
+const SPOT_ESTILO_VOZ={ 'eufórico':'Tono eufórico y muy enérgico.', 'dinámico':'Tono dinámico y ágil.', 'elegante':'Tono elegante, cálido y sobrio.', 'urgente':'Tono urgente y contundente, con sensación de oferta por tiempo limitado.' };
+// Voz de VoiceKiller para spots (independiente de la de Rodo).
+function _spotVkVoice(){ return localStorage.getItem('tp_vk_voice_spot')||localStorage.getItem('tp_vk_voice')||'Jett'; }
+// Extra de voz para el spot según el estilo elegido en el panel.
+function _spotVoiceExtra(){ const e=document.getElementById('spotEstilo')?.value||''; return SPOT_TTS_STYLE+(SPOT_ESTILO_VOZ[e]?(' '+SPOT_ESTILO_VOZ[e]):''); }
 // Motor de voz activo: 'openai' (default) o 'voicekiller'.
 function _ttsEngine(){ return localStorage.getItem('tp_engine')||'openai'; }
 // Limpia un valor para usarlo como header HTTP: deja solo ASCII imprimible sin
@@ -1109,18 +1120,19 @@ function _voiceCredsMissing(){
   if(_ttsEngine()==='voicekiller') return (!cfg.vkKey||!cfg.vkUser)?'Faltan credenciales de VoiceKiller (config)':'';
   return (!cfg.oaiKey)?'Falta la clave de OpenAI (config)':'';
 }
-// Sintetiza voz y devuelve un ArrayBuffer (mp3). `voice` es la voz de OpenAI
-// (se ignora en VoiceKiller, que usa su propia voz). `extra` añade matiz.
-async function synthTTS(rawText,{voice,extra}={}){
+// Sintetiza voz y devuelve un ArrayBuffer (mp3). `voice` = voz OpenAI, `vkVoice`
+// = voz VoiceKiller (cada motor usa la suya). `base` reemplaza las instrucciones
+// base (p.ej. para spots, que NO usan la persona de Rodo). `extra` añade matiz.
+async function synthTTS(rawText,{voice,vkVoice,base,extra}={}){
   const input=ttsPrep(stripElTags(rawText||''));
   if(!input) throw new Error('Texto vacío');
-  const instructions=OAI_BASE_INSTR+' '+(OAI_TONE[_expLevel]||OAI_TONE.natural)+(extra?(' '+extra):'');
+  const instructions=(base||OAI_BASE_INSTR)+' '+(OAI_TONE[_expLevel]||OAI_TONE.natural)+(extra?(' '+extra):'');
   if(_ttsEngine()==='voicekiller'){
     if(!cfg.vkKey||!cfg.vkUser) throw new Error('Faltan credenciales de VoiceKiller (config)');
     const r=await fetch('/api/voicekiller/tts',{
       method:'POST',
       headers:{'Content-Type':'application/json','api-key':_hv(cfg.vkKey),'userid':_hv(cfg.vkUser)},
-      body:JSON.stringify({script:input.slice(0,6000),voice_name:(localStorage.getItem('tp_vk_voice')||'Jett'),instructions:instructions.slice(0,2000)})
+      body:JSON.stringify({script:input.slice(0,6000),voice_name:(vkVoice||localStorage.getItem('tp_vk_voice')||'Jett'),instructions:instructions.slice(0,2000)})
     });
     if(!r.ok){ let m=''; try{ m=await r.text(); const j=JSON.parse(m); m=(j&&(j.error||j.message))||m; }catch(_){} throw new Error('VoiceKiller '+r.status+(m?': '+m.slice(0,180):'')); }
     return await r.arrayBuffer();
@@ -2625,7 +2637,7 @@ async function previewSpotScript(){
   {const _miss=_voiceCredsMissing(); if(_miss){_sgStatus(_miss,'var(--red)');return;}}
   _sgStatus('Generando preview…','var(--cyan)');
   try{
-    const ab=await synthTTS(script,{voice:spotVoice(),extra:SPOT_TTS_STYLE});
+    const ab=await synthTTS(script,{voice:spotVoice(),vkVoice:_spotVkVoice(),base:SPOT_BASE_INSTR,extra:_spotVoiceExtra()});
     _sgStatus('▶ Reproduciendo preview…','var(--grn)');
     await playClip(URL.createObjectURL(new Blob([ab],{type:'audio/mpeg'})));
     _sgStatus('Preview terminado','var(--txt3)');
@@ -2640,7 +2652,7 @@ async function createSpotAudio(){
   {const _miss=_voiceCredsMissing(); if(_miss){_sgStatus(_miss,'var(--red)');return;}}
   _sgStatus('Generando audio…','var(--cyan)');
   try{
-    const ab=await synthTTS(script,{voice:spotVoice(),extra:SPOT_TTS_STYLE});
+    const ab=await synthTTS(script,{voice:spotVoice(),vkVoice:_spotVkVoice(),base:SPOT_BASE_INSTR,extra:_spotVoiceExtra()});
     // Convert to base64
     const u8=new Uint8Array(ab); let b='';
     for(let i=0;i<u8.length;i++) b+=String.fromCharCode(u8[i]);
@@ -2888,6 +2900,7 @@ function saveSettings(){
   const wc=localStorage.getItem('tp_weather_city')||'auto';
   document.getElementById('djWeatherCity').value=wc;
   _refreshDJVoiceSelector();
+  _refreshSpotVoiceSelector();
   closeSettings();
   toast('Configuración guardada','ok');
   // Reconnect WS if URL changed
@@ -2927,6 +2940,19 @@ function _refreshDJVoiceSelector(){
 function _onDJVoicePick(v){
   if(_ttsEngine()==='voicekiller') localStorage.setItem('tp_vk_voice',v);
   else localStorage.setItem('tp_voice_dj',v);
+}
+// Selector de voz del SPOT (independiente de Rodo), también consciente del motor.
+function _refreshSpotVoiceSelector(){
+  const sel=document.getElementById('spotVoiceSel'); if(!sel) return;
+  const vk=_ttsEngine()==='voicekiller';
+  const opts=vk?VK_VOICE_OPTS:OAI_VOICE_OPTS;
+  const cur=vk?_spotVkVoice():_migVoice(localStorage.getItem('tp_voice_spot'));
+  sel.innerHTML=opts.map(o=>'<option value="'+o[0]+'">'+o[1]+'</option>').join('');
+  sel.value=cur;
+}
+function _onSpotVoicePick(v){
+  if(_ttsEngine()==='voicekiller') localStorage.setItem('tp_vk_voice_spot',v);
+  else localStorage.setItem('tp_voice_spot',v);
 }
 
 /* ================= JINGLE ================= */
@@ -3512,6 +3538,7 @@ document.getElementById('autoBtn').style.color='var(--grn)';
   const wc=localStorage.getItem('tp_weather_city')||'auto';
   const el=document.getElementById('djWeatherCity'); if(el) el.value=wc;
   _refreshDJVoiceSelector();
+  _refreshSpotVoiceSelector();
 })();
 // Drag & drop on jingle zone
 document.getElementById('jingleZone').addEventListener('dragover',e=>{e.preventDefault();e.currentTarget.style.borderColor='var(--cyan)';});
