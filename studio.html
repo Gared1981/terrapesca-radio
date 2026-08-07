@@ -543,9 +543,9 @@ input[type=range]::-moz-range-thumb{width:18px;height:24px;border-radius:5px;bac
   <div class="dj-card">
     <h3>🎙️ DJ RODO <span id="djState" style="color:var(--txt3)">standby</span></h3>
     <div class="seg-ctrl" id="djFreqCtrl">
-      <div class="s" data-f="baja" onclick="setDJFreq('baja')">BAJA</div>
-      <div class="s on" data-f="media" onclick="setDJFreq('media')">MEDIA</div>
-      <div class="s" data-f="alta" onclick="setDJFreq('alta')">ALTA</div>
+      <div class="s" data-f="baja" onclick="setDJFreq('baja')">CADA 2 H</div>
+      <div class="s on" data-f="media" onclick="setDJFreq('media')">CADA 1 H</div>
+      <div class="s" data-f="alta" onclick="setDJFreq('alta')">CADA 30 MIN</div>
     </div>
     <!-- Expresividad de voz -->
     <div style="margin-top:8px;font-size:9px;font-family:var(--mono);color:var(--txt3);letter-spacing:1px;margin-bottom:3px">EXPRESIVIDAD</div>
@@ -584,7 +584,7 @@ input[type=range]::-moz-range-thumb{width:18px;height:24px;border-radius:5px;bac
     </div>
     <div class="dj-cue" id="djCue">Próxima intervención…</div>
     <div id="campaignBanner" style="display:none;background:linear-gradient(90deg,#1a0a00,#2a1500);border:1px solid #ff6600;border-radius:8px;padding:8px 12px;margin-bottom:8px;font-size:11px;font-family:var(--mono);color:#ffaa44;letter-spacing:.5px"></div>
-    <div class="dj-now" id="djNow">DJ Rodo habla entre canciones: hora, clima, tips de pesca, promos y spots — en rotación.</div>
+    <div class="dj-now" id="djNow">DJ Rodo entra una vez por hora (9 a. m.–6 p. m.) con un tema al azar: spot, clima, hora o consejo de pesca.</div>
     <!-- Estado de ánimo para inicio aleatorio -->
     <div style="margin-top:8px;font-size:9px;font-family:var(--mono);color:var(--txt3);letter-spacing:1px;margin-bottom:4px">INICIO CON ESTADO DE ÁNIMO</div>
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-bottom:6px" id="moodRow">
@@ -1452,7 +1452,11 @@ function _resumeActiveDeckIfStalled(){
 let djFreq='media';
 let _djSongCount=0;
 let _djRotIdx=0;
-const DJ_SONGS_BETWEEN={baja:3,media:2,alta:1};
+let _lastDJFireAt=0; // timestamp de la última intervención automática
+// Minutos entre intervenciones de Rodo (por defecto: cada hora).
+const DJ_INTERVAL_MIN={baja:120,media:60,alta:30};
+// Rodo solo interviene en horario laboral (9 a. m. a 6 p. m., hora local).
+function _djHoursOK(){ const h=new Date().getHours(); return h>=9 && h<18; }
 
 /* ================= CAMPAÑA VENTA NOCTURNA ================= */
 const CAMPAIGN={
@@ -1507,19 +1511,18 @@ function _djRotation(){return _campaignActive()?DJ_ROTATION_CAMPAIGN:DJ_ROTATION
 function setDJFreq(f){djFreq=f;document.querySelectorAll('#djFreqCtrl .s').forEach(s=>s.classList.toggle('on',s.dataset.f===f));refreshDJStatus();}
 function djShouldFire(){
   if(!flags.dj) return false;
-  _djSongCount++;
-  if(_djSongCount>=(DJ_SONGS_BETWEEN[djFreq]||2)){_djSongCount=0;refreshDJStatus();return true;}
-  refreshDJStatus();
-  return false;
+  if(!_djHoursOK()){ refreshDJStatus(); return false; }      // fuera de 9-18h
+  const iv=(DJ_INTERVAL_MIN[djFreq]||60)*60000;
+  const now=Date.now();
+  if(_lastDJFireAt && now-_lastDJFireAt<iv){ refreshDJStatus(); return false; }
+  _lastDJFireAt=now; refreshDJStatus(); return true;
 }
+// Tipo de intervención ALEATORIO entre: spot, clima, hora y consejos de pesca.
 function nextDJItem(){
-  const rot=_djRotation();
-  for(let i=0;i<rot.length;i++){
-    const it=rot[_djRotIdx%rot.length];_djRotIdx++;
-    if(it==='SPOT'){ if(spots.length) return {kind:'spot'}; continue; }
-    return {kind:'dj',type:it};
-  }
-  return {kind:'dj',type:'TIME_CHECK'};
+  const pool=['WEATHER_REPORT','TIME_CHECK','FISHING_TIP'];
+  if(spots.length) pool.push('SPOT');
+  const pick=pool[Math.floor(Math.random()*pool.length)];
+  return pick==='SPOT' ? {kind:'spot'} : {kind:'dj',type:pick};
 }
 /* DJ talks over the tail (ducked) then crossfade — no silence, between songs */
 async function djBetweenThenCrossfade(){
@@ -2331,18 +2334,12 @@ function seekBar(ev,id){
 /* ---- DJ next-intervention status ---- */
 function djStatusInfo(){
   if(!flags.dj) return {text:'DJ Rodo desactivado',soon:false};
-  const left=Math.max(0,(DJ_SONGS_BETWEEN[djFreq]||2)-_djSongCount);
-  // peek next rotation item without consuming
-  const rot=_djRotation();
-  let peek=rot[_djRotIdx%rot.length], k=_djRotIdx;
-  while(peek==='SPOT' && !spots.length){ k++; peek=rot[k%rot.length]; }
-  const labels={TIME_CHECK:'⏰ Hora',STATION_ID:'📻 Sucursales',WEATHER_REPORT:'🌤 Clima',
-    FISHING_TIP:'🎣 Tip de pesca',PROMO_TEASER:'🛒 Promo',FISHING_FORECAST:'🐟 Predicción de pesca',
-    SPOT:'📢 Spot',SONG_BRIDGE:flags.aiSelect?'🎵 Rodo elige canción':'🎵 Puente musical',
-    VENTA_NOCTURNA:'🔥 Venta Nocturna',VENTA_OPEN:'🎉 APERTURA VENTA NOCTURNA'};
-  const nextLabel=peek==='SPOT'?'📢 Spot':(labels[peek]||peek);
-  if(left<=0) return {text:`🎙️ Rodo entra al terminar esta canción → ${nextLabel}`,soon:true};
-  return {text:`Próxima intervención en ${left} canción${left>1?'es':''} → ${nextLabel}`,soon:false};
+  if(!_djHoursOK()) return {text:'🌙 Rodo descansa — interviene de 9 a. m. a 6 p. m.',soon:false};
+  const iv=(DJ_INTERVAL_MIN[djFreq]||60)*60000;
+  if(!_lastDJFireAt) return {text:'🎙️ Rodo entra en la próxima canción (luego, cada hora)',soon:true};
+  const mins=Math.ceil((iv-(Date.now()-_lastDJFireAt))/60000);
+  if(mins<=0) return {text:'🎙️ Rodo entra al terminar esta canción',soon:true};
+  return {text:`Próxima intervención de Rodo en ~${mins} min (spot, clima, hora o consejo, al azar)`,soon:false};
 }
 function refreshDJStatus(){
   const el=document.getElementById('djCue'); if(!el) return;
