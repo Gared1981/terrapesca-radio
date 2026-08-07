@@ -229,6 +229,46 @@ function aiHoursAllowed() {
   return mins >= 9 * 60 && mins < 18 * 60; // 09:00 to 17:59
 }
 
+// Extrae [{title,artist}] de la página embed pública de una playlist de Spotify.
+// Spotify no permite retransmitir su audio (DRM); esto SOLO lee metadatos para
+// luego resolver cada canción en YouTube. Es best-effort: si Spotify cambia el
+// formato del embed, el recorrido recursivo intenta hallar la lista igualmente.
+function parseSpotifyEmbed(html) {
+  const m = html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
+  if (!m) throw new Error('formato de Spotify no reconocido');
+  const data = JSON.parse(m[1]);
+  let name = 'Playlist de Spotify';
+  try { name = data.props.pageProps.state.data.entity.name || name; } catch (_) {}
+  let list = null;
+  try {
+    const tl = data.props.pageProps.state.data.entity.trackList;
+    if (Array.isArray(tl) && tl.length) list = tl;
+  } catch (_) {}
+  if (!list) {
+    // Fallback: buscar recursivamente un arreglo de objetos {title,subtitle}.
+    const found = [];
+    (function walk(o) {
+      if (!o || typeof o !== 'object' || found.length) return;
+      if (Array.isArray(o)) {
+        if (o.length && o.every(x => x && typeof x === 'object' &&
+            typeof x.title === 'string' && typeof x.subtitle === 'string')) {
+          found.push(o); return;
+        }
+        for (const it of o) walk(it);
+      } else {
+        for (const k in o) walk(o[k]);
+      }
+    })(data);
+    if (found.length) list = found[0];
+  }
+  if (!list) throw new Error('la playlist no trae canciones (¿privada o vacía?)');
+  const tracks = list
+    .map(t => ({ title: String(t.title || '').trim(), artist: String(t.subtitle || '').trim() }))
+    .filter(t => t.title)
+    .slice(0, 200);
+  return { name, count: tracks.length, tracks };
+}
+
 // ---- HTTP SERVER ----
 const server = http.createServer((req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -509,6 +549,50 @@ const server = http.createServer((req, res) => {
         'Authorization': 'Bearer ' + apiKey
       }, body, res);
     });
+    return;
+  }
+
+  // ── Importar playlist pública de Spotify (título+artista) ──
+  // Lee SOLO metadatos de la página embed pública; el cliente resuelve cada
+  // canción en YouTube (que sí se puede transmitir a las sucursales).
+  if (req.url.startsWith('/api/spotify/playlist') && req.method === 'GET') {
+    let id = '';
+    try { id = (new URL(req.url, 'http://x').searchParams.get('id') || '').replace(/[^A-Za-z0-9]/g, ''); } catch (_) {}
+    if (!id) { res.writeHead(400, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ error: 'Falta el id de la playlist' })); }
+    const sReq = https.request({
+      hostname: 'open.spotify.com',
+      path: `/embed/playlist/${id}`,
+      method: 'GET',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; TerrapescaRadio/1.0)',
+        'Accept': 'text/html,application/xhtml+xml',
+        'Accept-Language': 'es-MX,es;q=0.9'
+      },
+      timeout: 12000
+    }, (sRes) => {
+      let raw = '', size = 0, aborted = false;
+      sRes.on('error', () => { try { sRes.destroy(); } catch (_) {} });
+      sRes.on('data', c => {
+        if (aborted) return;
+        size += c.length;
+        if (size > MAX_PROXY_BYTES) { aborted = true; sRes.destroy(); res.writeHead(502, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Respuesta demasiado grande' })); return; }
+        raw += c;
+      });
+      sRes.on('end', () => {
+        if (aborted) return;
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        try {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify(parseSpotifyEmbed(raw)));
+        } catch (e) {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'No se pudo leer la playlist: ' + e.message }));
+        }
+      });
+    });
+    sReq.on('error', (e) => { res.writeHead(502, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: e.message })); });
+    sReq.setTimeout(12000, () => { sReq.destroy(); });
+    sReq.end();
     return;
   }
 

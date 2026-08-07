@@ -75,6 +75,14 @@ server-side.
   (server-side audio stream for mobile via `/radio/stream` and `/api/ytaudio/:id`), and YouTube Data
   API v3 (playlist import via `/api/ytplaylist`; song search via `/api/ytsearch` which merges
   `search.list` + `videos.list` durations).
+- **Spotify (import only)** — `/api/spotify/playlist?id=` fetches the *public* embed page
+  (`open.spotify.com/embed/playlist/:id`) and `parseSpotifyEmbed()` scrapes `__NEXT_DATA__` for
+  `{title,subtitle}` → returns `{name,count,tracks:[{title,artist}]}`. Spotify audio is DRM'd and its
+  ToS forbids rebroadcast, so this is **metadata only**: studio's `importSpotifyPlaylist()` resolves each
+  track to a YouTube video via `/api/ytsearch` and adds it to the queue (curate on Spotify, play on
+  YouTube). Client caps import at 60 tracks (YouTube search quota is 100 units/call). No Spotify key/login
+  needed — public playlists only. The parser is best-effort with a recursive fallback if the embed shape
+  changes.
 - **CONAGUA** presas data via `/api/conagua` (self-signed cert, `rejectUnauthorized:false`).
 - `/api/scrape` fetches a product page (one redirect followed, 80KB cap) so the AI can write a spot.
 
