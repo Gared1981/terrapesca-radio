@@ -2537,10 +2537,14 @@ PRODUCTO: [nombre]
 DESCRIPCIÓN: [característica 1]. [característica 2]. [característica 3].
 BENEFICIOS: [beneficios concretos para el usuario]`}]})
     });
+    if(!extract.ok){ let em=''; try{ em=await extract.text(); const j=JSON.parse(em); em=(j.error&&(j.error.message||j.error))||em; }catch(_){} throw new Error('IA '+extract.status+(em?': '+String(em).slice(0,160):'')); }
     const ed=await extract.json();
+    if(ed.error) throw new Error('IA: '+(ed.error.message||JSON.stringify(ed.error)).slice(0,160));
     const info=aiText(ed).trim();
-    if(!info) throw new Error('No se pudo extraer info');
-
+    if(!info){
+      if(text.length<120) throw new Error('La página no dejó leer su contenido (bloquea robots o carga con JavaScript). Escribe el tema del spot a mano en el campo de arriba.');
+      throw new Error('La IA no devolvió info. Reintenta, o escribe el tema a mano.');
+    }
     document.getElementById('spotTopic').value=info;
     document.getElementById('spotUrl').value='';
     _sgStatus('Info extraída — haz clic en "Generar guión con IA"','var(--grn)');
