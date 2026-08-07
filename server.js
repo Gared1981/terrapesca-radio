@@ -720,6 +720,18 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // Jingle de fábrica (empaquetado): default cuando no hay uno subido por el usuario.
+  if (req.url === '/jingle-terrapesca.mp3') {
+    const jPath = path.join(__dirname, 'jingle-terrapesca.mp3');
+    if (fs.existsSync(jPath)) {
+      res.writeHead(200, { 'Content-Type': 'audio/mpeg', 'Cache-Control': 'public, max-age=86400' });
+      fs.createReadStream(jPath).pipe(res);
+    } else {
+      res.writeHead(404); res.end();
+    }
+    return;
+  }
+
   let filePath = null;
   if (req.url === '/' || req.url === '/index.html') {
     // Portada: selector de rol (Cabina / Sucursal / Escuchar / Tienda)
