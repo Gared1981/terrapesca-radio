@@ -273,7 +273,7 @@ function parseSpotifyEmbed(html) {
 const server = http.createServer((req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, xi-api-key, x-api-key, x-openai-key, anthropic-version');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, xi-api-key, x-api-key, x-openai-key, api-key, userid, anthropic-version');
 
   if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
 
@@ -532,6 +532,21 @@ const server = http.createServer((req, res) => {
       proxyPost('api.elevenlabs.io', `/v1/text-to-speech/${voiceId}`, {
         'Content-Type': 'application/json',
         'xi-api-key': apiKey
+      }, body, res);
+    });
+    return;
+  }
+
+  // ── Proxy VoiceKiller TTS (motor de voz alternativo) ──
+  // El cliente manda {script,voice_name,instructions} y sus credenciales por
+  // header (api-key + userid). El servidor no las guarda. Devuelve MP3 directo,
+  // que proxyPost detecta (audio/mpeg) y transmite tal cual.
+  if (req.url === '/api/voicekiller/tts' && req.method === 'POST') {
+    readLimitedBody(req, res, (body) => {
+      proxyPost('voicekiller.com', '/api/generate-speech', {
+        'Content-Type': 'application/json',
+        'api-key': req.headers['api-key'] || '',
+        'userid': req.headers['userid'] || ''
       }, body, res);
     });
     return;

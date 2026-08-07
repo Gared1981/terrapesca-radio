@@ -134,7 +134,9 @@ let _lastPromo=-1;
 const MIN_INTERVAL=3*60*1000; // 3 min entre intervenciones
 const MAX_INTERVAL=5*60*1000; // 5 min
 
-function cfg(){return{oai:localStorage.getItem('tp_oai')||'',ant:localStorage.getItem('tp_ant')||''};}
+function cfg(){return{oai:localStorage.getItem('tp_oai')||'',ant:localStorage.getItem('tp_ant')||'',
+  engine:localStorage.getItem('tp_engine')||'openai',vkKey:localStorage.getItem('tp_vk_key')||'',
+  vkUser:localStorage.getItem('tp_vk_user')||'',vkVoice:localStorage.getItem('tp_vk_voice')||'Jett'};}
 function saveCfg(){
   const oai=document.getElementById('cfgOai').value.trim();
   const ant=document.getElementById('cfgAnt').value.trim();
@@ -202,7 +204,8 @@ function buildTiendaPrompt(){
 
 async function genAndPlay(){
   const c=cfg();
-  if(!c.oai||!c.ant){setStatus('⚠️ Configura claves API primero','#ff4466');return;}
+  const voiceReady = c.engine==='voicekiller' ? (c.vkKey&&c.vkUser) : c.oai;
+  if(!voiceReady||!c.ant){setStatus('⚠️ Configura claves API primero','#ff4466');return;}
   setStatus('Generando guión…','#ffb347');
   try{
     // Generate script with Anthropic
@@ -216,13 +219,22 @@ async function genAndPlay(){
     if(!script) throw new Error('Sin respuesta');
     setText(script);
     setStatus('Generando audio…','#ffb347');
-    // Generate audio with OpenAI (gpt-4o-mini-tts)
-    const ar=await fetch('/api/openai/tts',{method:'POST',
-      headers:{'Content-Type':'application/json','x-openai-key':c.oai},
-      body:JSON.stringify({model:'gpt-4o-mini-tts',voice:TIENDA_VOICE,input:script,
-        instructions:TIENDA_TTS_INSTR,response_format:'mp3'})
-    });
-    if(!ar.ok){ let m=''; try{m=(await ar.json()).error?.message||'';}catch(_){} throw new Error('OpenAI '+ar.status+(m?': '+m:'')); }
+    // Generate audio — motor OpenAI (default) o VoiceKiller
+    let ar;
+    if(c.engine==='voicekiller'){
+      ar=await fetch('/api/voicekiller/tts',{method:'POST',
+        headers:{'Content-Type':'application/json','api-key':c.vkKey,'userid':c.vkUser},
+        body:JSON.stringify({script:script.slice(0,6000),voice_name:c.vkVoice,instructions:TIENDA_TTS_INSTR.slice(0,2000)})
+      });
+      if(!ar.ok){ let m=''; try{m=(await ar.json()).error||'';}catch(_){} throw new Error('VoiceKiller '+ar.status+(m?': '+m:'')); }
+    }else{
+      ar=await fetch('/api/openai/tts',{method:'POST',
+        headers:{'Content-Type':'application/json','x-openai-key':c.oai},
+        body:JSON.stringify({model:'gpt-4o-mini-tts',voice:TIENDA_VOICE,input:script,
+          instructions:TIENDA_TTS_INSTR,response_format:'mp3'})
+      });
+      if(!ar.ok){ let m=''; try{m=(await ar.json()).error?.message||'';}catch(_){} throw new Error('OpenAI '+ar.status+(m?': '+m:'')); }
+    }
     const ab=await ar.arrayBuffer();
     if(_audio){try{_audio.pause();_audio.src='';}catch(_){}_audio=null;}
     const a=new Audio(URL.createObjectURL(new Blob([ab],{type:'audio/mpeg'})));

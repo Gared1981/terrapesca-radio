@@ -503,6 +503,41 @@ input[type=range]::-moz-range-thumb{width:18px;height:24px;border-radius:5px;bac
         </div>
       </div>
 
+      <div class="cfg-section">
+        <h4>🔊 Motor de voz</h4>
+        <div class="cfg-row"><label>Motor</label>
+          <select id="cfgEngine" onchange="document.getElementById('vkRows').style.display=this.value==='voicekiller'?'block':'none'">
+            <option value="openai">OpenAI (gpt-4o-mini-tts)</option>
+            <option value="voicekiller">VoiceKiller</option>
+          </select>
+        </div>
+        <div id="vkRows" style="display:none">
+          <div class="cfg-row"><label>VK API Key</label><input id="cfgVkKey" type="password" placeholder="Tu api-key de VoiceKiller"/></div>
+          <div class="cfg-row"><label>VK User ID</label><input id="cfgVkUser" type="password" placeholder="Tu userid de VoiceKiller"/></div>
+          <div class="cfg-row"><label>VK Voz</label>
+            <select id="cfgVkVoice">
+              <option value="Jett">Jett (masc. enérgica)</option>
+              <option value="Ashton">Ashton (masc.)</option>
+              <option value="Jax">Jax (masc.)</option>
+              <option value="Blaze">Blaze (masc.)</option>
+              <option value="Quest">Quest (masc.)</option>
+              <option value="Kael">Kael (masc.)</option>
+              <option value="Jack">Jack (masc.)</option>
+              <option value="Liam">Liam (masc.)</option>
+              <option value="William">William (masc.)</option>
+              <option value="North">North (masc.)</option>
+              <option value="Stella">Stella (fem.)</option>
+              <option value="Sienna">Sienna (fem.)</option>
+              <option value="Harper">Harper (fem.)</option>
+              <option value="Zoey">Zoey (fem.)</option>
+              <option value="Coraline">Coraline (fem.)</option>
+              <option value="Faye">Faye (neutra)</option>
+            </select>
+          </div>
+          <div style="font-size:10px;color:var(--txt3);padding:2px 2px 0">Tus llaves se guardan solo en este navegador. VoiceKiller cobra por minuto de tu plan.</div>
+        </div>
+      </div>
+
       <button class="cfg-save" onclick="saveSettings()">💾 GUARDAR CONFIGURACIÓN</button>
     </div>
   </div>
@@ -848,6 +883,8 @@ const cfg={
   ws:localStorage.getItem('tp_ws')||'',
   elKey:localStorage.getItem('tp_el')||'',       // legado (ya no se usa para voz)
   oaiKey:localStorage.getItem('tp_oai')||'',     // OpenAI: voz de DJ Rodo + spots
+  vkKey:localStorage.getItem('tp_vk_key')||'',   // VoiceKiller (motor alterno)
+  vkUser:localStorage.getItem('tp_vk_user')||'',
   antKey:localStorage.getItem('tp_ant')||'',
   ytKey:localStorage.getItem('tp_yt')||'',
   slogan:localStorage.getItem('tp_slogan')||'La estación oficial de Terrapesca',
@@ -1059,17 +1096,30 @@ const OAI_TONE={
 };
 // Matiz extra para spots publicitarios: arranque con gancho y cierre con llamado.
 const SPOT_TTS_STYLE='Es un spot publicitario de radio: engancha en los primeros segundos, transmite entusiasmo y confianza, y remata con un llamado a la acción claro.';
-// Sintetiza voz con OpenAI y devuelve un ArrayBuffer (mp3). `extra` añade matiz
-// (p.ej. estilo de spot). Lanza Error con el mensaje real de la API si falla.
+// Motor de voz activo: 'openai' (default) o 'voicekiller'.
+function _ttsEngine(){ return localStorage.getItem('tp_engine')||'openai'; }
+// Sintetiza voz y devuelve un ArrayBuffer (mp3). `voice` es la voz de OpenAI
+// (se ignora en VoiceKiller, que usa su propia voz). `extra` añade matiz.
 async function synthTTS(rawText,{voice,extra}={}){
-  if(!cfg.oaiKey) throw new Error('Falta la clave de OpenAI (config)');
   const input=ttsPrep(stripElTags(rawText||''));
   if(!input) throw new Error('Texto vacío');
   const instructions=OAI_BASE_INSTR+' '+(OAI_TONE[_expLevel]||OAI_TONE.natural)+(extra?(' '+extra):'');
+  if(_ttsEngine()==='voicekiller'){
+    if(!cfg.vkKey||!cfg.vkUser) throw new Error('Faltan credenciales de VoiceKiller (config)');
+    const r=await fetch('/api/voicekiller/tts',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','api-key':cfg.vkKey,'userid':cfg.vkUser},
+      body:JSON.stringify({script:input.slice(0,6000),voice_name:(localStorage.getItem('tp_vk_voice')||'Jett'),instructions:instructions.slice(0,2000)})
+    });
+    if(!r.ok){ let m=''; try{ const j=await r.json(); m=(j&&(j.error||j.message))||''; }catch(_){} throw new Error('VoiceKiller '+r.status+(m?': '+m:'')); }
+    return await r.arrayBuffer();
+  }
+  // OpenAI (por defecto)
+  if(!cfg.oaiKey) throw new Error('Falta la clave de OpenAI (config)');
   const r=await fetch('/api/openai/tts',{
     method:'POST',
     headers:{'Content-Type':'application/json','x-openai-key':cfg.oaiKey},
-    body:JSON.stringify({model:'gpt-4o-mini-tts',voice:voice||'onyx',input,instructions,response_format:'mp3'})
+    body:JSON.stringify({model:'gpt-4o-mini-tts',voice:voice||'ash',input,instructions,response_format:'mp3'})
   });
   if(!r.ok){
     let msg='';
@@ -2759,6 +2809,11 @@ function openSettings(){
   sv('cfgWeatherCity',localStorage.getItem('tp_weather_city')||'auto');
   sv('cfgVoiceDJ',_migVoice(localStorage.getItem('tp_voice_dj')));
   sv('cfgVoiceSpot',_migVoice(localStorage.getItem('tp_voice_spot')));
+  sv('cfgEngine',localStorage.getItem('tp_engine')||'openai');
+  sv('cfgVkKey',localStorage.getItem('tp_vk_key')||'');
+  sv('cfgVkUser',localStorage.getItem('tp_vk_user')||'');
+  sv('cfgVkVoice',localStorage.getItem('tp_vk_voice')||'Jett');
+  const vr=document.getElementById('vkRows'); if(vr) vr.style.display=(localStorage.getItem('tp_engine')==='voicekiller')?'block':'none';
 }
 function closeSettings(){ document.getElementById('settingsModal').classList.add('hide'); }
 function saveSettings(){
@@ -2766,9 +2821,12 @@ function saveSettings(){
   set('tp_ws','cfgWs'); set('tp_oai','cfgOai'); set('tp_ant','cfgAnt'); set('tp_yt','cfgYt');
   set('tp_slogan','cfgSl'); set('tp_weather_city','cfgWeatherCity');
   set('tp_voice_dj','cfgVoiceDJ'); set('tp_voice_spot','cfgVoiceSpot');
+  set('tp_engine','cfgEngine'); set('tp_vk_key','cfgVkKey'); set('tp_vk_user','cfgVkUser'); set('tp_vk_voice','cfgVkVoice');
   // Reload cfg object
   cfg.ws=localStorage.getItem('tp_ws')||'';
   cfg.oaiKey=localStorage.getItem('tp_oai')||'';
+  cfg.vkKey=localStorage.getItem('tp_vk_key')||'';
+  cfg.vkUser=localStorage.getItem('tp_vk_user')||'';
   cfg.antKey=localStorage.getItem('tp_ant')||'';
   cfg.ytKey=localStorage.getItem('tp_yt')||'';
   cfg.slogan=localStorage.getItem('tp_slogan')||'La estación oficial de Terrapesca';
