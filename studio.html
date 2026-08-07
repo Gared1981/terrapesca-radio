@@ -551,8 +551,8 @@ input[type=range]::-moz-range-thumb{width:18px;height:24px;border-radius:5px;bac
     <div style="margin-top:8px;font-size:9px;font-family:var(--mono);color:var(--txt3);letter-spacing:1px;margin-bottom:3px">EXPRESIVIDAD</div>
     <div class="exp-row" id="expRow">
       <div class="exp-btn" data-e="suave" onclick="setExpLevel('suave')">SUAVE</div>
-      <div class="exp-btn on" data-e="natural" onclick="setExpLevel('natural')">NATURAL</div>
-      <div class="exp-btn" data-e="fuerte" onclick="setExpLevel('fuerte')">FUERTE</div>
+      <div class="exp-btn" data-e="natural" onclick="setExpLevel('natural')">NATURAL</div>
+      <div class="exp-btn on" data-e="fuerte" onclick="setExpLevel('fuerte')">FUERTE</div>
       <div class="exp-btn" data-e="maximo" onclick="setExpLevel('maximo')">MÁXIMO</div>
     </div>
     <div class="dj-sub">
@@ -1043,17 +1043,17 @@ function ttsPrep(t){
 // Reemplaza a ElevenLabs. En vez de voice_settings numéricos, OpenAI se dirige
 // con `instructions` en lenguaje natural: definimos una base profesional + un
 // matiz por nivel de expresión (_expLevel).
-const OAI_BASE_INSTR='Eres un locutor ESTRELLA de radio mexicana, con carisma y una voz llena de vida. Español de México, acento neutro claro. '+
-  'INTERPRETA el guión, no lo leas: modula la voz con intención, VARÍA la entonación y el ritmo, sube y baja la energía según lo que dices, '+
-  'enfatiza las palabras clave y usa micro-pausas para dar énfasis dramático. Transmite EMOCIÓN genuina y calidez humana, sonríe al hablar. '+
-  'Habla de corrido, natural y fluido, con la seguridad y el magnetismo de un locutor de verdad, NUNCA plano, monótono ni robótico. '+
-  'Mantén siempre elegancia y buen gusto: público de nivel medio-alto, registro profesional y respetuoso, sin modismos de barrio '+
-  '(nada de carnal, compa, raza, órale, chido) y sin gritar. Expresivo y con chispa, pero con clase.';
+const OAI_BASE_INSTR='Eres un locutor ESTRELLA de radio comercial mexicana, puro carisma y una voz que CONTAGIA energía. Español de México, acento neutro claro. '+
+  'ACTÚA el guión con pasión, no lo leas: exagera la musicalidad de la voz, VARÍA muchísimo la entonación y el ritmo, acelera en lo emocionante y baja para rematar, '+
+  'juega con altibajos marcados de energía, enfatiza con fuerza las palabras clave y usa micro-pausas para crear expectativa y golpe dramático. '+
+  'Transmite EMOCIÓN desbordante y calidez genuina, sonríe siempre al hablar, suena entusiasmado de verdad, como si lo que dices te emocionara. '+
+  'Dinámico, vibrante y con chispa, con el magnetismo de un locutor de radio real; JAMÁS plano, monótono, tibio ni robótico. '+
+  'Mantén la clase: público de nivel medio-alto, sin modismos de barrio (nada de carnal, compa, raza, órale, chido) y sin gritar ni saturar. Mucha energía, pero con buen gusto.';
 const OAI_TONE={
-  suave:  'Tono cálido, íntimo y envolvente, como confidencia cercana; ritmo pausado con inflexiones suaves y expresivas.',
-  natural:'Tono conversacional y carismático de locutor de radio, cálido y expresivo, con entonación viva y buen ritmo.',
-  fuerte: 'Tono enérgico, entusiasta y magnético, con fuerza y presencia comercial, subidas de energía y ritmo dinámico.',
-  maximo: 'Tono explosivo y vibrante de alto impacto, máxima energía y emoción, contrastes marcados de intensidad, apasionado pero sin gritar.',
+  suave:  'Tono cálido, íntimo y envolvente, como confidencia cercana; ritmo pausado pero con inflexiones vivas y expresivas.',
+  natural:'Tono conversacional muy carismático de locutor de radio, cálido, animado y con entonación bien marcada y buen ritmo.',
+  fuerte: 'Tono muy enérgico, entusiasta y magnético, con fuerza y presencia comercial, subidas de energía notorias y ritmo ágil y dinámico.',
+  maximo: 'Tono explosivo, arrollador y vibrante de altísimo impacto, máxima energía y emoción a tope, contrastes fuertes de intensidad, apasionado y eléctrico pero sin gritar.',
 };
 // Matiz extra para spots publicitarios: arranque con gancho y cierre con llamado.
 const SPOT_TTS_STYLE='Es un spot publicitario de radio: engancha en los primeros segundos, transmite entusiasmo y confianza, y remata con un llamado a la acción claro.';
@@ -2856,9 +2856,10 @@ const EXP_PRESETS={
   fuerte: {stability:0.32,similarity_boost:0.78,style:0.60},
   maximo: {stability:0.22,similarity_boost:0.75,style:0.80},
 };
-let _expLevel='natural';
+let _expLevel=localStorage.getItem('tp_exp')||'fuerte';
 function setExpLevel(e){
   _expLevel=e;
+  try{ localStorage.setItem('tp_exp',e); }catch(_){}
   document.querySelectorAll('#expRow .exp-btn').forEach(b=>b.classList.toggle('on',b.dataset.e===e));
 }
 function getVoiceSettings(){ return {...EXP_PRESETS[_expLevel]||EXP_PRESETS.natural, use_speaker_boost:true}; }
@@ -3340,7 +3341,7 @@ function obFinish(){
 
 /* ================= INIT ================= */
 setDJFreq('media');
-setExpLevel('natural');
+setExpLevel(_expLevel);
 refreshDJStatus();
 _loadLikedSet();
 _syncNPModes();
