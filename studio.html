@@ -509,9 +509,9 @@ input[type=range]::-moz-range-thumb{width:18px;height:24px;border-radius:5px;bac
 
   <!-- JINGLE -->
   <div class="jingle-card">
-    <h3>🎵 JINGLE DE FONDO <span id="jingleName" style="color:var(--txt2);font-weight:400;font-size:10px">Sin jingle</span></h3>
+    <h3>🎵 JINGLE DE FONDO <span id="jingleName" style="color:var(--txt2);font-weight:400;font-size:10px">Jingle Terrapesca (de fábrica)</span></h3>
     <div class="jingle-zone" id="jingleZone" onclick="document.getElementById('jingleFile').click()">
-      🎵 Arrastra un MP3 o haz clic para subir jingle de fondo para spots
+      🎵 Usando el jingle de fábrica — arrastra un MP3 para reemplazarlo
     </div>
     <input type="file" id="jingleFile" accept="audio/mp3,audio/mpeg,audio/*" style="display:none" onchange="loadJingle(this)"/>
     <div class="jingle-ctrls">
@@ -2785,6 +2785,10 @@ function saveSettings(){
 
 /* ================= JINGLE ================= */
 let _jingleB64=null, _jingleAudio=null, _jingleVol=0.25;
+// Jingle de fábrica (empaquetado en el servidor). Se usa cuando el usuario no
+// ha subido uno propio, para que toda tienda tenga el jingle Terrapesca.
+const DEFAULT_JINGLE_URL='/jingle-terrapesca.mp3';
+function _newJingleAudio(){ return _jingleB64 ? b64ToAudio(_jingleB64) : new Audio(DEFAULT_JINGLE_URL); }
 function loadJingle(input){
   const f=input.files[0]; if(!f) return;
   const r=new FileReader();
@@ -2800,17 +2804,23 @@ function loadJingle(input){
   r.readAsDataURL(f);
 }
 function setJingleVol(v){ _jingleVol=v/100; document.getElementById('jingleVolPct').textContent=v+'%'; if(_jingleAudio) _jingleAudio.volume=_jingleVol*master; }
-function testJingle(){ if(!_jingleB64){toast('Sube un jingle primero','error');return;} playJingleOnce(); }
-function removeJingle(){ _jingleB64=null; stopJingle(); document.getElementById('jingleName').textContent='Sin jingle'; document.getElementById('jingleZone').textContent='🎵 Arrastra un MP3 o haz clic para subir jingle de fondo para spots'; openDB().then(db=>db.transaction('session','readwrite').objectStore('session').delete('studioJingle')); }
-function playJingle(){ if(!_jingleB64)return; stopJingle(); const a=b64ToAudio(_jingleB64); _jingleAudio=a; a.volume=_jingleVol*master; a.loop=true; a.play().catch(()=>{}); }
-function playJingleOnce(){ if(!_jingleB64)return; const a=b64ToAudio(_jingleB64); a.volume=_jingleVol*master; const free=()=>revokeAudio(a); a.onended=free; a.onerror=free; a.play().catch(free); }
+function testJingle(){ playJingleOnce(); }
+function removeJingle(){ _jingleB64=null; stopJingle(); document.getElementById('jingleName').textContent='Jingle Terrapesca (de fábrica)'; document.getElementById('jingleZone').textContent='🎵 Usando el jingle de fábrica — arrastra un MP3 para reemplazarlo'; openDB().then(db=>db.transaction('session','readwrite').objectStore('session').delete('studioJingle')); }
+function playJingle(){ stopJingle(); const a=_newJingleAudio(); _jingleAudio=a; a.volume=_jingleVol*master; a.loop=true; a.play().catch(()=>{}); }
+function playJingleOnce(){ const a=_newJingleAudio(); a.volume=_jingleVol*master; const free=()=>revokeAudio(a); a.onended=free; a.onerror=free; a.play().catch(free); }
 function stopJingle(){ if(_jingleAudio){try{_jingleAudio.pause();_jingleAudio.currentTime=0;}catch(_){} revokeAudio(_jingleAudio); _jingleAudio=null;} }
 function b64ToAudio(b64){ const bin=atob(b64),buf=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++)buf[i]=bin.charCodeAt(i); const url=URL.createObjectURL(new Blob([buf],{type:'audio/mpeg'})); const a=new Audio(url); a._objUrl=url; return a; }
 // Free the blob URL behind an Audio element created by b64ToAudio (prevents memory leaks)
 function revokeAudio(a){ if(a&&a._objUrl){try{URL.revokeObjectURL(a._objUrl);}catch(_){} a._objUrl=null;} }
 // Load jingle from IDB on start
 async function loadJingleFromIDB(){
-  try{ const db=await openDB(); const r=await idbGet(db,'session','studioJingle'); if(r&&r.b64){ _jingleB64=r.b64; document.getElementById('jingleName').textContent=r.name||'Jingle'; document.getElementById('jingleZone').textContent='✓ '+(r.name||'Jingle'); } }catch(_){}
+  try{
+    const db=await openDB(); const r=await idbGet(db,'session','studioJingle');
+    if(r&&r.b64){ _jingleB64=r.b64; document.getElementById('jingleName').textContent=r.name||'Jingle'; document.getElementById('jingleZone').textContent='✓ '+(r.name||'Jingle'); return; }
+  }catch(_){}
+  // Sin jingle propio → mostrar que se usa el de fábrica.
+  const n=document.getElementById('jingleName'); if(n) n.textContent='Jingle Terrapesca (de fábrica)';
+  const z=document.getElementById('jingleZone'); if(z) z.textContent='🎵 Usando el jingle de fábrica — arrastra un MP3 para reemplazarlo';
 }
 
 /* ===== STINGER DE ENTRADA DE RODO ===== */
