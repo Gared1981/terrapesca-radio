@@ -99,7 +99,7 @@ button{padding:12px 20px;border-radius:10px;border:none;font-family:var(--mono);
 
 <div class="cfg-box">
   <h3>⚙️ CONFIGURACIÓN</h3>
-  <div class="cfg-row"><label>ElevenLabs API</label><input id="cfgEl" type="password" placeholder="Clave ElevenLabs"/></div>
+  <div class="cfg-row"><label>OpenAI API</label><input id="cfgOai" type="password" placeholder="Clave OpenAI (voz) — sk-..."/></div>
   <div class="cfg-row"><label>Anthropic API</label><input id="cfgAnt" type="password" placeholder="Clave Anthropic"/></div>
   <button class="btn-secondary" onclick="saveCfg()" style="margin-top:8px">💾 Guardar</button>
 </div>
@@ -121,7 +121,12 @@ const CAMPAIGN={
   ],
   types:['general','promo','horarios','seguridad','urgencia','producto'],
 };
-const VOICES={eleguar:{id:'T7QGPtToiqH4S8VlIkMJ'},camilo:{id:'VR6AewLTigWG4xSOukaG'},mateo:{id:'TX3LPaxmHKxFdv7VOFE1'}};
+// Voz de OpenAI para el locutor de tienda (gpt-4o-mini-tts).
+const TIENDA_VOICE='onyx';
+const TIENDA_TTS_INSTR='Eres un locutor profesional de radio en una tienda de pesca y outdoors en México. '+
+  'Español de México, acento neutro claro, voz cálida y con presencia. Habla de corrido, natural y amable, '+
+  'nunca robótico. Registro profesional para público de nivel medio-alto, sin modismos de barrio. '+
+  'Tono cercano y de buena vibra, como quien recibe a un cliente en la tienda.';
 
 let _rodoTimer=null;
 let _audio=null;
@@ -129,11 +134,11 @@ let _lastPromo=-1;
 const MIN_INTERVAL=3*60*1000; // 3 min entre intervenciones
 const MAX_INTERVAL=5*60*1000; // 5 min
 
-function cfg(){return{el:localStorage.getItem('tp_el')||'',ant:localStorage.getItem('tp_ant')||''};}
+function cfg(){return{oai:localStorage.getItem('tp_oai')||'',ant:localStorage.getItem('tp_ant')||''};}
 function saveCfg(){
-  const el=document.getElementById('cfgEl').value.trim();
+  const oai=document.getElementById('cfgOai').value.trim();
   const ant=document.getElementById('cfgAnt').value.trim();
-  if(el) localStorage.setItem('tp_el',el);
+  if(oai) localStorage.setItem('tp_oai',oai);
   if(ant) localStorage.setItem('tp_ant',ant);
   setStatus('✅ Guardado');
 }
@@ -188,7 +193,7 @@ TU INTERVENCIÓN:`;
 
 async function genAndPlay(){
   const c=cfg();
-  if(!c.el||!c.ant){setStatus('⚠️ Configura claves API primero','#ff4466');return;}
+  if(!c.oai||!c.ant){setStatus('⚠️ Configura claves API primero','#ff4466');return;}
   setStatus('Generando guión…','#ffb347');
   try{
     // Generate script with Anthropic
@@ -202,15 +207,13 @@ async function genAndPlay(){
     if(!script) throw new Error('Sin respuesta');
     setText(script);
     setStatus('Generando audio…','#ffb347');
-    // Generate audio with ElevenLabs
-    const voiceId=VOICES.eleguar.id;
-    const ar=await fetch(`/api/elevenlabs/${voiceId}`,{method:'POST',
-      headers:{'Content-Type':'application/json','xi-api-key':c.el},
-      body:JSON.stringify({text:script,model_id:'eleven_multilingual_v2',language_code:'es',
-        // Zona natural de multilingual_v2 — stability muy baja + style alto suena robótico
-        voice_settings:{stability:0.42,similarity_boost:0.80,style:0.40,use_speaker_boost:true}})
+    // Generate audio with OpenAI (gpt-4o-mini-tts)
+    const ar=await fetch('/api/openai/tts',{method:'POST',
+      headers:{'Content-Type':'application/json','x-openai-key':c.oai},
+      body:JSON.stringify({model:'gpt-4o-mini-tts',voice:TIENDA_VOICE,input:script,
+        instructions:TIENDA_TTS_INSTR,response_format:'mp3'})
     });
-    if(!ar.ok) throw new Error('EL '+ar.status);
+    if(!ar.ok){ let m=''; try{m=(await ar.json()).error?.message||'';}catch(_){} throw new Error('OpenAI '+ar.status+(m?': '+m:'')); }
     const ab=await ar.arrayBuffer();
     if(_audio){try{_audio.pause();_audio.src='';}catch(_){}_audio=null;}
     const a=new Audio(URL.createObjectURL(new Blob([ab],{type:'audio/mpeg'})));
@@ -244,7 +247,7 @@ function stopRodo(){
 }
 
 // Load saved keys
-document.getElementById('cfgEl').value=localStorage.getItem('tp_el')||'';
+document.getElementById('cfgOai').value=localStorage.getItem('tp_oai')||'';
 document.getElementById('cfgAnt').value=localStorage.getItem('tp_ant')||'';
 </script>
 </body>

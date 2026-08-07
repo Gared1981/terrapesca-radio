@@ -31,13 +31,13 @@ Abre `https://terrapescaradio.com/` y elige tu rol — o directo: `/studio`, `/s
 1. Abre `https://terrapescaradio.com/studio` en Chrome
 2. Clic en **⚙️ CONFIG** y llena:
    - **URL del servidor**: `(automático — deja vacío el campo)`
-   - **API Key de ElevenLabs** (`sk_…`) — voz de DJ Rodo y spots
+   - **API Key de OpenAI** (`sk-…`) — voz de DJ Rodo, spots y tienda
    - **API Key de Anthropic** (`sk-ant-…`) — guiones de Rodo y sugerencias
    - **YouTube API Key** — búsqueda de canciones e import de playlists
 3. **Guardar y conectar** — el indicador debe ponerse en EN VIVO al reproducir
 
 ### Las claves API (dónde se consiguen)
-- **ElevenLabs**: elevenlabs.io → Profile → API Key
+- **OpenAI**: platform.openai.com → API keys → Create new secret key
 - **Anthropic**: console.anthropic.com → API Keys
 - **YouTube**: console.cloud.google.com → crear proyecto → habilitar *YouTube Data API v3* → Credentials → API Key
 
@@ -70,7 +70,7 @@ Abre `https://terrapescaradio.com/` y elige tu rol — o directo: `/studio`, `/s
 
 ### DJ Rodo y spots
 - Activa **DJ RODO** en el mixer: habla entre canciones (hora, clima, tips de pesca, spots) con la música baja de fondo — sin silencios.
-- Genera spots con IA: escribe el guión o impórtalo de una URL de producto, ElevenLabs lo narra y se transmite a todas las sucursales.
+- Genera spots con IA: escribe el guión o impórtalo de una URL de producto, la voz de OpenAI lo narra y se transmite a todas las sucursales.
 
 ---
 
@@ -79,7 +79,7 @@ Abre `https://terrapescaradio.com/` y elige tu rol — o directo: `/studio`, `/s
 | Servicio | Costo |
 |---|---|
 | Railway (servidor) | Gratis hasta $5/mes de uso (Hobby $5/mes evita que se duerma) |
-| ElevenLabs | Gratis: 10,000 caracteres/mes (~25 spots); Starter $5/mes |
+| OpenAI (voz `gpt-4o-mini-tts`) | Pago por uso: ~$0.015 por 1,000 caracteres (unos centavos por spot) |
 | Anthropic | Centavos por guión (Claude Sonnet) |
 | YouTube API | Gratis (cuota diaria amplia) |
 
@@ -101,8 +101,8 @@ Abre `https://terrapescaradio.com/` y elige tu rol — o directo: `/studio`, `/s
 **El spot no suena en las sucursales:**
 - Los spots viajan en base64 (hasta ~2MB) — se necesita internet estable
 
-**ElevenLabs o Anthropic dan error:**
-- Verifica la API Key y que la cuenta tenga créditos
+**OpenAI o Anthropic dan error:**
+- Verifica la API Key y que la cuenta tenga créditos/saldo
 - La generación de IA solo está permitida de 9:00 a 18:00 (hora Mazatlán)
 
 ---

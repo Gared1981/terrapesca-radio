@@ -51,10 +51,12 @@ Spotify-like experience (library, playlists, search, now-playing bar) without to
 ### Secrets model (important)
 **The server holds no API keys.** Keys live in the browser's `localStorage` and are sent as request
 headers to the server's proxy endpoints, which forward them to the upstream API:
-- `tp_el` → ElevenLabs (`xi-api-key`) → `/api/elevenlabs/:voiceId`
+- `tp_oai` → OpenAI (`x-openai-key` → server sets `Authorization: Bearer`) → `/api/openai/tts`
 - `tp_ant` → Anthropic (`x-api-key`) → `/api/anthropic`
 - `tp_yt` → YouTube Data API key (query param) → `/api/ytplaylist`
 - `tp_ws` → the `wss://` server URL the client connects to
+- `tp_el` → ElevenLabs (`xi-api-key`) → `/api/elevenlabs/:voiceId` — **legacy**, no longer used by any
+  client (voice migrated to OpenAI). Proxy endpoint kept for backward compat; safe to remove later.
 Other `tp_*` keys store voice/slogan/weather-city/DJ-Rodo config. Never hardcode keys or move them
 server-side.
 
@@ -62,7 +64,13 @@ server-side.
 - **Anthropic** (`claude-sonnet-5`, `thinking:{type:'disabled'}` for fast short generations) — DJ Rodo
   scripts and ad-spot copy. Responses are parsed with `aiText()` (find the `text` block — never assume
   `content[0]`). The previous model `claude-sonnet-4-20250514` was retired 2026-06-15 (returned 404).
-- **ElevenLabs** (`eleven_multilingual_v2`, `language_code: 'es'`) — Spanish TTS for DJ/spots.
+- **OpenAI TTS** (`gpt-4o-mini-tts`, `response_format: 'mp3'`) — Spanish voice for DJ Rodo, spots and
+  tienda. Steered with a natural-language `instructions` string (professional Mexican radio register)
+  instead of numeric voice settings; `_expLevel` picks the tone matiz (`OAI_TONE` in studio). Voice
+  names: onyx/ash/verse (male), nova/shimmer/coral (female); default `onyx`. Legacy `tp_voice_*` values
+  (eleguar/latinFem/daniela) are migrated via `_migVoice()`. Replaced ElevenLabs 2026-08.
+- **ElevenLabs** (`eleven_multilingual_v2`, `language_code: 'es'`) — *legacy* TTS; proxy still exists but
+  no client calls it anymore.
 - **YouTube** — three paths: IFrame API (in-browser playback in studio/panel), `@distube/ytdl-core`
   (server-side audio stream for mobile via `/radio/stream` and `/api/ytaudio/:id`), and YouTube Data
   API v3 (playlist import via `/api/ytplaylist`; song search via `/api/ytsearch` which merges

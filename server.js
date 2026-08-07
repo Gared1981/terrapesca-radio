@@ -233,7 +233,7 @@ function aiHoursAllowed() {
 const server = http.createServer((req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, xi-api-key, x-api-key, anthropic-version');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, xi-api-key, x-api-key, x-openai-key, anthropic-version');
 
   if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
 
@@ -492,6 +492,21 @@ const server = http.createServer((req, res) => {
       proxyPost('api.elevenlabs.io', `/v1/text-to-speech/${voiceId}`, {
         'Content-Type': 'application/json',
         'xi-api-key': apiKey
+      }, body, res);
+    });
+    return;
+  }
+
+  // ── Proxy OpenAI TTS (voz para DJ Rodo + spots) ──
+  // The client posts {model,input,voice,instructions,response_format} and holds the
+  // key itself (x-openai-key). Server never stores it — same model as ElevenLabs.
+  // proxyPost detects the audio/mpeg response and streams it back untouched.
+  if (req.url === '/api/openai/tts' && req.method === 'POST') {
+    readLimitedBody(req, res, (body) => {
+      const apiKey = req.headers['x-openai-key'] || '';
+      proxyPost('api.openai.com', '/v1/audio/speech', {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + apiKey
       }, body, res);
     });
     return;

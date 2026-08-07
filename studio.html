@@ -451,7 +451,7 @@ input[type=range]::-moz-range-thumb{width:18px;height:24px;border-radius:5px;bac
       <div class="cfg-section">
         <h4>🔑 Claves API</h4>
         <div class="cfg-row"><label>WebSocket URL</label><input id="cfgWs" placeholder="Automático (déjalo vacío) — usa este mismo servidor"/></div>
-        <div class="cfg-row"><label>ElevenLabs</label><input id="cfgEl" type="password" placeholder="Clave ElevenLabs"/></div>
+        <div class="cfg-row"><label>OpenAI</label><input id="cfgOai" type="password" placeholder="Clave OpenAI (voz de DJ Rodo y spots) — sk-..."/></div>
         <div class="cfg-row"><label>Anthropic</label><input id="cfgAnt" type="password" placeholder="Clave Anthropic/Claude"/></div>
         <div class="cfg-row"><label>YouTube API</label><input id="cfgYt" type="password" placeholder="Clave YouTube Data v3"/></div>
       </div>
@@ -473,16 +473,22 @@ input[type=range]::-moz-range-thumb{width:18px;height:24px;border-radius:5px;bac
         <h4>🎙️ Voz DJ Rodo</h4>
         <div class="cfg-row"><label>Voz</label>
           <select id="cfgVoiceDJ">
-            <option value="eleguar">Eleguar (masculina, potente)</option>
-            <option value="latinFem">Latino Fem (femenina)</option>
-            <option value="daniela">Daniela (femenina suave)</option>
+            <option value="onyx">Onyx (masculina, grave)</option>
+            <option value="ash">Ash (masculina, expresiva)</option>
+            <option value="verse">Verse (masculina, cálida)</option>
+            <option value="nova">Nova (femenina, clara)</option>
+            <option value="shimmer">Shimmer (femenina, suave)</option>
+            <option value="coral">Coral (femenina, cálida)</option>
           </select>
         </div>
         <div class="cfg-row"><label>Voz Spots</label>
           <select id="cfgVoiceSpot">
-            <option value="eleguar">Eleguar (masculina, potente)</option>
-            <option value="latinFem">Latino Fem (femenina)</option>
-            <option value="daniela">Daniela (femenina suave)</option>
+            <option value="onyx">Onyx (masculina, grave)</option>
+            <option value="ash">Ash (masculina, expresiva)</option>
+            <option value="verse">Verse (masculina, cálida)</option>
+            <option value="nova">Nova (femenina, clara)</option>
+            <option value="shimmer">Shimmer (femenina, suave)</option>
+            <option value="coral">Coral (femenina, cálida)</option>
           </select>
         </div>
       </div>
@@ -552,9 +558,12 @@ input[type=range]::-moz-range-thumb{width:18px;height:24px;border-radius:5px;bac
       <div>
         <label>VOZ DJ</label>
         <select id="djVoiceSel" onchange="localStorage.setItem('tp_voice_dj',this.value)">
-          <option value="eleguar">Eleguar</option>
-          <option value="latinFem">Latino Fem</option>
-          <option value="daniela">Daniela</option>
+          <option value="onyx">Onyx (masc. grave)</option>
+          <option value="ash">Ash (masc. expresiva)</option>
+          <option value="verse">Verse (masc. cálida)</option>
+          <option value="nova">Nova (fem. clara)</option>
+          <option value="shimmer">Shimmer (fem. suave)</option>
+          <option value="coral">Coral (fem. cálida)</option>
         </select>
       </div>
     </div>
@@ -785,7 +794,7 @@ input[type=range]::-moz-range-thumb{width:18px;height:24px;border-radius:5px;bac
         Cada clave desbloquea algo distinto — todas son opcionales y puedes agregarlas después en ⚙️ CONFIG.
       </p>
       <div class="cfg-row"><label>🔍 YouTube</label><input id="obYt" placeholder="Búsqueda e importar playlists"/></div>
-      <div class="cfg-row"><label>🎙 ElevenLabs</label><input id="obEl" placeholder="La voz de DJ Rodo y los spots"/></div>
+      <div class="cfg-row"><label>🎙 OpenAI</label><input id="obOai" placeholder="La voz de DJ Rodo y los spots (sk-...)"/></div>
       <div class="cfg-row"><label>🤖 Anthropic</label><input id="obAnt" placeholder="Guiones de Rodo y sugerencias"/></div>
       <p style="font-size:10px;color:var(--txt3);margin-top:10px;line-height:1.6">
         ¿Dónde se consiguen? YouTube: console.cloud.google.com (habilita "YouTube Data API v3") ·
@@ -822,7 +831,8 @@ input[type=range]::-moz-range-thumb{width:18px;height:24px;border-radius:5px;bac
 /* ================= CONFIG (compartida con panel.html) ================= */
 const cfg={
   ws:localStorage.getItem('tp_ws')||'',
-  elKey:localStorage.getItem('tp_el')||'',
+  elKey:localStorage.getItem('tp_el')||'',       // legado (ya no se usa para voz)
+  oaiKey:localStorage.getItem('tp_oai')||'',     // OpenAI: voz de DJ Rodo + spots
   antKey:localStorage.getItem('tp_ant')||'',
   ytKey:localStorage.getItem('tp_yt')||'',
   slogan:localStorage.getItem('tp_slogan')||'La estación oficial de Terrapesca',
@@ -964,12 +974,21 @@ function _wsSpotAudio(ab, name){
     _wsSend({ type:'SPOT', track:{b64:btoa(b), name:name||'DJ Rodo — Terrapesca'} });
   }catch(e){ console.warn('[Studio→WS] spot encode error',e); }
 }
+// Voces de OpenAI (gpt-4o-mini-tts). Se mantienen alias de las claves antiguas
+// (eleguar/latinFem/daniela) para que la config guardada siga resolviendo.
 const VOICES={
-  eleguar:{id:'T7QGPtToiqH4S8VlIkMJ'},
-  latinFem:{id:'9EU0h6CVtEDS6vriwwq5'},
-  daniela:{id:'ajOR9IDAaubDK5qtLUqQ'},
+  onyx:{v:'onyx'},        // masculina grave, autoritaria
+  ash:{v:'ash'},          // masculina expresiva
+  verse:{v:'verse'},      // masculina cálida
+  nova:{v:'nova'},        // femenina clara
+  shimmer:{v:'shimmer'},  // femenina suave
+  coral:{v:'coral'},      // femenina cálida
+  // alias legado → voz OpenAI equivalente
+  eleguar:{v:'onyx'}, latinFem:{v:'nova'}, daniela:{v:'shimmer'},
 };
-/* djVoiceId() se define en VOICE HELPERS (lee el selector del DOM). */
+// Migra un valor de voz legado a su equivalente OpenAI.
+function _migVoice(v){ return ({eleguar:'onyx',latinFem:'nova',daniela:'shimmer'})[v]||v||'onyx'; }
+/* djVoice()/spotVoice() se definen en VOICE HELPERS (leen el selector del DOM). */
 function stripElTags(t){return t.replace(/\[[^\]]*\]/g,'').replace(/\s{2,}/g,' ').trim();}
 // Prepara el guión para síntesis NATURAL: fuera emojis/símbolos que el TTS lee mal
 // o pronuncia raro, guiones → comas (pausa suave en vez de corte), saltos de
@@ -985,6 +1004,40 @@ function ttsPrep(t){
     .replace(/\s+([,.!?…;:])/g,'$1')
     .replace(/,\s*,+/g,',')
     .trim();
+}
+// ── Motor de voz OpenAI (gpt-4o-mini-tts) ──
+// Reemplaza a ElevenLabs. En vez de voice_settings numéricos, OpenAI se dirige
+// con `instructions` en lenguaje natural: definimos una base profesional + un
+// matiz por nivel de expresión (_expLevel).
+const OAI_BASE_INSTR='Eres un locutor profesional de radio mexicana. Español de México, acento neutro claro. '+
+  'Voz bien modulada, cálida y con presencia. Habla de corrido, natural y fluido, NUNCA robótico ni cortado. '+
+  'Público de nivel medio-alto: registro profesional y respetuoso, sin modismos de barrio (nada de carnal, compa, raza, órale, chido).';
+const OAI_TONE={
+  suave:  'Tono tranquilo y cercano, ritmo relajado pero fluido.',
+  natural:'Tono conversacional y natural de locutor de radio, cálido y con buen ritmo.',
+  fuerte: 'Tono enérgico y entusiasta, con fuerza y presencia comercial, ritmo dinámico.',
+  maximo: 'Tono muy vibrante y de alto impacto comercial, máxima energía y emoción, sin exagerar ni gritar.',
+};
+// Matiz extra para spots publicitarios: arranque con gancho y cierre con llamado.
+const SPOT_TTS_STYLE='Es un spot publicitario de radio: engancha en los primeros segundos, transmite entusiasmo y confianza, y remata con un llamado a la acción claro.';
+// Sintetiza voz con OpenAI y devuelve un ArrayBuffer (mp3). `extra` añade matiz
+// (p.ej. estilo de spot). Lanza Error con el mensaje real de la API si falla.
+async function synthTTS(rawText,{voice,extra}={}){
+  if(!cfg.oaiKey) throw new Error('Falta la clave de OpenAI (config)');
+  const input=ttsPrep(stripElTags(rawText||''));
+  if(!input) throw new Error('Texto vacío');
+  const instructions=OAI_BASE_INSTR+' '+(OAI_TONE[_expLevel]||OAI_TONE.natural)+(extra?(' '+extra):'');
+  const r=await fetch('/api/openai/tts',{
+    method:'POST',
+    headers:{'Content-Type':'application/json','x-openai-key':cfg.oaiKey},
+    body:JSON.stringify({model:'gpt-4o-mini-tts',voice:voice||'onyx',input,instructions,response_format:'mp3'})
+  });
+  if(!r.ok){
+    let msg='';
+    try{ const j=await r.json(); msg=(j&&j.error&&(j.error.message||j.error))||''; }catch(_){}
+    throw new Error('OpenAI '+r.status+(msg?': '+msg:''));
+  }
+  return await r.arrayBuffer();
 }
 function toast(m,t=''){const e=document.getElementById('toast');e.textContent=m;e.className='toast show '+t;clearTimeout(window._tt);window._tt=setTimeout(()=>e.classList.remove('show'),3200);}
 function fmt(s){if(!s||isNaN(s)||s<0)return'0:00';const m=Math.floor(s/60),x=Math.floor(s%60);return m+':'+(x<10?'0':'')+x;}
@@ -1484,14 +1537,8 @@ async function playDJ(type){
       toast(`🎙️ Rodo elige: ${chosen.name||'canción'}…`,'ok');
     }
 
-    if(!cfg.elKey){toast('Falta clave ElevenLabs (config en panel)','error');throw new Error('no key');}
-    const r=await fetch(`/api/elevenlabs/${djVoiceId()}`,{
-      method:'POST',headers:{'Content-Type':'application/json','xi-api-key':cfg.elKey},
-      body:JSON.stringify({text:ttsPrep(stripElTags(script||'')),model_id:'eleven_multilingual_v2',language_code:'es',
-        voice_settings:getVoiceSettings()})
-    });
-    if(!r.ok) throw new Error('EL '+r.status);
-    const ab=await r.arrayBuffer();
+    if(!cfg.oaiKey){toast('Falta la clave de OpenAI (config)','error');throw new Error('no key');}
+    const ab=await synthTTS(script||'',{voice:djVoice()});
     setDJState('al aire');
     _wsSpotAudio(ab, `🎙️ DJ Rodo — ${type}`); // relay voice to sucursales
     if(flags.duck) duckTo(0.18);
@@ -2328,16 +2375,10 @@ async function previewSpotScript(){
   const script=document.getElementById('spotScript').value.trim();
   if(!script){_sgStatus('Escribe o genera un guión primero','var(--amber)');return;}
   if(djActive){_sgStatus('Espera a que termine el audio actual','var(--amber)');return;}
-  if(!cfg.elKey){_sgStatus('Falta clave ElevenLabs','var(--red)');return;}
+  if(!cfg.oaiKey){_sgStatus('Falta la clave de OpenAI','var(--red)');return;}
   _sgStatus('Generando preview…','var(--cyan)');
   try{
-    const r=await fetch(`/api/elevenlabs/${spotVoiceId()}`,{method:'POST',
-      headers:{'Content-Type':'application/json','xi-api-key':cfg.elKey},
-      body:JSON.stringify({text:ttsPrep(stripElTags(script)),model_id:'eleven_multilingual_v2',language_code:'es',
-        voice_settings:getVoiceSettings()})
-    });
-    if(!r.ok) throw new Error('EL '+r.status);
-    const ab=await r.arrayBuffer();
+    const ab=await synthTTS(script,{voice:spotVoice(),extra:SPOT_TTS_STYLE});
     _sgStatus('▶ Reproduciendo preview…','var(--grn)');
     await playClip(URL.createObjectURL(new Blob([ab],{type:'audio/mpeg'})));
     _sgStatus('Preview terminado','var(--txt3)');
@@ -2349,16 +2390,10 @@ async function createSpotAudio(){
   const name=(document.getElementById('spotName').value.trim())||(topic?_titleCase(topic):('Spot '+(spots.length+1)));
   if(!document.getElementById('spotName').value.trim() && name) document.getElementById('spotName').value=name;
   if(!script){_sgStatus('Escribe o genera un guión primero','var(--amber)');return;}
-  if(!cfg.elKey){_sgStatus('Falta clave ElevenLabs','var(--red)');return;}
+  if(!cfg.oaiKey){_sgStatus('Falta la clave de OpenAI','var(--red)');return;}
   _sgStatus('Generando audio…','var(--cyan)');
   try{
-    const r=await fetch(`/api/elevenlabs/${spotVoiceId()}`,{method:'POST',
-      headers:{'Content-Type':'application/json','xi-api-key':cfg.elKey},
-      body:JSON.stringify({text:ttsPrep(stripElTags(script)),model_id:'eleven_multilingual_v2',language_code:'es',
-        voice_settings:getVoiceSettings()})
-    });
-    if(!r.ok) throw new Error('EL '+r.status);
-    const ab=await r.arrayBuffer();
+    const ab=await synthTTS(script,{voice:spotVoice(),extra:SPOT_TTS_STYLE});
     // Convert to base64
     const u8=new Uint8Array(ab); let b='';
     for(let i=0;i<u8.length;i++) b+=String.fromCharCode(u8[i]);
@@ -2568,31 +2603,31 @@ function saveQueue(){
 function openSettings(){
   const m=document.getElementById('settingsModal');
   document.getElementById('cfgWs').value=localStorage.getItem('tp_ws')||'';
-  document.getElementById('cfgEl').value=localStorage.getItem('tp_el')||'';
+  document.getElementById('cfgOai').value=localStorage.getItem('tp_oai')||'';
   document.getElementById('cfgAnt').value=localStorage.getItem('tp_ant')||'';
   document.getElementById('cfgYt').value=localStorage.getItem('tp_yt')||'';
   document.getElementById('cfgSl').value=localStorage.getItem('tp_slogan')||'';
   document.getElementById('cfgWeatherCity').value=localStorage.getItem('tp_weather_city')||'auto';
-  document.getElementById('cfgVoiceDJ').value=localStorage.getItem('tp_voice_dj')||'eleguar';
-  document.getElementById('cfgVoiceSpot').value=localStorage.getItem('tp_voice_spot')||'eleguar';
+  document.getElementById('cfgVoiceDJ').value=_migVoice(localStorage.getItem('tp_voice_dj'));
+  document.getElementById('cfgVoiceSpot').value=_migVoice(localStorage.getItem('tp_voice_spot'));
   m.classList.remove('hide');
 }
 function closeSettings(){ document.getElementById('settingsModal').classList.add('hide'); }
 function saveSettings(){
   const set=(k,id)=>{ const v=document.getElementById(id).value.trim(); if(v) localStorage.setItem(k,v); else localStorage.removeItem(k); };
-  set('tp_ws','cfgWs'); set('tp_el','cfgEl'); set('tp_ant','cfgAnt'); set('tp_yt','cfgYt');
+  set('tp_ws','cfgWs'); set('tp_oai','cfgOai'); set('tp_ant','cfgAnt'); set('tp_yt','cfgYt');
   set('tp_slogan','cfgSl'); set('tp_weather_city','cfgWeatherCity');
   set('tp_voice_dj','cfgVoiceDJ'); set('tp_voice_spot','cfgVoiceSpot');
   // Reload cfg object
   cfg.ws=localStorage.getItem('tp_ws')||'';
-  cfg.elKey=localStorage.getItem('tp_el')||'';
+  cfg.oaiKey=localStorage.getItem('tp_oai')||'';
   cfg.antKey=localStorage.getItem('tp_ant')||'';
   cfg.ytKey=localStorage.getItem('tp_yt')||'';
   cfg.slogan=localStorage.getItem('tp_slogan')||'La estación oficial de Terrapesca';
   // Sync selectors on DJ card
   const wc=localStorage.getItem('tp_weather_city')||'auto';
   document.getElementById('djWeatherCity').value=wc;
-  document.getElementById('djVoiceSel').value=localStorage.getItem('tp_voice_dj')||'eleguar';
+  document.getElementById('djVoiceSel').value=_migVoice(localStorage.getItem('tp_voice_dj'));
   closeSettings();
   toast('Configuración guardada','ok');
   // Reconnect WS if URL changed
@@ -2755,13 +2790,13 @@ async function startWithMood(){
 /* ===== /MOOD-BASED START ===== */
 
 /* ================= VOICE HELPERS (updated to use selectors) ================= */
-function djVoiceId(){
-  const v=document.getElementById('djVoiceSel')?.value||localStorage.getItem('tp_voice_dj')||'eleguar';
-  return (VOICES[v]||VOICES.eleguar).id;
+function djVoice(){
+  const v=document.getElementById('djVoiceSel')?.value||localStorage.getItem('tp_voice_dj')||'onyx';
+  return (VOICES[v]||VOICES.onyx).v;
 }
-function spotVoiceId(){
-  const v=localStorage.getItem('tp_voice_spot')||'eleguar';
-  return (VOICES[v]||VOICES.eleguar).id;
+function spotVoice(){
+  const v=localStorage.getItem('tp_voice_spot')||'onyx';
+  return (VOICES[v]||VOICES.onyx).v;
 }
 function _resolveWeatherCity(){
   const v=document.getElementById('djWeatherCity')?.value||localStorage.getItem('tp_weather_city')||'auto';
@@ -3119,15 +3154,15 @@ function npToggleLike(){
 let _obStep=1;
 function _maybeOnboard(){
   if(localStorage.getItem('tp_onboarded')) return;
-  const hasKeys=localStorage.getItem('tp_el')||localStorage.getItem('tp_ant')||localStorage.getItem('tp_yt');
+  const hasKeys=localStorage.getItem('tp_oai')||localStorage.getItem('tp_el')||localStorage.getItem('tp_ant')||localStorage.getItem('tp_yt');
   if(hasKeys||queue.length){ localStorage.setItem('tp_onboarded','1'); return; } // usuario existente
   document.getElementById('obModal').classList.remove('hide');
 }
 function obNext(){
   if(_obStep===2){ // guardar claves si las pegaron
     const set=(k,id)=>{const v=document.getElementById(id).value.trim();if(v)localStorage.setItem(k,v);};
-    set('tp_yt','obYt'); set('tp_el','obEl'); set('tp_ant','obAnt');
-    cfg.ytKey=localStorage.getItem('tp_yt')||''; cfg.elKey=localStorage.getItem('tp_el')||''; cfg.antKey=localStorage.getItem('tp_ant')||'';
+    set('tp_yt','obYt'); set('tp_oai','obOai'); set('tp_ant','obAnt');
+    cfg.ytKey=localStorage.getItem('tp_yt')||''; cfg.oaiKey=localStorage.getItem('tp_oai')||''; cfg.antKey=localStorage.getItem('tp_ant')||'';
   }
   if(_obStep>=3){ obFinish(); return; }
   _obStep++;
@@ -3166,7 +3201,7 @@ document.getElementById('autoBtn').style.color='var(--grn)';
 // Restore saved selectors
 (()=>{
   const wc=localStorage.getItem('tp_weather_city')||'auto';
-  const vc=localStorage.getItem('tp_voice_dj')||'eleguar';
+  const vc=_migVoice(localStorage.getItem('tp_voice_dj'));
   const el=document.getElementById('djWeatherCity'); if(el) el.value=wc;
   const vl=document.getElementById('djVoiceSel'); if(vl) vl.value=vc;
 })();
