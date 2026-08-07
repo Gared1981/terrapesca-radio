@@ -1120,7 +1120,7 @@ async function synthTTS(rawText,{voice,extra}={}){
       headers:{'Content-Type':'application/json','api-key':_hv(cfg.vkKey),'userid':_hv(cfg.vkUser)},
       body:JSON.stringify({script:input.slice(0,6000),voice_name:(localStorage.getItem('tp_vk_voice')||'Jett'),instructions:instructions.slice(0,2000)})
     });
-    if(!r.ok){ let m=''; try{ const j=await r.json(); m=(j&&(j.error||j.message))||''; }catch(_){} throw new Error('VoiceKiller '+r.status+(m?': '+m:'')); }
+    if(!r.ok){ let m=''; try{ m=await r.text(); const j=JSON.parse(m); m=(j&&(j.error||j.message))||m; }catch(_){} throw new Error('VoiceKiller '+r.status+(m?': '+m.slice(0,180):'')); }
     return await r.arrayBuffer();
   }
   // OpenAI (por defecto)
