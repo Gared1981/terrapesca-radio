@@ -138,7 +138,7 @@ function startStreamKeepalive() {
 }
 
 // ---- HTTP PROXY HELPERS ----
-const PROXY_TIMEOUT_MS = 15000;       // upstream APIs must answer within 15s
+const PROXY_TIMEOUT_MS = 60000;       // upstream APIs must answer within 60s (TTS puede tardar)
 const MAX_PROXY_BYTES = 8 * 1024 * 1024; // cap non-audio proxy responses at 8MB
 
 function proxyPost(hostname, path, headers, body, res) {
