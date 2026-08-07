@@ -473,22 +473,32 @@ input[type=range]::-moz-range-thumb{width:18px;height:24px;border-radius:5px;bac
         <h4>🎙️ Voz DJ Rodo</h4>
         <div class="cfg-row"><label>Voz</label>
           <select id="cfgVoiceDJ">
-            <option value="onyx">Onyx (masculina, grave)</option>
+            <option value="alloy">Alloy (neutra, equilibrada)</option>
             <option value="ash">Ash (masculina, expresiva)</option>
-            <option value="verse">Verse (masculina, cálida)</option>
-            <option value="nova">Nova (femenina, clara)</option>
-            <option value="shimmer">Shimmer (femenina, suave)</option>
+            <option value="ballad">Ballad (suave, melódica)</option>
             <option value="coral">Coral (femenina, cálida)</option>
+            <option value="echo">Echo (masculina, clara)</option>
+            <option value="fable">Fable (narrativa, teatral)</option>
+            <option value="nova">Nova (femenina, brillante)</option>
+            <option value="onyx">Onyx (masculina, grave)</option>
+            <option value="sage">Sage (serena, madura)</option>
+            <option value="shimmer">Shimmer (femenina, suave)</option>
+            <option value="verse">Verse (versátil, cálida)</option>
           </select>
         </div>
         <div class="cfg-row"><label>Voz Spots</label>
           <select id="cfgVoiceSpot">
-            <option value="onyx">Onyx (masculina, grave)</option>
+            <option value="alloy">Alloy (neutra, equilibrada)</option>
             <option value="ash">Ash (masculina, expresiva)</option>
-            <option value="verse">Verse (masculina, cálida)</option>
-            <option value="nova">Nova (femenina, clara)</option>
-            <option value="shimmer">Shimmer (femenina, suave)</option>
+            <option value="ballad">Ballad (suave, melódica)</option>
             <option value="coral">Coral (femenina, cálida)</option>
+            <option value="echo">Echo (masculina, clara)</option>
+            <option value="fable">Fable (narrativa, teatral)</option>
+            <option value="nova">Nova (femenina, brillante)</option>
+            <option value="onyx">Onyx (masculina, grave)</option>
+            <option value="sage">Sage (serena, madura)</option>
+            <option value="shimmer">Shimmer (femenina, suave)</option>
+            <option value="verse">Verse (versátil, cálida)</option>
           </select>
         </div>
       </div>
@@ -558,12 +568,17 @@ input[type=range]::-moz-range-thumb{width:18px;height:24px;border-radius:5px;bac
       <div>
         <label>VOZ DJ</label>
         <select id="djVoiceSel" onchange="localStorage.setItem('tp_voice_dj',this.value)">
-          <option value="onyx">Onyx (masc. grave)</option>
+          <option value="alloy">Alloy (neutra)</option>
           <option value="ash">Ash (masc. expresiva)</option>
-          <option value="verse">Verse (masc. cálida)</option>
-          <option value="nova">Nova (fem. clara)</option>
-          <option value="shimmer">Shimmer (fem. suave)</option>
+          <option value="ballad">Ballad (suave)</option>
           <option value="coral">Coral (fem. cálida)</option>
+          <option value="echo">Echo (masc. clara)</option>
+          <option value="fable">Fable (narrativa)</option>
+          <option value="nova">Nova (fem. brillante)</option>
+          <option value="onyx">Onyx (masc. grave)</option>
+          <option value="sage">Sage (serena)</option>
+          <option value="shimmer">Shimmer (fem. suave)</option>
+          <option value="verse">Verse (versátil)</option>
         </select>
       </div>
     </div>
@@ -977,12 +992,17 @@ function _wsSpotAudio(ab, name){
 // Voces de OpenAI (gpt-4o-mini-tts). Se mantienen alias de las claves antiguas
 // (eleguar/latinFem/daniela) para que la config guardada siga resolviendo.
 const VOICES={
-  onyx:{v:'onyx'},        // masculina grave, autoritaria
+  alloy:{v:'alloy'},      // neutra, equilibrada
   ash:{v:'ash'},          // masculina expresiva
-  verse:{v:'verse'},      // masculina cálida
-  nova:{v:'nova'},        // femenina clara
-  shimmer:{v:'shimmer'},  // femenina suave
+  ballad:{v:'ballad'},    // suave, melódica
   coral:{v:'coral'},      // femenina cálida
+  echo:{v:'echo'},        // masculina clara
+  fable:{v:'fable'},      // narrativa, teatral
+  nova:{v:'nova'},        // femenina brillante
+  onyx:{v:'onyx'},        // masculina grave, autoritaria
+  sage:{v:'sage'},        // serena, madura
+  shimmer:{v:'shimmer'},  // femenina suave
+  verse:{v:'verse'},      // versátil, cálida
   // alias legado → voz OpenAI equivalente
   eleguar:{v:'onyx'}, latinFem:{v:'nova'}, daniela:{v:'shimmer'},
 };

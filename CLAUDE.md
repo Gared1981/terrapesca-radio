@@ -66,9 +66,10 @@ server-side.
   `content[0]`). The previous model `claude-sonnet-4-20250514` was retired 2026-06-15 (returned 404).
 - **OpenAI TTS** (`gpt-4o-mini-tts`, `response_format: 'mp3'`) — Spanish voice for DJ Rodo, spots and
   tienda. Steered with a natural-language `instructions` string (professional Mexican radio register)
-  instead of numeric voice settings; `_expLevel` picks the tone matiz (`OAI_TONE` in studio). Voice
-  names: onyx/ash/verse (male), nova/shimmer/coral (female); default `onyx`. Legacy `tp_voice_*` values
-  (eleguar/latinFem/daniela) are migrated via `_migVoice()`. Replaced ElevenLabs 2026-08.
+  instead of numeric voice settings; `_expLevel` picks the tone matiz (`OAI_TONE` in studio). All 11
+  OpenAI voices are selectable (alloy/ash/ballad/coral/echo/fable/nova/onyx/sage/shimmer/verse); default
+  `onyx`. Legacy `tp_voice_*` values (eleguar/latinFem/daniela) are migrated via `_migVoice()`. Replaced
+  ElevenLabs 2026-08.
 - **ElevenLabs** (`eleven_multilingual_v2`, `language_code: 'es'`) — *legacy* TTS; proxy still exists but
   no client calls it anymore.
 - **YouTube** — three paths: IFrame API (in-browser playback in studio/panel), `@distube/ytdl-core`
