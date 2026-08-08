@@ -387,7 +387,7 @@ function playSpotB64(track) {
   if (!started) return;
   try { if (ytReady) ytPlayer.pauseVideo(); } catch (_) {}
   stopSpot();
-  const url = URL.createObjectURL(b64ToBlob(track.b64, 'audio/mpeg'));
+  const url = URL.createObjectURL(b64ToBlob(track.b64, track.mime || 'audio/mpeg'));
   spotAudio = new Audio(url); spotAudio._u = url; spotAudio.volume = 0.95;
   const resume = () => {
     stopSpot();

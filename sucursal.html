@@ -793,11 +793,12 @@ function playSpot(track){
   if(track.b64){
     // actualizar jingle si viene en el mensaje
     if(track.jingleB64)jingleB64=track.jingleB64;
-    // arrancar jingle de fondo
-    playJingle();
+    // arrancar jingle de fondo SOLO si el spot no trae ya el fondo horneado
+    // (mime distinto de mp3 = WAV mezclado con su fondo) — evita doblar la música.
+    if((track.mime||'audio/mpeg')==='audio/mpeg') playJingle();
     // M1: revoke previous spot ObjectURL if a consecutive spot arrives before the first ended
     if(audioEl){ try{audioEl.pause();}catch(_){} revokeAudio(audioEl); audioEl.src=''; audioEl=null; }
-    const blob=b64ToBlob(track.b64,'audio/mpeg');
+    const blob=b64ToBlob(track.b64,track.mime||'audio/mpeg');
     const url=URL.createObjectURL(blob);
     audioEl=new Audio(url);
     audioEl._objUrl=url;
