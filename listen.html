@@ -154,16 +154,16 @@ html,body{width:100%;height:100%;background:#05070c;color:#fff;font-family:'Inte
 .btn-play-main:active{transform:scale(.9)}
 .btn-play-main.live{background:linear-gradient(135deg,var(--red2),var(--red));color:#fff;box-shadow:0 8px 34px var(--redglow)}
 
-/* Carrusel de productos */
-.pcarousel{display:block;text-decoration:none;margin:8px 0 12px;background:rgba(255,255,255,.05);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,.07);border-radius:16px;padding:12px 14px;transition:background .2s}
-.pcarousel:active{background:rgba(255,255,255,.1)}
-.pcar-title{font-size:10px;letter-spacing:.16em;color:var(--red2,#e0241c);margin-bottom:10px;font-weight:800}
-.pcar-body{display:flex;align-items:center;gap:14px}
-.pcar-img{width:66px;height:66px;border-radius:12px;object-fit:cover;background:rgba(255,255,255,.06);flex:0 0 auto;box-shadow:0 4px 12px rgba(0,0,0,.4);transition:opacity .45s}
-.pcar-meta{min-width:0;flex:1}
-.pcar-name{color:#fff;font-weight:700;font-size:14px;line-height:1.25;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;transition:opacity .45s}
-.pcar-price{color:rgba(255,255,255,.82);font-size:13px;margin-top:3px;font-weight:600}
-.pcar-cta{color:var(--red2,#e0241c);font-size:11px;margin-top:5px;font-weight:700}
+/* Carrusel de productos — protagonista, tipo hero para celular */
+.pcarousel{display:block;text-decoration:none;margin:14px 0;background:linear-gradient(160deg,rgba(224,36,28,.12),rgba(255,255,255,.03));backdrop-filter:blur(14px);border:1px solid rgba(224,36,28,.25);border-radius:22px;padding:16px;box-shadow:0 12px 44px rgba(0,0,0,.4);transition:transform .15s}
+.pcarousel:active{transform:scale(.98)}
+.pcar-title{font-size:11px;letter-spacing:.18em;color:var(--red2,#e0241c);margin-bottom:12px;font-weight:800}
+.pcar-body{display:flex;flex-direction:column;gap:12px}
+.pcar-img{width:100%;height:230px;border-radius:16px;object-fit:cover;background:rgba(255,255,255,.06);box-shadow:0 8px 26px rgba(0,0,0,.45);transition:opacity .45s}
+.pcar-meta{min-width:0}
+.pcar-name{color:#fff;font-weight:800;font-size:18px;line-height:1.25;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;transition:opacity .45s}
+.pcar-price{color:#fff;font-size:17px;margin-top:6px;font-weight:700}
+.pcar-cta{display:inline-block;margin-top:11px;color:#fff;background:linear-gradient(135deg,var(--red2,#e0241c),var(--red,#b0130c));padding:10px 18px;border-radius:999px;font-size:13px;font-weight:800;box-shadow:0 6px 20px var(--redglow,rgba(224,36,28,.4))}
 .pcar-fade{opacity:.12}
 
 /* Próximas canciones */
@@ -276,12 +276,7 @@ html,body{width:100%;height:100%;background:#05070c;color:#fff;font-family:'Inte
     </div>
   </div>
 
-  <!-- Sin prev/next (afectaban a toda la red). Solo play/pausa local. -->
-  <div class="transport">
-    <button class="btn-play-main" id="btnPlay" onclick="togglePlay()">▶</button>
-  </div>
-
-  <!-- Carrusel de productos reales de Terrapesca (donde antes iban los controles) -->
+  <!-- Carrusel de productos reales de Terrapesca: protagonista de la página -->
   <a class="pcarousel" id="pcar" href="#" target="_blank" rel="noopener" style="display:none">
     <div class="pcar-title">🛒 EN TERRAPESCA</div>
     <div class="pcar-body">
@@ -293,11 +288,6 @@ html,body{width:100%;height:100%;background:#05070c;color:#fff;font-family:'Inte
       </div>
     </div>
   </a>
-
-  <div class="upnext" id="upnext" style="display:none">
-    <div class="upnext-title">PRÓXIMAS CANCIONES</div>
-    <div id="upnextList"></div>
-  </div>
 
   <div class="bottom-row">
     <div class="stream-pill" id="streamPill" onclick="copyUrl()">🔗 Compartir</div>
@@ -472,8 +462,7 @@ function skipNext() { sendWS({ type: 'NEXT_TRACK' }); }
 
 function setPlayUI(p) {
   const btn = document.getElementById('btnPlay');
-  btn.textContent = p ? '⏸' : '▶';
-  btn.classList.toggle('live', p);
+  if (btn) { btn.textContent = p ? '⏸' : '▶'; btn.classList.toggle('live', p); }
   document.getElementById('artThumb').classList.toggle('live', p);
   document.getElementById('artThumb').classList.toggle('paused', !p);
   document.getElementById('livePill').classList.toggle('on', p);
@@ -617,6 +606,7 @@ function sendWS(d) { if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringi
 // ── Próximas canciones (Fase 4) ──
 function renderUpNext(items) {
   const box = document.getElementById('upnext'), list = document.getElementById('upnextList');
+  if (!box || !list) return; // sección removida — ya no se muestra
   if (!Array.isArray(items) || !items.length) { box.style.display = 'none'; return; }
   box.style.display = 'block';
   list.innerHTML = items.slice(0, 5).map((t, i) => `
