@@ -537,6 +537,40 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // ── Feed público de productos (para el carrusel de /listen) ──
+  // Shopify expone /products.json público (sin token). No requiere credenciales.
+  if (req.url.startsWith('/api/shop-feed') && req.method === 'GET') {
+    const fr = https.request({
+      hostname: 'www.terrapesca.com', path: '/products.json?limit=50', method: 'GET',
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; TerrapescaRadio/1.0)', 'Accept': 'application/json' }, timeout: 10000
+    }, (fRes) => {
+      let raw = '', size = 0, aborted = false;
+      fRes.on('data', c => { if (aborted) return; size += c.length; if (size > MAX_PROXY_BYTES) { aborted = true; fRes.destroy(); res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ products: [] })); return; } raw += c; });
+      fRes.on('end', () => {
+        if (aborted) return;
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        try {
+          const j = JSON.parse(raw);
+          const products = (j.products || []).map(p => ({
+            title: p.title,
+            price: (p.variants && p.variants[0] && p.variants[0].price) || '',
+            image: (p.images && p.images[0] && p.images[0].src) || '',
+            url: 'https://www.terrapesca.com/products/' + p.handle
+          })).filter(p => p.image).slice(0, 30);
+          res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=600' });
+          res.end(JSON.stringify({ products }));
+        } catch (e) {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ products: [], error: 'parse' }));
+        }
+      });
+    });
+    fr.on('error', (e) => { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ products: [], error: e.message })); });
+    fr.setTimeout(10000, () => { fr.destroy(); });
+    fr.end();
+    return;
+  }
+
   // ── Proxy Shopify Storefront API (buscar productos para spots) ──
   // El cliente manda la query GraphQL + su dominio y token (solo-lectura de
   // productos) por header. El servidor no guarda credenciales.
