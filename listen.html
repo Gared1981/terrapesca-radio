@@ -59,19 +59,20 @@ html,body{width:100%;height:100%;background:#05070c;color:#fff;font-family:'Inte
 
 /* ── Full-screen player ── */
 #player{
-  position:fixed;inset:0;z-index:10;
-  display:flex;flex-direction:column;
+  position:fixed;top:0;bottom:0;left:50%;transform:translateX(-50%);
+  width:100%;max-width:440px;z-index:10;
+  display:flex;flex-direction:column;justify-content:flex-start;
   overflow-y:auto;-webkit-overflow-scrolling:touch;
   padding:
-    max(env(safe-area-inset-top),18px)
+    max(env(safe-area-inset-top),14px)
     18px
-    max(env(safe-area-inset-bottom),20px);
+    max(env(safe-area-inset-bottom),16px);
 }
 
 /* Marca superior: logo + RADIO TERRAPESCA */
 .brand-top{text-align:center;padding-bottom:2px}
-.brand-logo{width:52px;height:52px;object-fit:contain;border-radius:12px;display:inline-block}
-.brand-name{font-size:11px;letter-spacing:.22em;color:rgba(255,255,255,.7);font-weight:800;margin-top:5px}
+.brand-logo{width:66px;height:66px;object-fit:contain;border-radius:14px;display:inline-block}
+.brand-name{font-size:11px;letter-spacing:.22em;color:rgba(255,255,255,.7);font-weight:800;margin-top:6px}
 
 /* Píldora EN VIVO arriba */
 .live-pill{
@@ -88,12 +89,12 @@ html,body{width:100%;height:100%;background:#05070c;color:#fff;font-family:'Inte
 /* Artwork — más chico y equilibrado vs. los productos */
 .art-section{
   display:flex;align-items:center;justify-content:center;
-  padding:12px 0 8px;
+  padding:8px 0 6px;
 }
 .art-thumb{
   position:relative;
-  width:min(150px,40vw);height:min(150px,40vw);
-  border-radius:18px;overflow:hidden;
+  width:min(128px,34vw);height:min(128px,34vw);
+  border-radius:16px;overflow:hidden;
   box-shadow:0 30px 90px rgba(0,0,0,.7), 0 0 0 1px rgba(255,255,255,.05);
   background:#0d1017;
   flex-shrink:0;
@@ -108,7 +109,7 @@ html,body{width:100%;height:100%;background:#05070c;color:#fff;font-family:'Inte
 /* Track info */
 .info-row{
   display:flex;align-items:center;justify-content:space-between;gap:12px;
-  padding:0 4px;margin-bottom:16px;
+  padding:0 4px;margin-bottom:10px;
 }
 .info-left{flex:1;min-width:0}
 .track-name{font-size:15px;font-weight:700;letter-spacing:-.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -155,7 +156,7 @@ html,body{width:100%;height:100%;background:#05070c;color:#fff;font-family:'Inte
 .pcarousel:active{transform:scale(.98)}
 .pcar-title{font-size:11px;letter-spacing:.18em;color:var(--red2,#e0241c);margin-bottom:12px;font-weight:800}
 .pcar-body{display:flex;flex-direction:column;gap:12px}
-.pcar-img{width:100%;height:165px;border-radius:14px;object-fit:cover;background:rgba(255,255,255,.06);box-shadow:0 8px 26px rgba(0,0,0,.45);transition:opacity .45s}
+.pcar-img{width:100%;height:150px;border-radius:14px;object-fit:cover;background:rgba(255,255,255,.06);box-shadow:0 8px 26px rgba(0,0,0,.45);transition:opacity .45s}
 .pcar-meta{min-width:0}
 .pcar-name{color:#fff;font-weight:800;font-size:18px;line-height:1.25;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;transition:opacity .45s}
 .pcar-price{color:#fff;font-size:17px;margin-top:6px;font-weight:700}
