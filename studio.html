@@ -1542,6 +1542,27 @@ function duckTo(level,ms=400){
   },iv);
 }
 function unduck(ms=900){ duckTo(1,ms); }
+// Para SPOTS: baja el volumen a 0 y PAUSA la canción (no solo la agacha).
+function fadeOutAndPause(ms=900){
+  const d=decks[activeDeck]; if(!d||!d.ready) return;
+  const start=d.vol, steps=15, iv=ms/steps; let s=0;
+  clearInterval(window._duck);
+  window._duck=setInterval(()=>{ s++; const p=s/steps; d.vol=Math.max(0,start*(1-p));
+    try{d.player.setVolume(dvol(d));}catch(_){}
+    if(s>=steps){ clearInterval(window._duck); try{d.player.pauseVideo();}catch(_){} d.playing=false; }
+  },iv);
+}
+// Al terminar el spot: reanuda la canción y sube el volumen (fade in).
+function fadeInAndResume(ms=900){
+  const d=decks[activeDeck]; if(!d||!d.ready) return;
+  try{ d.player.playVideo(); d.playing=true; }catch(_){}
+  const steps=15, iv=ms/steps; let s=0;
+  clearInterval(window._duck);
+  window._duck=setInterval(()=>{ s++; const p=s/steps; d.vol=Math.min(1,p);
+    try{d.player.setVolume(dvol(d));}catch(_){}
+    if(s>=steps){ clearInterval(window._duck); d.vol=1; }
+  },iv);
+}
 
 /* Resume active deck if it stalled/paused during a DJ or spot intervention.
    Called from playDJ/playSpot finally blocks. Only acts if the deck has an item
@@ -1743,13 +1764,13 @@ async function playSpot(){
     document.getElementById('djNow').textContent='📢 '+(sp.name||'Spot Terrapesca');
     pushHistory({name:sp.name||'Spot',artist:'Spot publicitario',spot:true});
     _wsSpotAudio(arr.buffer, sp.name||'Spot Terrapesca', mime);
-    if(flags.duck) duckTo(0.12);
+    if(flags.duck) fadeOutAndPause(); // el spot: la canción baja y se PAUSA
     if(!baked && sp.bed && sp.bed!=='none') playSpotBed(sp.bed); // spots viejos: fondo en vivo
     await playClip(URL.createObjectURL(new Blob([arr],{type:mime})));
   }catch(e){}
   finally{
     console.log('[Rodo] spot ended — restoring music');
-    if(flags.duck) unduck();
+    if(flags.duck) fadeInAndResume(); // al terminar: reanuda con fade in
     stopSpotBed();
     djActive=false; setDJState('standby');
     if(_endedDuringDJ && !_xfading){ console.log('[Rodo] song ended during spot — advancing'); advanceNoXfade(); }
