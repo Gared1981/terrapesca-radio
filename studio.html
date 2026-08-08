@@ -538,6 +538,13 @@ input[type=range]::-moz-range-thumb{width:18px;height:24px;border-radius:5px;bac
         </div>
       </div>
 
+      <div class="cfg-section">
+        <h4>🛒 Shopify (spots desde tu catálogo)</h4>
+        <div class="cfg-row"><label>Dominio</label><input id="cfgShopDomain" placeholder="tudienda.myshopify.com"/></div>
+        <div class="cfg-row"><label>Storefront token</label><input id="cfgShopToken" type="password" placeholder="Storefront API access token"/></div>
+        <div style="font-size:10px;color:var(--txt3);padding:2px 2px 0">Solo lectura de productos. Se guarda solo en tu navegador. Créalo en Shopify → Configuración → Apps y canales → Desarrollar apps → tu app → Storefront API.</div>
+      </div>
+
       <button class="cfg-save" onclick="saveSettings()">💾 GUARDAR CONFIGURACIÓN</button>
     </div>
   </div>
@@ -656,7 +663,12 @@ input[type=range]::-moz-range-thumb{width:18px;height:24px;border-radius:5px;bac
       <select id="spotVoiceSel" title="Voz del spot (independiente de DJ Rodo)" onchange="_onSpotVoicePick(this.value)" style="padding:8px 10px;border-radius:8px;border:1px solid var(--line2);background:#060d0a;color:var(--txt);font-size:11px;font-family:var(--mono);cursor:pointer;max-width:150px"></select>
     </div>
     <div style="margin-bottom:6px;display:flex;gap:8px;align-items:center">
-      <input style="flex:1;padding:8px 10px;border-radius:8px;border:1px solid var(--line2);background:#060d0a;color:var(--txt);font-size:12px" id="spotUrl" placeholder="🔗 Pega enlace de página de producto (opcional)…"/>
+      <input style="flex:1;padding:8px 10px;border-radius:8px;border:1px solid var(--line2);background:#060d0a;color:var(--txt);font-size:12px" id="shopSearch" placeholder="🛒 Busca un producto de tu Shopify (ej: kayak, hielera, caña)…" onkeydown="if(event.key==='Enter')shopSearch()"/>
+      <button onclick="shopSearch()" style="padding:8px 12px;border-radius:8px;border:1px solid #3a2a5a;background:#160a28;color:#c39bff;font-size:11px;font-family:var(--mono);cursor:pointer;white-space:nowrap">🔎 Buscar</button>
+    </div>
+    <div id="shopResults" style="display:none;margin-bottom:6px;max-height:170px;overflow:auto;border:1px solid var(--line2);border-radius:8px;background:#060d0a"></div>
+    <div style="margin-bottom:6px;display:flex;gap:8px;align-items:center">
+      <input style="flex:1;padding:8px 10px;border-radius:8px;border:1px solid var(--line2);background:#060d0a;color:var(--txt);font-size:12px" id="spotUrl" placeholder="🔗 O pega enlace de página de producto (opcional)…"/>
       <button onclick="importSpotUrl()" style="padding:8px 12px;border-radius:8px;border:1px solid #2a3a5a;background:#0a1828;color:#6ab4ff;font-size:11px;font-family:var(--mono);cursor:pointer;white-space:nowrap">📥 Importar</button>
     </div>
     <textarea id="spotScript" placeholder="El guión del spot aparecerá aquí. También puedes escribir uno manualmente."></textarea>
@@ -886,6 +898,8 @@ const cfg={
   oaiKey:localStorage.getItem('tp_oai')||'',     // OpenAI: voz de DJ Rodo + spots
   vkKey:localStorage.getItem('tp_vk_key')||'',   // VoiceKiller (motor alterno)
   vkUser:localStorage.getItem('tp_vk_user')||'',
+  shopDomain:localStorage.getItem('tp_shopify_domain')||'', // Shopify (buscar productos)
+  shopToken:localStorage.getItem('tp_shopify_token')||'',
   antKey:localStorage.getItem('tp_ant')||'',
   ytKey:localStorage.getItem('tp_yt')||'',
   slogan:localStorage.getItem('tp_slogan')||'La estación oficial de Terrapesca',
@@ -2551,6 +2565,43 @@ BENEFICIOS: [beneficios concretos para el usuario]`}]})
   }catch(e){_sgStatus('Error: '+e.message,'var(--red)');}
 }
 
+// ── Buscador de productos de Shopify (para spots) ──
+let _shopResults=[];
+async function shopSearch(){
+  const q=document.getElementById('shopSearch').value.trim();
+  const box=document.getElementById('shopResults');
+  if(!q){ box.style.display='none'; box.innerHTML=''; return; }
+  if(!cfg.shopDomain||!cfg.shopToken){ _sgStatus('Configura Shopify en ⚙️ CONFIG (dominio + token)','var(--red)'); return; }
+  box.style.display='block'; box.innerHTML='<div style="padding:8px;color:var(--txt3);font-size:11px">Buscando en Shopify…</div>';
+  const query='query($q:String!){ products(first:8, query:$q){ edges{ node{ title description(truncateAt:400) priceRange{ minVariantPrice{ amount currencyCode } } } } } }';
+  try{
+    const r=await fetch('/api/shopify/products',{method:'POST',
+      headers:{'Content-Type':'application/json','x-shopify-shop':_hv(cfg.shopDomain),'x-shopify-token':_hv(cfg.shopToken)},
+      body:JSON.stringify({query,variables:{q}})
+    });
+    const d=await r.json();
+    if(!r.ok||d.error) throw new Error(d.error||('Shopify '+r.status));
+    if(d.errors&&d.errors.length) throw new Error(d.errors[0].message||'Error de Shopify');
+    _shopResults=((((d.data||{}).products||{}).edges)||[]).map(e=>e.node);
+    if(!_shopResults.length){ box.innerHTML='<div style="padding:8px;color:var(--txt3);font-size:11px">Sin resultados para "'+esc(q)+'"</div>'; return; }
+    box.innerHTML=_shopResults.map((p,i)=>{
+      const price=(p.priceRange&&p.priceRange.minVariantPrice)?(Math.round(parseFloat(p.priceRange.minVariantPrice.amount))+' '+p.priceRange.minVariantPrice.currencyCode):'';
+      return '<div style="padding:8px 10px;border-bottom:1px solid var(--line2);cursor:pointer" onclick="shopPick('+i+')">'
+        +'<div style="color:var(--txt);font-weight:600;font-size:12px">'+esc(p.title)+'</div>'
+        +'<div style="color:var(--txt3);font-size:10px;font-family:var(--mono)">'+(price||'sin precio')+' · clic para usar</div></div>';
+    }).join('');
+  }catch(e){ box.innerHTML='<div style="padding:8px;color:var(--red);font-size:11px">⚠ '+esc(e.message)+'</div>'; }
+}
+function shopPick(i){
+  const p=_shopResults[i]; if(!p) return;
+  const price=(p.priceRange&&p.priceRange.minVariantPrice)?(Math.round(parseFloat(p.priceRange.minVariantPrice.amount))+' '+p.priceRange.minVariantPrice.currencyCode):'';
+  const desc=(p.description||'').replace(/\s+/g,' ').trim().slice(0,400);
+  document.getElementById('spotTopic').value='PRODUCTO: '+p.title+(price?('\nPRECIO: '+price):'')+(desc?('\nDESCRIPCIÓN: '+desc):'');
+  if(!document.getElementById('spotName').value.trim()) document.getElementById('spotName').value=p.title;
+  const box=document.getElementById('shopResults'); box.style.display='none';
+  _sgStatus('Producto cargado — haz clic en "Generar guión con IA"','var(--grn)');
+}
+
 function _buildSpotPrompt(contenido, estilo){
   const estiloTags={
     'eufórico': '[fast-paced][energetic][excited]',
@@ -2889,6 +2940,8 @@ function openSettings(){
   sv('cfgEngine',localStorage.getItem('tp_engine')||'openai');
   sv('cfgVkKey',localStorage.getItem('tp_vk_key')||'');
   sv('cfgVkUser',localStorage.getItem('tp_vk_user')||'');
+  sv('cfgShopDomain',localStorage.getItem('tp_shopify_domain')||'');
+  sv('cfgShopToken',localStorage.getItem('tp_shopify_token')||'');
   const _vkSel=document.getElementById('cfgVkVoice');
   if(_vkSel) _vkSel.innerHTML=VK_VOICE_OPTS.map(o=>'<option value="'+o[0]+'">'+o[1]+'</option>').join('');
   sv('cfgVkVoice',localStorage.getItem('tp_vk_voice')||'Jett');
@@ -2901,11 +2954,14 @@ function saveSettings(){
   set('tp_slogan','cfgSl'); set('tp_weather_city','cfgWeatherCity');
   set('tp_voice_dj','cfgVoiceDJ'); set('tp_voice_spot','cfgVoiceSpot');
   set('tp_engine','cfgEngine'); set('tp_vk_key','cfgVkKey'); set('tp_vk_user','cfgVkUser'); set('tp_vk_voice','cfgVkVoice');
+  set('tp_shopify_domain','cfgShopDomain'); set('tp_shopify_token','cfgShopToken');
   // Reload cfg object
   cfg.ws=localStorage.getItem('tp_ws')||'';
   cfg.oaiKey=localStorage.getItem('tp_oai')||'';
   cfg.vkKey=localStorage.getItem('tp_vk_key')||'';
   cfg.vkUser=localStorage.getItem('tp_vk_user')||'';
+  cfg.shopDomain=localStorage.getItem('tp_shopify_domain')||'';
+  cfg.shopToken=localStorage.getItem('tp_shopify_token')||'';
   cfg.antKey=localStorage.getItem('tp_ant')||'';
   cfg.ytKey=localStorage.getItem('tp_yt')||'';
   cfg.slogan=localStorage.getItem('tp_slogan')||'La estación oficial de Terrapesca';
