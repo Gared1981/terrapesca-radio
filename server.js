@@ -751,9 +751,11 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // Jingle de fábrica (empaquetado): default cuando no hay uno subido por el usuario.
-  if (req.url === '/jingle-terrapesca.mp3') {
-    const jPath = path.join(__dirname, 'jingle-terrapesca.mp3');
+  // Jingles/fondos empaquetados: sirve cualquier jingle-*.mp3 del repo (Terrapesca,
+  // Costa Kayaks, etc.). Nombre saneado a [a-z0-9-] para no salir del directorio.
+  if (/^\/jingle-[a-z0-9\-]+\.mp3$/i.test(req.url)) {
+    const fname = req.url.slice(1).replace(/[^a-z0-9.\-]/gi, '');
+    const jPath = path.join(__dirname, fname);
     if (fs.existsSync(jPath)) {
       res.writeHead(200, { 'Content-Type': 'audio/mpeg', 'Cache-Control': 'public, max-age=86400' });
       fs.createReadStream(jPath).pipe(res);

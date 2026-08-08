@@ -661,6 +661,7 @@ input[type=range]::-moz-range-thumb{width:18px;height:24px;border-radius:5px;bac
         <option value="urgente">🔥 Urgente</option>
       </select>
       <select id="spotVoiceSel" title="Voz del spot (independiente de DJ Rodo)" onchange="_onSpotVoicePick(this.value)" style="padding:8px 10px;border-radius:8px;border:1px solid var(--line2);background:#060d0a;color:var(--txt);font-size:11px;font-family:var(--mono);cursor:pointer;max-width:150px"></select>
+      <select id="spotBedSel" title="Fondo musical del spot" onchange="localStorage.setItem('tp_spot_bed',this.value)" style="padding:8px 10px;border-radius:8px;border:1px solid var(--line2);background:#060d0a;color:var(--txt);font-size:11px;font-family:var(--mono);cursor:pointer;max-width:140px"></select>
     </div>
     <div style="margin-bottom:6px;display:flex;gap:8px;align-items:center">
       <input style="flex:1;padding:8px 10px;border-radius:8px;border:1px solid var(--line2);background:#060d0a;color:var(--txt);font-size:12px" id="shopSearch" placeholder="🛒 Busca un producto de tu Shopify (ej: kayak, hielera, caña)…" onkeydown="if(event.key==='Enter')shopSearch()"/>
@@ -1732,13 +1733,13 @@ async function playSpot(){
     pushHistory({name:sp.name||'Spot',artist:'Spot publicitario',spot:true});
     _wsSpotAudio(arr.buffer, sp.name||'Spot Terrapesca');
     if(flags.duck) duckTo(0.12);
-    playJingle(); // play background jingle during spot
+    playSpotBed(sp.bed); // fondo musical elegido para este spot
     await playClip(URL.createObjectURL(new Blob([arr],{type:'audio/mpeg'})));
   }catch(e){}
   finally{
     console.log('[Rodo] spot ended — restoring music');
     if(flags.duck) unduck();
-    stopJingle();
+    stopSpotBed();
     djActive=false; setDJState('standby');
     if(_endedDuringDJ && !_xfading){ console.log('[Rodo] song ended during spot — advancing'); advanceNoXfade(); }
     else { _resumeActiveDeckIfStalled(); }
@@ -2738,13 +2739,13 @@ async function createSpotAudio(){
     const u8=new Uint8Array(ab); let b='';
     for(let i=0;i<u8.length;i++) b+=String.fromCharCode(u8[i]);
     const b64=btoa(b);
-    await _saveSpotToIDB(name,b64);
+    await _saveSpotToIDB(name,b64,(document.getElementById('spotBedSel')?.value)||'terrapesca');
     _sgStatus(`✓ "${name}" guardado en la lista de spots`,'var(--grn)');
     document.getElementById('spotName').value='';
     toast('Spot guardado: '+name,'ok');
   }catch(e){_sgStatus('Error: '+e.message,'var(--red)');}
 }
-async function _saveSpotToIDB(name,b64){
+async function _saveSpotToIDB(name,b64,bed){
   const db=await openDB();
   return new Promise((res,rej)=>{
     const tx=db.transaction('session','readwrite');
@@ -2752,9 +2753,9 @@ async function _saveSpotToIDB(name,b64){
     const req=store.get('spotsLibrary');
     req.onsuccess=()=>{
       const items=(req.result?.items||[]);
-      items.push({name,b64,ts:Date.now()});
+      items.push({name,b64,bed:bed||'terrapesca',ts:Date.now()});
       store.put({key:'spotsLibrary',items});
-      spots=items.filter(s=>s.b64).map(s=>({name:s.name,b64:s.b64}));
+      spots=items.filter(s=>s.b64).map(s=>({name:s.name,b64:s.b64,bed:s.bed||'terrapesca'}));
       renderSpots();
       res();
     };
@@ -2911,7 +2912,7 @@ async function loadShared(){
       queue=pl.items.filter(t=>t.type==='yt'&&t.ytId).map(t=>({ytId:t.ytId,name:t.name||t.title||'YouTube',artist:t.channelTitle||t.sub||''}));
     }
     const sp=await idbGet(db,'session','spotsLibrary');
-    if(sp&&sp.items){ spots=sp.items.filter(s=>s.b64).map(s=>({name:s.name,b64:s.b64})); }
+    if(sp&&sp.items){ spots=sp.items.filter(s=>s.b64).map(s=>({name:s.name,b64:s.b64,bed:s.bed||'terrapesca'})); }
     // Fase 1: sembrar biblioteca desde la cola (idempotente) y crear la playlist
     // por defecto la primera vez que existe el store `playlists`.
     queue.forEach(q=>libUpsert(q));
@@ -3041,6 +3042,12 @@ function _onSpotVoicePick(v){
   if(_ttsEngine()==='voicekiller') localStorage.setItem('tp_vk_voice_spot',v);
   else localStorage.setItem('tp_voice_spot',v);
 }
+// Llena el selector de fondo del spot y marca el guardado.
+function _initSpotBedSel(){
+  const sel=document.getElementById('spotBedSel'); if(!sel) return;
+  sel.innerHTML=SPOT_BEDS.map(o=>'<option value="'+o[0]+'">'+o[1]+'</option>').join('');
+  sel.value=localStorage.getItem('tp_spot_bed')||'terrapesca';
+}
 
 /* ================= JINGLE ================= */
 let _jingleB64=null, _jingleAudio=null, _jingleVol=0.25;
@@ -3048,6 +3055,20 @@ let _jingleB64=null, _jingleAudio=null, _jingleVol=0.25;
 // ha subido uno propio, para que toda tienda tenga el jingle Terrapesca.
 const DEFAULT_JINGLE_URL='/jingle-terrapesca.mp3';
 function _newJingleAudio(){ return _jingleB64 ? b64ToAudio(_jingleB64) : new Audio(DEFAULT_JINGLE_URL); }
+// Fondos musicales seleccionables por spot. 'terrapesca' usa el jingle actual
+// (subido o de fábrica); los demás son archivos empaquetados; 'none' = sin fondo.
+const SPOT_BEDS=[['terrapesca','🎵 Terrapesca'],['costa_kayaks','🛶 Costa Kayaks'],['none','🔇 Sin fondo']];
+let _spotBedAudio=null;
+function playSpotBed(bedKey){
+  stopSpotBed();
+  bedKey=bedKey||'terrapesca';
+  if(bedKey==='none') return;
+  let a;
+  if(bedKey==='terrapesca') a=_newJingleAudio();
+  else a=new Audio('/jingle-'+bedKey.replace(/_/g,'-')+'.mp3'); // p.ej. costa_kayaks → /jingle-costa-kayaks.mp3
+  a.loop=true; a.volume=_jingleVol*master; _spotBedAudio=a; a.play().catch(()=>{});
+}
+function stopSpotBed(){ if(_spotBedAudio){ try{_spotBedAudio.pause();_spotBedAudio.currentTime=0;}catch(_){} revokeAudio(_spotBedAudio); _spotBedAudio=null; } }
 function loadJingle(input){
   const f=input.files[0]; if(!f) return;
   const r=new FileReader();
@@ -3637,6 +3658,7 @@ document.getElementById('autoBtn').style.color='var(--grn)';
   const el=document.getElementById('djWeatherCity'); if(el) el.value=wc;
   _refreshDJVoiceSelector();
   _refreshSpotVoiceSelector();
+  _initSpotBedSel();
 })();
 // Drag & drop on jingle zone
 document.getElementById('jingleZone').addEventListener('dragover',e=>{e.preventDefault();e.currentTarget.style.borderColor='var(--cyan)';});
