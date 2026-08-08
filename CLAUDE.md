@@ -56,6 +56,10 @@ headers to the server's proxy endpoints, which forward them to the upstream API:
   `{script,voice_name,instructions}` → returns mp3). Alternative TTS engine, selected via `tp_engine`
   (`openai`|`voicekiller`); `tp_vk_voice` picks the VoiceKiller voice. `synthTTS()` in studio and
   `genAndPlay()` in tienda branch on `tp_engine`.
+- `tp_shopify_domain` + `tp_shopify_token` → Shopify Storefront API (`x-shopify-shop` + `x-shopify-token`
+  headers → server sets `X-Shopify-Storefront-Access-Token`) → `/api/shopify/products` (GraphQL product
+  search for the spot generator; `shopSearch()`/`shopPick()` in studio fill the spot topic from a real
+  product)
 - `tp_ant` → Anthropic (`x-api-key`) → `/api/anthropic`
 - `tp_yt` → YouTube Data API key (query param) → `/api/ytplaylist`
 - `tp_ws` → the `wss://` server URL the client connects to

@@ -273,7 +273,7 @@ function parseSpotifyEmbed(html) {
 const server = http.createServer((req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, xi-api-key, x-api-key, x-openai-key, api-key, userid, anthropic-version');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, xi-api-key, x-api-key, x-openai-key, api-key, userid, x-shopify-shop, x-shopify-token, anthropic-version');
 
   if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
 
@@ -532,6 +532,22 @@ const server = http.createServer((req, res) => {
       proxyPost('api.elevenlabs.io', `/v1/text-to-speech/${voiceId}`, {
         'Content-Type': 'application/json',
         'xi-api-key': apiKey
+      }, body, res);
+    });
+    return;
+  }
+
+  // ── Proxy Shopify Storefront API (buscar productos para spots) ──
+  // El cliente manda la query GraphQL + su dominio y token (solo-lectura de
+  // productos) por header. El servidor no guarda credenciales.
+  if (req.url === '/api/shopify/products' && req.method === 'POST') {
+    readLimitedBody(req, res, (body) => {
+      const shop = String(req.headers['x-shopify-shop'] || '').replace(/^https?:\/\//,'').replace(/\/.*$/,'').replace(/[^a-zA-Z0-9.\-]/g,'');
+      const token = String(req.headers['x-shopify-token'] || '').replace(/[^\x21-\x7E]/g,'');
+      if (!shop || !token) { res.writeHead(400, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ error: 'Falta el dominio o el token de Shopify' })); }
+      proxyPost(shop, '/api/2024-10/graphql.json', {
+        'Content-Type': 'application/json',
+        'X-Shopify-Storefront-Access-Token': token
       }, body, res);
     });
     return;
