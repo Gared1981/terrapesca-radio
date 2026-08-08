@@ -758,6 +758,7 @@ input[type=range]::-moz-range-thumb{width:18px;height:24px;border-radius:5px;bac
           <option value="recent">🕒 Recientes</option>
           <option value="top">🔥 Top canciones</option>
           <option value="az">A–Z</option>
+          <option value="style">🎵 Por estilo</option>
         </select>
       </div>
       <div class="list" id="libList" style="max-height:62vh"><div class="empty">Biblioteca vacía</div></div>
@@ -1238,6 +1239,7 @@ let _xfading=false;
 let djActive=false;
 let _djAudio=null;
 let _endedDuringDJ=false;
+let _pendingDJItem=null; // intervención (spot/DJ) que se ejecuta al terminar el crossfade
 
 /* ================= YOUTUBE DUAL PLAYER ================= */
 function buildPlayers(){
@@ -1451,6 +1453,8 @@ function doCrossfade(){
           let _syncPos=0; try{_syncPos=nxt.player.getCurrentTime()||0;}catch(_){}
           _wsPlayTrack(nxtItem, _syncPos);
           console.log('[crossfade] done → deck '+(activeDeck?'B':'A')+' "'+(nxtItem.name||nxtItem.ytId)+'"');
+          // Si había una intervención pendiente, suena ahora sobre la canción nueva.
+          if(_pendingDJItem){ const _it=_pendingDJItem; _pendingDJItem=null; setTimeout(()=>_runIntervention(_it),700); }
         }catch(err){
           console.error('[crossfade] finalize error:',err&&err.message);
         }finally{
@@ -1495,10 +1499,18 @@ setInterval(()=>{
     if(next) prebufferNext(next);
   }
   if(rem<=CROSSFADE_SECS && rem>0){
-    if(flags.dj && djShouldFire()){ djBetweenThenCrossfade(); }
-    else { doCrossfade(); }
+    // SIEMPRE hacemos el crossfade suave (10s antes del final). Si toca
+    // intervención, la guardamos y suena ENCIMA de la nueva canción (ducked)
+    // al terminar el crossfade — así el spot nunca corta la canción a la mitad.
+    if(flags.dj && djShouldFire()) _pendingDJItem=nextDJItem();
+    doCrossfade();
   }
 },250);
+// Ejecuta la intervención pendiente (spot/DJ) sobre la canción NUEVA, ya ducked.
+function _runIntervention(item){
+  if(djActive||_xfading||!item) return;
+  if(item.kind==='spot') playSpot(); else playDJ(item.type);
+}
 
 /* update inactive deck time display too */
 setInterval(()=>{
@@ -2367,8 +2379,9 @@ async function importSpotifyPlaylist(spId){
   const MAX_IMPORT=60;
   const list=tracks.slice(0,MAX_IMPORT);
   const capped=tracks.length>MAX_IMPORT;
+  const plName=(data.name||'Playlist de Spotify').trim(); // el nombre es el "estilo"
   toast(`Spotify: ${tracks.length} canciones${capped?` (importo las primeras ${MAX_IMPORT})`:''}. Buscando en YouTube…`,'ok');
-  let added=0, miss=0;
+  let added=0, miss=0; const plIds=[];
   for(let i=0;i<list.length;i++){
     const t=list[i];
     const q=`${t.title} ${t.artist}`.trim();
@@ -2377,18 +2390,24 @@ async function importSpotifyPlaylist(spId){
       const d=await r.json();
       const hit=(d.items||[])[0];
       if(hit){
+        plIds.push(hit.ytId);
         if(!queue.find(x=>x.ytId===hit.ytId)){
           const tr={ytId:hit.ytId,name:hit.title||t.title,artist:hit.channel||t.artist};
           queue.push(tr);
-          libUpsert(tr,{duration:hit.duration||0});
+          libUpsert(tr,{duration:hit.duration||0,style:plName}); // guarda el estilo en la biblioteca
           added++;
-        }
+        }else{ libUpsert({ytId:hit.ytId},{style:plName}); }
       }else{ miss++; }
     }catch(_){ miss++; }
     if((i+1)%3===0){ renderQueue(); toast(`Importando de Spotify… ${added}/${list.length}`,'ok'); }
   }
   renderQueue(); saveQueue();
-  toast(`✅ ${added} canciones importadas de Spotify${miss?` · ${miss} no encontradas`:''}`,'ok');
+  // Guarda la playlist en la carpeta Playlists (con su nombre = estilo).
+  if(plIds.length){
+    await plSave({id:'pl_sp_'+spId,name:plName,trackIds:plIds,createdAt:Date.now()});
+    if(typeof renderPls==='function') renderPls();
+  }
+  toast(`✅ ${added} de "${plName}" importadas y guardadas en Playlists${miss?` · ${miss} no encontradas`:''}`,'ok');
 }
 function playFromQueue(i){
   waitReady(()=>{
@@ -2799,6 +2818,7 @@ function libUpsert(t,opts={}){
         playCount:(cur.playCount||0)+(opts.played?1:0),
         liked:cur.liked||false,
         lastPlayedAt:opts.played?Date.now():(cur.lastPlayedAt||0),
+        style:opts.style||t.style||cur.style||'', // estilo/colección (nombre de la playlist de origen)
       };
       await new Promise((res,rej)=>{const q=db.transaction('tracks','readwrite').objectStore('tracks').put(rec);q.onsuccess=res;q.onerror=()=>rej(q.error);});
       return rec;
@@ -3292,8 +3312,19 @@ function renderLib(){
   let items=_libCache.filter(t=>!f||(t.title||'').toLowerCase().includes(f)||(t.artist||'').toLowerCase().includes(f));
   if(sort==='top') items=[...items].sort((a,b)=>(b.playCount||0)-(a.playCount||0));
   else if(sort==='az') items=[...items].sort((a,b)=>(a.title||'').localeCompare(b.title||'','es'));
-  // 'recent' = orden de _libCache (lastPlayedAt/addedAt desc)
   document.getElementById('libCnt').textContent=items.length;
+  if(sort==='style'){
+    // Agrupa por estilo (nombre de la playlist de origen); las sin estilo van al final.
+    const groups={};
+    items.forEach(t=>{ const g=(t.style||'').trim()||'Sin estilo'; (groups[g]=groups[g]||[]).push(t); });
+    const names=Object.keys(groups).sort((a,b)=>a==='Sin estilo'?1:b==='Sin estilo'?-1:a.localeCompare(b,'es'));
+    document.getElementById('libList').innerHTML=items.length?names.map(g=>
+      '<div style="font-family:var(--mono);font-size:10px;letter-spacing:1px;color:var(--cyan);padding:10px 4px 4px;text-transform:uppercase">🎵 '+esc(g)+' <span style="color:var(--txt3)">· '+groups[g].length+'</span></div>'
+      +groups[g].map(_libRow).join('')
+    ).join(''):'<div class="empty">Sin resultados</div>';
+    return;
+  }
+  // 'recent' = orden de _libCache (lastPlayedAt/addedAt desc)
   document.getElementById('libList').innerHTML=items.length?items.map(_libRow).join(''):'<div class="empty">Sin resultados</div>';
 }
 function renderLikes(){
