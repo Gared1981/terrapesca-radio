@@ -154,6 +154,18 @@ html,body{width:100%;height:100%;background:#05070c;color:#fff;font-family:'Inte
 .btn-play-main:active{transform:scale(.9)}
 .btn-play-main.live{background:linear-gradient(135deg,var(--red2),var(--red));color:#fff;box-shadow:0 8px 34px var(--redglow)}
 
+/* Carrusel de productos */
+.pcarousel{display:block;text-decoration:none;margin:8px 0 12px;background:rgba(255,255,255,.05);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,.07);border-radius:16px;padding:12px 14px;transition:background .2s}
+.pcarousel:active{background:rgba(255,255,255,.1)}
+.pcar-title{font-size:10px;letter-spacing:.16em;color:var(--red2,#e0241c);margin-bottom:10px;font-weight:800}
+.pcar-body{display:flex;align-items:center;gap:14px}
+.pcar-img{width:66px;height:66px;border-radius:12px;object-fit:cover;background:rgba(255,255,255,.06);flex:0 0 auto;box-shadow:0 4px 12px rgba(0,0,0,.4);transition:opacity .45s}
+.pcar-meta{min-width:0;flex:1}
+.pcar-name{color:#fff;font-weight:700;font-size:14px;line-height:1.25;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;transition:opacity .45s}
+.pcar-price{color:rgba(255,255,255,.82);font-size:13px;margin-top:3px;font-weight:600}
+.pcar-cta{color:var(--red2,#e0241c);font-size:11px;margin-top:5px;font-weight:700}
+.pcar-fade{opacity:.12}
+
 /* Próximas canciones */
 .upnext{margin:2px 0 12px;background:rgba(255,255,255,.05);backdrop-filter:blur(12px);
   border:1px solid rgba(255,255,255,.06);border-radius:16px;padding:12px 14px}
@@ -264,14 +276,23 @@ html,body{width:100%;height:100%;background:#05070c;color:#fff;font-family:'Inte
     </div>
   </div>
 
+  <!-- Sin prev/next (afectaban a toda la red). Solo play/pausa local. -->
   <div class="transport">
-    <!-- Prev: pide al studio reiniciar la pista (afecta a toda la red) -->
-    <button class="btn-t" onclick="skipPrev()" style="font-size:30px;opacity:.85">⏮</button>
-    <!-- Play/Pause -->
     <button class="btn-play-main" id="btnPlay" onclick="togglePlay()">▶</button>
-    <!-- Next: pide al studio saltar a la siguiente canción -->
-    <button class="btn-t" onclick="skipNext()" style="font-size:30px;opacity:.85">⏭</button>
   </div>
+
+  <!-- Carrusel de productos reales de Terrapesca (donde antes iban los controles) -->
+  <a class="pcarousel" id="pcar" href="#" target="_blank" rel="noopener" style="display:none">
+    <div class="pcar-title">🛒 EN TERRAPESCA</div>
+    <div class="pcar-body">
+      <img id="pcarImg" class="pcar-img" alt=""/>
+      <div class="pcar-meta">
+        <div class="pcar-name" id="pcarName"></div>
+        <div class="pcar-price" id="pcarPrice"></div>
+        <div class="pcar-cta">Ver en la tienda →</div>
+      </div>
+    </div>
+  </a>
 
   <div class="upnext" id="upnext" style="display:none">
     <div class="upnext-title">PRÓXIMAS CANCIONES</div>
@@ -481,9 +502,38 @@ function setupMediaSessionBase() {
   navigator.mediaSession.setActionHandler('play', () => { if (currentTrack?.ytId) playRemote(currentTrack, _liveNow()); });
   navigator.mediaSession.setActionHandler('pause', () => { try { if (ytReady) ytPlayer.pauseVideo(); } catch(_) {} });
   navigator.mediaSession.setActionHandler('stop', () => { try { if (ytReady) ytPlayer.pauseVideo(); } catch(_) {} });
-  navigator.mediaSession.setActionHandler('nexttrack', skipNext);
-  navigator.mediaSession.setActionHandler('previoustrack', skipPrev);
+  // Sin next/prev: los oyentes no deben mover la estación (afecta a toda la red).
+  try { navigator.mediaSession.setActionHandler('nexttrack', null); } catch(_) {}
+  try { navigator.mediaSession.setActionHandler('previoustrack', null); } catch(_) {}
 }
+
+// ── Carrusel de productos reales de Terrapesca (feed público, sin token) ──
+let _pcarItems = [], _pcarIdx = 0, _pcarTimer = null;
+async function loadProductCarousel() {
+  try {
+    const r = await fetch('/api/shop-feed'); const d = await r.json();
+    _pcarItems = (d.products || []).filter(p => p.image && p.title);
+    if (!_pcarItems.length) return;
+    for (let i = _pcarItems.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const t = _pcarItems[i]; _pcarItems[i] = _pcarItems[j]; _pcarItems[j] = t; }
+    document.getElementById('pcar').style.display = 'block';
+    _pcarShow(0);
+    clearInterval(_pcarTimer);
+    _pcarTimer = setInterval(() => { _pcarIdx = (_pcarIdx + 1) % _pcarItems.length; _pcarShow(_pcarIdx); }, 6000);
+  } catch (_) {}
+}
+function _pcarShow(i) {
+  const p = _pcarItems[i]; if (!p) return;
+  const img = document.getElementById('pcarImg'), name = document.getElementById('pcarName'),
+        price = document.getElementById('pcarPrice'), a = document.getElementById('pcar');
+  img.classList.add('pcar-fade'); name.classList.add('pcar-fade');
+  setTimeout(() => {
+    img.src = p.image; img.alt = p.title; name.textContent = p.title;
+    price.textContent = p.price ? ('$' + Math.round(parseFloat(p.price)).toLocaleString('es-MX') + ' MXN') : '';
+    a.href = p.url || '#';
+    img.classList.remove('pcar-fade'); name.classList.remove('pcar-fade');
+  }, 250);
+}
+loadProductCarousel();
 
 function updateNowPlaying(track) {
   currentTrack = track;
