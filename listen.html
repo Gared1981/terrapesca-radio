@@ -92,8 +92,8 @@ html,body{width:100%;height:100%;background:#05070c;color:#fff;font-family:'Inte
 }
 .art-thumb{
   position:relative;
-  width:min(190px,46vw);height:min(190px,46vw);
-  border-radius:20px;overflow:hidden;
+  width:min(150px,40vw);height:min(150px,40vw);
+  border-radius:18px;overflow:hidden;
   box-shadow:0 30px 90px rgba(0,0,0,.7), 0 0 0 1px rgba(255,255,255,.05);
   background:#0d1017;
   flex-shrink:0;
@@ -151,11 +151,11 @@ html,body{width:100%;height:100%;background:#05070c;color:#fff;font-family:'Inte
 .btn-play-main.live{background:linear-gradient(135deg,var(--red2),var(--red));color:#fff;box-shadow:0 8px 34px var(--redglow)}
 
 /* Carrusel de productos — protagonista, tipo hero para celular */
-.pcarousel{display:block;text-decoration:none;margin:14px 0;background:linear-gradient(160deg,rgba(224,36,28,.12),rgba(255,255,255,.03));backdrop-filter:blur(14px);border:1px solid rgba(224,36,28,.25);border-radius:22px;padding:16px;box-shadow:0 12px 44px rgba(0,0,0,.4);transition:transform .15s}
+.pcarousel{display:block;text-decoration:none;margin:8px 0;background:linear-gradient(160deg,rgba(224,36,28,.12),rgba(255,255,255,.03));backdrop-filter:blur(14px);border:1px solid rgba(224,36,28,.25);border-radius:20px;padding:13px;box-shadow:0 12px 44px rgba(0,0,0,.4);transition:transform .15s}
 .pcarousel:active{transform:scale(.98)}
 .pcar-title{font-size:11px;letter-spacing:.18em;color:var(--red2,#e0241c);margin-bottom:12px;font-weight:800}
 .pcar-body{display:flex;flex-direction:column;gap:12px}
-.pcar-img{width:100%;height:200px;border-radius:16px;object-fit:cover;background:rgba(255,255,255,.06);box-shadow:0 8px 26px rgba(0,0,0,.45);transition:opacity .45s}
+.pcar-img{width:100%;height:165px;border-radius:14px;object-fit:cover;background:rgba(255,255,255,.06);box-shadow:0 8px 26px rgba(0,0,0,.45);transition:opacity .45s}
 .pcar-meta{min-width:0}
 .pcar-name{color:#fff;font-weight:800;font-size:18px;line-height:1.25;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;transition:opacity .45s}
 .pcar-price{color:#fff;font-size:17px;margin-top:6px;font-weight:700}
@@ -422,6 +422,7 @@ function startListening() {
   connectWS();
   startSWPing();
   setupMediaSessionBase();
+  acquireWakeLock(); // mantener la pantalla encendida mientras se escucha
 
   // Reproducir lo que esté al aire (la metadata ya llegó por WS antes del tap)
   const t = (_pendingPlay && _pendingPlay.track) || currentTrack;
@@ -635,9 +636,27 @@ function startSWPing() {
     }).catch(() => {});
   }, 20000);
 }
+// ── Mantener la música viva ──
+// Wake Lock: evita que la pantalla se apague sola mientras se escucha (ideal
+// para una pantalla de tienda), así la música no se corta.
+let _wakeLock = null;
+async function acquireWakeLock() {
+  try {
+    if ('wakeLock' in navigator && !document.hidden && started) {
+      _wakeLock = await navigator.wakeLock.request('screen');
+      _wakeLock.addEventListener('release', () => { _wakeLock = null; });
+    }
+  } catch (_) {}
+}
+// Al volver a ver la página (pantalla encendida de nuevo o regresar de otra
+// pestaña, p.ej. tras abrir un producto): el reproductor de YouTube se pausa al
+// ocultarse en móvil, así que nos RE-SINCRONIZAMOS a la posición en vivo.
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden && playing && navigator.mediaSession) {
-    navigator.mediaSession.playbackState = 'playing';
+  if (document.hidden) return;
+  acquireWakeLock();
+  if (navigator.mediaSession) navigator.mediaSession.playbackState = 'playing';
+  if (started && currentTrack && currentTrack.ytId) {
+    setTimeout(() => { try { playRemote(currentTrack, _liveNow()); } catch (_) {} }, 500);
   }
 });
 
