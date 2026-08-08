@@ -695,8 +695,11 @@ input[type=range]::-moz-range-thumb{width:18px;height:24px;border-radius:5px;bac
     <!-- SPOTS + HISTORIAL -->
     <div>
       <div class="card">
-        <h3>📢 SPOTS <span class="cnt" id="spCnt">0</span></h3>
-        <div class="list" id="spotsList" style="max-height:150px"><div class="empty">Sin spots — genera en el panel</div></div>
+        <h3>📢 SPOTS <span class="cnt" id="spCnt">0</span>
+          <button onclick="document.getElementById('spotUpload').click()" title="Subir un MP3 ya hecho a la lista de spots" style="float:right;font-size:10px;font-family:var(--mono);padding:3px 8px;border-radius:6px;border:1px solid #2a5a2e;background:#122016;color:#7dffaa;cursor:pointer">📤 Subir MP3</button>
+        </h3>
+        <input type="file" id="spotUpload" accept="audio/mp3,audio/mpeg,audio/*" multiple style="display:none" onchange="uploadSpotMp3(this)"/>
+        <div class="list" id="spotsList" style="max-height:150px"><div class="empty">Sin spots — genera en el panel o sube un MP3</div></div>
       </div>
       <div class="card hist">
         <h3>🕒 HISTORIAL <span class="cnt" id="hCnt">0</span></h3>
@@ -1035,12 +1038,12 @@ function _wsQueuePreview(){
   }
   _wsSend({type:'QUEUE_PREVIEW',items});
 }
-function _wsSpotAudio(ab, name){
+function _wsSpotAudio(ab, name, mime){
   // Convert ArrayBuffer → base64 and relay as SPOT to all sucursal listeners
   try{
     const u8=new Uint8Array(ab);
     let b=''; for(let i=0;i<u8.length;i++) b+=String.fromCharCode(u8[i]);
-    _wsSend({ type:'SPOT', track:{b64:btoa(b), name:name||'DJ Rodo — Terrapesca'} });
+    _wsSend({ type:'SPOT', track:{b64:btoa(b), name:name||'DJ Rodo — Terrapesca', mime:mime||'audio/mpeg'} });
   }catch(e){ console.warn('[Studio→WS] spot encode error',e); }
 }
 // Voces de OpenAI (gpt-4o-mini-tts). Se mantienen alias de las claves antiguas
@@ -1729,12 +1732,14 @@ async function playSpot(){
   try{
     const bin=atob(sp.b64),arr=new Uint8Array(bin.length);
     for(let i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);
+    const mime=sp.mime||'audio/mpeg';
+    const baked=(mime!=='audio/mpeg'); // WAV = ya trae el fondo horneado
     document.getElementById('djNow').textContent='📢 '+(sp.name||'Spot Terrapesca');
     pushHistory({name:sp.name||'Spot',artist:'Spot publicitario',spot:true});
-    _wsSpotAudio(arr.buffer, sp.name||'Spot Terrapesca');
+    _wsSpotAudio(arr.buffer, sp.name||'Spot Terrapesca', mime);
     if(flags.duck) duckTo(0.12);
-    playSpotBed(sp.bed); // fondo musical elegido para este spot
-    await playClip(URL.createObjectURL(new Blob([arr],{type:'audio/mpeg'})));
+    if(!baked && sp.bed && sp.bed!=='none') playSpotBed(sp.bed); // spots viejos: fondo en vivo
+    await playClip(URL.createObjectURL(new Blob([arr],{type:mime})));
   }catch(e){}
   finally{
     console.log('[Rodo] spot ended — restoring music');
@@ -2735,17 +2740,20 @@ async function createSpotAudio(){
   _sgStatus('Generando audio…','var(--cyan)');
   try{
     const ab=await synthTTS(script,{voice:spotVoice(),vkVoice:_spotVkVoice(),base:SPOT_BASE_INSTR,extra:_spotVoiceExtra()});
+    const bed=(document.getElementById('spotBedSel')?.value)||'terrapesca';
+    if(bed&&bed!=='none') _sgStatus('Mezclando fondo…','var(--cyan)');
+    const {buf,mime}=await _mixSpot(ab,bed); // hornea el fondo (con fadeout) dentro del audio
     // Convert to base64
-    const u8=new Uint8Array(ab); let b='';
+    const u8=new Uint8Array(buf); let b='';
     for(let i=0;i<u8.length;i++) b+=String.fromCharCode(u8[i]);
     const b64=btoa(b);
-    await _saveSpotToIDB(name,b64,(document.getElementById('spotBedSel')?.value)||'terrapesca');
+    await _saveSpotToIDB(name,b64,bed,mime);
     _sgStatus(`✓ "${name}" guardado en la lista de spots`,'var(--grn)');
     document.getElementById('spotName').value='';
     toast('Spot guardado: '+name,'ok');
   }catch(e){_sgStatus('Error: '+e.message,'var(--red)');}
 }
-async function _saveSpotToIDB(name,b64,bed){
+async function _saveSpotToIDB(name,b64,bed,mime){
   const db=await openDB();
   return new Promise((res,rej)=>{
     const tx=db.transaction('session','readwrite');
@@ -2753,14 +2761,27 @@ async function _saveSpotToIDB(name,b64,bed){
     const req=store.get('spotsLibrary');
     req.onsuccess=()=>{
       const items=(req.result?.items||[]);
-      items.push({name,b64,bed:bed||'terrapesca',ts:Date.now()});
+      items.push({name,b64,bed:bed||'terrapesca',mime:mime||'audio/mpeg',ts:Date.now()});
       store.put({key:'spotsLibrary',items});
-      spots=items.filter(s=>s.b64).map(s=>({name:s.name,b64:s.b64,bed:s.bed||'terrapesca'}));
+      spots=items.filter(s=>s.b64).map(s=>({name:s.name,b64:s.b64,bed:s.bed||'terrapesca',mime:s.mime||'audio/mpeg'}));
       renderSpots();
       res();
     };
     req.onerror=rej;
   });
+}
+// Sube uno o varios MP3 ya hechos y los agrega a la lista de spots.
+function uploadSpotMp3(input){
+  const files=[...(input.files||[])]; if(!files.length) return;
+  files.forEach(f=>{
+    const r=new FileReader();
+    r.onload=async e=>{
+      const b64=(String(e.target.result||'').split(',')[1])||'';
+      if(b64){ const name=f.name.replace(/\.[^.]+$/,''); await _saveSpotToIDB(name,b64,'none','audio/mpeg'); toast('Spot subido: '+name,'ok'); }
+    };
+    r.readAsDataURL(f);
+  });
+  input.value='';
 }
 
 /* ================= FLAGS ================= */
@@ -2912,7 +2933,7 @@ async function loadShared(){
       queue=pl.items.filter(t=>t.type==='yt'&&t.ytId).map(t=>({ytId:t.ytId,name:t.name||t.title||'YouTube',artist:t.channelTitle||t.sub||''}));
     }
     const sp=await idbGet(db,'session','spotsLibrary');
-    if(sp&&sp.items){ spots=sp.items.filter(s=>s.b64).map(s=>({name:s.name,b64:s.b64,bed:s.bed||'terrapesca'})); }
+    if(sp&&sp.items){ spots=sp.items.filter(s=>s.b64).map(s=>({name:s.name,b64:s.b64,bed:s.bed||'terrapesca',mime:s.mime||'audio/mpeg'})); }
     // Fase 1: sembrar biblioteca desde la cola (idempotente) y crear la playlist
     // por defecto la primera vez que existe el store `playlists`.
     queue.forEach(q=>libUpsert(q));
@@ -3069,6 +3090,47 @@ function playSpotBed(bedKey){
   a.loop=true; a.volume=_jingleVol*master; _spotBedAudio=a; a.play().catch(()=>{});
 }
 function stopSpotBed(){ if(_spotBedAudio){ try{_spotBedAudio.pause();_spotBedAudio.currentTime=0;}catch(_){} revokeAudio(_spotBedAudio); _spotBedAudio=null; } }
+// Codifica un AudioBuffer (mono) a WAV PCM 16-bit → ArrayBuffer.
+function _audioBufferToWav(ab){
+  const numCh=1, sr=ab.sampleRate, len=ab.length, dataLen=len*2;
+  const buf=new ArrayBuffer(44+dataLen), dv=new DataView(buf);
+  const ws=(o,s)=>{for(let i=0;i<s.length;i++)dv.setUint8(o+i,s.charCodeAt(i));};
+  ws(0,'RIFF'); dv.setUint32(4,36+dataLen,true); ws(8,'WAVE'); ws(12,'fmt ');
+  dv.setUint32(16,16,true); dv.setUint16(20,1,true); dv.setUint16(22,numCh,true);
+  dv.setUint32(24,sr,true); dv.setUint32(28,sr*2,true); dv.setUint16(32,2,true); dv.setUint16(34,16,true);
+  ws(36,'data'); dv.setUint32(40,dataLen,true);
+  const ch=ab.getChannelData(0); let off=44;
+  for(let i=0;i<len;i++){ let s=Math.max(-1,Math.min(1,ch[i])); dv.setInt16(off, s<0?s*0x8000:s*0x7FFF, true); off+=2; }
+  return buf;
+}
+// Mezcla la voz (mp3 ArrayBuffer) con el fondo elegido; el fondo hace fade-in al
+// inicio y FADE-OUT al final para terminar junto con la voz. Devuelve WAV mono.
+// Si no hay fondo o no hay soporte de Web Audio, regresa la voz mp3 tal cual.
+async function _mixSpot(voiceAB, bedKey){
+  if(!bedKey || bedKey==='none') return {buf:voiceAB, mime:'audio/mpeg'};
+  const AC=window.AudioContext||window.webkitAudioContext;
+  if(!AC || !window.OfflineAudioContext) return {buf:voiceAB, mime:'audio/mpeg'};
+  let voiceBuf, bedBuf; const dctx=new AC();
+  try{
+    voiceBuf=await dctx.decodeAudioData(voiceAB.slice(0));
+    const bedUrl=(bedKey==='terrapesca')?DEFAULT_JINGLE_URL:('/jingle-'+bedKey.replace(/_/g,'-')+'.mp3');
+    const bedAB=await (await fetch(bedUrl)).arrayBuffer();
+    bedBuf=await dctx.decodeAudioData(bedAB);
+  }catch(e){ try{dctx.close();}catch(_){} return {buf:voiceAB, mime:'audio/mpeg'}; }
+  try{dctx.close();}catch(_){}
+  const sr=44100, tail=1.0, total=voiceBuf.duration+tail;
+  const off=new OfflineAudioContext(1, Math.max(1,Math.ceil(total*sr)), sr);
+  const v=off.createBufferSource(); v.buffer=voiceBuf; v.connect(off.destination); v.start(0);
+  const b=off.createBufferSource(); b.buffer=bedBuf; b.loop=true;
+  const g=off.createGain(); const vol=0.22;
+  g.gain.setValueAtTime(0,0);
+  g.gain.linearRampToValueAtTime(vol,0.5);                       // fade in
+  g.gain.setValueAtTime(vol, Math.max(0.5,total-1.2));
+  g.gain.linearRampToValueAtTime(0,total);                       // fade out: terminan juntos
+  b.connect(g).connect(off.destination); b.start(0); b.stop(total);
+  const rendered=await off.startRendering();
+  return {buf:_audioBufferToWav(rendered), mime:'audio/wav'};
+}
 function loadJingle(input){
   const f=input.files[0]; if(!f) return;
   const r=new FileReader();
