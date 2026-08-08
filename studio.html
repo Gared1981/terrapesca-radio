@@ -585,9 +585,9 @@ input[type=range]::-moz-range-thumb{width:18px;height:24px;border-radius:5px;bac
   <div class="dj-card">
     <h3>🎙️ DJ RODO <span id="djState" style="color:var(--txt3)">standby</span></h3>
     <div class="seg-ctrl" id="djFreqCtrl">
-      <div class="s" data-f="baja" onclick="setDJFreq('baja')">CADA 2 H</div>
-      <div class="s on" data-f="media" onclick="setDJFreq('media')">CADA 1 H</div>
-      <div class="s" data-f="alta" onclick="setDJFreq('alta')">CADA 30 MIN</div>
+      <div class="s" data-f="alta" onclick="setDJFreq('alta')">CADA 3</div>
+      <div class="s on" data-f="media" onclick="setDJFreq('media')">CADA 5</div>
+      <div class="s" data-f="baja" onclick="setDJFreq('baja')">CADA 6</div>
     </div>
     <!-- Expresividad de voz -->
     <div style="margin-top:8px;font-size:9px;font-family:var(--mono);color:var(--txt3);letter-spacing:1px;margin-bottom:3px">EXPRESIVIDAD</div>
@@ -626,7 +626,7 @@ input[type=range]::-moz-range-thumb{width:18px;height:24px;border-radius:5px;bac
     </div>
     <div class="dj-cue" id="djCue">Próxima intervención…</div>
     <div id="campaignBanner" style="display:none;background:linear-gradient(90deg,#1a0a00,#2a1500);border:1px solid #ff6600;border-radius:8px;padding:8px 12px;margin-bottom:8px;font-size:11px;font-family:var(--mono);color:#ffaa44;letter-spacing:.5px"></div>
-    <div class="dj-now" id="djNow">DJ Rodo entra una vez por hora (9 a. m.–6 p. m.) con un tema al azar: spot, clima, hora o consejo de pesca.</div>
+    <div class="dj-now" id="djNow">DJ Rodo entra cada 3, 5 o 6 canciones (9 a. m.–6 p. m.) con un tema al azar: spot, clima, hora o consejo de pesca.</div>
     <!-- Estado de ánimo para inicio aleatorio -->
     <div style="margin-top:8px;font-size:9px;font-family:var(--mono);color:var(--txt3);letter-spacing:1px;margin-bottom:4px">INICIO CON ESTADO DE ÁNIMO</div>
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-bottom:6px" id="moodRow">
@@ -1560,9 +1560,8 @@ function _resumeActiveDeckIfStalled(){
 let djFreq='media';
 let _djSongCount=0;
 let _djRotIdx=0;
-let _lastDJFireAt=0; // timestamp de la última intervención automática
-// Minutos entre intervenciones de Rodo (por defecto: cada hora).
-const DJ_INTERVAL_MIN={baja:120,media:60,alta:30};
+// Canciones entre intervenciones de Rodo: alta=cada 3, media=cada 5, baja=cada 6.
+const DJ_SONGS_BETWEEN={alta:3,media:5,baja:6};
 // Rodo solo interviene en horario laboral (9 a. m. a 6 p. m., hora local).
 function _djHoursOK(){ const h=new Date().getHours(); return h>=9 && h<18; }
 
@@ -1620,10 +1619,10 @@ function setDJFreq(f){djFreq=f;document.querySelectorAll('#djFreqCtrl .s').forEa
 function djShouldFire(){
   if(!flags.dj) return false;
   if(!_djHoursOK()){ refreshDJStatus(); return false; }      // fuera de 9-18h
-  const iv=(DJ_INTERVAL_MIN[djFreq]||60)*60000;
-  const now=Date.now();
-  if(_lastDJFireAt && now-_lastDJFireAt<iv){ refreshDJStatus(); return false; }
-  _lastDJFireAt=now; refreshDJStatus(); return true;
+  _djSongCount++;
+  if(_djSongCount>=(DJ_SONGS_BETWEEN[djFreq]||5)){ _djSongCount=0; refreshDJStatus(); return true; }
+  refreshDJStatus();
+  return false;
 }
 // Tipo de intervención ALEATORIO entre: spot, clima, hora y consejos de pesca.
 function nextDJItem(){
@@ -2491,11 +2490,10 @@ function seekBar(ev,id){
 function djStatusInfo(){
   if(!flags.dj) return {text:'DJ Rodo desactivado',soon:false};
   if(!_djHoursOK()) return {text:'🌙 Rodo descansa — interviene de 9 a. m. a 6 p. m.',soon:false};
-  const iv=(DJ_INTERVAL_MIN[djFreq]||60)*60000;
-  if(!_lastDJFireAt) return {text:'🎙️ Rodo entra en la próxima canción (luego, cada hora)',soon:true};
-  const mins=Math.ceil((iv-(Date.now()-_lastDJFireAt))/60000);
-  if(mins<=0) return {text:'🎙️ Rodo entra al terminar esta canción',soon:true};
-  return {text:`Próxima intervención de Rodo en ~${mins} min (spot, clima, hora o consejo, al azar)`,soon:false};
+  const total=DJ_SONGS_BETWEEN[djFreq]||5;
+  const left=Math.max(0,total-_djSongCount);
+  if(left<=0) return {text:'🎙️ Rodo entra al terminar esta canción (spot, clima, hora o consejo)',soon:true};
+  return {text:`Próxima intervención de Rodo en ${left} canción${left>1?'es':''} (spot, clima, hora o consejo, al azar)`,soon:false};
 }
 function refreshDJStatus(){
   const el=document.getElementById('djCue'); if(!el) return;
