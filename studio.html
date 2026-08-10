@@ -1199,6 +1199,29 @@ function fmt(s){if(!s||isNaN(s)||s<0)return'0:00';const m=Math.floor(s/60),x=Mat
 // Extrae el texto de una respuesta de la API de Anthropic (el primer bloque
 // puede ser de otro tipo, p.ej. thinking — no asumir content[0]).
 function aiText(d){return (((d&&d.content)||[]).find(b=>b.type==='text')||{}).text||'';}
+// Extrae el primer objeto/array JSON del texto de la IA aunque venga envuelto en
+// prosa o en fences ```json … ```. Devuelve el objeto parseado o null.
+function aiJSON(d){
+  let t=aiText(d);
+  if(!t) return null;
+  // quita fences de markdown
+  t=t.replace(/```(?:json)?/gi,'').trim();
+  // 1) intento directo
+  try{ return JSON.parse(t); }catch(_){}
+  // 2) recorta desde el primer { o [ hasta su cierre equilibrado
+  const s=t.search(/[\[{]/);
+  if(s<0) return null;
+  const open=t[s], close=open==='{'?'}':']';
+  let depth=0, inStr=false, esc=false;
+  for(let i=s;i<t.length;i++){
+    const ch=t[i];
+    if(inStr){ if(esc)esc=false; else if(ch==='\\')esc=true; else if(ch==='"')inStr=false; continue; }
+    if(ch==='"'){ inStr=true; continue; }
+    if(ch===open)depth++;
+    else if(ch===close){ depth--; if(depth===0){ try{ return JSON.parse(t.slice(s,i+1)); }catch(_){ return null; } } }
+  }
+  return null;
+}
 
 /* ================= STATE ================= */
 let queue=[];          // [{ytId,name,artist}]
@@ -2247,14 +2270,16 @@ Sugiere 5 canciones REALES y conocidas que encajen con el mood y el estilo de lo
     });
     const d=await r.json();
     if(!r.ok||d.error) throw new Error(d.error?.message||d.error||'Error de IA');
-    let songs=[];
-    try{songs=(JSON.parse(aiText(d).trim()).songs||[]).map(s=>s.q).filter(Boolean);}catch(_){}
-    if(!songs.length) throw new Error('La IA no devolvió sugerencias');
-    let added=0;
+    const parsed=aiJSON(d);
+    const songs=((parsed&&parsed.songs)||[]).map(s=>typeof s==='string'?s:(s&&s.q)).filter(Boolean);
+    if(!songs.length) throw new Error('La IA no devolvió sugerencias (respuesta: '+aiText(d).slice(0,80)+')');
+    let added=0, searched=0, ytErr='';
     for(const q of songs.slice(0,5)){
       try{
+        searched++;
         const sr=await fetch(`/api/ytsearch?q=${encodeURIComponent(q)}&key=${encodeURIComponent(cfg.ytKey)}`);
         const sd=await sr.json();
+        if(sd&&sd.error){ ytErr=(sd.error.message||sd.error)+''; continue; }
         const hit=(sd.items||[]).find(it=>!queue.some(x=>x.ytId===it.ytId));
         if(hit){
           const tr={ytId:hit.ytId,name:hit.title,artist:hit.channel};
@@ -2265,7 +2290,8 @@ Sugiere 5 canciones REALES y conocidas que encajen con el mood y el estilo de lo
       }catch(_){}
     }
     if(added){renderQueue();saveQueue();toast(`✨ ${added} canciones nuevas agregadas a la cola`,'ok');}
-    else toast('No se encontraron canciones nuevas','error');
+    else if(ytErr) throw new Error('YouTube: '+ytErr.slice(0,90));
+    else toast('Las 5 sugerencias ya estaban en la cola — intenta de nuevo','error');
   }catch(e){toast('⚠ '+e.message,'error');}
   finally{
     _aiSuggestBusy=false;
@@ -3314,14 +3340,19 @@ async function startWithMood(){
       const opts=candidates.map(c=>{const i=queue.indexOf(c);return `${i}: "${c.name}"${c.artist?' — '+c.artist:''}`;}).join('\n');
       const r=await fetch('/api/anthropic',{method:'POST',
         headers:{'Content-Type':'application/json','x-api-key':_hv(cfg.antKey)},
-        body:JSON.stringify({model:'claude-sonnet-5',thinking:{type:'disabled'},max_tokens:80,
-          messages:[{role:'user',content:`Eres DJ Rodo. Estado de ánimo: ${mood.mood} — ${mood.desc}.\nCANCIONES DISPONIBLES (no repetidas recientemente):\n${opts}\n\nElige la que MEJOR encaje. Responde SOLO con este JSON:\n{"idx":N}`}]})
+        body:JSON.stringify({model:'claude-sonnet-5',thinking:{type:'disabled'},max_tokens:120,
+          messages:[{role:'user',content:`Eres DJ Rodo, programador musical. Estado de ánimo objetivo: ${mood.mood} — ${mood.desc}.\nCANCIONES DISPONIBLES (índice: título — artista):\n${opts}\n\nElige las 4 canciones que MEJOR encajen con ese estado de ánimo, de la que más encaja a la que menos. Devuelve SOLO este JSON, sin texto extra:\n{"top":[índice1,índice2,índice3,índice4]}`}]})
       });
       const d=await r.json();
-      const raw=aiText(d).trim();
-      let idx=queue.indexOf(candidates[0]);
-      try{const p=JSON.parse(raw);if(Number.isInteger(p.idx)&&p.idx>=0&&p.idx<queue.length)idx=p.idx;}catch(_){}
-      _launch(idx); return;
+      const p=aiJSON(d)||{};
+      // índices válidos que la IA rankeó y que siguen entre los candidatos frescos
+      const valid=(Array.isArray(p.top)?p.top:(Number.isInteger(p.idx)?[p.idx]:[]))
+        .filter(i=>Number.isInteger(i)&&i>=0&&i<queue.length&&candidates.includes(queue[i]));
+      if(valid.length){
+        // Elige al azar entre las 3 mejores para que el mood varíe entre lanzamientos
+        const pool=valid.slice(0,3);
+        _launch(pool[Math.floor(Math.random()*pool.length)]); return;
+      }
     }catch(_){}
   }
   // Fallback: random from unplayed
