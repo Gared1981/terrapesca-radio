@@ -35,8 +35,8 @@ button:active{transform:scale(.96)}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:rgba(255,255,255,.12);border-radius:8px}
 ::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.22)}
-.wrap{position:relative;z-index:1;max-width:1180px;margin-left:232px;padding:14px 22px 110px} /* deja lugar a sidebar y npbar */
-@media(min-width:1650px){.wrap{margin-left:calc(232px + (100vw - 232px - 1180px)/2)}}
+.wrap{position:relative;z-index:1;max-width:1480px;margin-left:232px;padding:14px 22px 110px} /* deja lugar a sidebar y npbar */
+@media(min-width:1760px){.wrap{margin-left:calc(232px + (100vw - 232px - 1480px)/2)}}
 @media(max-width:900px){.wrap{margin-left:0;padding:10px 12px 130px}}
 
 /* APP SHELL (Fase 8) — sidebar de navegación tipo plataforma */
@@ -249,6 +249,9 @@ input[type=range]::-moz-range-thumb{width:18px;height:24px;border-radius:5px;bac
 .cols{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .side2{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start}
 .side2>.jingle-card{margin-bottom:12px}
+/* Fila de trabajo: DJ Rodo + Generador de spots lado a lado en escritorio */
+.work2{display:grid;grid-template-columns:1.02fr 1fr;gap:12px;align-items:start}
+.work2>.dj-card,.work2>.spot-gen{margin-bottom:12px}
 .card{background:var(--glass);backdrop-filter:blur(14px);border:1px solid var(--line);border-radius:var(--r);padding:14px;margin-bottom:12px}
 .card h3{font-size:11px;font-family:var(--mono);letter-spacing:1.5px;color:var(--txt2);margin-bottom:10px;
   display:flex;align-items:center;justify-content:space-between}
@@ -342,7 +345,10 @@ input[type=range]::-moz-range-thumb{width:18px;height:24px;border-radius:5px;bac
   .toggle-row{flex:1 1 100%;flex-direction:row}
   .cols{grid-template-columns:1fr}
   .side2{grid-template-columns:1fr}
+  .work2{grid-template-columns:1fr}
 }
+/* En pantallas medianas la fila DJ+Spot se apila para que cada tarjeta tenga ancho */
+@media(max-width:1150px){ .work2{grid-template-columns:1fr} }
 </style>
 </head>
 <body>
@@ -587,6 +593,8 @@ input[type=range]::-moz-range-thumb{width:18px;height:24px;border-radius:5px;bac
   </div>
   </div><!-- /.side2 -->
 
+  <!-- Fila de trabajo: DJ Rodo + Generador de spots lado a lado -->
+  <div class="work2">
   <!-- DJ RODO -->
   <div class="dj-card">
     <h3>🎙️ DJ RODO <span id="djState" style="color:var(--txt3)">standby</span></h3>
@@ -685,6 +693,7 @@ input[type=range]::-moz-range-thumb{width:18px;height:24px;border-radius:5px;bac
     </div>
     <div class="spot-gen-status" id="spotGenStatus"></div>
   </div>
+  </div><!-- /.work2 -->
 
   <div class="cols">
     <!-- COLA -->
