@@ -2,7 +2,39 @@ const http = require('http');
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const { WebSocketServer } = require('ws');
+
+// ---- LOGIN / GATE ----
+// Todas las páginas (Cabina, Sucursal, Tienda, Panel, Inicio) requieren login.
+// EXCEPCIÓN: /listen es pública (la radio para el público).
+// Credenciales por variables de entorno (recomendado en Railway) con respaldo por defecto.
+const AUTH_USER = process.env.TP_USER || 'EDGAR';
+const AUTH_PASS = process.env.TP_PASS || '9970002';
+// Secreto para firmar la cookie; si no se define, se deriva de las credenciales
+// (basta para un gate simple de una sola cuenta; en producción define TP_AUTH_SECRET).
+const AUTH_SECRET = process.env.TP_AUTH_SECRET || ('tp-radio-' + AUTH_USER + '-' + AUTH_PASS);
+const AUTH_TOKEN = crypto.createHash('sha256').update(AUTH_USER + ':' + AUTH_PASS + ':' + AUTH_SECRET).digest('hex');
+const AUTH_COOKIE = 'tp_auth';
+
+function parseCookies(req) {
+  const out = {};
+  const raw = req.headers && req.headers.cookie;
+  if (!raw) return out;
+  raw.split(';').forEach(p => {
+    const i = p.indexOf('=');
+    if (i > -1) out[p.slice(0, i).trim()] = decodeURIComponent(p.slice(i + 1).trim());
+  });
+  return out;
+}
+function isAuthed(req) {
+  return parseCookies(req)[AUTH_COOKIE] === AUTH_TOKEN;
+}
+function readBody(req, cb) {
+  let body = '';
+  req.on('data', c => { body += c; if (body.length > 1e6) req.destroy(); });
+  req.on('end', () => cb(body));
+}
 
 let ytdl = null;
 try { ytdl = require('@distube/ytdl-core'); } catch(e) { console.warn('ytdl-core not available:', e.message); }
@@ -276,6 +308,33 @@ const server = http.createServer((req, res) => {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, xi-api-key, x-api-key, x-openai-key, api-key, userid, x-shopify-shop, x-shopify-token, anthropic-version');
 
   if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
+
+  // ── Login: valida credenciales y setea cookie httpOnly ──
+  if (req.url === '/api/login' && req.method === 'POST') {
+    readBody(req, (body) => {
+      let user = '', pass = '';
+      try { const j = JSON.parse(body || '{}'); user = String(j.user || ''); pass = String(j.pass || ''); } catch (_) {}
+      if (user === AUTH_USER && pass === AUTH_PASS) {
+        const secure = (req.headers['x-forwarded-proto'] === 'https') ? '; Secure' : '';
+        res.setHeader('Set-Cookie', `${AUTH_COOKIE}=${AUTH_TOKEN}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000${secure}`);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true }));
+      } else {
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: false, error: 'Usuario o contraseña incorrectos' }));
+      }
+    });
+    return;
+  }
+
+  // ── Logout: borra la cookie ──
+  if (req.url === '/api/logout' && (req.method === 'POST' || req.method === 'GET')) {
+    res.setHeader('Set-Cookie', `${AUTH_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`);
+    if (req.method === 'GET') { res.writeHead(302, { Location: '/' }); res.end(); return; }
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: true }));
+    return;
+  }
 
   // ── Health check ──
   if (req.url === '/health') {
@@ -799,7 +858,18 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // Página de login (siempre pública)
+  if (req.url === '/login' || req.url === '/login.html') {
+    const lp = path.join(__dirname, 'login.html');
+    if (fs.existsSync(lp)) {
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      fs.createReadStream(lp).pipe(res);
+      return;
+    }
+  }
+
   let filePath = null;
+  let isPublicPage = false; // /listen es pública, el resto exige login
   if (req.url === '/' || req.url === '/index.html') {
     // Portada: selector de rol (Cabina / Sucursal / Escuchar / Tienda)
     filePath = path.join(__dirname, 'index.html');
@@ -813,9 +883,20 @@ const server = http.createServer((req, res) => {
     filePath = path.join(__dirname, 'sucursal.html');
   } else if (req.url === '/listen' || req.url === '/listen.html') {
     filePath = path.join(__dirname, 'listen.html');
+    isPublicPage = true;
   }
 
   if (filePath && fs.existsSync(filePath)) {
+    // Gate: si la página no es pública y no hay sesión, muestra el login.
+    if (!isPublicPage && !isAuthed(req)) {
+      const lp = path.join(__dirname, 'login.html');
+      if (fs.existsSync(lp)) {
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        fs.createReadStream(lp).pipe(res);
+        return;
+      }
+      res.writeHead(302, { Location: '/login' }); res.end(); return;
+    }
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
     fs.createReadStream(filePath).pipe(res);
     return;
