@@ -638,7 +638,7 @@ input[type=range]::-moz-range-thumb{width:18px;height:24px;border-radius:5px;bac
     </div>
     <div class="dj-cue" id="djCue">Próxima intervención…</div>
     <div id="campaignBanner" style="display:none;background:linear-gradient(90deg,#1a0a00,#2a1500);border:1px solid #ff6600;border-radius:8px;padding:8px 12px;margin-bottom:8px;font-size:11px;font-family:var(--mono);color:#ffaa44;letter-spacing:.5px"></div>
-    <div class="dj-now" id="djNow">DJ Rodo entra cada 3, 5 o 6 canciones (9 a. m.–6 p. m.) con un tema al azar: spot, clima, hora o consejo de pesca.</div>
+    <div class="dj-now" id="djNow">Rodo habla L–V 9 a. m.–6 p. m. y sábados 9 a. m.–2 p. m. (clima, hora o consejo, al azar). Fuera de ese horario y los domingos solo se reproducen spots entre canciones.</div>
     <!-- Estado de ánimo para inicio aleatorio -->
     <div style="margin-top:8px;font-size:9px;font-family:var(--mono);color:var(--txt3);letter-spacing:1px;margin-bottom:4px">INICIO CON ESTADO DE ÁNIMO</div>
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-bottom:6px" id="moodRow">
@@ -1474,6 +1474,9 @@ function doCrossfade(){
       nxt.vol=Math.min(1,p);
       try{cur.player.setVolume(dvol(cur));}catch(_){}
       try{nxt.player.setVolume(dvol(nxt));}catch(_){}
+      // Mueve la perilla del crossfader en tiempo real junto con el audio,
+      // en vez de saltar de golpe al final. Va hacia el deck que entra (nxt).
+      try{ const xf=document.getElementById('xf'); if(xf) xf.value=nxt.id===1?Math.round(p*100):Math.round(100*(1-p)); }catch(_){}
       if(s>=steps){
         clearInterval(t); clearTimeout(_xfadeSafe);
         // Finalize: protect every step so a single throw never leaves _xfading stuck true.
@@ -1623,8 +1626,17 @@ let _djSongCount=0;
 let _djRotIdx=0;
 // Canciones entre intervenciones de Rodo: alta=cada 3, media=cada 5, baja=cada 6.
 const DJ_SONGS_BETWEEN={alta:3,media:5,baja:6};
-// Rodo solo interviene en horario laboral (9 a. m. a 6 p. m., hora local).
-function _djHoursOK(){ const h=new Date().getHours(); return h>=9 && h<18; }
+// Rodo (locución: clima, hora, consejos) solo interviene en horario laboral:
+//   Lunes a viernes 9 a. m. – 6 p. m.
+//   Sábado 9 a. m. – 2 p. m.
+//   Domingo: no interviene.
+// Fuera de estos horarios NO habla, pero los SPOTS sí siguen sonando entre canciones.
+function _djHoursOK(){
+  const now=new Date(); const day=now.getDay(); const h=now.getHours();
+  if(day>=1 && day<=5) return h>=9 && h<18;   // L–V
+  if(day===6)          return h>=9 && h<14;   // Sábado
+  return false;                                // Domingo
+}
 
 /* ================= CAMPAÑA VENTA NOCTURNA ================= */
 const CAMPAIGN={
@@ -1679,14 +1691,19 @@ function _djRotation(){return _campaignActive()?DJ_ROTATION_CAMPAIGN:DJ_ROTATION
 function setDJFreq(f){djFreq=f;document.querySelectorAll('#djFreqCtrl .s').forEach(s=>s.classList.toggle('on',s.dataset.f===f));refreshDJStatus();}
 function djShouldFire(){
   if(!flags.dj) return false;
-  if(!_djHoursOK()){ refreshDJStatus(); return false; }      // fuera de 9-18h
+  // La cadencia corre siempre (entre canciones). Dentro del horario Rodo habla
+  // (clima/hora/consejo/spot); fuera del horario solo se cuelan spots.
   _djSongCount++;
   if(_djSongCount>=(DJ_SONGS_BETWEEN[djFreq]||5)){ _djSongCount=0; refreshDJStatus(); return true; }
   refreshDJStatus();
   return false;
 }
-// Tipo de intervención ALEATORIO entre: spot, clima, hora y consejos de pesca.
+// Dentro del horario de locución: tipo ALEATORIO entre spot, clima, hora y consejos.
+// Fuera del horario (noches, domingos, etc.): SOLO spots. Sin spots → nada.
 function nextDJItem(){
+  if(!_djHoursOK()){
+    return spots.length ? {kind:'spot'} : null;
+  }
   const pool=['WEATHER_REPORT','TIME_CHECK','FISHING_TIP'];
   if(spots.length) pool.push('SPOT');
   const pick=pool[Math.floor(Math.random()*pool.length)];
@@ -1705,8 +1722,10 @@ async function djBetweenThenCrossfade(){
   }
 
   const item=nextDJItem();
-  if(item.kind==='spot'){ await playSpot(); }
-  else { await playDJ(item.type); }
+  if(item){
+    if(item.kind==='spot'){ await playSpot(); }
+    else { await playDJ(item.type); }
+  }
 
   // If Rodo chose a different song via AI, swap it onto the inactive deck
   if(_djNextSong>=0 && queue[_djNextSong]){
@@ -1725,8 +1744,11 @@ async function djBetweenThenCrossfade(){
 }
 function djInterveneNow(){
   if(djActive){return;}
-  const item=nextDJItem();
-  if(item.kind==='spot') playSpot(); else playDJ(item.type);
+  // Botón manual: override — Rodo interviene ahora aunque sea fuera de horario.
+  const pool=['WEATHER_REPORT','TIME_CHECK','FISHING_TIP'];
+  if(spots.length) pool.push('SPOT');
+  const pick=pool[Math.floor(Math.random()*pool.length)];
+  if(pick==='SPOT') playSpot(); else playDJ(pick);
 }
 async function playDJ(type){
   if(djActive) return;
@@ -2555,9 +2577,15 @@ function seekBar(ev,id){
 /* ---- DJ next-intervention status ---- */
 function djStatusInfo(){
   if(!flags.dj) return {text:'DJ Rodo desactivado',soon:false};
-  if(!_djHoursOK()) return {text:'🌙 Rodo descansa — interviene de 9 a. m. a 6 p. m.',soon:false};
   const total=DJ_SONGS_BETWEEN[djFreq]||5;
   const left=Math.max(0,total-_djSongCount);
+  const talking=_djHoursOK();
+  // Fuera del horario de locución solo se reproducen spots entre canciones.
+  if(!talking){
+    if(!spots.length) return {text:'🌙 Rodo descansa (L–V 9–18 h · Sáb 9–14 h). Fuera de horario solo suenan spots — no hay spots cargados.',soon:false};
+    if(left<=0) return {text:'📢 Entra un spot al terminar esta canción (fuera del horario de locución)',soon:true};
+    return {text:`🌙 Rodo descansa · próximo spot en ${left} canción${left>1?'es':''} (fuera de horario solo spots)`,soon:false};
+  }
   if(left<=0) return {text:'🎙️ Rodo entra al terminar esta canción (spot, clima, hora o consejo)',soon:true};
   return {text:`Próxima intervención de Rodo en ${left} canción${left>1?'es':''} (spot, clima, hora o consejo, al azar)`,soon:false};
 }
