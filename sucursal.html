@@ -658,6 +658,7 @@ function initWS(){
     ws=new WebSocket(url);
     setStatus('connecting','Conectando al servidor...');
     ws.onopen=()=>{
+      try{ ws.send(JSON.stringify({type:'HELLO',role:'sucursal'})); }catch(_){}
       setStatus('ok','Señal recibida');
       setLed('ledSignal',true,'green');
     };

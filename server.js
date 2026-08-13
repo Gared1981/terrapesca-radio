@@ -990,9 +990,52 @@ function autopilotAdvance(dir) {
   _apBroadcast();
 }
 
-wss.on('connection', (ws) => {
+// ---- OYENTES: ubicación aproximada por IP (solo ciudad, nunca dirección) ----
+const _geoCache = new Map(); // ip -> {city,region,country,lat,lon}
+const LISTENER_ROLES = ['listener', 'sucursal', 'tienda'];
+const CONTROLLER_ROLES = ['studio', 'panel'];
+function _clientIP(req) {
+  const xf = (req.headers['x-forwarded-for'] || '').split(',')[0].trim();
+  return (xf || (req.socket && req.socket.remoteAddress) || '').replace(/^::ffff:/, '');
+}
+function _isPrivateIP(ip) {
+  return !ip || ip === '::1' || ip.startsWith('127.') || ip.startsWith('10.') ||
+    ip.startsWith('192.168.') || /^172\.(1[6-9]|2\d|3[01])\./.test(ip);
+}
+function _geoLookup(ip, cb) {
+  if (_isPrivateIP(ip)) { cb(null); return; }
+  if (_geoCache.has(ip)) { cb(_geoCache.get(ip)); return; }
+  const r = https.request({ hostname: 'ipwho.is', path: '/' + encodeURIComponent(ip), method: 'GET', headers: { 'User-Agent': 'terrapesca-radio' } }, (res) => {
+    let raw = ''; res.on('data', c => raw += c); res.on('end', () => {
+      try { const d = JSON.parse(raw);
+        if (d && d.success) { const g = { city: d.city || '', region: d.region || '', country: d.country || '', lat: d.latitude, lon: d.longitude }; _geoCache.set(ip, g); cb(g); return; }
+      } catch (_) {}
+      cb(null);
+    });
+  });
+  r.on('error', () => cb(null));
+  r.setTimeout(6000, () => { r.destroy(); cb(null); });
+  r.end();
+}
+function collectListeners() {
+  const items = []; let total = 0;
+  wss.clients.forEach(c => {
+    if (c.readyState !== 1 || !LISTENER_ROLES.includes(c._role)) return;
+    total++;
+    const g = c._geo;
+    items.push({ role: c._role, city: (g && g.city) || '', region: (g && g.region) || '', country: (g && g.country) || '', lat: g ? g.lat : null, lon: g ? g.lon : null });
+  });
+  return { total, items };
+}
+function broadcastListeners() {
+  const data = JSON.stringify(Object.assign({ type: 'LISTENERS' }, collectListeners()));
+  wss.clients.forEach(c => { if (c.readyState === 1 && CONTROLLER_ROLES.includes(c._role)) { try { c.send(data); } catch (_) {} } });
+}
+
+wss.on('connection', (ws, req) => {
   console.log('Cliente conectado. Total:', wss.clients.size);
   ws.isAlive = true;
+  ws._ip = _clientIP(req);
   ws.on('pong', () => { ws.isAlive = true; });
   ws.send(JSON.stringify({ type: 'SYNC', state: radioState }));
   if (radioState.jingleB64) ws.send(JSON.stringify({ type: 'JINGLE_SET', b64: radioState.jingleB64 }));
@@ -1001,6 +1044,14 @@ wss.on('connection', (ws) => {
     try {
       const msg = JSON.parse(raw);
       switch (msg.type) {
+        case 'HELLO':
+          // El cliente se identifica (listener/sucursal/tienda/studio/panel).
+          ws._role = String(msg.role || '').slice(0, 20);
+          if (LISTENER_ROLES.includes(ws._role) && !ws._geo) {
+            _geoLookup(ws._ip, (g) => { if (g) ws._geo = g; broadcastListeners(); });
+          }
+          broadcastListeners();
+          break;
         case 'PLAY':
           // Un PLAY manual (cabina en vivo) tiene prioridad sobre la Radio 24/7.
           if (autopilot.on) stopAutopilot();
@@ -1082,6 +1133,7 @@ wss.on('connection', (ws) => {
 
   ws.on('close', () => {
     console.log('Cliente desconectado. Total:', wss.clients.size);
+    if (LISTENER_ROLES.includes(ws._role)) broadcastListeners();
   });
 });
 
