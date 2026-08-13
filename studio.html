@@ -1950,15 +1950,25 @@ function horaRadio(){
 const WCITIES={culiacan:{n:'Culiacán',lat:24.8092,lng:-107.3938},mazatlan:{n:'Mazatlán',lat:23.2494,lng:-106.4111},los_mochis:{n:'Los Mochis',lat:25.7919,lng:-109.0200}};
 const WKEYS=['culiacan','mazatlan','los_mochis'];
 let _wCache={};
+// Pronóstico oficial SMN (CONAGUA): probabilidad de lluvia + cielo + máx/mín.
+let _smnCacheC=null,_smnTsC=0;
+async function _getSMN(){
+  if(_smnCacheC&&Date.now()-_smnTsC<60*60000) return _smnCacheC;
+  try{ const r=await fetch('/api/smn'); const d=await r.json(); if(d&&d.ok!==false&&!d.error){ _smnCacheC=d; _smnTsC=Date.now(); return d; } }catch(_){}
+  return null;
+}
 async function getWeather(){
   const key=_resolveWeatherCity();const c=WCITIES[key];
   if(_wCache[key]&&Date.now()-_wCache[key].ts<12*60000) return _wCache[key].d;
+  let d={city:c.n,temp:null,wind:null};
   try{
     const u=`https://api.open-meteo.com/v1/forecast?latitude=${c.lat}&longitude=${c.lng}&current=temperature_2m,weather_code,wind_speed_10m&timezone=America%2FMazatlan`;
     const r=await fetch(u);const j=await r.json();
-    const d={city:c.n,temp:Math.round(j.current.temperature_2m),wind:Math.round(j.current.wind_speed_10m),code:j.current.weather_code};
-    _wCache[key]={d,ts:Date.now()};return d;
-  }catch(e){return {city:c.n,temp:null,wind:null};}
+    d={city:c.n,temp:Math.round(j.current.temperature_2m),wind:Math.round(j.current.wind_speed_10m),code:j.current.weather_code};
+  }catch(e){}
+  // Complementa con el SMN oficial (probabilidad de lluvia, etc.). No bloquea si falla.
+  try{ const s=await _getSMN(); const sc=s&&s[key]; if(sc){ if(sc.prob!=null)d.prob=sc.prob; if(sc.cielo)d.cielo=sc.cielo; if(sc.tmax!=null)d.tmax=sc.tmax; if(sc.tmin!=null)d.tmin=sc.tmin; } }catch(_){}
+  _wCache[key]={d,ts:Date.now()};return d;
 }
 function wDesc(code){const m={0:'despejado',1:'mayormente despejado',2:'parcialmente nublado',3:'nublado',45:'neblina',61:'lluvia ligera',63:'lluvia',80:'chubascos',95:'tormenta'};return m[code]||'estable';}
 // Productos REALES del catálogo público (para que las recomendaciones no sean genéricas).
@@ -2052,9 +2062,10 @@ function djPrompt(type,ctx){
   // Enfoque/estilo aleatorio para que cada intervención se sienta distinta.
   const _enfoques=['informativo y directo','conversacional y cercano','con un toque de humor ligero','preventivo y de seguridad','pesquero y muy práctico','alegre y motivador'];
   const _enfoque=_enfoques[Math.floor(Math.random()*_enfoques.length)];
-  const _wLine=(ctx&&ctx.w&&ctx.w.temp!=null)
-    ? `Clima REAL ahora en ${ctx.w.city}: ${ctx.w.temp} grados centígrados, viento de ${ctx.w.wind} kilómetros por hora, cielo ${wDesc(ctx.w.code)}. USA estos datos reales; no inventes otros números.`
-    : '';
+  const _w=ctx&&ctx.w;
+  const _wLine=(_w&&_w.temp!=null)
+    ? `Clima REAL ahora en ${_w.city}: ${_w.temp} grados centígrados, viento de ${_w.wind} kilómetros por hora, cielo ${_w.cielo||wDesc(_w.code)}${_w.prob!=null?`, probabilidad de lluvia hoy ${_w.prob} por ciento (dato oficial del Servicio Meteorológico Nacional)`:''}${_w.tmax!=null?`, máxima ${_w.tmax} y mínima ${_w.tmin} grados`:''}. USA estos datos reales; no inventes otros números.`
+    : (_w&&_w.prob!=null?`Pronóstico oficial SMN para ${_w.city}: probabilidad de lluvia hoy ${_w.prob} por ciento, cielo ${_w.cielo||''}. Usa estos datos.`:'');
   const _pLine=(ctx&&ctx.product&&ctx.product.title)
     ? `Producto REAL del catálogo (menciónalo por su nombre solo si encaja, sin presionar${ctx.product.price?', desde '+ctx.product.price:''}): ${ctx.product.title}`
     : '';

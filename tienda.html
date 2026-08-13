@@ -203,17 +203,25 @@ const TIENDA_WCITIES={culiacan:{n:'Culiacán',lat:24.8092,lng:-107.3938},mazatla
 const TIENDA_WKEYS=['culiacan','mazatlan','los_mochis'];
 let _twCache=null,_twTs=0;
 function _twDesc(code){const m={0:'despejado',1:'mayormente despejado',2:'parcialmente nublado',3:'nublado',45:'neblina',61:'lluvia ligera',63:'lluvia',80:'chubascos',95:'tormenta'};return m[code]||'estable';}
+let _tSmn=null,_tSmnTs=0;
+async function _tiendaSMN(){
+  if(_tSmn&&Date.now()-_tSmnTs<60*60000) return _tSmn;
+  try{ const r=await fetch('/api/smn'); const d=await r.json(); if(d&&d.ok!==false&&!d.error){ _tSmn=d; _tSmnTs=Date.now(); return d; } }catch(_){}
+  return null;
+}
 async function _tiendaWeather(){
   let key=localStorage.getItem('tp_weather_city')||'auto';
   if(key==='auto'||!TIENDA_WCITIES[key]) key=TIENDA_WKEYS[Math.floor(Math.random()*TIENDA_WKEYS.length)];
   const c=TIENDA_WCITIES[key];
   if(_twCache&&_twCache.key===key&&Date.now()-_twTs<12*60000) return _twCache.d;
+  let d={city:c.n,temp:null,wind:null};
   try{
     const u=`https://api.open-meteo.com/v1/forecast?latitude=${c.lat}&longitude=${c.lng}&current=temperature_2m,weather_code,wind_speed_10m&timezone=America%2FMazatlan`;
     const r=await fetch(u); const j=await r.json();
-    const d={city:c.n,temp:Math.round(j.current.temperature_2m),wind:Math.round(j.current.wind_speed_10m),code:j.current.weather_code};
-    _twCache={key,d}; _twTs=Date.now(); return d;
-  }catch(_){ return {city:c.n,temp:null,wind:null}; }
+    d={city:c.n,temp:Math.round(j.current.temperature_2m),wind:Math.round(j.current.wind_speed_10m),code:j.current.weather_code};
+  }catch(_){}
+  try{ const s=await _tiendaSMN(); const sc=s&&s[key]; if(sc){ if(sc.prob!=null)d.prob=sc.prob; if(sc.cielo)d.cielo=sc.cielo; if(sc.tmax!=null)d.tmax=sc.tmax; } }catch(_){}
+  _twCache={key,d}; _twTs=Date.now(); return d;
 }
 async function buildTiendaPrompt(){
   const tipo=TIENDA_TIPOS[Math.floor(Math.random()*TIENDA_TIPOS.length)];
@@ -222,8 +230,9 @@ async function buildTiendaPrompt(){
   if(tipo==='Clima'){
     const w=await _tiendaWeather();
     const sello=[`El tiempo al momento en ${w.city}`,`El tiempo al momento, con Terrapesca`,`Así está el tiempo ahora mismo en ${w.city}`,`El tiempo al momento para los pescadores de ${w.city}`][Math.floor(Math.random()*4)];
+    const _prob=(w.prob!=null)?`, probabilidad de lluvia hoy ${w.prob} por ciento (dato oficial del Servicio Meteorológico Nacional)`:'';
     extra = (w.temp!=null)
-      ? `\nClima REAL ahora en ${w.city}: ${w.temp} grados, viento ${w.wind} kilómetros por hora, cielo ${_twDesc(w.code)}. ABRE con una variante natural de este sello: "${sello}"; luego di el clima con esos datos reales (no inventes otros números) y relaciónalo con la pesca. Varía las palabras cada vez.`
+      ? `\nClima REAL ahora en ${w.city}: ${w.temp} grados, viento ${w.wind} kilómetros por hora, cielo ${w.cielo||_twDesc(w.code)}${_prob}. ABRE con una variante natural de este sello: "${sello}"; luego di el clima con esos datos reales (no inventes otros números) y relaciónalo con la pesca. Varía las palabras cada vez.`
       : `\nABRE con una variante natural de este sello: "${sello}" y comenta el clima en general para pescadores, sin inventar números.`;
   } else if(tipo==='Hora'){
     const sello=[`Costa Kayaks te da la hora`,`La hora, cortesía de Costa Kayaks`,`Costa Kayaks te pone en hora`,`Con Costa Kayaks, esta es la hora`][Math.floor(Math.random()*4)];

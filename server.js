@@ -3,6 +3,7 @@ const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const zlib = require('zlib');
 const { WebSocketServer } = require('ws');
 
 // ---- LOGIN / GATE ----
@@ -40,6 +41,10 @@ let ytdl = null;
 try { ytdl = require('@distube/ytdl-core'); } catch(e) { console.warn('ytdl-core not available:', e.message); }
 
 const PORT = process.env.PORT || 3000;
+
+// Caché del pronóstico oficial SMN (CONAGUA). Los Mochis = municipio Ahome.
+let _smnCache = null, _smnTs = 0;
+const SMN_TARGETS = { culiacan: ['culiacán', 'culiacan'], mazatlan: ['mazatlán', 'mazatlan'], los_mochis: ['ahome'] };
 
 let radioState = {
   currentTrack: null,
@@ -717,6 +722,39 @@ const server = http.createServer((req, res) => {
     sReq.on('error', (e) => { res.writeHead(502, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: e.message })); });
     sReq.setTimeout(12000, () => { sReq.destroy(); });
     sReq.end();
+    return;
+  }
+
+  // ── SMN CONAGUA: pronóstico oficial por municipio (prob. de lluvia, cielo, máx/mín) ──
+  if (req.url.startsWith('/api/smn') && req.method === 'GET') {
+    const send = (obj) => { res.setHeader('Access-Control-Allow-Origin', '*'); res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(obj)); };
+    if (_smnCache && Date.now() - _smnTs < 2 * 3600 * 1000) { send(_smnCache); return; }
+    const gz = https.request({ hostname: 'smn.conagua.gob.mx', path: '/webservices/?method=1', method: 'GET', headers: { 'User-Agent': 'Mozilla/5.0', 'Accept-Encoding': 'gzip' } }, (r2) => {
+      const chunks = []; let size = 0; let aborted = false;
+      r2.on('data', c => { size += c.length; if (size > 30 * 1024 * 1024) { aborted = true; r2.destroy(); } else chunks.push(c); });
+      r2.on('end', () => {
+        if (aborted) { send({ ok: false, error: 'too big' }); return; }
+        try {
+          let buf = Buffer.concat(chunks);
+          const enc = (r2.headers['content-encoding'] || '').toLowerCase();
+          if (enc.includes('gzip') || (buf[0] === 0x1f && buf[1] === 0x8b)) { try { buf = zlib.gunzipSync(buf); } catch (_) {} }
+          const arr = JSON.parse(buf.toString('utf8'));
+          const N = v => { const n = parseFloat(String(v).replace(',', '.')); return isNaN(n) ? null : n; };
+          const out = {};
+          for (const [key, names] of Object.entries(SMN_TARGETS)) {
+            const recs = arr.filter(o => o && String(o.state || '').toLowerCase().includes('sinaloa') && names.includes(String(o.name || '').toLowerCase().trim()));
+            recs.sort((a, b) => String(a.dloc || '').localeCompare(String(b.dloc || '')));
+            const o = recs[0];
+            if (o) out[key] = { city: o.name, prob: N(o.probprec), tmax: N(o.tmax), tmin: N(o.tmin), cielo: o.desciel || '', viento: N(o.velvien), dir: o.dirvienc || '' };
+          }
+          if (Object.keys(out).length) { _smnCache = out; _smnTs = Date.now(); send(out); }
+          else send({ ok: false, error: 'sin datos de Sinaloa' });
+        } catch (e) { send({ ok: false, error: e.message }); }
+      });
+    });
+    gz.on('error', e => send({ ok: false, error: e.message }));
+    gz.setTimeout(25000, () => { gz.destroy(); send({ ok: false, error: 'timeout' }); });
+    gz.end();
     return;
   }
 
