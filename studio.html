@@ -1886,9 +1886,21 @@ async function getWeather(){
   }catch(e){return {city:c.n,temp:null,wind:null};}
 }
 function wDesc(code){const m={0:'despejado',1:'mayormente despejado',2:'parcialmente nublado',3:'nublado',45:'neblina',61:'lluvia ligera',63:'lluvia',80:'chubascos',95:'tormenta'};return m[code]||'estable';}
+// Productos REALES del catálogo público (para que las recomendaciones no sean genéricas).
+let _shopFeedCache=null,_shopFeedTs=0;
+async function _getShopProducts(){
+  if(_shopFeedCache&&Date.now()-_shopFeedTs<15*60000) return _shopFeedCache;
+  try{ const r=await fetch('/api/shop-feed'); const d=await r.json(); _shopFeedCache=(d&&d.products)||[]; _shopFeedTs=Date.now(); }
+  catch(_){ _shopFeedCache=_shopFeedCache||[]; }
+  return _shopFeedCache;
+}
 async function buildCtx(type){
   const ctx={hora:horaRadio(),slogan:cfg.slogan};
   if(type==='WEATHER_REPORT'||type==='FISHING_FORECAST'){ctx.w=await getWeather();}
+  // Producto real para recomendaciones/consejos, elegido al azar del catálogo.
+  if(['GEAR_TIP','PROMO_TEASER','FISHING_TIP','FISHING_FORECAST','RESERVOIR_UPDATE'].includes(type)){
+    try{ const ps=await _getShopProducts(); if(ps.length) ctx.product=ps[Math.floor(Math.random()*ps.length)]; }catch(_){}
+  }
   if(type==='VENTA_NOCTURNA'||type==='VENTA_OPEN'){
     ctx.campaign=CAMPAIGN;
   }
@@ -1921,10 +1933,22 @@ function djPrompt(type,ctx){
     GEAR_TIP:'Producto o categoría', PROMO_TEASER:'Producto o categoría',
     VENTA_NOCTURNA:'Promoción', BLOCK_CLOSE:'Motivación'
   };
+  // Enfoque/estilo aleatorio para que cada intervención se sienta distinta.
+  const _enfoques=['informativo y directo','conversacional y cercano','con un toque de humor ligero','preventivo y de seguridad','pesquero y muy práctico','alegre y motivador'];
+  const _enfoque=_enfoques[Math.floor(Math.random()*_enfoques.length)];
+  const _wLine=(ctx&&ctx.w&&ctx.w.temp!=null)
+    ? `Clima REAL ahora en ${ctx.w.city}: ${ctx.w.temp} grados centígrados, viento de ${ctx.w.wind} kilómetros por hora, cielo ${wDesc(ctx.w.code)}. USA estos datos reales; no inventes otros números.`
+    : '';
+  const _pLine=(ctx&&ctx.product&&ctx.product.title)
+    ? `Producto REAL del catálogo (menciónalo por su nombre solo si encaja, sin presionar${ctx.product.price?', desde '+ctx.product.price:''}): ${ctx.product.title}`
+    : '';
   const _datos=[
     ctx&&ctx.fecha?`Fecha: ${ctx.fecha}`:'',
     hora?`Hora local: ${hora}`:'',
     ctx&&ctx.sucursal?`Sucursal: ${ctx.sucursal}`:'',
+    _wLine,
+    _pLine,
+    `Enfoque de ESTA intervención (cámbialo cada vez): ${_enfoque}`,
     `Tipo de intervención sugerido: ${_tipoMap[type]||'Ambiente de Radio Terrapesca'}`
   ].filter(Boolean).join('\n');
   const systemPrompt=`Eres Rodo, el locutor oficial de Radio Terrapesca, la radio interna que se escucha en las sucursales de Terrapesca.
@@ -1996,23 +2020,23 @@ Entrega EXCLUSIVAMENTE las palabras que Rodo debe pronunciar, en un solo párraf
 
   const typePrompts={
     FISHING_TIP:
-      `${systemPrompt}\n\nSon ${hora}. Da un tip práctico de pesca deportiva o comercial. Puede ser sobre señuelos, técnica, zona, carnada, horario de actividad de peces o comportamiento según el clima. De 10 a 15 segundos. Sin títulos de canciones. Cierra natural.`,
+      `${systemPrompt}\n\nSon ${hora}. Da UN solo tip práctico y CONCRETO de pesca (un señuelo específico, una técnica puntual, una zona, una carnada, el horario de actividad del pez o su comportamiento según el clima real de arriba). Nada de consejos vagos tipo "prepara bien tu equipo": que sea algo aplicable hoy. Si arriba hay un producto real y encaja, menciónalo por su nombre sin presionar. Cambia el enfoque respecto a intervenciones anteriores. De 10 a 15 segundos. Sin títulos de canciones. Cierra natural.`,
     WEATHER_REPORT:
-      `${systemPrompt}\n\nSon ${hora}. Comenta el clima de forma general para pescadores de Sinaloa y Mazatlán. Habla de calor, viento, lluvia o mareas en términos generales. Si no tienes dato real, habla responsablemente en general. No inventes números exactos. De 10 a 15 segundos.`,
+      `${systemPrompt}\n\nSon ${hora}. Reporta el clima USANDO LOS DATOS REALES de arriba (ciudad, temperatura, viento y cielo) y relaciónalo con la pesca de hoy: si conviene salir temprano, cuidado con el viento, sombra e hidratación con el calor, etc. NO uses siempre la misma frase de apertura ni la misma estructura; varía el orden y las palabras cada vez. No inventes números distintos a los reales. De 10 a 15 segundos.`,
     FISHING_FORECAST:
-      `${systemPrompt}\n\nSon ${hora}. Da una recomendación general de condiciones para salir a pescar hoy: zona, horario, tipo de pesca. Si no tienes datos reales, da recomendación general responsable. De 10 a 15 segundos.`,
+      `${systemPrompt}\n\nSon ${hora}. Con el clima real de arriba, da una recomendación CONCRETA para salir a pescar hoy: mejor horario, zona o tipo de pesca según viento y temperatura. Si hay un producto real arriba y encaja, menciónalo con naturalidad. Varía la estructura respecto a otras veces. De 10 a 15 segundos.`,
     STATION_ID:
       `${systemPrompt}\n\nSon ${hora}. Identifica brevemente la estación: Radio Terrapesca. Menciona que están acompañando a pescadores y clientes de Sinaloa. Frase natural de radio. 5 a 10 segundos.`,
     TIME_CHECK:
       `${systemPrompt}\n\nSon ${hora}. Di la hora de forma natural como locutor de radio. Añade algo breve y útil para el oyente: recomendación de pesca, equipo, seguridad o clima general. 5 a 10 segundos.`,
     GEAR_TIP:
-      `${systemPrompt}\n\nSon ${hora}. Da un tip sobre equipo de pesca: línea, carrete, caña, señuelo, anzuelo, chaleco, kayak o accesorio. Algo práctico y breve. Menciona Terrapesca de forma natural si encaja. De 10 a 15 segundos.`,
+      `${systemPrompt}\n\nSon ${hora}. Da un tip CONCRETO sobre equipo de pesca. Si arriba hay un producto real del catálogo, gíralo alrededor de ese producto (para qué sirve, qué necesidad resuelve) y menciónalo por su nombre; si no, elige un tipo específico (una línea, un carrete, un señuelo, un chaleco…). Nada genérico. Menciona Terrapesca con naturalidad si encaja, sin presionar. De 10 a 15 segundos.`,
     SAFETY_TIP:
       `${systemPrompt}\n\nSon ${hora}. Da un consejo de seguridad para pescadores: en lancha, kayak, playa, presa o mar abierto. Chaleco, comunicación, viento, revisión de equipo. Frase corta y directa. De 10 a 15 segundos.`,
     RESERVOIR_UPDATE:
       `${systemPrompt}\n\nSon ${hora}. Comenta sobre embalses, presas o ríos de Sinaloa de forma general: pesca en presa, actividad de carpas o bagres, nivel de agua según temporada. No inventes porcentajes reales. De 10 a 15 segundos.`,
     PROMO_TEASER:
-      `${systemPrompt}\n\nSon ${hora}. Invita de forma suave y natural a visitar Terrapesca: señuelos, varas, carretes, línea, accesorios. Sin presión. Tono de recomendación de experto. De 10 a 15 segundos.`,
+      `${systemPrompt}\n\nSon ${hora}. Invita de forma suave y natural a visitar Terrapesca. Si arriba hay un producto real, úsalo como gancho concreto (nómbralo); si no, elige una categoría específica. Sin presión, tono de recomendación de experto. Varía la frase de cierre respecto a otras veces. De 10 a 15 segundos.`,
     SONG_BRIDGE:
       `${systemPrompt}\n\nSon ${hora}. Haz un puente musical breve entre canciones (transición musical). Comenta el ambiente, da ánimo al oyente, conecta con algo útil de pesca o clima. No digas el título de la canción. No menciones YouTube. 5 a 10 segundos.\n${curLine}\nCOLA DISPONIBLE (para referencia del ambiente, NO menciones números ni índices):\n${queueLines||'  (cola vacía)'}\n\nEXCEPCIÓN DE FORMATO SOLO PARA ESTA INTERVENCIÓN: ignora la regla de responder en un solo párrafo. Responde EXCLUSIVAMENTE con este JSON exacto (sin markdown, sin backticks). El guión de Rodo va dentro del campo "script" y ahí sí aplican las reglas de estilo:\n{"script":"tu guión aquí","cmd":{"action":"load_song","idx":0}}`,
     BLOCK_OPEN:
@@ -2064,7 +2088,10 @@ function djFallback(type,ctx){
     WEATHER_REPORT: hasW ? [
       `En ${city} tenemos ${t} grados, ${desc}. Buen momento para preparar tu equipo.`,
       `El clima en ${city} marca ${t} grados, ${desc}. Aprovecha tu jornada.`,
-      `Ahora mismo en ${city}, ${t} grados y ${desc}. Recuerda tu equipo de seguridad.`
+      `Ahora mismo en ${city}, ${t} grados y ${desc}. Recuerda tu equipo de seguridad.`,
+      `Reporte del mar: ${city} con ${t} grados${w.wind!=null?' y viento de '+w.wind+' kilómetros por hora':''}, ${desc}. Sal con precaución.`,
+      `${desc.charAt(0).toUpperCase()+desc.slice(1)} en ${city}, ${t} grados. Con este calor, hidrátate y busca sombra entre lances.`,
+      `Pescadores de ${city}: ${t} grados${w.wind!=null?', viento de '+w.wind+' por hora':''}. Planea tu salida según cómo esté el agua.`
     ] : [
       `El clima en la región se ve bien para la pesca de hoy.`,
       `Buen día en la región para salir al agua. Revisa tu equipo antes de partir.`
@@ -2499,20 +2526,22 @@ async function importSpotifyPlaylist(spId){
   }catch(e){ toast('No se pudo leer la playlist de Spotify: '+e.message,'error'); return; }
   const tracks=(data.tracks||[]);
   if(!tracks.length){ toast('La playlist no trajo canciones (¿es privada?)','error'); return; }
-  // La búsqueda de YouTube cuesta cuota (100 unidades c/u; ~10,000 al día).
-  // Limitamos para no agotarla de un jalón en playlists enormes.
-  const MAX_IMPORT=60;
-  const list=tracks.slice(0,MAX_IMPORT);
-  const capped=tracks.length>MAX_IMPORT;
+  // Importa TODAS las canciones de la playlist. Cada búsqueda de YouTube cuesta
+  // cuota (100 unidades c/u; ~10,000 al día): si se agota, paramos en seco y
+  // avisamos cuántas llevamos para no fallar en silencio.
+  const list=tracks;
   const plName=(data.name||'Playlist de Spotify').trim(); // el nombre es el "estilo"
-  toast(`Spotify: ${tracks.length} canciones${capped?` (importo las primeras ${MAX_IMPORT})`:''}. Buscando en YouTube…`,'ok');
-  let added=0, miss=0; const plIds=[];
+  toast(`Spotify: ${tracks.length} canciones. Buscando en YouTube…`,'ok');
+  let added=0, miss=0, quota=false; const plIds=[];
   for(let i=0;i<list.length;i++){
     const t=list[i];
     const q=`${t.title} ${t.artist}`.trim();
     try{
       const r=await fetch(`/api/ytsearch?q=${encodeURIComponent(q)}&key=${encodeURIComponent(cfg.ytKey)}`);
       const d=await r.json();
+      // Detectar cuota agotada / error de YouTube y detener con gracia.
+      const errTxt=d&&d.error?String(d.error.message||d.error):'';
+      if(r.status===403 || /quota|exceeded|dailyLimit/i.test(errTxt)){ quota=true; break; }
       const hit=(d.items||[])[0];
       if(hit){
         plIds.push(hit.ytId);
@@ -2524,7 +2553,7 @@ async function importSpotifyPlaylist(spId){
         }else{ libUpsert({ytId:hit.ytId},{style:plName}); }
       }else{ miss++; }
     }catch(_){ miss++; }
-    if((i+1)%3===0){ renderQueue(); toast(`Importando de Spotify… ${added}/${list.length}`,'ok'); }
+    if((i+1)%5===0){ renderQueue(); toast(`Importando de Spotify… ${added}/${list.length}`,'ok'); }
   }
   renderQueue(); saveQueue();
   // Guarda la playlist en la carpeta Playlists (con su nombre = estilo).
@@ -2532,7 +2561,11 @@ async function importSpotifyPlaylist(spId){
     await plSave({id:'pl_sp_'+spId,name:plName,trackIds:plIds,createdAt:Date.now()});
     if(typeof renderPls==='function') renderPls();
   }
-  toast(`✅ ${added} de "${plName}" importadas y guardadas en Playlists${miss?` · ${miss} no encontradas`:''}`,'ok');
+  if(quota){
+    toast(`⚠ Se agotó la cuota diaria de YouTube. Importé ${added} de ${list.length} de "${plName}". Continúa mañana o usa otra API key.`,'error');
+  }else{
+    toast(`✅ ${added} de "${plName}" importadas y guardadas en Playlists${miss?` · ${miss} no encontradas`:''}`,'ok');
+  }
 }
 function playFromQueue(i){
   waitReady(()=>{
