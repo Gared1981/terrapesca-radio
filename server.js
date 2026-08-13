@@ -1,3 +1,4 @@
+// build: redeploy para tomar la variable de entorno TIDECHECK_KEY
 const http = require('http');
 const https = require('https');
 const fs = require('fs');
