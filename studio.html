@@ -700,7 +700,7 @@ input[type=range]::-moz-range-thumb{width:18px;height:24px;border-radius:5px;bac
       <div class="addrow">
         <input id="ytInput" placeholder="Pega link de YouTube o Spotify (playlist)…"/>
         <button onclick="addYTLink()">＋</button>
-        <button onclick="aiSuggestSongs()" id="aiSuggestBtn" title="Rodo sugiere música nueva según la hora y lo que ha sonado" style="white-space:nowrap">✨ Radio infinita</button>
+        <button onclick="aiSuggestSongs()" id="aiSuggestBtn" title="Agrega canciones al azar de todas tus playlists a la cola (sin repetir lo que ya suena)" style="white-space:nowrap">✨ Radio infinita</button>
       </div>
       <div class="list" id="queueList"><div class="empty">Cargando playlist compartida…</div></div>
     </div>
@@ -2257,17 +2257,65 @@ function _loadPlaylistViaIframe(plId){
     },250);
   });
 }
-/* ================= RADIO INFINITA (Fase 5) =================
-   Claude sugiere canciones nuevas según mood/hora e historial reciente;
-   cada sugerencia se resuelve a un video real vía /api/ytsearch. */
+/* ================= RADIO INFINITA =================
+   Toma canciones AL AZAR de TODAS tus playlists (y de la biblioteca como
+   respaldo) y las agrega a la cola, sin repetir lo que ya está sonando ni
+   lo reciente. No depende de las APIs. Si las playlists ya se agotaron y
+   hay claves configuradas, cae a descubrir música nueva con la IA. */
 let _aiSuggestBusy=false;
+const INFINITA_BATCH=10;
 async function aiSuggestSongs(){
   if(_aiSuggestBusy) return;
-  if(!cfg.antKey){toast('Configura tu API key de Anthropic en CONFIG','error');return;}
-  if(!cfg.ytKey){toast('Configura tu YouTube API key en CONFIG','error');return;}
   _aiSuggestBusy=true;
   const btn=document.getElementById('aiSuggestBtn');
-  if(btn){btn.disabled=true;btn.textContent='✨ Pensando…';}
+  if(btn){btn.disabled=true;btn.textContent='✨ Llenando…';}
+  try{
+    await refreshLib();
+    const pls=await plAll();
+    const inQueue=new Set(queue.map(q=>q.ytId));
+    // Reunir ytIds de todas las playlists; la biblioteca queda como respaldo.
+    const fromPls=[]; pls.forEach(p=>(p.trackIds||[]).forEach(id=>{ if(id) fromPls.push(id); }));
+    const fromLib=_libCache.map(t=>t.ytId);
+    const build=(ids)=>{
+      const seen=new Set(); const out=[];
+      ids.forEach(id=>{
+        if(!id||seen.has(id)||inQueue.has(id)||_playedHistory.includes(id)) return;
+        seen.add(id);
+        const t=_libCache.find(x=>x.ytId===id);
+        out.push(t?{ytId:id,name:t.title,artist:t.artist}:{ytId:id,name:'YouTube',artist:''});
+      });
+      return out;
+    };
+    // 1) candidatos de playlists; si no hay, de la biblioteca
+    let cand=build(fromPls);
+    let origen='tus playlists';
+    if(!cand.length){ cand=build(fromLib); origen='tu biblioteca'; }
+
+    if(cand.length){
+      // Barajar (Fisher–Yates) y tomar un lote
+      for(let i=cand.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); const tmp=cand[i]; cand[i]=cand[j]; cand[j]=tmp; }
+      const take=cand.slice(0,Math.min(INFINITA_BATCH,cand.length));
+      take.forEach(t=>{ queue.push(t); libUpsert(t); });
+      renderQueue(); saveQueue();
+      toast(`✨ ${take.length} canciones al azar de ${origen} agregadas a la cola`,'ok');
+      return;
+    }
+
+    // 2) Ya no quedan canciones nuevas en playlists/biblioteca → descubrir con IA (si hay claves)
+    if(cfg.antKey && cfg.ytKey){
+      if(btn) btn.textContent='✨ Buscando nuevas…';
+      const ok=await _aiDiscoverSongs();
+      if(ok) return;
+    }
+    toast('No quedan canciones nuevas en tus playlists. Importa una playlist de Spotify o agrega más música.','error');
+  }catch(e){toast('⚠ '+(e.message||e),'error');}
+  finally{
+    _aiSuggestBusy=false;
+    if(btn){btn.disabled=false;btn.textContent='✨ Radio infinita';}
+  }
+}
+// Descubrimiento con IA (respaldo): Claude sugiere temas y se resuelven en YouTube.
+async function _aiDiscoverSongs(){
   try{
     const mood=_moodByHour();
     const recent=history.slice(0,12).map(h=>`${h.name}${h.artist?' — '+h.artist:''}`).join('\n')||'(sin historial)';
@@ -2292,31 +2340,21 @@ Sugiere 5 canciones REALES y conocidas que encajen con el mood y el estilo de lo
     if(!r.ok||d.error) throw new Error(d.error?.message||d.error||'Error de IA');
     const parsed=aiJSON(d);
     const songs=((parsed&&parsed.songs)||[]).map(s=>typeof s==='string'?s:(s&&s.q)).filter(Boolean);
-    if(!songs.length) throw new Error('La IA no devolvió sugerencias (respuesta: '+aiText(d).slice(0,80)+')');
-    let added=0, searched=0, ytErr='';
+    if(!songs.length) return false;
+    let added=0, ytErr='';
     for(const q of songs.slice(0,5)){
       try{
-        searched++;
         const sr=await fetch(`/api/ytsearch?q=${encodeURIComponent(q)}&key=${encodeURIComponent(cfg.ytKey)}`);
         const sd=await sr.json();
         if(sd&&sd.error){ ytErr=(sd.error.message||sd.error)+''; continue; }
         const hit=(sd.items||[]).find(it=>!queue.some(x=>x.ytId===it.ytId));
-        if(hit){
-          const tr={ytId:hit.ytId,name:hit.title,artist:hit.channel};
-          queue.push(tr);
-          libUpsert(tr,{duration:hit.duration||0});
-          added++;
-        }
+        if(hit){ const tr={ytId:hit.ytId,name:hit.title,artist:hit.channel}; queue.push(tr); libUpsert(tr,{duration:hit.duration||0}); added++; }
       }catch(_){}
     }
-    if(added){renderQueue();saveQueue();toast(`✨ ${added} canciones nuevas agregadas a la cola`,'ok');}
-    else if(ytErr) throw new Error('YouTube: '+ytErr.slice(0,90));
-    else toast('Las 5 sugerencias ya estaban en la cola — intenta de nuevo','error');
-  }catch(e){toast('⚠ '+e.message,'error');}
-  finally{
-    _aiSuggestBusy=false;
-    if(btn){btn.disabled=false;btn.textContent='✨ Radio infinita';}
-  }
+    if(added){ renderQueue(); saveQueue(); toast(`✨ ${added} canciones nuevas descubiertas con IA`,'ok'); return true; }
+    if(ytErr) toast('YouTube: '+ytErr.slice(0,90),'error');
+    return false;
+  }catch(e){ toast('⚠ '+e.message,'error'); return false; }
 }
 
 /* ================= BÚSQUEDA (Fase 2 plan Spotify) ================= */
@@ -3540,7 +3578,8 @@ async function renderPls(){
       <div class="meta" onclick="plOpenUI('${p.id}')" style="cursor:pointer">
         <div class="t">${esc(p.name)}</div><div class="s">${(p.trackIds||[]).length} canciones</div></div>
       <div class="acts">
-        <button onclick="plPlay('${p.id}')" title="Reproducir">▶</button>
+        <button onclick="plPlay('${p.id}')" title="Reproducir ahora">▶</button>
+        <button onclick="plAppendToQueue('${p.id}')" title="Agregar a la cola">➕</button>
         <button onclick="plDeleteUI('${p.id}')" title="Eliminar">✕</button>
       </div>
     </div>`).join(''):'<div class="empty">Sin playlists — crea una o guarda la cola actual</div>';
