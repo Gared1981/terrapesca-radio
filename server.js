@@ -469,7 +469,8 @@ const server = http.createServer((req, res) => {
       clients: wss.clients.size,
       streamClients: streamClients.size,
       streamBusy,
-      ytdlAvailable: !!ytdl
+      ytdlAvailable: !!ytdl,
+      tideKeySet: !!TIDECHECK_KEY  // true = el servidor SÍ ve TIDECHECK_KEY (no expone la clave)
     }));
     return;
   }
