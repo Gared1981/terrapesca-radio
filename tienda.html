@@ -220,7 +220,7 @@ async function _tiendaWeather(){
     const r=await fetch(u); const j=await r.json();
     d={city:c.n,temp:Math.round(j.current.temperature_2m),wind:Math.round(j.current.wind_speed_10m),code:j.current.weather_code};
   }catch(_){}
-  try{ const s=await _tiendaSMN(); const sc=s&&s[key]; if(sc){ if(sc.prob!=null)d.prob=sc.prob; if(sc.cielo)d.cielo=sc.cielo; if(sc.tmax!=null)d.tmax=sc.tmax; } }catch(_){}
+  try{ const s=await _tiendaSMN(); const sc=s&&s[key]; if(sc){ if(sc.prob!=null)d.prob=sc.prob; if(sc.cielo)d.cielo=sc.cielo; if(sc.tmax!=null)d.tmax=sc.tmax; if(d.temp==null&&sc.temp!=null)d.temp=sc.temp; if(d.wind==null&&sc.viento!=null)d.wind=sc.viento; } }catch(_){}
   _twCache={key,d}; _twTs=Date.now(); return d;
 }
 async function buildTiendaPrompt(){

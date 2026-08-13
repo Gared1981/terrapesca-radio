@@ -1967,7 +1967,7 @@ async function getWeather(){
     d={city:c.n,temp:Math.round(j.current.temperature_2m),wind:Math.round(j.current.wind_speed_10m),code:j.current.weather_code};
   }catch(e){}
   // Complementa con el SMN oficial (probabilidad de lluvia, etc.). No bloquea si falla.
-  try{ const s=await _getSMN(); const sc=s&&s[key]; if(sc){ if(sc.prob!=null)d.prob=sc.prob; if(sc.cielo)d.cielo=sc.cielo; if(sc.tmax!=null)d.tmax=sc.tmax; if(sc.tmin!=null)d.tmin=sc.tmin; } }catch(_){}
+  try{ const s=await _getSMN(); const sc=s&&s[key]; if(sc){ if(sc.prob!=null)d.prob=sc.prob; if(sc.cielo)d.cielo=sc.cielo; if(sc.tmax!=null)d.tmax=sc.tmax; if(sc.tmin!=null)d.tmin=sc.tmin; if(d.temp==null&&sc.temp!=null)d.temp=sc.temp; if(d.wind==null&&sc.viento!=null)d.wind=sc.viento; } }catch(_){}
   _wCache[key]={d,ts:Date.now()};return d;
 }
 function wDesc(code){const m={0:'despejado',1:'mayormente despejado',2:'parcialmente nublado',3:'nublado',45:'neblina',61:'lluvia ligera',63:'lluvia',80:'chubascos',95:'tormenta'};return m[code]||'estable';}
