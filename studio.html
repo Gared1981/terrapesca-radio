@@ -1775,6 +1775,8 @@ function nextDJItem(){
   if(!_djHoursOK()){
     return spots.length ? {kind:'spot'} : null;
   }
+  // Prioriza el clima cuando hay probabilidad alta de lluvia (aviso útil).
+  if(_highRainNow()!=null && Math.random()<0.7) return {kind:'dj',type:'WEATHER_REPORT'};
   const pool=['WEATHER_REPORT','TIME_CHECK','FISHING_TIP','RESERVOIR_UPDATE'];
   if(spots.length) pool.push('SPOT');
   const pick=pool[Math.floor(Math.random()*pool.length)];
@@ -1952,11 +1954,18 @@ const WKEYS=['culiacan','mazatlan','los_mochis'];
 let _wCache={};
 // Pronóstico oficial SMN (CONAGUA): probabilidad de lluvia + cielo + máx/mín.
 let _smnCacheC=null,_smnTsC=0;
+const RAIN_ALERT_PROB=50; // a partir de este % de probabilidad, Rodo prioriza el clima
 async function _getSMN(){
   if(_smnCacheC&&Date.now()-_smnTsC<60*60000) return _smnCacheC;
   try{ const r=await fetch('/api/smn'); const d=await r.json(); if(d&&d.ok!==false&&!d.error){ _smnCacheC=d; _smnTsC=Date.now(); return d; } }catch(_){}
   return null;
 }
+// Máxima probabilidad de lluvia entre las ciudades (usa el caché del SMN ya bajado).
+function _highRainNow(){
+  try{ if(!_smnCacheC) return null; let mx=-1; for(const k in _smnCacheC){ const p=_smnCacheC[k]&&_smnCacheC[k].prob; if(p!=null&&p>mx)mx=p; } return mx>=RAIN_ALERT_PROB?mx:null; }catch(_){ return null; }
+}
+// Precalienta el caché del SMN al cargar y cada hora, para que la priorización funcione.
+try{ _getSMN(); setInterval(()=>{ _smnTsC=0; _getSMN(); }, 60*60000); }catch(_){}
 async function getWeather(){
   const key=_resolveWeatherCity();const c=WCITIES[key];
   if(_wCache[key]&&Date.now()-_wCache[key].ts<12*60000) return _wCache[key].d;
@@ -2160,7 +2169,7 @@ Entrega EXCLUSIVAMENTE las palabras que Rodo debe pronunciar, en un solo párraf
     FISHING_TIP:
       `${systemPrompt}\n\nSon ${hora}. Da UN solo tip práctico y CONCRETO de pesca (un señuelo específico, una técnica puntual, una zona, una carnada, el horario de actividad del pez o su comportamiento según el clima real de arriba). Nada de consejos vagos tipo "prepara bien tu equipo": que sea algo aplicable hoy. Si arriba hay un producto real y encaja, menciónalo por su nombre sin presionar. Cambia el enfoque respecto a intervenciones anteriores. De 10 a 15 segundos. Sin títulos de canciones. Cierra natural.`,
     WEATHER_REPORT:
-      `${systemPrompt}\n\nSon ${hora}. ABRE con una variante natural de este sello de sección (dilo al inicio, con energía de locutor): "${selloClima}". Luego reporta el clima USANDO LOS DATOS REALES de arriba (ciudad, temperatura, viento y cielo) y relaciónalo con la pesca de hoy: si conviene salir temprano, cuidado con el viento, sombra e hidratación con el calor, etc. Varía el resto del contenido y no inventes números distintos a los reales. De 10 a 15 segundos.`,
+      `${systemPrompt}\n\nSon ${hora}. ABRE con una variante natural de este sello de sección (dilo al inicio, con energía de locutor): "${selloClima}". Luego reporta el clima USANDO LOS DATOS REALES de arriba (ciudad, temperatura, viento y cielo) y relaciónalo con la pesca de hoy: si conviene salir temprano, cuidado con el viento, sombra e hidratación con el calor, etc. ${(_w&&_w.prob!=null&&_w.prob>=50)?'AVISO PRIORITARIO: hoy hay probabilidad ALTA de lluvia; dilo claramente como una recomendación útil para los pescadores (llevar impermeable, revisar el cielo antes de zarpar, o esperar a que despeje), con calma y sin alarmar. ':''}Varía el resto del contenido y no inventes números distintos a los reales. De 10 a 15 segundos.`,
     FISHING_FORECAST:
       `${systemPrompt}\n\nSon ${hora}. Con el clima real de arriba, da una recomendación CONCRETA para salir a pescar hoy: mejor horario, zona o tipo de pesca según viento y temperatura. Si hay un producto real arriba y encaja, menciónalo con naturalidad. Varía la estructura respecto a otras veces. De 10 a 15 segundos.`,
     STATION_ID:

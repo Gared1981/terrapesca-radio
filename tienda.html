@@ -231,8 +231,9 @@ async function buildTiendaPrompt(){
     const w=await _tiendaWeather();
     const sello=[`El tiempo al momento en ${w.city}`,`El tiempo al momento, con Terrapesca`,`Así está el tiempo ahora mismo en ${w.city}`,`El tiempo al momento para los pescadores de ${w.city}`][Math.floor(Math.random()*4)];
     const _prob=(w.prob!=null)?`, probabilidad de lluvia hoy ${w.prob} por ciento (dato oficial del Servicio Meteorológico Nacional)`:'';
+    const _alerta=(w.prob!=null&&w.prob>=50)?' AVISO: hoy hay probabilidad ALTA de lluvia; dilo como recomendación útil para los pescadores (llevar impermeable o esperar a que despeje), con calma.':'';
     extra = (w.temp!=null)
-      ? `\nClima REAL ahora en ${w.city}: ${w.temp} grados, viento ${w.wind} kilómetros por hora, cielo ${w.cielo||_twDesc(w.code)}${_prob}. ABRE con una variante natural de este sello: "${sello}"; luego di el clima con esos datos reales (no inventes otros números) y relaciónalo con la pesca. Varía las palabras cada vez.`
+      ? `\nClima REAL ahora en ${w.city}: ${w.temp} grados, viento ${w.wind} kilómetros por hora, cielo ${w.cielo||_twDesc(w.code)}${_prob}. ABRE con una variante natural de este sello: "${sello}"; luego di el clima con esos datos reales (no inventes otros números) y relaciónalo con la pesca.${_alerta} Varía las palabras cada vez.`
       : `\nABRE con una variante natural de este sello: "${sello}" y comenta el clima en general para pescadores, sin inventar números.`;
   } else if(tipo==='Hora'){
     const sello=[`Costa Kayaks te da la hora`,`La hora, cortesía de Costa Kayaks`,`Costa Kayaks te pone en hora`,`Con Costa Kayaks, esta es la hora`][Math.floor(Math.random()*4)];
