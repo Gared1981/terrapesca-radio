@@ -42,6 +42,71 @@ try { ytdl = require('@distube/ytdl-core'); } catch(e) { console.warn('ytdl-core
 
 const PORT = process.env.PORT || 3000;
 
+// ---- TIDECHECK: mareas, sol, luna e índice solunar de pesca ----
+// La clave vive SOLO en el servidor (variable de entorno), por límite de cuota
+// (50/día) y para no exponerla. Añádela en Railway → Variables: TIDECHECK_KEY.
+const TIDECHECK_KEY = process.env.TIDECHECK_KEY || '';
+const TIDE_ZONES = {
+  los_mochis: { point: 'Topolobampo', lat: 25.5819, lng: -109.0592 },
+  culiacan:   { point: 'Altata',      lat: 24.6267, lng: -107.9258 },
+  mazatlan:   { point: 'Mazatlán',    lat: 23.2028, lng: -106.4133 },
+};
+const TIDE_FILE = path.join(__dirname, '.tides.json'); // caché 24 h (gitignored)
+let _tideCache = {}; // zone -> { ts, stationId, stationName, data }
+try { _tideCache = JSON.parse(fs.readFileSync(TIDE_FILE, 'utf8')) || {}; } catch (_) { _tideCache = {}; }
+function _tideSave() { try { fs.writeFileSync(TIDE_FILE, JSON.stringify(_tideCache)); } catch (_) {} }
+function _tcGet(apiPath, cb) {
+  const r = https.request({ hostname: 'tidecheck.com', path: apiPath, method: 'GET', headers: { 'X-API-Key': TIDECHECK_KEY, 'Accept': 'application/json', 'User-Agent': 'terrapesca-radio' } }, (res) => {
+    let raw = ''; res.on('data', c => raw += c); res.on('end', () => { try { cb(JSON.parse(raw), res.statusCode); } catch (e) { cb(null, res.statusCode); } });
+  });
+  r.on('error', () => cb(null, 0));
+  r.setTimeout(12000, () => { r.destroy(); cb(null, 0); });
+  r.end();
+}
+const _moonES = { 'New Moon': 'luna nueva', 'Waxing Crescent': 'luna creciente', 'First Quarter': 'cuarto creciente', 'Waxing Gibbous': 'gibosa creciente', 'Full Moon': 'luna llena', 'Waning Gibbous': 'gibosa menguante', 'Last Quarter': 'cuarto menguante', 'Waning Crescent': 'luna menguante' };
+function _tcHHMM(iso) { const m = String(iso || '').match(/T(\d{2}):(\d{2})/); return m ? m[1] + ':' + m[2] : ''; }
+function parseTide(zone, d) {
+  const now = Date.now();
+  const ex = (d.extremes || [])
+    .filter(e => { const t = Date.parse(e.time); return isNaN(t) || t >= now - 30 * 60000; })
+    .slice(0, 4)
+    .map(e => ({ type: e.type, hhmm: _tcHHMM(e.localTime || e.time), height: Math.round((+e.height || 0) * 100) / 100 }));
+  const dc = (d.dailyConditions && d.dailyConditions[0]) || d.conditions || {};
+  const periods = (dc.solunarPeriods || []).map(p => ({ type: p.type, start: _tcHHMM(p.startLocal), peak: _tcHHMM(p.peakLocal), end: _tcHHMM(p.endLocal) }));
+  return {
+    ok: true, zone, point: TIDE_ZONES[zone].point,
+    station: (d.station && d.station.name) || '', tz: (d.station && d.station.timezone) || '',
+    extremes: ex,
+    sunrise: _tcHHMM(dc.sunriseLocal || dc.sunrise), sunset: _tcHHMM(dc.sunsetLocal || dc.sunset),
+    moonPhase: _moonES[dc.moonPhase] || dc.moonPhase || '', moonIllum: (dc.moonIllumination != null ? dc.moonIllumination : null),
+    solunar: (dc.solunarRating != null ? dc.solunarRating : null), solunarLabel: dc.solunarLabel || '',
+    periods, updated: new Date().toISOString(),
+  };
+}
+function buildTideZone(zone, cb) {
+  const z = TIDE_ZONES[zone]; if (!z) { cb(null); return; }
+  const cached = _tideCache[zone];
+  const fresh = cached && cached.data && (Date.now() - cached.ts < 24 * 3600 * 1000);
+  if (fresh) { cb(cached.data); return; }
+  const withStation = (stationId, stationName) => {
+    _tcGet(`/api/station/${encodeURIComponent(stationId)}/tides?days=2&datum=MSL`, (d) => {
+      if (!d || !d.station) { cb(cached && cached.data ? cached.data : null); return; }
+      const data = parseTide(zone, d);
+      _tideCache[zone] = { ts: Date.now(), stationId, stationName: d.station.name || stationName || '', data };
+      _tideSave();
+      cb(data);
+    });
+  };
+  if (cached && cached.stationId) { withStation(cached.stationId, cached.stationName); return; }
+  // Resolver la estación más cercana (una sola vez; luego se guarda el ID).
+  _tcGet(`/api/stations/nearest?lat=${z.lat}&lng=${z.lng}`, (d) => {
+    const st = (d && (d.station || d)) || {};
+    const id = st.id || st.stationId || (d && d.id);
+    if (!id) { cb(cached && cached.data ? cached.data : null); return; }
+    withStation(id, st.name || '');
+  });
+}
+
 // Caché del pronóstico oficial SMN (CONAGUA). Los Mochis = municipio Ahome.
 let _smnCache = null, _smnTs = 0;
 const SMN_TARGETS = { culiacan: ['culiacán', 'culiacan'], mazatlan: ['mazatlán', 'mazatlan'], los_mochis: ['ahome'] };
@@ -777,6 +842,16 @@ const server = http.createServer((req, res) => {
     sReq.on('error', (e) => { res.writeHead(502, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: e.message })); });
     sReq.setTimeout(12000, () => { sReq.destroy(); });
     sReq.end();
+    return;
+  }
+
+  // ── TideCheck: mareas, sol/luna e índice solunar (1 consulta por zona al día, caché 24 h) ──
+  if (req.url.startsWith('/api/tides') && req.method === 'GET') {
+    const send = (o) => { res.setHeader('Access-Control-Allow-Origin', '*'); res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(o)); };
+    if (!TIDECHECK_KEY) { send({ ok: false, error: 'Falta TIDECHECK_KEY en el servidor (Railway → Variables)' }); return; }
+    let zone = ''; try { zone = (new URL(req.url, 'http://x').searchParams.get('zone') || '').toLowerCase(); } catch (_) {}
+    if (!TIDE_ZONES[zone]) zone = 'culiacan';
+    buildTideZone(zone, (data) => { send(data || { ok: false, error: 'sin datos de mareas' }); });
     return;
   }
 

@@ -747,6 +747,7 @@ input[type=range]::-moz-range-thumb{width:18px;height:24px;border-radius:5px;bac
       <div class="lis-list" id="lisList"><div class="empty">Sin oyentes conectados ahora mismo.</div></div>
     </div>
     <div class="lis-foot">Ubicación aproximada por ciudad (nunca dirección). Más oyentes NO cuesta extra: puedes promocionar la radio libremente.</div>
+    <div class="lis-foot">Clima oficial por CONAGUA · <a href="https://tidecheck.com" target="_blank" rel="noopener" style="color:var(--cyan)">Datos de mareas por TideCheck</a></div>
   </div>
 
   <div class="note">
@@ -1778,6 +1779,7 @@ function nextDJItem(){
   // Prioriza el clima cuando hay probabilidad alta de lluvia (aviso útil).
   if(_highRainNow()!=null && Math.random()<0.7) return {kind:'dj',type:'WEATHER_REPORT'};
   const pool=['WEATHER_REPORT','TIME_CHECK','FISHING_TIP','RESERVOIR_UPDATE'];
+  if(_tidesAvailable) pool.push('TIDE_REPORT');
   if(spots.length) pool.push('SPOT');
   const pick=pool[Math.floor(Math.random()*pool.length)];
   return pick==='SPOT' ? {kind:'spot'} : {kind:'dj',type:pick};
@@ -1966,6 +1968,15 @@ function _highRainNow(){
 }
 // Precalienta el caché del SMN al cargar y cada hora, para que la priorización funcione.
 try{ _getSMN(); setInterval(()=>{ _smnTsC=0; _getSMN(); }, 60*60000); }catch(_){}
+
+// Mareas, sol/luna e índice solunar (TideCheck). El servidor cachea 24 h; aquí 1 h.
+let _tideCacheC={},_tideTsC={},_tidesAvailable=false;
+async function _getTide(zone){
+  if(_tideCacheC[zone]&&Date.now()-_tideTsC[zone]<60*60000) return _tideCacheC[zone];
+  try{ const r=await fetch('/api/tides?zone='+encodeURIComponent(zone)); const d=await r.json(); if(d&&d.ok){ _tideCacheC[zone]=d; _tideTsC[zone]=Date.now(); _tidesAvailable=true; return d; } }catch(_){}
+  return null;
+}
+try{ _getTide('culiacan'); }catch(_){}
 async function getWeather(){
   const key=_resolveWeatherCity();const c=WCITIES[key];
   if(_wCache[key]&&Date.now()-_wCache[key].ts<12*60000) return _wCache[key].d;
@@ -2032,6 +2043,7 @@ async function buildCtx(type){
   const ctx={hora:horaRadio(),slogan:cfg.slogan};
   if(type==='WEATHER_REPORT'||type==='FISHING_FORECAST'){ctx.w=await getWeather();}
   if(type==='RESERVOIR_UPDATE'){ ctx.presas=await _getPresas(); }
+  if(type==='TIDE_REPORT'){ ctx.tide=await _getTide(_resolveWeatherCity()); }
   // Producto real para recomendaciones/consejos, elegido al azar del catálogo.
   if(['GEAR_TIP','PROMO_TEASER','FISHING_TIP','FISHING_FORECAST','RESERVOIR_UPDATE'].includes(type)){
     try{ const ps=await _getShopProducts(); if(ps.length) ctx.product=ps[Math.floor(Math.random()*ps.length)]; }catch(_){}
@@ -2164,6 +2176,14 @@ Entrega EXCLUSIVAMENTE las palabras que Rodo debe pronunciar, en un solo párraf
   const selloHora=_sellosHora[Math.floor(Math.random()*_sellosHora.length)];
   // Datos de presas (combinado: automático de CONAGUA o respaldo escrito en CONFIG).
   const _presasLine=(ctx&&ctx.presas)?`Niveles REALES de presas (usa estos, no inventes): ${ctx.presas}`:'';
+  // Datos de mareas / solunar (TideCheck).
+  const _t=ctx&&ctx.tide;
+  let _tideLine='';
+  if(_t&&_t.ok){
+    const marea=(_t.extremes||[]).map(e=>`${e.type==='high'?'pleamar':'bajamar'} a las ${e.hhmm}`).join(', ');
+    const sol=(_t.periods||[]).map(p=>`${p.type==='major'?'mayor':'menor'} de ${p.start} a ${p.end}`).join('; ');
+    _tideLine=`Datos REALES para ${_t.point}${_t.station?' (estación '+_t.station+')':''}: próximas mareas: ${marea||'sin datos'}. Amanecer ${_t.sunrise}, atardecer ${_t.sunset}. Luna ${_t.moonPhase}${_t.moonIllum!=null?`, ${_t.moonIllum} por ciento iluminada`:''}. Índice solunar de pesca ${_t.solunar!=null?_t.solunar+' de 5':'no disponible'}${_t.solunarLabel?' ('+_t.solunarLabel+')':''}. Ventanas solunares: ${sol||'no disponibles'}.`;
+  }
 
   const typePrompts={
     FISHING_TIP:
@@ -2182,6 +2202,8 @@ Entrega EXCLUSIVAMENTE las palabras que Rodo debe pronunciar, en un solo párraf
       `${systemPrompt}\n\nSon ${hora}. Da un consejo de seguridad para pescadores: en lancha, kayak, playa, presa o mar abierto. Chaleco, comunicación, viento, revisión de equipo. Frase corta y directa. De 10 a 15 segundos.`,
     RESERVOIR_UPDATE:
       `${systemPrompt}\n\nSon ${hora}. ${_presasLine?'Comenta el nivel de las presas de Sinaloa usando los datos reales de arriba (di los porcentajes en palabras) y relaciónalo con la pesca en presa (carpa, bagre, lobina) y el nivel del agua. NO inventes otros porcentajes.':'Comenta de forma general sobre presas y ríos de Sinaloa: pesca en presa, actividad de carpas o bagres, nivel de agua según temporada. No inventes porcentajes exactos.'} De 10 a 15 segundos.`,
+    TIDE_REPORT:
+      `${systemPrompt}\n\nSon ${hora}. Da el REPORTE DE MAREAS Y PESCA para la costa usando SOLO estos datos reales:\n${_tideLine||'(sin datos de mareas ahora)'}\nSelecciona lo más útil: la próxima pleamar y bajamar con su hora, el amanecer o atardecer si encaja, y la luna. Traduce el índice solunar a lenguaje sencillo: cuatro o cinco = "actividad de pesca estimada ALTA" o "ventana solunar favorable"; tres = "actividad moderada"; uno o dos = "actividad baja". NUNCA prometas resultados ni digas "hoy seguro van a picar"; habla siempre de actividad ESTIMADA y de ventanas favorables. Puedes mencionar con naturalidad que los datos de mareas son de TideCheck. Escribe las horas y números en palabras. De 12 a 18 segundos.`,
     PROMO_TEASER:
       `${systemPrompt}\n\nSon ${hora}. Invita de forma suave y natural a visitar Terrapesca. Si arriba hay un producto real, úsalo como gancho concreto (nómbralo); si no, elige una categoría específica. Sin presión, tono de recomendación de experto. Varía la frase de cierre respecto a otras veces. De 10 a 15 segundos.`,
     SONG_BRIDGE:
