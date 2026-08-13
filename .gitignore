@@ -11,3 +11,4 @@ audio-source/
 
 # Estado de la Radio 24/7 (efímero, propio de cada servidor)
 .autopilot.json
+.tides.json
