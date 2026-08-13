@@ -544,7 +544,7 @@ function connectWS() {
   if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
   const url = location.origin.replace('https://', 'wss://').replace('http://', 'ws://');
   try { ws = new WebSocket(url); } catch(e) { wsTimer = setTimeout(connectWS, 4000); return; }
-  ws.onopen = () => { wsOk = true; if (started && !playing) diagnose(); };
+  ws.onopen = () => { wsOk = true; try { ws.send(JSON.stringify({ type: 'HELLO', role: 'listener' })); } catch(_) {} if (started && !playing) diagnose(); };
   ws.onclose = () => { wsOk = false; if (started && !playing) setStatus('Reconectando con la estación…', 'connecting'); wsTimer = setTimeout(connectWS, 4000); };
   ws.onerror = () => {};
   ws.onmessage = (e) => {

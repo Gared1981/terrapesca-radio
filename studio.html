@@ -321,6 +321,20 @@ input[type=range]::-moz-range-thumb{width:18px;height:24px;border-radius:5px;bac
 
 /* JINGLE CARD */
 .jingle-card{background:linear-gradient(160deg,rgba(106,180,255,.06),rgba(255,255,255,.02));backdrop-filter:blur(14px);border:1px solid rgba(106,180,255,.2);border-radius:var(--r);padding:14px;margin-bottom:12px}
+.listeners-card{background:linear-gradient(160deg,rgba(39,198,224,.07),rgba(255,255,255,.02));backdrop-filter:blur(14px);border:1px solid rgba(39,198,224,.22);border-radius:var(--r);padding:14px;margin-bottom:12px}
+.listeners-card h3{font-size:12px;font-family:var(--mono);letter-spacing:1px;color:var(--txt2);margin-bottom:10px}
+.listeners-card .cnt{background:var(--cyan);color:#04121a;border-radius:999px;padding:1px 9px;font-size:11px;font-weight:700;margin-left:6px}
+.lis-wrap{display:grid;grid-template-columns:1.3fr 1fr;gap:12px;align-items:stretch}
+.lis-map{background:#04121a;border:1px solid rgba(39,198,224,.2);border-radius:10px;overflow:hidden;min-height:150px}
+.lis-map svg{width:100%;height:100%;display:block}
+.lis-list{max-height:180px;overflow:auto;display:flex;flex-direction:column;gap:5px}
+.lis-list .lrow{display:flex;align-items:center;gap:8px;padding:6px 9px;background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:8px;font-size:12px}
+.lis-list .lrow .dot{width:8px;height:8px;border-radius:50%;background:var(--cyan);flex:none;box-shadow:0 0 8px rgba(39,198,224,.7)}
+.lis-list .lrow .c{font-weight:600;color:var(--txt)}
+.lis-list .lrow .n{margin-left:auto;font-family:var(--mono);color:var(--txt2);font-size:11px}
+.lis-list .empty{color:var(--txt3);font-size:12px;padding:8px}
+.lis-foot{margin-top:9px;font-size:10.5px;color:var(--txt3);line-height:1.5}
+@media(max-width:640px){.lis-wrap{grid-template-columns:1fr}}
 .jingle-card h3{font-size:11px;font-family:var(--mono);letter-spacing:1.5px;color:#6ab4ff;margin-bottom:10px}
 .jingle-zone{border:2px dashed var(--line2);border-radius:9px;padding:14px;text-align:center;font-size:12px;color:var(--txt3);cursor:pointer;transition:.15s;margin-bottom:8px}
 .jingle-zone:hover{border-color:var(--cyan);color:var(--txt)}
@@ -474,6 +488,8 @@ input[type=range]::-moz-range-thumb{width:18px;height:24px;border-radius:5px;bac
             <option value="los_mochis">Los Mochis</option>
           </select>
         </div>
+        <div class="cfg-row"><label>Presas (respaldo)</label><input id="cfgPresas" placeholder="Ej: López Mateos 62%, Sanalona 78%, Bacurato 55%"/></div>
+        <div style="font-size:10px;color:var(--txt3);padding:0 2px 2px">Rodo intenta jalar los niveles de CONAGUA solo; si no responde, usa esto. Actualízalo cuando salga el reporte mensual (cidh.org.mx/almacenamiento-de-presas).</div>
       </div>
 
       <div class="cfg-section">
@@ -721,6 +737,18 @@ input[type=range]::-moz-range-thumb{width:18px;height:24px;border-radius:5px;bac
     </div>
   </div>
 
+  <!-- OYENTES EN VIVO -->
+  <div class="listeners-card">
+    <h3>🎧 OYENTES EN VIVO <span class="cnt" id="lisCnt">0</span></h3>
+    <div class="lis-wrap">
+      <div class="lis-map">
+        <svg id="lisMap" viewBox="0 0 320 210" preserveAspectRatio="xMidYMid meet"></svg>
+      </div>
+      <div class="lis-list" id="lisList"><div class="empty">Sin oyentes conectados ahora mismo.</div></div>
+    </div>
+    <div class="lis-foot">Ubicación aproximada por ciudad (nunca dirección). Más oyentes NO cuesta extra: puedes promocionar la radio libremente.</div>
+  </div>
+
   <div class="note">
     <b>Nota técnica:</b> El motor usa <b>dos reproductores de YouTube</b> (Deck A/B) para crossfade sin silencios.
     Los medidores VU son <b>visuales/simulados</b> — YouTube no permite leer el audio real desde un iframe (restricción del navegador).
@@ -942,6 +970,7 @@ function _connectServerWS(){
     _sws=new WebSocket(url);
     _sws.onopen=()=>{
       _swsOk=true; console.log('[Studio→WS] conectado');
+      try{ _sws.send(JSON.stringify({type:'HELLO',role:'studio'})); }catch(_){}
       // Send current playing track so sucursales that just connected get the signal
       setTimeout(_wsSendCurrentState, 800);
     };
@@ -956,6 +985,8 @@ let _lastRemoteCmd=0;
 let _autopilotOn=false; // Radio 24/7 activa (el servidor maneja la reproducción)
 function _onRemoteCmd(ev){
   let msg=null; try{ msg=JSON.parse(ev.data); }catch(_){ return; }
+  // Oyentes en vivo (conteo + ubicación) que reporta el servidor
+  if(msg.type==='LISTENERS'){ renderListeners(msg); return; }
   // Reflejar el estado de la Radio 24/7 que reporta el servidor
   if(msg.type==='AUTOPILOT'){ _setAutopilotUI(!!msg.on); return; }
   if(msg.type==='SYNC'){ if(msg.state&&typeof msg.state.autopilotOn==='boolean') _setAutopilotUI(msg.state.autopilotOn); return; }
@@ -980,6 +1011,46 @@ setInterval(()=>{ if(_swsOk && !_xfading && !djActive && !_autopilotOn) _wsSendC
 function _wsSend(msg){
   if(!_sws||_sws.readyState!==WebSocket.OPEN) return;
   try{ _sws.send(JSON.stringify(msg)); }catch(_){}
+}
+// Oyentes en vivo: conteo + ciudades + mini mapa (puntos por ubicación aproximada).
+function renderListeners(msg){
+  const cnt=document.getElementById('lisCnt'); if(cnt) cnt.textContent=msg.total||0;
+  const listEl=document.getElementById('lisList');
+  const mapEl=document.getElementById('lisMap');
+  const items=(msg.items||[]);
+  const byCity={};
+  items.forEach(it=>{
+    const foreign=it.country&&!/m[eé]xico/i.test(it.country);
+    const label=it.city?(it.city+(foreign?', '+it.country:'')):(it.country||'Ubicación desconocida');
+    if(!byCity[label]) byCity[label]={label,n:0,lat:it.lat,lon:it.lon};
+    byCity[label].n++;
+  });
+  const cities=Object.values(byCity).sort((a,b)=>b.n-a.n);
+  if(listEl){
+    listEl.innerHTML=cities.length?cities.map(c=>
+      `<div class="lrow"><span class="dot"></span><span class="c">${esc(c.label)}</span><span class="n">${c.n}</span></div>`).join('')
+      :'<div class="empty">Sin oyentes conectados ahora mismo.</div>';
+  }
+  if(mapEl){
+    const W=320,H=210,lonMin=-118,lonMax=-86,latMin=14,latMax=33;
+    const proj=(lat,lon)=>[Math.max(8,Math.min(W-8,(lon-lonMin)/(lonMax-lonMin)*W)),Math.max(8,Math.min(H-8,(latMax-lat)/(latMax-latMin)*H))];
+    let svg='';
+    for(let gx=0;gx<=4;gx++){const x=(gx/4*W).toFixed(1);svg+=`<line x1="${x}" y1="0" x2="${x}" y2="${H}" stroke="rgba(39,198,224,.08)"/>`;}
+    for(let gy=0;gy<=3;gy++){const y=(gy/3*H).toFixed(1);svg+=`<line x1="0" y1="${y}" x2="${W}" y2="${y}" stroke="rgba(39,198,224,.08)"/>`;}
+    svg+=`<text x="8" y="15" fill="rgba(39,198,224,.55)" font-size="9" font-family="monospace">MÉXICO · oyentes en vivo</text>`;
+    let plotted=0;
+    cities.forEach(c=>{
+      if(c.lat==null||c.lon==null||isNaN(c.lat)||isNaN(c.lon)) return;
+      plotted++;
+      const [x,y]=proj(c.lat,c.lon).map(v=>v.toFixed(1));
+      const r=Math.min(12,5+c.n*2);
+      svg+=`<circle cx="${x}" cy="${y}" r="${r}" fill="rgba(39,198,224,.14)"><animate attributeName="r" values="${r};${r+7};${r}" dur="2.6s" repeatCount="indefinite"/></circle>`;
+      svg+=`<circle cx="${x}" cy="${y}" r="${Math.min(6,3+c.n)}" fill="#27c6e0"/>`;
+      svg+=`<text x="${x}" y="${(y-r-3)}" fill="#bfeefb" font-size="8" font-family="monospace" text-anchor="middle">${esc((c.label||'').split(',')[0].slice(0,14))}</text>`;
+    });
+    if(!plotted) svg+=`<text x="${W/2}" y="${H/2}" fill="rgba(255,255,255,.25)" font-size="11" font-family="monospace" text-anchor="middle">${cities.length?'Ubicando oyentes…':'Sin oyentes aún'}</text>`;
+    mapEl.innerHTML=svg;
+  }
 }
 
 /* ================= RADIO 24/7 (piloto automático del servidor) ================= */
@@ -1704,7 +1775,7 @@ function nextDJItem(){
   if(!_djHoursOK()){
     return spots.length ? {kind:'spot'} : null;
   }
-  const pool=['WEATHER_REPORT','TIME_CHECK','FISHING_TIP'];
+  const pool=['WEATHER_REPORT','TIME_CHECK','FISHING_TIP','RESERVOIR_UPDATE'];
   if(spots.length) pool.push('SPOT');
   const pick=pool[Math.floor(Math.random()*pool.length)];
   return pick==='SPOT' ? {kind:'spot'} : {kind:'dj',type:pick};
@@ -1898,9 +1969,50 @@ async function _getShopProducts(){
   catch(_){ _shopFeedCache=_shopFeedCache||[]; }
   return _shopFeedCache;
 }
+// Presas de Sinaloa — COMBINADO: primero intenta CONAGUA (automático); si falla
+// o no trae datos, usa el respaldo que hayas escrito en CONFIG (tp_presas).
+const _SINALOA_PRESAS=['lópez mateos','lopez mateos','comedero','sanalona','bacurato','díaz ordaz','diaz ordaz','huites','colosio','picachos','josefa ortiz','sabino','guillermo blake','buelna','vinoramas','guamúchil','guamuchil'];
+function _num(v){ const n=parseFloat(String(v).replace(/[^0-9.\-]/g,'')); return isNaN(n)?null:n; }
+function _parsePresasSinaloa(d){
+  try{
+    let arr=Array.isArray(d)?d:(d&&(d.presas||d.data||d.features||d.results));
+    if(!Array.isArray(arr)||!arr.length) return '';
+    const out=[];
+    for(const it of arr){
+      const o=(it&&it.properties)?it.properties:it; if(!o||typeof o!=='object') continue;
+      const name=String(o.nombrecomun||o.nombreoficial||o.nombre||o.NOMBRE||o.name||o.presa||'').trim();
+      const estado=String(o.estado||o.ESTADO||o.entidad||'').toLowerCase();
+      const key=name.toLowerCase();
+      const isSin=estado.includes('sinaloa')||_SINALOA_PRESAS.some(p=>key.includes(p));
+      if(!name||!isSin) continue;
+      // porcentaje directo o calculado de almacenamiento/NAMO
+      let pct=_num(o.porcentajedellenado||o.porcentaje||o.llenado||o.PORC||o.almacenaporc);
+      if(pct==null){ const a=_num(o.almacenaactual||o.almacenaact||o.actual), c=_num(o.namoalmac||o.capacidadnamo||o.namo); if(a!=null&&c) pct=Math.round(a/c*100); }
+      if(pct==null||pct<0||pct>140) continue;
+      out.push(`${name} ${Math.round(pct)}%`);
+      if(out.length>=4) break;
+    }
+    return out.join(', ');
+  }catch(_){ return ''; }
+}
+let _presasCache=null,_presasTs=0;
+async function _getPresas(){
+  const manual=(localStorage.getItem('tp_presas')||'').trim();
+  // Caché de 30 min para no pegarle a CONAGUA en cada intervención.
+  if(_presasCache!==null && Date.now()-_presasTs<30*60000) return _presasCache||manual;
+  try{
+    const r=await fetch('/api/conagua');
+    const d=await r.json();
+    const auto=_parsePresasSinaloa(d);
+    _presasCache=auto||''; _presasTs=Date.now();
+    if(auto) return auto;
+  }catch(_){ _presasCache=''; _presasTs=Date.now(); }
+  return manual;
+}
 async function buildCtx(type){
   const ctx={hora:horaRadio(),slogan:cfg.slogan};
   if(type==='WEATHER_REPORT'||type==='FISHING_FORECAST'){ctx.w=await getWeather();}
+  if(type==='RESERVOIR_UPDATE'){ ctx.presas=await _getPresas(); }
   // Producto real para recomendaciones/consejos, elegido al azar del catálogo.
   if(['GEAR_TIP','PROMO_TEASER','FISHING_TIP','FISHING_FORECAST','RESERVOIR_UPDATE'].includes(type)){
     try{ const ps=await _getShopProducts(); if(ps.length) ctx.product=ps[Math.floor(Math.random()*ps.length)]; }catch(_){}
@@ -2023,23 +2135,33 @@ Entrega EXCLUSIVAMENTE las palabras que Rodo debe pronunciar, en un solo párraf
   const queueLines=(ctx&&ctx.queue||[]).map(x=>`  ${x.i}: "${x.name}" — ${x.artist||'artista desconocido'}`).join('\n');
   const curLine=ctx&&ctx.currentSong?`Canción ACTUAL (NO la repitas ni la menciones): "${ctx.currentSong.name}" — ${ctx.currentSong.artist}`:'';
 
+  // Sellos de sección rotativos (reconocibles pero sin repetir siempre igual).
+  const _wCity=(ctx&&ctx.w&&ctx.w.city)||'la región';
+  const _sellosClima=[`El tiempo al momento en ${_wCity}`,`El tiempo al momento, con Terrapesca`,`Tu reporte del tiempo al instante`,`Así está el tiempo ahora mismo en ${_wCity}`,`El tiempo al momento para los pescadores de ${_wCity}`];
+  const selloClima=_sellosClima[Math.floor(Math.random()*_sellosClima.length)];
+  // La HORA la patrocina Costa Kayaks (reforzamos esa marca).
+  const _sellosHora=[`Costa Kayaks te da la hora`,`La hora, cortesía de Costa Kayaks`,`Costa Kayaks te pone en hora`,`Con Costa Kayaks, esta es la hora`];
+  const selloHora=_sellosHora[Math.floor(Math.random()*_sellosHora.length)];
+  // Datos de presas (combinado: automático de CONAGUA o respaldo escrito en CONFIG).
+  const _presasLine=(ctx&&ctx.presas)?`Niveles REALES de presas (usa estos, no inventes): ${ctx.presas}`:'';
+
   const typePrompts={
     FISHING_TIP:
       `${systemPrompt}\n\nSon ${hora}. Da UN solo tip práctico y CONCRETO de pesca (un señuelo específico, una técnica puntual, una zona, una carnada, el horario de actividad del pez o su comportamiento según el clima real de arriba). Nada de consejos vagos tipo "prepara bien tu equipo": que sea algo aplicable hoy. Si arriba hay un producto real y encaja, menciónalo por su nombre sin presionar. Cambia el enfoque respecto a intervenciones anteriores. De 10 a 15 segundos. Sin títulos de canciones. Cierra natural.`,
     WEATHER_REPORT:
-      `${systemPrompt}\n\nSon ${hora}. Reporta el clima USANDO LOS DATOS REALES de arriba (ciudad, temperatura, viento y cielo) y relaciónalo con la pesca de hoy: si conviene salir temprano, cuidado con el viento, sombra e hidratación con el calor, etc. NO uses siempre la misma frase de apertura ni la misma estructura; varía el orden y las palabras cada vez. No inventes números distintos a los reales. De 10 a 15 segundos.`,
+      `${systemPrompt}\n\nSon ${hora}. ABRE con una variante natural de este sello de sección (dilo al inicio, con energía de locutor): "${selloClima}". Luego reporta el clima USANDO LOS DATOS REALES de arriba (ciudad, temperatura, viento y cielo) y relaciónalo con la pesca de hoy: si conviene salir temprano, cuidado con el viento, sombra e hidratación con el calor, etc. Varía el resto del contenido y no inventes números distintos a los reales. De 10 a 15 segundos.`,
     FISHING_FORECAST:
       `${systemPrompt}\n\nSon ${hora}. Con el clima real de arriba, da una recomendación CONCRETA para salir a pescar hoy: mejor horario, zona o tipo de pesca según viento y temperatura. Si hay un producto real arriba y encaja, menciónalo con naturalidad. Varía la estructura respecto a otras veces. De 10 a 15 segundos.`,
     STATION_ID:
       `${systemPrompt}\n\nSon ${hora}. Identifica brevemente la estación: Radio Terrapesca. Menciona que están acompañando a pescadores y clientes de Sinaloa. Frase natural de radio. 5 a 10 segundos.`,
     TIME_CHECK:
-      `${systemPrompt}\n\nSon ${hora}. Di la hora de forma natural como locutor de radio. Añade algo breve y útil para el oyente: recomendación de pesca, equipo, seguridad o clima general. 5 a 10 segundos.`,
+      `${systemPrompt}\n\nSon ${hora}. ABRE con una variante natural de este patrocinio de sección (dilo al inicio): "${selloHora}". Luego di la hora (${hora}) de forma natural como locutor de radio y añade algo breve y útil: recomendación de pesca, equipo, seguridad o clima. Varía las palabras cada vez. 6 a 12 segundos.`,
     GEAR_TIP:
       `${systemPrompt}\n\nSon ${hora}. Da un tip CONCRETO sobre equipo de pesca. Si arriba hay un producto real del catálogo, gíralo alrededor de ese producto (para qué sirve, qué necesidad resuelve) y menciónalo por su nombre; si no, elige un tipo específico (una línea, un carrete, un señuelo, un chaleco…). Nada genérico. Menciona Terrapesca con naturalidad si encaja, sin presionar. De 10 a 15 segundos.`,
     SAFETY_TIP:
       `${systemPrompt}\n\nSon ${hora}. Da un consejo de seguridad para pescadores: en lancha, kayak, playa, presa o mar abierto. Chaleco, comunicación, viento, revisión de equipo. Frase corta y directa. De 10 a 15 segundos.`,
     RESERVOIR_UPDATE:
-      `${systemPrompt}\n\nSon ${hora}. Comenta sobre embalses, presas o ríos de Sinaloa de forma general: pesca en presa, actividad de carpas o bagres, nivel de agua según temporada. No inventes porcentajes reales. De 10 a 15 segundos.`,
+      `${systemPrompt}\n\nSon ${hora}. ${_presasLine?'Comenta el nivel de las presas de Sinaloa usando los datos reales de arriba (di los porcentajes en palabras) y relaciónalo con la pesca en presa (carpa, bagre, lobina) y el nivel del agua. NO inventes otros porcentajes.':'Comenta de forma general sobre presas y ríos de Sinaloa: pesca en presa, actividad de carpas o bagres, nivel de agua según temporada. No inventes porcentajes exactos.'} De 10 a 15 segundos.`,
     PROMO_TEASER:
       `${systemPrompt}\n\nSon ${hora}. Invita de forma suave y natural a visitar Terrapesca. Si arriba hay un producto real, úsalo como gancho concreto (nómbralo); si no, elige una categoría específica. Sin presión, tono de recomendación de experto. Varía la frase de cierre respecto a otras veces. De 10 a 15 segundos.`,
     SONG_BRIDGE:
@@ -3139,6 +3261,7 @@ function openSettings(){
   sv('cfgYt',localStorage.getItem('tp_yt')||'');
   sv('cfgSl',localStorage.getItem('tp_slogan')||'');
   sv('cfgWeatherCity',localStorage.getItem('tp_weather_city')||'auto');
+  sv('cfgPresas',localStorage.getItem('tp_presas')||'');
   sv('cfgVoiceDJ',_migVoice(localStorage.getItem('tp_voice_dj')));
   sv('cfgVoiceSpot',_migVoice(localStorage.getItem('tp_voice_spot')));
   sv('cfgEngine',localStorage.getItem('tp_engine')||'openai');
@@ -3155,7 +3278,7 @@ function closeSettings(){ document.getElementById('settingsModal').classList.add
 function saveSettings(){
   const set=(k,id)=>{ const v=document.getElementById(id).value.trim(); if(v) localStorage.setItem(k,v); else localStorage.removeItem(k); };
   set('tp_ws','cfgWs'); set('tp_oai','cfgOai'); set('tp_ant','cfgAnt'); set('tp_yt','cfgYt');
-  set('tp_slogan','cfgSl'); set('tp_weather_city','cfgWeatherCity');
+  set('tp_slogan','cfgSl'); set('tp_weather_city','cfgWeatherCity'); set('tp_presas','cfgPresas');
   set('tp_voice_dj','cfgVoiceDJ'); set('tp_voice_spot','cfgVoiceSpot');
   set('tp_engine','cfgEngine'); set('tp_vk_key','cfgVkKey'); set('tp_vk_user','cfgVkUser'); set('tp_vk_voice','cfgVkVoice');
   set('tp_shopify_domain','cfgShopDomain'); set('tp_shopify_token','cfgShopToken');
