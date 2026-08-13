@@ -45,6 +45,61 @@ const PORT = process.env.PORT || 3000;
 // Caché del pronóstico oficial SMN (CONAGUA). Los Mochis = municipio Ahome.
 let _smnCache = null, _smnTs = 0;
 const SMN_TARGETS = { culiacan: ['culiacán', 'culiacan'], mazatlan: ['mazatlán', 'mazatlan'], los_mochis: ['ahome'] };
+// Lee el archivo del SMN en streaming (gzip) y extrae solo las 3 ciudades objetivo,
+// tomando la hora más cercana a "ahora" (nhor 0). No carga todo el archivo en memoria.
+function smnExtract(pathUrl, cb) {
+  const zlib2 = zlib;
+  const N = v => { const n = parseFloat(String(v).replace(',', '.')); return isNaN(n) ? null : n; };
+  const MUNI2KEY = { 'culiacán': 'culiacan', 'culiacan': 'culiacan', 'mazatlán': 'mazatlan', 'mazatlan': 'mazatlan', 'ahome': 'los_mochis' };
+  const out = {}; let partial = ''; let finished = false; let processed = 0; let done = false;
+  const req2 = https.request({ hostname: 'smn.conagua.gob.mx', path: pathUrl, method: 'GET', headers: { 'User-Agent': 'Mozilla/5.0', 'Accept-Encoding': 'gzip' } }, (r2) => {
+    const finish = (err) => {
+      if (finished) return; finished = true;
+      try { r2.destroy(); } catch (_) {}
+      const keys = Object.keys(out);
+      keys.forEach(k => { delete out[k]._nh; });
+      cb(keys.length ? out : null, err);
+    };
+    const onText = (txt) => {
+      if (done) return;
+      partial += txt; processed += txt.length;
+      if (processed > 200 * 1024 * 1024) { done = true; finish('too big'); return; }
+      let start;
+      while ((start = partial.indexOf('{')) !== -1) {
+        let depth = 0, end = -1, inStr = false, esc = false;
+        for (let i = start; i < partial.length; i++) {
+          const ch = partial[i];
+          if (inStr) { if (esc) esc = false; else if (ch === '\\') esc = true; else if (ch === '"') inStr = false; continue; }
+          if (ch === '"') inStr = true; else if (ch === '{') depth++; else if (ch === '}') { depth--; if (depth === 0) { end = i; break; } }
+        }
+        if (end === -1) { if (start > 0) partial = partial.slice(start); break; }
+        const objStr = partial.slice(start, end + 1);
+        partial = partial.slice(end + 1);
+        let o; try { o = JSON.parse(objStr); } catch (_) { continue; }
+        const key = MUNI2KEY[String(o.nmun || o.name || '').toLowerCase().trim()];
+        if (!key) continue;
+        const isSin = String(o.nes || o.state || '').toLowerCase().includes('sinaloa') || String(o.ides || '') === '25';
+        if (!isSin) continue;
+        const nh = (o.nhor != null) ? N(o.nhor) : null;
+        const hourly = (o.temp != null && nh != null);
+        const cand = hourly
+          ? { city: o.nmun || o.name, temp: N(o.temp), prob: N(o.probprec), cielo: o.desciel || '', viento: N(o.velvien), dir: o.dirvienc || '', hr: N(o.hr), _nh: (nh >= 0 ? nh : 9999) }
+          : { city: o.nmun || o.name, prob: N(o.probprec), tmax: N(o.tmax), tmin: N(o.tmin), cielo: o.desciel || '', viento: N(o.velvien), dir: o.dirvienc || '', _nh: 0 };
+        if (!out[key] || cand._nh < out[key]._nh) out[key] = cand;
+        if (out.culiacan && out.mazatlan && out.los_mochis && [out.culiacan, out.mazatlan, out.los_mochis].every(x => x._nh <= 1)) { done = true; finish(); return; }
+      }
+    };
+    const gunzip = zlib2.createGunzip();
+    gunzip.on('data', c => onText(c.toString('utf8')));
+    gunzip.on('end', () => finish());
+    gunzip.on('error', () => finish('gunzip'));
+    r2.on('error', () => finish('stream'));
+    r2.pipe(gunzip);
+  });
+  req2.on('error', () => { if (!finished) { finished = true; cb(null, 'request'); } });
+  req2.setTimeout(30000, () => { try { req2.destroy(); } catch (_) {} if (!finished) { finished = true; cb(null, 'timeout'); } });
+  req2.end();
+}
 
 let radioState = {
   currentTrack: null,
@@ -725,36 +780,19 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // ── SMN CONAGUA: pronóstico oficial por municipio (prob. de lluvia, cielo, máx/mín) ──
+  // ── SMN CONAGUA: pronóstico oficial por municipio (prob. de lluvia, cielo). ──
+  // El archivo del SMN es enorme (~100 MB al descomprimir), así que lo leemos en
+  // STREAMING y extraemos solo Culiacán/Mazatlán/Ahome sin cargar todo en memoria.
   if (req.url.startsWith('/api/smn') && req.method === 'GET') {
     const send = (obj) => { res.setHeader('Access-Control-Allow-Origin', '*'); res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(obj)); };
     if (_smnCache && Date.now() - _smnTs < 2 * 3600 * 1000) { send(_smnCache); return; }
-    const gz = https.request({ hostname: 'smn.conagua.gob.mx', path: '/webservices/?method=1', method: 'GET', headers: { 'User-Agent': 'Mozilla/5.0', 'Accept-Encoding': 'gzip' } }, (r2) => {
-      const chunks = []; let size = 0; let aborted = false;
-      r2.on('data', c => { size += c.length; if (size > 30 * 1024 * 1024) { aborted = true; r2.destroy(); } else chunks.push(c); });
-      r2.on('end', () => {
-        if (aborted) { send({ ok: false, error: 'too big' }); return; }
-        try {
-          let buf = Buffer.concat(chunks);
-          const enc = (r2.headers['content-encoding'] || '').toLowerCase();
-          if (enc.includes('gzip') || (buf[0] === 0x1f && buf[1] === 0x8b)) { try { buf = zlib.gunzipSync(buf); } catch (_) {} }
-          const arr = JSON.parse(buf.toString('utf8'));
-          const N = v => { const n = parseFloat(String(v).replace(',', '.')); return isNaN(n) ? null : n; };
-          const out = {};
-          for (const [key, names] of Object.entries(SMN_TARGETS)) {
-            const recs = arr.filter(o => o && String(o.state || '').toLowerCase().includes('sinaloa') && names.includes(String(o.name || '').toLowerCase().trim()));
-            recs.sort((a, b) => String(a.dloc || '').localeCompare(String(b.dloc || '')));
-            const o = recs[0];
-            if (o) out[key] = { city: o.name, prob: N(o.probprec), tmax: N(o.tmax), tmin: N(o.tmin), cielo: o.desciel || '', viento: N(o.velvien), dir: o.dirvienc || '' };
-          }
-          if (Object.keys(out).length) { _smnCache = out; _smnTs = Date.now(); send(out); }
-          else send({ ok: false, error: 'sin datos de Sinaloa' });
-        } catch (e) { send({ ok: false, error: e.message }); }
+    smnExtract('/webservices/?method=1', (out1) => {
+      if (out1) { _smnCache = out1; _smnTs = Date.now(); send(out1); return; }
+      smnExtract('/webservices/?method=3', (out3) => {
+        if (out3) { _smnCache = out3; _smnTs = Date.now(); send(out3); }
+        else send({ ok: false, error: 'sin datos del SMN' });
       });
     });
-    gz.on('error', e => send({ ok: false, error: e.message }));
-    gz.setTimeout(25000, () => { gz.destroy(); send({ ok: false, error: 'timeout' }); });
-    gz.end();
     return;
   }
 
