@@ -1,0 +1,13 @@
+# Instala ffmpeg + yt-dlp para el stream de audio en segundo plano (/radio/stream).
+# ffmpeg vía apt; yt-dlp como binario oficial (trae su propio Python, no requiere python3).
+# Si este build falla, Railway conserva el deployment anterior (la radio NO se cae).
+# La app no tiene script de build (solo "npm start"), así que usar la fase build
+# para bajar yt-dlp es seguro y forma parte de la cadena setup → install → build.
+
+[phases.setup]
+aptPkgs = ["ffmpeg", "curl"]
+
+[phases.build]
+cmds = [
+  "curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux -o /usr/local/bin/yt-dlp && chmod a+rx /usr/local/bin/yt-dlp && /usr/local/bin/yt-dlp --version"
+]

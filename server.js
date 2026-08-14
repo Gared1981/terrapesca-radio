@@ -1,11 +1,27 @@
-// build: redeploy para tomar la variable de entorno TIDECHECK_KEY
 const http = require('http');
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const zlib = require('zlib');
+const { spawn } = require('child_process');
 const { WebSocketServer } = require('ws');
+
+// ---- AUDIO EN SEGUNDO PLANO (yt-dlp + ffmpeg → /radio/stream) ----
+// yt-dlp extrae el audio de YouTube y ffmpeg lo transcodifica a un MP3 continuo
+// que un <audio> del celular sí puede reproducir con la pantalla apagada.
+let ytdlpReady = false, ffmpegReady = false;
+function _checkBin(bin, args, cb) {
+  try {
+    const p = spawn(bin, args);
+    p.on('error', () => cb(false));
+    p.on('close', () => cb(true));
+    if (p.stdout) p.stdout.on('data', () => {});
+    if (p.stderr) p.stderr.on('data', () => {});
+  } catch (_) { cb(false); }
+}
+_checkBin('yt-dlp', ['--version'], ok => { ytdlpReady = ok; console.log('[audio] yt-dlp', ok ? 'disponible' : 'NO disponible'); });
+_checkBin('ffmpeg', ['-version'], ok => { ffmpegReady = ok; console.log('[audio] ffmpeg', ok ? 'disponible' : 'NO disponible'); });
 
 // ---- LOGIN / GATE ----
 // Todas las páginas (Cabina, Sucursal, Tienda, Panel, Inicio) requieren login.
@@ -223,6 +239,35 @@ async function streamYouTubeVideo(videoId, gen) {
   });
 }
 
+// Extrae audio con yt-dlp y lo transcodifica a MP3 continuo con ffmpeg.
+function streamYouTubeYtdlp(videoId, gen) {
+  return new Promise((resolve, reject) => {
+    const url = `https://www.youtube.com/watch?v=${videoId}`;
+    let yt = null, ff = null, settled = false;
+    const finish = (fn, arg) => {
+      if (settled) return; settled = true;
+      try { yt && yt.kill('SIGKILL'); } catch (_) {}
+      try { ff && ff.kill('SIGKILL'); } catch (_) {}
+      if (gen === streamGen) { currentStreamDestroy = null; streamBusy = false; }
+      fn(arg);
+    };
+    try {
+      yt = spawn('yt-dlp', ['-q', '--no-warnings', '--no-playlist', '-f', 'bestaudio/best', '-o', '-', url]);
+      ff = spawn('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-i', 'pipe:0', '-vn', '-ac', '2', '-ar', '44100', '-b:a', '128k', '-f', 'mp3', 'pipe:1']);
+    } catch (e) { finish(reject, e); return; }
+    // Cancelar (nueva pista) = terminar en silencio.
+    currentStreamDestroy = () => finish(resolve);
+    yt.on('error', e => finish(reject, e));
+    ff.on('error', e => finish(reject, e));
+    yt.stdout.on('error', () => {});
+    ff.stdin.on('error', () => {});
+    yt.stderr.on('data', d => { const s = d.toString(); if (/error/i.test(s)) console.error('[yt-dlp]', s.trim().slice(0, 180)); });
+    ff.stdout.on('data', chunk => { if (gen === streamGen) writeToStreamClients(chunk); });
+    try { yt.stdout.pipe(ff.stdin); } catch (e) { finish(reject, e); return; }
+    ff.on('close', () => finish(resolve));
+  });
+}
+
 async function streamAudioBuffer(buffer, gen) {
   // Send first ~5 seconds immediately so browser starts playing fast
   const PREBUFFER = 80000; // ~5s at 128kbps
@@ -255,9 +300,17 @@ function startStreamTrack(track) {
   streamBusy = false;
   if (!track) return;
 
-  if (track.type === 'yt' && track.ytId && ytdl) {
+  if (track.ytId && ytdlpReady && ffmpegReady) {
+    // Motor nuevo: yt-dlp + ffmpeg (audio en segundo plano, robusto).
     streamBusy = true;
-    console.log('[stream] start yt', track.ytId, '(gen', gen + ')');
+    console.log('[stream] start yt-dlp', track.ytId, '(gen', gen + ')');
+    streamYouTubeYtdlp(track.ytId, gen)
+      .then(() => { if (gen === streamGen) streamBusy = false; })
+      .catch(e => { console.error('[stream] yt-dlp error for', track.ytId, e && e.message); if (gen === streamGen) streamBusy = false; });
+  } else if (track.ytId && ytdl) {
+    // Respaldo: ytdl-core (si yt-dlp/ffmpeg no están disponibles).
+    streamBusy = true;
+    console.log('[stream] start ytdl', track.ytId, '(gen', gen + ')');
     streamYouTubeVideo(track.ytId, gen)
       .then(() => { if (gen === streamGen) streamBusy = false; })
       .catch(e => {
@@ -471,6 +524,8 @@ const server = http.createServer((req, res) => {
       streamClients: streamClients.size,
       streamBusy,
       ytdlAvailable: !!ytdl,
+      ytdlpReady,   // true = yt-dlp instalado (motor de audio en segundo plano)
+      ffmpegReady,  // true = ffmpeg instalado
       tideKeySet: !!TIDECHECK_KEY  // true = el servidor SÍ ve TIDECHECK_KEY (no expone la clave)
     }));
     return;
