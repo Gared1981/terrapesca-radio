@@ -290,6 +290,11 @@ html,body{width:100%;height:100%;background:#05070c;color:#fff;font-family:'Inte
      bloquea reproducción en iframes 0x0/display:none, por eso 200x113 casi invisible) -->
 <div id="yt-holder" style="position:fixed;bottom:0;right:0;width:200px;height:113px;opacity:.01;pointer-events:none;z-index:-1"></div>
 
+<!-- Audio real del servidor (/radio/stream): SÍ reproduce en segundo plano en
+     el celular (pantalla apagada, minimizado). Es la fuente primaria; si falla,
+     se cae al reproductor de YouTube de arriba. -->
+<audio id="bgAudio" preload="none" playsinline></audio>
+
 <script src="https://www.youtube.com/iframe_api"></script>
 <script>
 const TP_LOGO = 'https://cdn.shopify.com/s/files/1/0205/5752/9188/files/Logo-Terrapesca-01_205270e5-d546-4e33-a8d1-db0a91f1e554.png?v=1700262873';
@@ -314,6 +319,41 @@ document.getElementById('streamPill').textContent = shareUrl;
    se reproduce el video de YouTube oculto, sincronizado por WebSocket. */
 let ytPlayer = null, ytReady = false, _pendingPlay = null, _lastYtId = null;
 let spotAudio = null;
+// Modo de audio: 'stream' = <audio> del servidor (suena en segundo plano);
+// 'yt' = reproductor de YouTube (respaldo si el stream falla).
+let _mode = 'stream', _streamOk = false, _streamWatchdog = null, _wantPlay = false;
+const bgAudio = document.getElementById('bgAudio');
+function startStreamAudio() {
+  _mode = 'stream'; _streamOk = false; _wantPlay = true;
+  try {
+    bgAudio.src = location.origin + '/radio/stream?t=' + Date.now();
+    bgAudio.load();
+    bgAudio.play().catch(() => {/* autoplay bloqueado: el tap de Escuchar lo arranca */});
+  } catch (_) { fallbackToYT('audio-throw'); return; }
+  clearTimeout(_streamWatchdog);
+  // Si en 15s no arranca (YouTube bloquea la extracción, etc.), cae a YouTube.
+  _streamWatchdog = setTimeout(() => { if (_mode === 'stream' && !_streamOk) fallbackToYT('timeout'); }, 15000);
+}
+function fallbackToYT(reason) {
+  if (_mode === 'yt') return;
+  console.warn('[listen] respaldo a YouTube:', reason);
+  clearTimeout(_streamWatchdog);
+  _mode = 'yt'; _streamOk = false;
+  try { bgAudio.pause(); bgAudio.removeAttribute('src'); bgAudio.load(); } catch (_) {}
+  const t = currentTrack || (_pendingPlay && _pendingPlay.track);
+  if (t && t.ytId) playRemote(t, _liveNow()); else diagnose();
+}
+if (bgAudio) {
+  bgAudio.addEventListener('playing', () => {
+    _streamOk = true; playing = true; setPlayUI(true); setStatus('● EN VIVO', 'live');
+    const ll = document.getElementById('liveLabel'); if (ll) ll.style.display = '';
+    document.getElementById('viz').classList.remove('paused');
+  });
+  bgAudio.addEventListener('pause', () => { if (_mode === 'stream') { playing = false; setPlayUI(false); document.getElementById('viz').classList.add('paused'); } });
+  bgAudio.addEventListener('error', () => { if (_mode === 'stream') fallbackToYT('audio-error'); });
+  // El stream no debería terminar; si se corta, reconectar (salvo que haya un spot sonando).
+  bgAudio.addEventListener('ended', () => { if (_mode === 'stream' && started && !spotAudio) startStreamAudio(); });
+}
 // Posición "en vivo": la última posición reportada + el tiempo transcurrido
 let _livePos = { pos: 0, at: 0, playing: false };
 function _liveNow() {
@@ -387,12 +427,15 @@ function stopSpot() {
 }
 function playSpotB64(track) {
   if (!started) return;
-  try { if (ytReady) ytPlayer.pauseVideo(); } catch (_) {}
+  // Pausa la música (stream o YouTube) para que el spot no se encime.
+  if (_mode === 'stream') { try { bgAudio.pause(); } catch (_) {} }
+  else { try { if (ytReady) ytPlayer.pauseVideo(); } catch (_) {} }
   stopSpot();
   const url = URL.createObjectURL(b64ToBlob(track.b64, track.mime || 'audio/mpeg'));
   spotAudio = new Audio(url); spotAudio._u = url; spotAudio.volume = 0.95;
   const resume = () => {
     stopSpot();
+    if (_mode === 'stream') { if (_wantPlay) startStreamAudio(); return; }
     try {
       if (ytReady && _lastYtId) {
         const p = _liveNow();
@@ -429,21 +472,28 @@ function startListening() {
   setupMediaSessionBase();
   acquireWakeLock(); // mantener la pantalla encendida mientras se escucha
 
-  // Reproducir lo que esté al aire (la metadata ya llegó por WS antes del tap)
+  // Primario: stream de audio real del servidor (suena en segundo plano).
+  // Si falla, fallbackToYT() cambia al reproductor de YouTube.
+  startStreamAudio();
   const t = (_pendingPlay && _pendingPlay.track) || currentTrack;
-  if (t && t.ytId) { _pendingPlay = null; playRemote(t, _liveNow()); }
+  if (t) updateNowPlaying(t);
   else diagnose();
 }
 
 // ── Controls ──
 function togglePlay() {
   if (!started) { startListening(); return; }
+  if (_mode === 'stream') {
+    if (playing) { _wantPlay = false; try { bgAudio.pause(); } catch (_) {} setStatus('Pausado', ''); document.getElementById('liveLabel').style.display = 'none'; }
+    else { startStreamAudio(); } // reconecta al vivo
+    return;
+  }
+  // Respaldo (YouTube)
   if (playing) {
     try { if (ytReady) ytPlayer.pauseVideo(); } catch (_) {}
     setStatus('Pausado', '');
     document.getElementById('liveLabel').style.display = 'none';
   } else if (currentTrack && currentTrack.ytId) {
-    // Reanudar EN VIVO: sincronizar a la posición actual de la radio
     playRemote(currentTrack, _liveNow());
   } else {
     diagnose();
@@ -480,9 +530,9 @@ function setupMediaSessionBase() {
     album: 'Radio Terrapesca',
     artwork: [{ src: TP_LOGO, sizes: '512x512', type: 'image/png' }]
   });
-  navigator.mediaSession.setActionHandler('play', () => { if (currentTrack?.ytId) playRemote(currentTrack, _liveNow()); });
-  navigator.mediaSession.setActionHandler('pause', () => { try { if (ytReady) ytPlayer.pauseVideo(); } catch(_) {} });
-  navigator.mediaSession.setActionHandler('stop', () => { try { if (ytReady) ytPlayer.pauseVideo(); } catch(_) {} });
+  navigator.mediaSession.setActionHandler('play', () => { if (_mode === 'stream') startStreamAudio(); else if (currentTrack?.ytId) playRemote(currentTrack, _liveNow()); });
+  navigator.mediaSession.setActionHandler('pause', () => { if (_mode === 'stream') { _wantPlay = false; try { bgAudio.pause(); } catch(_) {} } else { try { if (ytReady) ytPlayer.pauseVideo(); } catch(_) {} } });
+  navigator.mediaSession.setActionHandler('stop', () => { if (_mode === 'stream') { _wantPlay = false; try { bgAudio.pause(); } catch(_) {} } else { try { if (ytReady) ytPlayer.pauseVideo(); } catch(_) {} } });
   // Sin next/prev: los oyentes no deben mover la estación (afecta a toda la red).
   try { navigator.mediaSession.setActionHandler('nexttrack', null); } catch(_) {}
   try { navigator.mediaSession.setActionHandler('previoustrack', null); } catch(_) {}
@@ -560,7 +610,8 @@ function connectWS() {
           if (st.queuePreview) renderUpNext(st.queuePreview);
           if (st.currentTrack) {
             _livePos = { pos: st.position || 0, at: st.lastUpdate || Date.now(), playing: !!st.isPlaying };
-            if (st.currentTrack.ytId && st.isPlaying) playRemote(st.currentTrack, _liveNow());
+            // En modo stream el audio lo lleva el servidor; solo mostramos qué suena.
+            if (_mode === 'yt' && st.currentTrack.ytId && st.isPlaying) playRemote(st.currentTrack, _liveNow());
             else updateNowPlaying(st.currentTrack);
           }
           break;
@@ -568,17 +619,18 @@ function connectWS() {
         case 'PLAY':
           if (m.track) {
             _livePos = { pos: m.position || 0, at: Date.now(), playing: true };
-            if (m.track.ytId) playRemote(m.track, m.position || 0);
+            currentTrack = m.track;
+            if (_mode === 'yt' && m.track.ytId) playRemote(m.track, m.position || 0);
             else updateNowPlaying(m.track);
           }
           break;
         case 'PAUSE':
           _livePos = { pos: m.position || 0, at: Date.now(), playing: false };
-          try { if (ytReady) ytPlayer.pauseVideo(); } catch (_) {}
+          if (_mode === 'yt') { try { if (ytReady) ytPlayer.pauseVideo(); } catch (_) {} }
           break;
         case 'RESUME':
           _livePos = { pos: m.position || 0, at: Date.now(), playing: true };
-          if (started && currentTrack && currentTrack.ytId) playRemote(currentTrack, m.position || 0);
+          if (_mode === 'yt' && started && currentTrack && currentTrack.ytId) playRemote(currentTrack, m.position || 0);
           break;
         case 'SPOT':
           if (m.track) {
@@ -660,6 +712,11 @@ document.addEventListener('visibilitychange', () => {
   if (document.hidden) return;
   acquireWakeLock();
   if (navigator.mediaSession) navigator.mediaSession.playbackState = 'playing';
+  if (_mode === 'stream') {
+    // El <audio> sigue sonando en segundo plano; si el SO lo pausó al volver, reanuda al vivo.
+    if (started && _wantPlay && bgAudio && bgAudio.paused && !spotAudio) startStreamAudio();
+    return;
+  }
   if (started && currentTrack && currentTrack.ytId) {
     setTimeout(() => { try { playRemote(currentTrack, _liveNow()); } catch (_) {} }, 500);
   }
