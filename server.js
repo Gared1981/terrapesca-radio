@@ -1165,7 +1165,12 @@ function _apBroadcast() {
   const secs = (t.duration && t.duration > 0) ? t.duration : 210;
   clearTimeout(autopilot.timer);
   autopilot.timer = setTimeout(() => {
-    autopilot.idx = (autopilot.idx + 1) % autopilot.list.length;
+    autopilot.idx = autopilot.idx + 1;
+    // Al completar una vuelta, rebaraja para no repetir SIEMPRE el mismo orden.
+    if (autopilot.idx >= autopilot.list.length) {
+      autopilot.idx = 0;
+      for (let i = autopilot.list.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const tmp = autopilot.list[i]; autopilot.list[i] = autopilot.list[j]; autopilot.list[j] = tmp; }
+    }
     _apSave();
     _apBroadcast();
   }, (secs + 1) * 1000);

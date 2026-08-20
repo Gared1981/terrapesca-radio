@@ -1059,22 +1059,34 @@ function renderListeners(msg){
 // la cabina puede cerrarse y la radio sigue sonando en cada oyente.
 async function _buildAutopilotList(){
   await refreshLib();
-  const list=queue.map(q=>{
-    const t=_libCache.find(x=>x.ytId===q.ytId);
-    return {ytId:q.ytId,name:q.name||'',artist:q.artist||'',duration:(t&&t.duration)||0};
+  // Reúne canciones de TODAS las playlists + la cola + la biblioteca, sin repetir,
+  // para que el 24/7 recorra todo y no se quede repitiendo una sola lista.
+  const ids=[];
+  try{ const pls=await plAll(); pls.forEach(p=>(p.trackIds||[]).forEach(id=>{ if(id) ids.push(id); })); }catch(_){}
+  queue.forEach(q=>{ if(q.ytId) ids.push(q.ytId); });
+  _libCache.forEach(t=>{ if(t.ytId) ids.push(t.ytId); });
+  const seen=new Set(); const uniq=[];
+  ids.forEach(id=>{ if(!seen.has(id)){ seen.add(id); uniq.push(id); } });
+  let list=uniq.map(id=>{
+    const t=_libCache.find(x=>x.ytId===id)||queue.find(q=>q.ytId===id);
+    return {ytId:id,name:(t&&(t.title||t.name))||'',artist:(t&&t.artist)||'',duration:(t&&t.duration)||0};
   });
-  // Completar duraciones faltantes con la YouTube API (para que el avance sea exacto)
+  // Barajar (Fisher–Yates) para que no empiece siempre igual ni repita el mismo orden.
+  for(let i=list.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); const tmp=list[i]; list[i]=list[j]; list[j]=tmp; }
+  // Completar duraciones faltantes con la YouTube API (para que el avance sea exacto).
   const missing=[...new Set(list.filter(x=>!x.duration).map(x=>x.ytId))];
   if(missing.length&&cfg.ytKey){
     for(let i=0;i<missing.length;i+=50){
       try{
-        const ids=missing.slice(i,i+50).join(',');
-        const r=await fetch(`/api/ytdur?ids=${encodeURIComponent(ids)}&key=${encodeURIComponent(cfg.ytKey)}`);
+        const idsB=missing.slice(i,i+50).join(',');
+        const r=await fetch(`/api/ytdur?ids=${encodeURIComponent(idsB)}&key=${encodeURIComponent(cfg.ytKey)}`);
         const d=await r.json();
         if(d.durations) list.forEach(x=>{ if(!x.duration&&d.durations[x.ytId]) x.duration=d.durations[x.ytId]; });
       }catch(_){}
     }
   }
+  // Fallback de duración para que ninguna canción sin dato atore el avance del 24/7.
+  list.forEach(x=>{ if(!x.duration||x.duration<30) x.duration=210; });
   return list;
 }
 async function toggleRadio247(){
