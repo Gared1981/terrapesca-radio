@@ -1150,6 +1150,8 @@ function _apBroadcast() {
   radioState.position = 0;
   radioState.lastUpdate = Date.now();
   broadcast({ type: 'PLAY', track: radioState.currentTrack, position: 0 });
+  // Alimenta el stream de audio en segundo plano (/listen con <audio>) también en 24/7.
+  if (streamClients.size > 0) startStreamTrack(radioState.currentTrack);
 
   // Próximas canciones
   const preview = [];
