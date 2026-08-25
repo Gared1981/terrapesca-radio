@@ -1309,14 +1309,14 @@ function aiJSON(d){
 let queue=[];          // [{ytId,name,artist}]
 let queuePos=-1;       // index in queue of the song currently on the ACTIVE deck
 const _playedHistory=[]; // recent ytIds to avoid repeats in random/AI selection
-const HISTORY_MAX=10;
+const HISTORY_MAX=30; // recuerda las últimas 30 para no repetirlas en el aleatorio
 function _trackPlayed(ytId){ if(!ytId)return; _playedHistory.push(ytId); if(_playedHistory.length>HISTORY_MAX)_playedHistory.shift(); }
 function _freshQueue(){ return queue.filter(q=>!_playedHistory.includes(q.ytId)); }
 
 /* ================= MODOS SHUFFLE / REPEAT (Fase 3) ================= */
 // Selector único de "siguiente canción" — todos los caminos del motor
 // (watcher, crossfade, DJ, cue manual) pasan por aquí.
-let shuffleMode=localStorage.getItem('tp_shuffle')==='1';
+let shuffleMode=(localStorage.getItem('tp_shuffle')||'1')==='1'; // aleatorio ENCENDIDO por defecto
 let repeatMode=localStorage.getItem('tp_repeat')||'all'; // 'all' | 'one'
 function nextQueueIndex(from){
   if(!queue.length) return 0;
