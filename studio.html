@@ -938,6 +938,7 @@ input[type=range]::-moz-range-thumb{width:18px;height:24px;border-radius:5px;bac
 
 <script src="https://www.youtube.com/iframe_api"></script>
 <script src="/core/rodo.js"></script>
+<script src="/core/weather.js"></script>
 <script>
 /* ================= CONFIG (compartida con panel.html) ================= */
 const cfg={
@@ -1964,19 +1965,21 @@ function horaRadio(){
     return `${art} ${HORA_H[h12]}${m?' con '+m:' en punto'} ${per}`;
   }catch(e){return null;}
 }
-const WCITIES={culiacan:{n:'Culiacán',lat:24.8092,lng:-107.3938},mazatlan:{n:'Mazatlán',lat:23.2494,lng:-106.4111},los_mochis:{n:'Los Mochis',lat:25.7919,lng:-109.0200}};
-const WKEYS=['culiacan','mazatlan','los_mochis'];
+const WCITIES=(window.TPWeather&&TPWeather.CITIES)||{culiacan:{n:'Culiacán',lat:24.8092,lng:-107.3938},mazatlan:{n:'Mazatlán',lat:23.2494,lng:-106.4111},los_mochis:{n:'Los Mochis',lat:25.7919,lng:-109.0200}};
+const WKEYS=(window.TPWeather&&TPWeather.KEYS)||['culiacan','mazatlan','los_mochis'];
 let _wCache={};
 // Pronóstico oficial SMN (CONAGUA): probabilidad de lluvia + cielo + máx/mín.
 let _smnCacheC=null,_smnTsC=0;
 const RAIN_ALERT_PROB=50; // a partir de este % de probabilidad, Rodo prioriza el clima
 async function _getSMN(){
+  if(window.TPWeather&&TPWeather.getSMN) return TPWeather.getSMN();
   if(_smnCacheC&&Date.now()-_smnTsC<60*60000) return _smnCacheC;
   try{ const r=await fetch('/api/smn'); const d=await r.json(); if(d&&d.ok!==false&&!d.error){ _smnCacheC=d; _smnTsC=Date.now(); return d; } }catch(_){}
   return null;
 }
 // Máxima probabilidad de lluvia entre las ciudades (usa el caché del SMN ya bajado).
 function _highRainNow(){
+  if(window.TPWeather&&TPWeather.highRainNow) return TPWeather.highRainNow(RAIN_ALERT_PROB);
   try{ if(!_smnCacheC) return null; let mx=-1; for(const k in _smnCacheC){ const p=_smnCacheC[k]&&_smnCacheC[k].prob; if(p!=null&&p>mx)mx=p; } return mx>=RAIN_ALERT_PROB?mx:null; }catch(_){ return null; }
 }
 // Precalienta el caché del SMN al cargar y cada hora, para que la priorización funcione.
@@ -1991,7 +1994,9 @@ async function _getTide(zone){
 }
 try{ _getTide('culiacan'); }catch(_){}
 async function getWeather(){
-  const key=_resolveWeatherCity();const c=WCITIES[key];
+  const key=_resolveWeatherCity();
+  if(window.TPWeather&&TPWeather.getWeather) return TPWeather.getWeather(key);
+  const c=WCITIES[key];
   if(_wCache[key]&&Date.now()-_wCache[key].ts<12*60000) return _wCache[key].d;
   let d={city:c.n,temp:null,wind:null};
   try{
@@ -1999,11 +2004,9 @@ async function getWeather(){
     const r=await fetch(u);const j=await r.json();
     d={city:c.n,temp:Math.round(j.current.temperature_2m),wind:Math.round(j.current.wind_speed_10m),code:j.current.weather_code};
   }catch(e){}
-  // Complementa con el SMN oficial (probabilidad de lluvia, etc.). No bloquea si falla.
-  try{ const s=await _getSMN(); const sc=s&&s[key]; if(sc){ if(sc.prob!=null)d.prob=sc.prob; if(sc.cielo)d.cielo=sc.cielo; if(sc.tmax!=null)d.tmax=sc.tmax; if(sc.tmin!=null)d.tmin=sc.tmin; if(d.temp==null&&sc.temp!=null)d.temp=sc.temp; if(d.wind==null&&sc.viento!=null)d.wind=sc.viento; } }catch(_){}
   _wCache[key]={d,ts:Date.now()};return d;
 }
-function wDesc(code){const m={0:'despejado',1:'mayormente despejado',2:'parcialmente nublado',3:'nublado',45:'neblina',61:'lluvia ligera',63:'lluvia',80:'chubascos',95:'tormenta'};return m[code]||'estable';}
+function wDesc(code){ if(window.TPWeather&&TPWeather.desc) return TPWeather.desc(code); const m={0:'despejado',1:'mayormente despejado',2:'parcialmente nublado',3:'nublado',45:'neblina',61:'lluvia ligera',63:'lluvia',80:'chubascos',95:'tormenta'};return m[code]||'estable';}
 // Productos REALES del catálogo público (para que las recomendaciones no sean genéricas).
 let _shopFeedCache=null,_shopFeedTs=0;
 async function _getShopProducts(){

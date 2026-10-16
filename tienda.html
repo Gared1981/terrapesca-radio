@@ -105,6 +105,7 @@ button{padding:12px 20px;border-radius:10px;border:none;font-family:var(--mono);
 </div>
 
 <script src="/core/rodo.js"></script>
+<script src="/core/weather.js"></script>
 <script>
 const CAMPAIGN={
   promos:[
@@ -200,29 +201,30 @@ Entrega EXCLUSIVAMENTE las palabras que Rodo debe pronunciar, en un solo párraf
 
 const TIENDA_TIPOS=['Identificación de radio','Bienvenida','Consejo útil','Clima','Producto o categoría','Servicio al cliente','Hora','Motivación','Promoción'];
 // Clima real (open-meteo, sin llave). Comparte la ciudad configurada en el studio.
-const TIENDA_WCITIES={culiacan:{n:'Culiacán',lat:24.8092,lng:-107.3938},mazatlan:{n:'Mazatlán',lat:23.2494,lng:-106.4111},los_mochis:{n:'Los Mochis',lat:25.7919,lng:-109.0200}};
-const TIENDA_WKEYS=['culiacan','mazatlan','los_mochis'];
+const TIENDA_WCITIES=(window.TPWeather&&TPWeather.CITIES)||{culiacan:{n:'Culiacán',lat:24.8092,lng:-107.3938},mazatlan:{n:'Mazatlán',lat:23.2494,lng:-106.4111},los_mochis:{n:'Los Mochis',lat:25.7919,lng:-109.0200}};
+const TIENDA_WKEYS=(window.TPWeather&&TPWeather.KEYS)||['culiacan','mazatlan','los_mochis'];
 let _twCache=null,_twTs=0;
-function _twDesc(code){const m={0:'despejado',1:'mayormente despejado',2:'parcialmente nublado',3:'nublado',45:'neblina',61:'lluvia ligera',63:'lluvia',80:'chubascos',95:'tormenta'};return m[code]||'estable';}
+function _twDesc(code){ if(window.TPWeather&&TPWeather.desc) return TPWeather.desc(code); const m={0:'despejado',1:'mayormente despejado',2:'parcialmente nublado',3:'nublado',45:'neblina',61:'lluvia ligera',63:'lluvia',80:'chubascos',95:'tormenta'};return m[code]||'estable';}
 let _tSmn=null,_tSmnTs=0;
 async function _tiendaSMN(){
+  if(window.TPWeather&&TPWeather.getSMN) return TPWeather.getSMN();
   if(_tSmn&&Date.now()-_tSmnTs<60*60000) return _tSmn;
   try{ const r=await fetch('/api/smn'); const d=await r.json(); if(d&&d.ok!==false&&!d.error){ _tSmn=d; _tSmnTs=Date.now(); return d; } }catch(_){}
   return null;
 }
 async function _tiendaWeather(){
-  let key=localStorage.getItem('tp_weather_city')||'auto';
-  if(key==='auto'||!TIENDA_WCITIES[key]) key=TIENDA_WKEYS[Math.floor(Math.random()*TIENDA_WKEYS.length)];
-  const c=TIENDA_WCITIES[key];
-  if(_twCache&&_twCache.key===key&&Date.now()-_twTs<12*60000) return _twCache.d;
+  const key=localStorage.getItem('tp_weather_city')||'auto';
+  if(window.TPWeather&&TPWeather.getWeather) return TPWeather.getWeather(key);
+  let rk=key; if(rk==='auto'||!TIENDA_WCITIES[rk]) rk=TIENDA_WKEYS[Math.floor(Math.random()*TIENDA_WKEYS.length)];
+  const c=TIENDA_WCITIES[rk];
+  if(_twCache&&_twCache.key===rk&&Date.now()-_twTs<12*60000) return _twCache.d;
   let d={city:c.n,temp:null,wind:null};
   try{
     const u=`https://api.open-meteo.com/v1/forecast?latitude=${c.lat}&longitude=${c.lng}&current=temperature_2m,weather_code,wind_speed_10m&timezone=America%2FMazatlan`;
     const r=await fetch(u); const j=await r.json();
     d={city:c.n,temp:Math.round(j.current.temperature_2m),wind:Math.round(j.current.wind_speed_10m),code:j.current.weather_code};
   }catch(_){}
-  try{ const s=await _tiendaSMN(); const sc=s&&s[key]; if(sc){ if(sc.prob!=null)d.prob=sc.prob; if(sc.cielo)d.cielo=sc.cielo; if(sc.tmax!=null)d.tmax=sc.tmax; if(d.temp==null&&sc.temp!=null)d.temp=sc.temp; if(d.wind==null&&sc.viento!=null)d.wind=sc.viento; } }catch(_){}
-  _twCache={key,d}; _twTs=Date.now(); return d;
+  _twCache={key:rk,d}; _twTs=Date.now(); return d;
 }
 async function buildTiendaPrompt(){
   const tipo=TIENDA_TIPOS[Math.floor(Math.random()*TIENDA_TIPOS.length)];
