@@ -937,6 +937,7 @@ input[type=range]::-moz-range-thumb{width:18px;height:24px;border-radius:5px;bac
 <div class="toast" id="toast"></div>
 
 <script src="https://www.youtube.com/iframe_api"></script>
+<script src="/core/rodo.js"></script>
 <script>
 /* ================= CONFIG (compartida con panel.html) ================= */
 const cfg={
@@ -1230,7 +1231,7 @@ function _ttsEngine(){ return localStorage.getItem('tp_engine')||'openai'; }
 // Limpia un valor para usarlo como header HTTP: deja solo ASCII imprimible sin
 // espacios. Evita el error "non ISO-8859-1 code point" por caracteres invisibles
 // (zero-width space, comillas curvas, etc.) que se cuelan al copiar/pegar llaves.
-function _hv(s){ return String(s||'').replace(/[^\x21-\x7E]/g,''); }
+function _hv(s){ return (window.TPRodo&&TPRodo.hv) ? TPRodo.hv(s) : String(s||'').replace(/[^\x21-\x7E]/g,''); }
 // Devuelve un mensaje si faltan credenciales del motor activo, o '' si están OK.
 function _voiceCredsMissing(){
   if(_ttsEngine()==='voicekiller') return (!cfg.vkKey||!cfg.vkUser)?'Faltan credenciales de VoiceKiller (config)':'';
@@ -2181,10 +2182,10 @@ Entrega EXCLUSIVAMENTE las palabras que Rodo debe pronunciar, en un solo párraf
 
   // Sellos de sección rotativos (reconocibles pero sin repetir siempre igual).
   const _wCity=(ctx&&ctx.w&&ctx.w.city)||'la región';
-  const _sellosClima=[`El tiempo al momento en ${_wCity}`,`El tiempo al momento, con Terrapesca`,`Tu reporte del tiempo al instante`,`Así está el tiempo ahora mismo en ${_wCity}`,`El tiempo al momento para los pescadores de ${_wCity}`];
+  const _sellosClima=(window.TPRodo&&TPRodo.sellosClima)?TPRodo.sellosClima(_wCity):[`El tiempo al momento en ${_wCity}`,`El tiempo al momento, con Terrapesca`,`Así está el tiempo ahora mismo en ${_wCity}`];
   const selloClima=_sellosClima[Math.floor(Math.random()*_sellosClima.length)];
   // La HORA la patrocina Costa Kayaks (reforzamos esa marca).
-  const _sellosHora=[`Costa Kayaks te da la hora`,`La hora, cortesía de Costa Kayaks`,`Costa Kayaks te pone en hora`,`Con Costa Kayaks, esta es la hora`];
+  const _sellosHora=(window.TPRodo&&TPRodo.sellosHora)?TPRodo.sellosHora():[`Costa Kayaks te da la hora`,`La hora, cortesía de Costa Kayaks`,`Costa Kayaks te pone en hora`];
   const selloHora=_sellosHora[Math.floor(Math.random()*_sellosHora.length)];
   // Datos de presas (combinado: automático de CONAGUA o respaldo escrito en CONFIG).
   const _presasLine=(ctx&&ctx.presas)?`Niveles REALES de presas (usa estos, no inventes): ${ctx.presas}`:'';
