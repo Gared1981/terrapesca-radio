@@ -1051,6 +1051,20 @@ const server = http.createServer((req, res) => {
   }
 
   // ── Serve static files ──
+  // Núcleo compartido JS (Fase A): sirve /core/<nombre>.js del repo.
+  // Nombre saneado a [a-z0-9_-] para no salir del directorio.
+  {
+    const mCore = (req.url.split('?')[0]).match(/^\/core\/([a-z0-9_\-]+\.js)$/i);
+    if (mCore) {
+      const cPath = path.join(__dirname, 'core', mCore[1]);
+      if (fs.existsSync(cPath)) {
+        res.writeHead(200, { 'Content-Type': 'application/javascript; charset=utf-8', 'Cache-Control': 'no-cache' });
+        fs.createReadStream(cPath).pipe(res);
+      } else { res.writeHead(404); res.end(); }
+      return;
+    }
+  }
+
   if (req.url === '/sw.js') {
     const swPath = path.join(__dirname, 'sw.js');
     if (fs.existsSync(swPath)) {
