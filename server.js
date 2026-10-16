@@ -23,6 +23,11 @@ function _checkBin(bin, args, cb) {
 _checkBin('yt-dlp', ['--version'], ok => { ytdlpReady = ok; console.log('[audio] yt-dlp', ok ? 'disponible' : 'NO disponible'); });
 _checkBin('ffmpeg', ['-version'], ok => { ffmpegReady = ok; console.log('[audio] ffmpeg', ok ? 'disponible' : 'NO disponible'); });
 
+// Red de seguridad: una radio de 24/7 no debe caerse por un error suelto
+// (un fallo de yt-dlp/ffmpeg, un socket roto, etc.). Registramos y seguimos.
+process.on('uncaughtException', (e) => { console.error('[uncaughtException]', e && e.stack || e); });
+process.on('unhandledRejection', (e) => { console.error('[unhandledRejection]', e && e.stack || e); });
+
 // ---- LOGIN / GATE ----
 // Todas las páginas (Cabina, Sucursal, Tienda, Panel, Inicio) requieren login.
 // EXCEPCIÓN: /listen es pública (la radio para el público).
@@ -259,8 +264,13 @@ function streamYouTubeYtdlp(videoId, gen) {
     currentStreamDestroy = () => finish(resolve);
     yt.on('error', e => finish(reject, e));
     ff.on('error', e => finish(reject, e));
+    // Blindaje: ningún stream hijo puede tumbar el servidor (EPIPE, etc.).
     yt.stdout.on('error', () => {});
+    yt.stderr.on('error', () => {});
     ff.stdin.on('error', () => {});
+    ff.stdout.on('error', () => {});
+    ff.stderr.on('error', () => {});
+    ff.stderr.on('data', () => {}); // drenar stderr para que no bloquee a ffmpeg
     yt.stderr.on('data', d => { const s = d.toString(); if (/error/i.test(s)) console.error('[yt-dlp]', s.trim().slice(0, 180)); });
     ff.stdout.on('data', chunk => { if (gen === streamGen) writeToStreamClients(chunk); });
     try { yt.stdout.pipe(ff.stdin); } catch (e) { finish(reject, e); return; }
