@@ -939,6 +939,7 @@ input[type=range]::-moz-range-thumb{width:18px;height:24px;border-radius:5px;bac
 <script src="https://www.youtube.com/iframe_api"></script>
 <script src="/core/rodo.js"></script>
 <script src="/core/weather.js"></script>
+<script src="/core/voice.js"></script>
 <script>
 /* ================= CONFIG (compartida con panel.html) ================= */
 const cfg={
@@ -1245,6 +1246,7 @@ async function synthTTS(rawText,{voice,vkVoice,base,extra}={}){
   const input=ttsPrep(stripElTags(rawText||''));
   if(!input) throw new Error('Texto vacío');
   const instructions=(base||OAI_BASE_INSTR)+' '+(OAI_TONE[_expLevel]||OAI_TONE.natural)+(extra?(' '+extra):'');
+  if(window.TPVoice&&TPVoice.synth) return TPVoice.synth({input,instructions,engine:_ttsEngine(),voice,vkVoice:(vkVoice||localStorage.getItem('tp_vk_voice')||'Jett'),oaiKey:cfg.oaiKey,vkKey:cfg.vkKey,vkUser:cfg.vkUser,hv:_hv});
   if(_ttsEngine()==='voicekiller'){
     if(!cfg.vkKey||!cfg.vkUser) throw new Error('Faltan credenciales de VoiceKiller (config)');
     const vkBody=JSON.stringify({script:input.slice(0,6000),voice_name:(vkVoice||localStorage.getItem('tp_vk_voice')||'Jett'),instructions:instructions.slice(0,2000)});
