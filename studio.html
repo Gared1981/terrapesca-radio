@@ -2520,21 +2520,45 @@ Sugiere 5 canciones REALES y conocidas que encajen con el mood y el estilo de lo
 
 /* ================= BÚSQUEDA (Fase 2 plan Spotify) ================= */
 let _searchResults=[];
+const _srHead=(txt)=>`<div style="font-family:var(--mono);font-size:10px;letter-spacing:1px;color:var(--txt3);padding:10px 4px 4px">${txt}</div>`;
+const _plCover=(ytId)=>ytId?('https://img.youtube.com/vi/'+ytId+'/mqdefault.jpg'):'';
 async function ytSearch(){
   const inp=document.getElementById('ytSearch');
   const box=document.getElementById('searchResults');
   const q=inp.value.trim();
   if(!q){box.style.display='none';box.innerHTML='';return;}
-  if(!cfg.ytKey){toast('Configura tu YouTube API key en CONFIG para buscar','error');return;}
   box.style.display='block';
   box.innerHTML='<div class="empty">Buscando…</div>';
+  // 1) Tu biblioteca (al instante, sin API)
+  if(typeof refreshLib==='function' && !(_libCache&&_libCache.length)){ try{ await refreshLib(); }catch(_){} }
+  const ql=q.toLowerCase();
+  const libHits=(_libCache||[]).filter(t=>(((t.title||'')+' '+(t.artist||'')).toLowerCase().includes(ql))).slice(0,8);
+  let html='';
+  if(libHits.length){
+    html+=_srHead('🎵 EN TU BIBLIOTECA');
+    html+=libHits.map(t=>`
+      <div class="row">
+        <div class="th" style="background-image:url(${t.cover||_plCover(t.ytId)})"></div>
+        <div class="meta"><div class="t">${esc(t.title||'')}</div><div class="s">${esc(t.artist||'')}${t.duration?' · '+fmt(t.duration):''}</div></div>
+        <div class="acts">
+          <button onclick="libPlayNow('${t.ytId}')" title="Reproducir ya">▶</button>
+          <button onclick="libAddQueue('${t.ytId}')" title="Agregar a la cola">＋</button>
+        </div>
+      </div>`).join('');
+  }
+  // 2) YouTube
+  if(!cfg.ytKey){
+    box.innerHTML=html+'<div class="empty">Configura tu YouTube API key en CONFIG para buscar también en YouTube.</div>';
+    return;
+  }
+  html+=_srHead('▶️ EN YOUTUBE')+'<div class="empty" id="srYtLoading">Buscando en YouTube…</div>';
+  box.innerHTML=html;
   try{
     const r=await fetch(`/api/ytsearch?q=${encodeURIComponent(q)}&key=${encodeURIComponent(cfg.ytKey)}`);
     const d=await r.json();
     if(!r.ok||d.error) throw new Error(d.error||'Error de búsqueda');
     _searchResults=d.items||[];
-    if(!_searchResults.length){box.innerHTML='<div class="empty">Sin resultados para "'+esc(q)+'"</div>';return;}
-    box.innerHTML=_searchResults.map((t,i)=>`
+    const ytHtml=_searchResults.length?_searchResults.map((t,i)=>`
       <div class="row">
         <div class="th" style="background-image:url(${t.thumb})"></div>
         <div class="meta"><div class="t">${esc(t.title)}</div><div class="s">${esc(t.channel)}${t.duration?' · '+fmt(t.duration):''}</div></div>
@@ -2543,9 +2567,11 @@ async function ytSearch(){
           <button onclick="searchAddQueue(${i})" title="Agregar a la cola">＋</button>
           <button onclick="searchAddPl(event,${i})" title="Agregar a playlist">🗂</button>
         </div>
-      </div>`).join('')+
-      '<div class="row" style="justify-content:center"><button onclick="closeSearch()" style="width:100%">✕ Cerrar resultados</button></div>';
-  }catch(e){box.innerHTML='<div class="empty">⚠ '+esc(e.message)+'</div>';}
+      </div>`).join(''):'<div class="empty">Sin resultados en YouTube</div>';
+    const ph=document.getElementById('srYtLoading');
+    const tail='<div class="row" style="justify-content:center"><button onclick="closeSearch()" style="width:100%">✕ Cerrar resultados</button></div>';
+    if(ph) ph.outerHTML=ytHtml+tail;
+  }catch(e){ const ph=document.getElementById('srYtLoading'); if(ph) ph.outerHTML='<div class="empty">⚠ '+esc(e.message)+'</div>'; }
 }
 function closeSearch(){const b=document.getElementById('searchResults');b.style.display='none';b.innerHTML='';document.getElementById('ytSearch').value='';}
 function _searchTrack(i){const t=_searchResults[i];return t?{ytId:t.ytId,name:t.title,artist:t.channel}:null;}
@@ -3742,7 +3768,7 @@ async function renderPls(){
   document.getElementById('plsCnt').textContent=pls.length;
   document.getElementById('plsList').innerHTML=pls.length?pls.map(p=>`
     <div class="row">
-      <span class="n">🗂</span>
+      ${(p.trackIds&&p.trackIds[0])?`<div class="th" style="background-image:url(${_plCover(p.trackIds[0])})" onclick="plOpenUI('${p.id}')"></div>`:`<span class="n">🗂</span>`}
       <div class="meta" onclick="plOpenUI('${p.id}')" style="cursor:pointer">
         <div class="t">${esc(p.name)}</div><div class="s">${(p.trackIds||[]).length} canciones</div></div>
       <div class="acts">
