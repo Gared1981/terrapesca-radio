@@ -107,3 +107,33 @@ Fase E (cuentas)       ← solo si se necesita multiusuario
 - No migrar a framework/bundler (los single-file son la arquitectura).
 - No tocar el crossfade dual-deck ni forzar calidad de video.
 - No invertir en `panel.html` salvo jubilarlo.
+
+---
+
+## Estado de ejecución (actualizado 17-oct-2026)
+
+- **Fase A — COMPLETADA ✅** Núcleo compartido sin bundler: `/core/rodo.js`
+  (persona byte-exacta + helpers), `/core/weather.js` (clima + SMN) y
+  `/core/voice.js` (motor de voz OpenAI/VoiceKiller). Studio y Tienda delegan
+  con respaldo. Se eliminó la triplicación que obligaba a editar cada mejora 2–3 veces.
+- **Fase B — COMPLETADA ✅** `panel.html` eliminado; `/panel` → 302 a `/studio`.
+  Una sola cabina.
+- **Fase C — COMPLETADA ✅** Búsqueda unificada (biblioteca + YouTube) y
+  portadas de playlist (miniatura de la primera canción).
+- **Fase D — BLOQUEADA por decisión de negocio ⛔** Audio propio/estable requiere
+  **música licenciada** + infraestructura (p. ej. Icecast) o un catálogo de MP3
+  propios. No es implementable "a ciegas" porque el contenido (las licencias) lo
+  aporta el negocio. *Lo que sí se puede hacer:* (a) servir un catálogo de MP3
+  que suba Terrapesca desde el servidor, o (b) documentar y montar el esqueleto de
+  Icecast para cuando haya música licenciada. El audio actual sigue por YouTube
+  (yt-dlp) para el segundo plano.
+- **Fase E — REQUIERE backend ⛔** "Cuentas por usuario" al estilo Spotify (tu
+  biblioteca te sigue entre dispositivos) necesita una **base de datos de usuarios
+  y de datos por usuario**; hoy los datos viven en IndexedDB (por navegador) y hay
+  un solo login. *Lo que sí se puede hacer sin backend:* múltiples usuarios/
+  contraseñas para el acceso (varios logins), pero **no** bibliotecas sincronizadas
+  entre dispositivos — eso sí exige el backend.
+
+**Conclusión:** la reestructuración "tipo Spotify" **de ingeniería y producto** (A, B, C)
+está **completa**. D y E ya no son limpieza ni features de UI: son decisiones de
+negocio (licencias de música) y de arquitectura (backend de cuentas).
