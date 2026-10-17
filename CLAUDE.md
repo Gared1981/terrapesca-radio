@@ -18,7 +18,7 @@ of **self-contained single-file HTML apps** (inline CSS + JS, no bundler):
 |---|---|
 | `index.html` | Landing/role portal served at `/` (Cabina / Sucursal / Escuchar / Tienda) with live now-playing via WS. |
 | `studio.html` | **Actively developed** DJ cabin. Dual-deck YouTube crossfade engine, DJ Rodo (AI voice), mood/hour song selection, spot/jingle/stinger playback, first-run onboarding wizard (`tp_onboarded`). This is where the playback engine lives. |
-| `panel.html` | **FROZEN — hotfixes only** (Fase 0, see PLAN-SPOTIFY.md). Older/larger control panel (Los Mochis). Shares localStorage keys + IndexedDB schema with studio. New features go to studio.html. |
+| `panel.html` | **RETIRED (Fase B, 2026-10).** Removed from the repo; `/panel` and `/panel.html` now **302-redirect to `/studio`** (the single cabin). Its shared localStorage keys + IndexedDB schema live on in studio. |
 | `sucursal.html` | Receiver/player for branches (Culiacán, Mazatlán). Listens to WS relay only. |
 | `tienda.html` | In-store mode with auto DJ Rodo speaking to customers. |
 | `listen.html` | Public listener. Plays via hidden YouTube IFrame synced over WS (same mechanism as sucursal) — NOT via `/radio/stream` (ytdl-core breaks too often for the public page). Spots play from base64 over the paused player. |
@@ -26,7 +26,7 @@ of **self-contained single-file HTML apps** (inline CSS + JS, no bundler):
 | `sw.js` | Service worker: caches static HTML, never intercepts `/radio/stream` or `/api/*`. |
 
 ### Communication model
-A controller (`studio.html` / `panel.html`) connects over WebSocket and **broadcasts** messages that
+A controller (`studio.html`) connects over WebSocket and **broadcasts** messages that
 the server relays to all other clients (`sucursal.html`, `listen.html`). Message types are enumerated in
 the `wss.on('connection')` switch in `server.js`: `PLAY`, `PAUSE`, `RESUME`, `VOLUME`,
 `PLAYLIST_UPDATE`, `SPOT`, `JINGLE_SET`, `MIC_ONAIR`, `AUTOPILOT_START`/`AUTOPILOT_STOP`. The server keeps
@@ -122,7 +122,7 @@ Key invariants learned from past bugs:
   Rodo announces date/hours only — no promotions. Ducking lowers music when voice plays, then restores.
 
 ### Persistence
-IndexedDB database `TerrapescaRadio` **v3** — `IDB_VER` must match between studio.html and panel.html
+IndexedDB database `TerrapescaRadio` **v3** — `IDB_VER` is owned by studio.html (panel.html retired)
 (opening with a lower version throws `VersionError`). Object stores:
 - `playlist`, `session` (keyPath `key`) — unchanged from v2; queue lives at `playlist/main`, `session`
   holds base64 blobs (spots library, `studioJingle`, `studioStinger`). Shared with panel.html.

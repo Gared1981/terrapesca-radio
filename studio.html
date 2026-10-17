@@ -728,7 +728,7 @@ input[type=range]::-moz-range-thumb{width:18px;height:24px;border-radius:5px;bac
           <button onclick="document.getElementById('spotUpload').click()" title="Subir un MP3 ya hecho a la lista de spots" style="float:right;font-size:10px;font-family:var(--mono);padding:3px 8px;border-radius:6px;border:1px solid #2a5a2e;background:#122016;color:#7dffaa;cursor:pointer">📤 Subir MP3</button>
         </h3>
         <input type="file" id="spotUpload" accept="audio/mp3,audio/mpeg,audio/*" multiple style="display:none" onchange="uploadSpotMp3(this)"/>
-        <div class="list" id="spotsList" style="max-height:150px"><div class="empty">Sin spots — genera en el panel o sube un MP3</div></div>
+        <div class="list" id="spotsList" style="max-height:150px"><div class="empty">Sin spots — genera uno aquí o sube un MP3</div></div>
       </div>
       <div class="card hist">
         <h3>🕒 HISTORIAL <span class="cnt" id="hCnt">0</span></h3>
@@ -2312,7 +2312,7 @@ function setDJState(s){document.getElementById('djState').textContent=s;document
 function renderQueue(){
   document.getElementById('qCnt').textContent=queue.length;
   const L=document.getElementById('queueList');
-  if(!queue.length){L.innerHTML='<div class="empty">Sin canciones. Pega un link de YouTube o agrega en el panel.</div>';return;}
+  if(!queue.length){L.innerHTML='<div class="empty">Sin canciones. Pega un link de YouTube o búscalas.</div>';return;}
   L.innerHTML=queue.map((q,i)=>`
     <div class="row ${i===queuePos?'cur':''}" draggable="true"
          ondragstart="qDragStart(event,${i})" ondragover="qDragOver(event)" ondrop="qDrop(event,${i})">
@@ -2331,7 +2331,7 @@ function renderQueue(){
 function renderSpots(){
   document.getElementById('spCnt').textContent=spots.length;
   const L=document.getElementById('spotsList');
-  if(!spots.length){L.innerHTML='<div class="empty">Sin spots — genera uno arriba o en el panel</div>';return;}
+  if(!spots.length){L.innerHTML='<div class="empty">Sin spots — genera uno arriba</div>';return;}
   L.innerHTML=spots.map((s,i)=>`
     <div class="row" onclick="playSpotIdx(${i})" title="${esc(s.name||'Spot')}">
       <span class="n" style="font-size:14px">📢</span>

@@ -1106,7 +1106,8 @@ const server = http.createServer((req, res) => {
     // Portada: selector de rol (Cabina / Sucursal / Escuchar / Tienda)
     filePath = path.join(__dirname, 'index.html');
   } else if (req.url === '/panel' || req.url === '/panel.html') {
-    filePath = path.join(__dirname, 'panel.html');
+    // panel.html jubilado (Fase B): la cabina única es /studio. La URL vieja redirige.
+    res.writeHead(302, { Location: '/studio' }); res.end(); return;
   } else if (req.url === '/studio' || req.url === '/studio.html') {
     filePath = path.join(__dirname, 'studio.html');
   } else if (req.url === '/tienda' || req.url === '/tienda.html') {
