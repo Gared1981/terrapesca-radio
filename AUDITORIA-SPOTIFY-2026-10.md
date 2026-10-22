@@ -127,12 +127,17 @@ Fase E (cuentas)       ← solo si se necesita multiusuario
   que suba Terrapesca desde el servidor, o (b) documentar y montar el esqueleto de
   Icecast para cuando haya música licenciada. El audio actual sigue por YouTube
   (yt-dlp) para el segundo plano.
-- **Fase E — REQUIERE backend ⛔** "Cuentas por usuario" al estilo Spotify (tu
-  biblioteca te sigue entre dispositivos) necesita una **base de datos de usuarios
-  y de datos por usuario**; hoy los datos viven en IndexedDB (por navegador) y hay
-  un solo login. *Lo que sí se puede hacer sin backend:* múltiples usuarios/
-  contraseñas para el acceso (varios logins), pero **no** bibliotecas sincronizadas
-  entre dispositivos — eso sí exige el backend.
+- **Fase E — PARTE VIABLE COMPLETADA ✅ (multiusuario de acceso)** Se implementó
+  la parte factible sin backend: **varios logins**. El servidor acepta una lista
+  de credenciales por la variable de entorno `TP_USERS` (formato
+  `"usuario1:clave1,usuario2:clave2"`), además de la cuenta por defecto
+  (`EDGAR`, o `TP_USER`/`TP_PASS`). Cada usuario recibe su propio token de cookie
+  (`sha256(user:pass:secret)`) y `isAuthed()` valida contra el conjunto de tokens
+  válidos. `/health` reporta `users` (cuántos logins hay activos; sin exponer
+  nombres ni claves). **Lo que sigue requiriendo backend ⛔:** *cuentas* al estilo
+  Spotify con biblioteca/playlists/favoritos **por persona y sincronizados entre
+  dispositivos** — hoy esos datos viven en IndexedDB (por navegador). El login
+  múltiple controla el **acceso**, no separa los datos por usuario.
 
 **Conclusión:** la reestructuración "tipo Spotify" **de ingeniería y producto** (A, B, C)
 está **completa**. D y E ya no son limpieza ni features de UI: son decisiones de

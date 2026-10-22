@@ -32,13 +32,44 @@ process.on('unhandledRejection', (e) => { console.error('[unhandledRejection]', 
 // Todas las páginas (Cabina, Sucursal, Tienda, Panel, Inicio) requieren login.
 // EXCEPCIÓN: /listen es pública (la radio para el público).
 // Credenciales por variables de entorno (recomendado en Railway) con respaldo por defecto.
+// Cuenta por defecto (respaldo). Se puede sobreescribir con TP_USER / TP_PASS.
 const AUTH_USER = process.env.TP_USER || 'EDGAR';
 const AUTH_PASS = process.env.TP_PASS || '9970002';
-// Secreto para firmar la cookie; si no se define, se deriva de las credenciales
-// (basta para un gate simple de una sola cuenta; en producción define TP_AUTH_SECRET).
+// Secreto para firmar las cookies; si no se define, se deriva de las credenciales
+// por defecto (basta para un gate simple; en producción define TP_AUTH_SECRET).
 const AUTH_SECRET = process.env.TP_AUTH_SECRET || ('tp-radio-' + AUTH_USER + '-' + AUTH_PASS);
-const AUTH_TOKEN = crypto.createHash('sha256').update(AUTH_USER + ':' + AUTH_PASS + ':' + AUTH_SECRET).digest('hex');
 const AUTH_COOKIE = 'tp_auth';
+
+// Varios logins sin backend: TP_USERS = "usuario1:clave1,usuario2:clave2,..."
+// Cada usuario recibe su propio token (sha256 user:pass:secret). La cuenta por
+// defecto (EDGAR o TP_USER/TP_PASS) siempre existe. No hay bibliotecas por usuario
+// (eso requiere backend); esto es solo control de acceso con varias credenciales.
+function authToken(user, pass) {
+  return crypto.createHash('sha256').update(user + ':' + pass + ':' + AUTH_SECRET).digest('hex');
+}
+function buildUsers() {
+  const list = [];
+  const seen = new Set();
+  const add = (u, p) => {
+    u = String(u || '').trim();
+    p = String(p || '');
+    if (!u || seen.has(u)) return;
+    seen.add(u);
+    list.push({ user: u, pass: p, token: authToken(u, p) });
+  };
+  add(AUTH_USER, AUTH_PASS); // cuenta por defecto siempre presente
+  (process.env.TP_USERS || '').split(',').forEach(pair => {
+    if (!pair.trim()) return;
+    const i = pair.indexOf(':');
+    if (i < 0) return;
+    add(pair.slice(0, i), pair.slice(i + 1));
+  });
+  return list;
+}
+const AUTH_USERS = buildUsers();
+const AUTH_TOKENS = new Set(AUTH_USERS.map(u => u.token));
+// Compat: token de la cuenta por defecto (usado por rutas antiguas si las hubiera).
+const AUTH_TOKEN = AUTH_USERS[0].token;
 
 function parseCookies(req) {
   const out = {};
@@ -51,7 +82,7 @@ function parseCookies(req) {
   return out;
 }
 function isAuthed(req) {
-  return parseCookies(req)[AUTH_COOKIE] === AUTH_TOKEN;
+  return AUTH_TOKENS.has(parseCookies(req)[AUTH_COOKIE]);
 }
 function readBody(req, cb) {
   let body = '';
@@ -503,9 +534,10 @@ const server = http.createServer((req, res) => {
     readBody(req, (body) => {
       let user = '', pass = '';
       try { const j = JSON.parse(body || '{}'); user = String(j.user || ''); pass = String(j.pass || ''); } catch (_) {}
-      if (user === AUTH_USER && pass === AUTH_PASS) {
+      const match = AUTH_USERS.find(u => u.user === user && u.pass === pass);
+      if (match) {
         const secure = (req.headers['x-forwarded-proto'] === 'https') ? '; Secure' : '';
-        res.setHeader('Set-Cookie', `${AUTH_COOKIE}=${AUTH_TOKEN}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000${secure}`);
+        res.setHeader('Set-Cookie', `${AUTH_COOKIE}=${match.token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000${secure}`);
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: true }));
       } else {
@@ -536,7 +568,8 @@ const server = http.createServer((req, res) => {
       ytdlAvailable: !!ytdl,
       ytdlpReady,   // true = yt-dlp instalado (motor de audio en segundo plano)
       ffmpegReady,  // true = ffmpeg instalado
-      tideKeySet: !!TIDECHECK_KEY  // true = el servidor SÍ ve TIDECHECK_KEY (no expone la clave)
+      tideKeySet: !!TIDECHECK_KEY, // true = el servidor SÍ ve TIDECHECK_KEY (no expone la clave)
+      users: AUTH_USERS.length  // número de logins activos (no expone nombres ni claves)
     }));
     return;
   }
