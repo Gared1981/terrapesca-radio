@@ -116,6 +116,43 @@ function _tcGet(apiPath, cb) {
   r.setTimeout(12000, () => { r.destroy(); cb(null, 0); });
   r.end();
 }
+// ---- CACHÉ de búsquedas de YouTube (ahorra cuota de la YouTube Data API) ----
+// Cada /youtube/v3/search cuesta 100 unidades (10,000/día). Importar una playlist
+// de Spotify hace 1 búsqueda por canción; sin caché, reimportar la misma playlist
+// (o varias que comparten canciones) agota la cuota rápido. Guardamos query->items
+// para que una reimportación cueste ~0 cuota. Mapeo canción→video es estable, TTL 30 días.
+const YTS_FILE = path.join(__dirname, '.ytsearch.json'); // caché (gitignored)
+const YTS_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 días
+const YTS_MAX = 4000; // tope de entradas para no crecer sin límite
+let _ytsCache = {}; // qNorm -> { ts, items }
+try { _ytsCache = JSON.parse(fs.readFileSync(YTS_FILE, 'utf8')) || {}; } catch (_) { _ytsCache = {}; }
+let _ytsDirty = false, _ytsTimer = null;
+function _ytsSaveSoon() {
+  _ytsDirty = true;
+  if (_ytsTimer) return;
+  _ytsTimer = setTimeout(() => {
+    _ytsTimer = null;
+    if (!_ytsDirty) return;
+    _ytsDirty = false;
+    try { fs.writeFileSync(YTS_FILE, JSON.stringify(_ytsCache)); } catch (_) {}
+  }, 4000); // agrupa escrituras durante una importación
+}
+function _ytsKey(q) { return String(q || '').toLowerCase().replace(/\s+/g, ' ').trim(); }
+function _ytsGet(q) {
+  const e = _ytsCache[_ytsKey(q)];
+  if (e && (Date.now() - e.ts) < YTS_TTL_MS && Array.isArray(e.items)) return e.items;
+  return null;
+}
+function _ytsPut(q, items) {
+  if (!Array.isArray(items) || !items.length) return; // no cachear vacíos (reintenta luego)
+  const keys = Object.keys(_ytsCache);
+  if (keys.length >= YTS_MAX) { // evicción simple: quita las más viejas
+    keys.sort((a, b) => (_ytsCache[a].ts || 0) - (_ytsCache[b].ts || 0));
+    for (let i = 0; i < Math.ceil(YTS_MAX * 0.1); i++) delete _ytsCache[keys[i]];
+  }
+  _ytsCache[_ytsKey(q)] = { ts: Date.now(), items };
+  _ytsSaveSoon();
+}
 const _moonES = { 'New Moon': 'luna nueva', 'Waxing Crescent': 'luna creciente', 'First Quarter': 'cuarto creciente', 'Waxing Gibbous': 'gibosa creciente', 'Full Moon': 'luna llena', 'Waning Gibbous': 'gibosa menguante', 'Last Quarter': 'cuarto menguante', 'Waning Crescent': 'luna menguante' };
 function _tcHHMM(iso) { const m = String(iso || '').match(/T(\d{2}):(\d{2})/); return m ? m[1] + ':' + m[2] : ''; }
 function parseTide(zone, d) {
@@ -723,6 +760,14 @@ const server = http.createServer((req, res) => {
       res.end(JSON.stringify({ error: 'q and key required' }));
       return;
     }
+    // Caché: si ya resolvimos esta búsqueda antes, la devolvemos sin gastar
+    // cuota de YouTube (reimportar una playlist cuesta ~0).
+    const cached = _ytsGet(q);
+    if (cached) {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ items: cached, cached: true }));
+      return;
+    }
     const getJson = (path) => new Promise((resolve, reject) => {
       const r = https.request({ hostname: 'www.googleapis.com', path, method: 'GET', headers: { 'Accept': 'application/json' } }, (apiRes) => {
         let raw = '';
@@ -766,6 +811,7 @@ const server = http.createServer((req, res) => {
           items.forEach(i => { i.duration = durs[i.ytId] || 0; });
         } catch (_) {}
       }
+      _ytsPut(q, items); // guarda en caché para no volver a gastar cuota
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ items }));
     })().catch(e => {

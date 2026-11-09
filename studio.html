@@ -2692,16 +2692,21 @@ async function importSpotifyPlaylist(spId){
   const list=tracks;
   const plName=(data.name||'Playlist de Spotify').trim(); // el nombre es el "estilo"
   toast(`Spotify: ${tracks.length} canciones. Buscando en YouTube…`,'ok');
-  let added=0, miss=0, quota=false; const plIds=[];
+  let added=0, miss=0, quota=false, keyErr=''; const plIds=[];
   for(let i=0;i<list.length;i++){
     const t=list[i];
     const q=`${t.title} ${t.artist}`.trim();
     try{
       const r=await fetch(`/api/ytsearch?q=${encodeURIComponent(q)}&key=${encodeURIComponent(cfg.ytKey)}`);
       const d=await r.json();
-      // Detectar cuota agotada / error de YouTube y detener con gracia.
+      // Distinguir "cuota agotada" de "API key inválida/restringida": ambos
+      // pueden dar 403, pero el mensaje cambia (y el remedio también).
       const errTxt=d&&d.error?String(d.error.message||d.error):'';
-      if(r.status===403 || /quota|exceeded|dailyLimit/i.test(errTxt)){ quota=true; break; }
+      const isQuota=/quota|exceeded|dailylimit|rate.?limit/i.test(errTxt);
+      if(isQuota){ quota=true; break; }
+      if(r.status===400||r.status===403||/api key|keyinvalid|not valid|forbidden|accessnotconfigured|disabled|referer|restricted/i.test(errTxt)){
+        keyErr=errTxt||'La API key de YouTube no es válida o está restringida'; break;
+      }
       const hit=(d.items||[])[0];
       if(hit){
         plIds.push(hit.ytId);
@@ -2721,8 +2726,10 @@ async function importSpotifyPlaylist(spId){
     await plSave({id:'pl_sp_'+spId,name:plName,trackIds:plIds,createdAt:Date.now()});
     if(typeof renderPls==='function') renderPls();
   }
-  if(quota){
-    toast(`⚠ Se agotó la cuota diaria de YouTube. Importé ${added} de ${list.length} de "${plName}". Continúa mañana o usa otra API key.`,'error');
+  if(keyErr){
+    toast(`❌ Problema con tu API key de YouTube (no es cuota): ${keyErr}. Revisa la key en CONFIG y que YouTube Data API v3 esté habilitada. Importé ${added} de ${list.length}.`,'error');
+  }else if(quota){
+    toast(`⚠ Se agotó la cuota diaria de YouTube. Importé ${added} de ${list.length} de "${plName}". La cuota se reinicia a medianoche (hora del Pacífico); reimportar lo ya hecho ahora cuesta 0 cuota.`,'error');
   }else{
     toast(`✅ ${added} de "${plName}" importadas y guardadas en Playlists${miss?` · ${miss} no encontradas`:''}`,'ok');
   }
