@@ -11,12 +11,12 @@
   <style>
     :root {
       --bg: #040914;
-      --card-bg: rgba(10, 20, 36, 0.75);
-      --card-border: rgba(255, 180, 0, 0.25);
+      --card-bg: rgba(10, 20, 36, 0.85);
+      --card-border: rgba(255, 180, 0, 0.35);
       --gold: #ffbe1a;
-      --gold-glow: rgba(255, 190, 26, 0.5);
+      --gold-glow: rgba(255, 190, 26, 0.6);
       --red: #ff2a2a;
-      --red-glow: rgba(255, 42, 42, 0.6);
+      --red-glow: rgba(255, 42, 42, 0.65);
       --cyan: #00e5ff;
       --txt: #ffffff;
       --txt-dim: #94a3b8;
@@ -51,7 +51,8 @@
       flex-direction: column;
       justify-content: space-between;
       padding: 2.5vh 3.5vw 2vh;
-      background: radial-gradient(circle at 50% 50%, rgba(13, 27, 50, 0.4) 0%, rgba(4, 9, 20, 0.85) 100%);
+      background: radial-gradient(circle at 50% 50%, rgba(13, 27, 50, 0.45) 0%, rgba(4, 9, 20, 0.9) 100%);
+      transition: opacity 0.6s ease;
     }
 
     /* Barra Superior */
@@ -68,8 +69,8 @@
       gap: 16px;
     }
     .brand-logo {
-      height: 5vh;
-      filter: drop-shadow(0 0 12px rgba(255, 42, 42, 0.4));
+      height: 5.5vh;
+      filter: drop-shadow(0 0 12px rgba(255, 42, 42, 0.5));
     }
     .campaign-badge {
       display: inline-flex;
@@ -95,8 +96,8 @@
       font-family: 'JetBrains Mono', monospace;
       font-size: 1.6vh;
       color: var(--gold);
-      background: rgba(255, 190, 26, 0.1);
-      border: 1px solid rgba(255, 190, 26, 0.3);
+      background: rgba(255, 190, 26, 0.12);
+      border: 1px solid rgba(255, 190, 26, 0.35);
       padding: 6px 14px;
       border-radius: 8px;
       font-weight: 700;
@@ -134,11 +135,11 @@
     .category-pill {
       align-self: flex-start;
       font-family: 'JetBrains Mono', monospace;
-      font-size: 1.6vh;
+      font-size: 1.7vh;
       font-weight: 700;
       color: var(--cyan);
-      background: rgba(0, 229, 255, 0.1);
-      border: 1px solid rgba(0, 229, 255, 0.3);
+      background: rgba(0, 229, 255, 0.12);
+      border: 1px solid rgba(0, 229, 255, 0.35);
       padding: 5px 14px;
       border-radius: 6px;
       letter-spacing: 1px;
@@ -146,9 +147,9 @@
     }
     .product-title {
       font-family: 'Cabinet Grotesk', sans-serif;
-      font-size: 5.2vh;
+      font-size: 4.8vh;
       font-weight: 900;
-      line-height: 1.1;
+      line-height: 1.12;
       color: #ffffff;
       text-shadow: 0 4px 20px rgba(0, 0, 0, 0.8);
       letter-spacing: -0.5px;
@@ -166,53 +167,77 @@
       gap: 8px;
       font-size: 1.8vh;
       color: #ffd27d;
-      background: rgba(255, 210, 125, 0.1);
-      border: 1px dashed rgba(255, 210, 125, 0.4);
+      background: rgba(255, 210, 125, 0.12);
+      border: 1px dashed rgba(255, 210, 125, 0.45);
       padding: 8px 16px;
       border-radius: 8px;
       font-weight: 600;
     }
 
-    /* Tarjeta Visual de Foto */
+    /* Tarjeta Visual de Foto o Video Dinámico */
     .product-photo-card {
       position: relative;
       background: var(--card-bg);
       border: 2px solid var(--card-border);
       border-radius: 20px;
-      padding: 2.5vh;
+      padding: 2vh;
       height: 44vh;
       display: flex;
       align-items: center;
       justify-content: center;
-      box-shadow: 0 15px 40px rgba(0, 0, 0, 0.6), inset 0 0 30px rgba(255, 190, 26, 0.05);
-      backdrop-filter: blur(12px);
+      box-shadow: 0 15px 45px rgba(0, 0, 0, 0.7), inset 0 0 30px rgba(255, 190, 26, 0.08);
+      backdrop-filter: blur(14px);
       overflow: hidden;
+    }
+    /* Luz volumétrica de fondo */
+    .product-glow {
+      position: absolute;
+      width: 60%;
+      height: 60%;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(255, 190, 26, 0.22) 0%, transparent 70%);
+      filter: blur(30px);
+      z-index: 1;
+      pointer-events: none;
+      animation: pulseGlow 4s infinite alternate;
     }
     .product-photo-card::after {
       content: '';
       position: absolute;
       top: -50%; left: -50%;
       width: 200%; height: 200%;
-      background: linear-gradient(45deg, transparent 45%, rgba(255, 255, 255, 0.08) 50%, transparent 55%);
-      animation: sheen 6s infinite;
+      background: linear-gradient(45deg, transparent 45%, rgba(255, 255, 255, 0.1) 50%, transparent 55%);
+      animation: sheen 5s infinite;
       pointer-events: none;
+      z-index: 4;
     }
     @keyframes sheen {
       0% { transform: translateY(-100%) rotate(25deg); }
       20%,100% { transform: translateY(100%) rotate(25deg); }
     }
+    /* Imagen del producto con movimiento dinámico (no estático) */
     .product-img {
-      max-height: 100%;
-      max-width: 100%;
+      position: relative;
+      z-index: 2;
+      max-height: 94%;
+      max-width: 94%;
       object-fit: contain;
-      filter: drop-shadow(0 10px 25px rgba(0, 0, 0, 0.8));
-      transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
-      animation: kenBurns 18s infinite alternate ease-in-out;
+      filter: drop-shadow(0 15px 35px rgba(0, 0, 0, 0.9));
+      animation: dynamicFloat 7s infinite ease-in-out alternate;
     }
-    @keyframes kenBurns {
-      0% { transform: scale(1) translate(0, 0); }
-      50% { transform: scale(1.08) translate(-1%, -1%); }
-      100% { transform: scale(1.03) translate(1%, 0.5%); }
+    @keyframes dynamicFloat {
+      0% { transform: scale(1) translateY(8px) rotate(-1.2deg); }
+      50% { transform: scale(1.08) translateY(-10px) rotate(1.2deg); }
+      100% { transform: scale(1.04) translateY(6px) rotate(-0.6deg); }
+    }
+    /* Video de fondo generado por IA */
+    .product-video {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      object-fit: cover;
+      border-radius: 18px;
+      z-index: 2;
     }
 
     /* Columna Derecha: Oferta + QR Gigante */
@@ -224,14 +249,14 @@
       justify-content: center;
     }
     .deal-card {
-      background: linear-gradient(145deg, rgba(20, 10, 10, 0.85), rgba(30, 15, 15, 0.95));
+      background: linear-gradient(145deg, rgba(25, 10, 10, 0.9), rgba(35, 15, 15, 0.98));
       border: 2px solid var(--red);
       border-radius: 20px;
-      padding: 2.5vh 2.5vw;
+      padding: 2.2vh 2.5vw;
       box-shadow: 0 0 35px rgba(255, 42, 42, 0.35);
       display: flex;
       flex-direction: column;
-      gap: 1.5vh;
+      gap: 1.2vh;
     }
     .discount-ribbon {
       align-self: flex-start;
@@ -269,8 +294,8 @@
       font-family: 'JetBrains Mono', monospace;
       font-size: 1.8vh;
       color: #10b981;
-      background: rgba(16, 185, 129, 0.12);
-      border: 1px solid rgba(16, 185, 129, 0.3);
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.35);
       padding: 6px 14px;
       border-radius: 8px;
       font-weight: 700;
@@ -280,27 +305,27 @@
     /* Caja del QR Gigante con Escáner */
     .qr-card {
       background: var(--card-bg);
-      border: 2px solid rgba(0, 229, 255, 0.3);
+      border: 2px solid rgba(0, 229, 255, 0.4);
       border-radius: 20px;
       padding: 2.5vh 2vw;
       display: flex;
       align-items: center;
       gap: 2.2vw;
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+      box-shadow: 0 10px 35px rgba(0, 0, 0, 0.7);
       position: relative;
       overflow: hidden;
     }
     .qr-frame {
       position: relative;
       background: #ffffff;
-      padding: 10px;
-      border-radius: 12px;
-      width: 19vh;
-      height: 19vh;
+      padding: 12px;
+      border-radius: 14px;
+      width: 25vh;
+      height: 25vh;
       display: flex;
       align-items: center;
       justify-content: center;
-      box-shadow: 0 0 25px rgba(255, 255, 255, 0.3);
+      box-shadow: 0 0 30px rgba(255, 255, 255, 0.45);
       flex-shrink: 0;
     }
     .qr-frame img {
@@ -313,10 +338,10 @@
       position: absolute;
       top: 0; left: 0;
       width: 100%;
-      height: 3px;
+      height: 4px;
       background: linear-gradient(90deg, transparent, #00ffaa, transparent);
-      box-shadow: 0 0 10px #00ffaa;
-      animation: scanLaser 2.2s infinite ease-in-out;
+      box-shadow: 0 0 12px #00ffaa;
+      animation: scanLaser 2s infinite ease-in-out;
     }
     @keyframes scanLaser {
       0% { top: 6%; opacity: 0; }
@@ -330,7 +355,7 @@
       gap: 8px;
     }
     .qr-pill {
-      background: rgba(0, 229, 255, 0.15);
+      background: rgba(0, 229, 255, 0.2);
       border: 1px solid var(--cyan);
       color: #e0faff;
       font-size: 1.9vh;
@@ -341,19 +366,25 @@
       align-items: center;
       gap: 8px;
       align-self: flex-start;
-      box-shadow: 0 0 15px rgba(0, 229, 255, 0.3);
+      box-shadow: 0 0 15px rgba(0, 229, 255, 0.4);
+    }
+    .qr-headline {
+      font-size: 2.1vh;
+      color: #ffffff;
+      font-weight: 800;
+      line-height: 1.25;
     }
     .qr-sub {
       font-size: 1.6vh;
-      color: #94a3b8;
-      line-height: 1.35;
+      color: #cbd5e1;
+      line-height: 1.4;
       font-weight: 500;
     }
     .qr-url {
       font-family: 'JetBrains Mono', monospace;
       font-size: 1.3vh;
       color: var(--cyan);
-      opacity: 0.85;
+      opacity: 0.9;
       word-break: break-all;
     }
 
@@ -362,13 +393,13 @@
       display: flex;
       flex-direction: column;
       gap: 1vh;
-      border-top: 1px solid rgba(255, 255, 255, 0.12);
+      border-top: 1px solid rgba(255, 255, 255, 0.15);
       padding-top: 1.5vh;
     }
     .subtitles-box {
-      background: rgba(0, 0, 0, 0.6);
+      background: rgba(0, 0, 0, 0.7);
       border-left: 4px solid var(--gold);
-      padding: 10px 20px;
+      padding: 12px 20px;
       border-radius: 8px;
       display: flex;
       align-items: center;
@@ -394,8 +425,8 @@
     @keyframes wave { from{transform:scaleY(0.3);} to{transform:scaleY(1.2);} }
 
     .subtitles-text {
-      font-size: 1.9vh;
-      color: #f1f5f9;
+      font-size: 2vh;
+      color: #f8fafc;
       font-weight: 600;
       line-height: 1.3;
       font-style: italic;
@@ -415,6 +446,75 @@
       transition: width 0.15s linear;
     }
 
+    /* PANTALLA STANDBY DE TIENDA (CUANDO NO HAY SPOT AL AIRE) */
+    .standby-screen {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100vw; height: 100vh;
+      z-index: 15;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 4vw;
+      background: radial-gradient(circle at 50% 50%, rgba(13, 27, 50, 0.6) 0%, rgba(4, 9, 20, 0.95) 100%);
+      transition: opacity 0.6s ease;
+    }
+    .standby-content {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2.5vh;
+      max-width: 900px;
+    }
+    .standby-logo {
+      height: 10vh;
+      filter: drop-shadow(0 0 25px rgba(255, 42, 42, 0.5));
+      animation: dynamicFloat 8s infinite ease-in-out alternate;
+    }
+    .standby-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      background: rgba(0, 255, 102, 0.15);
+      border: 1px solid #00ff66;
+      color: #00ff66;
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 700;
+      font-size: 1.8vh;
+      padding: 8px 20px;
+      border-radius: 50px;
+      letter-spacing: 1px;
+    }
+    .standby-now-title {
+      font-family: 'Cabinet Grotesk', sans-serif;
+      font-size: 6.5vh;
+      font-weight: 900;
+      color: #fff;
+      line-height: 1.1;
+      text-shadow: 0 5px 25px rgba(0,0,0,0.8);
+    }
+    .standby-now-artist {
+      font-size: 2.8vh;
+      color: var(--gold);
+      font-weight: 600;
+    }
+    .standby-buenfin-banner {
+      margin-top: 2vh;
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      background: rgba(255, 42, 42, 0.15);
+      border: 1px solid var(--red);
+      padding: 12px 28px;
+      border-radius: 50px;
+      color: #fff;
+      font-size: 1.8vh;
+      font-weight: 700;
+      box-shadow: 0 0 25px rgba(255, 42, 42, 0.35);
+    }
+
     /* Barra Flotante de Control (se oculta en modo TV para display limpio) */
     .controls-overlay {
       position: absolute;
@@ -425,7 +525,7 @@
       z-index: 100;
       opacity: 0.25;
       transition: opacity 0.3s ease;
-      background: rgba(6, 14, 26, 0.85);
+      background: rgba(6, 14, 26, 0.9);
       border: 1px solid rgba(255, 255, 255, 0.15);
       padding: 8px 14px;
       border-radius: 50px;
@@ -468,7 +568,7 @@
       display: flex;
       gap: 10px;
       z-index: 90;
-      background: rgba(6, 14, 26, 0.9);
+      background: rgba(6, 14, 26, 0.92);
       padding: 6px 14px;
       border-radius: 40px;
       border: 1px solid rgba(255, 255, 255, 0.15);
@@ -499,14 +599,14 @@
       top: 25px;
       left: 50%;
       transform: translateX(-50%);
-      background: rgba(255, 0, 0, 0.9);
+      background: rgba(255, 0, 0, 0.95);
       color: #fff;
       padding: 8px 20px;
       border-radius: 30px;
       font-weight: 800;
       font-size: 13px;
       z-index: 200;
-      box-shadow: 0 0 20px red;
+      box-shadow: 0 0 25px red;
       animation: blink 1s infinite;
     }
   </style>
@@ -522,7 +622,7 @@
   <!-- Controles Superiores Flotantes -->
   <div class="controls-overlay">
     <button class="ctrl-btn" id="btnPlayPause" onclick="togglePlay()">▶ Reproducir Spot</button>
-    <button class="ctrl-btn active" id="btnLoop" onclick="toggleLoop()">🔄 Bucle TV (Auto)</button>
+    <button class="ctrl-btn active" id="btnMode" onclick="toggleMode()">🔄 Modo: Bucle TV</button>
     <button class="ctrl-btn" onclick="exportVideoSpot()" style="color:#00ffaa;border-color:#00ffaa">🎬 Descargar Video MP4</button>
     <button class="ctrl-btn" onclick="toggleFullscreen()">⛶ Pantalla Completa</button>
   </div>
@@ -530,8 +630,28 @@
   <!-- Selector rápido de Spots -->
   <div class="spots-nav" id="spotsNav"></div>
 
-  <!-- Escenario TV Principal -->
-  <div class="tv-stage">
+  <!-- PANTALLA STANDBY (MÚSICA / AMBIENTAL DE TIENDA) -->
+  <div class="standby-screen" id="standbyScreen">
+    <div class="standby-content">
+      <img class="standby-logo" src="https://cdn.shopify.com/s/files/1/0205/5752/9188/files/Logo-Terrapesca-01_205270e5-d546-4e33-a8d1-db0a91f1e554.png?v=1700262873" alt="Terrapesca">
+      <div class="standby-badge">
+        <div class="live-dot"></div>
+        RADIO TERRAPESCA AL AIRE
+      </div>
+      <h1 class="standby-now-title" id="stTrackTitle">Sonando en Sucursales</h1>
+      <p class="standby-now-artist" id="stTrackArtist">Música, Pesca y Aventura en Sinaloa</p>
+      <div class="standby-buenfin-banner">
+        <span>🔥 GRAN BUEN FIN TERRAPESCA</span>
+        <span>•</span>
+        <span>Descuentos de hasta el 50%</span>
+        <span>•</span>
+        <span>Escanea el QR en cuanto suene el spot</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ESCENARIO TV PRINCIPAL (VIDEO SPOT DEL PRODUCTO) -->
+  <div class="tv-stage" id="tvStage">
     
     <!-- Barra Superior -->
     <header class="top-bar">
@@ -548,10 +668,14 @@
     <!-- Centro: Showcase + Oferta + QR -->
     <main class="spot-content">
       
-      <!-- Columna Izquierda -->
+      <!-- Columna Izquierda: Showcase de Producto -->
       <section class="product-showcase">
         <div class="category-pill" id="spotCategory">GORRAS TERRAPESCA</div>
         <div class="product-photo-card">
+          <div class="product-glow"></div>
+          <!-- Video AI (si existe el archivo .mp4) -->
+          <video id="spotVideo" class="product-video" autoplay muted loop playsinline style="display:none;"></video>
+          <!-- Imagen del producto con movimiento dinámico -->
           <img class="product-img" id="spotPhoto" src="/buenfin/spot_gorras_50.jpg" alt="Producto">
         </div>
         <div>
@@ -561,7 +685,7 @@
         <div class="isla-pill" id="spotIsla">📍 Isla 1 — Entrada Principal (50% Directo)</div>
       </section>
 
-      <!-- Columna Derecha -->
+      <!-- Columna Derecha: Oferta + QR Gigante -->
       <section class="offer-box">
         <div class="deal-card">
           <div class="discount-ribbon" id="spotDiscount">50% DE DESCUENTO</div>
@@ -578,8 +702,9 @@
             <img id="spotQR" src="/buenfin/spot_gorras_50_qr.png" alt="QR Compra">
           </div>
           <div class="qr-cta">
-            <div class="qr-pill">📱 ESCANEA CON TU CELULAR</div>
-            <p class="qr-sub">Apunta tu cámara aquí para apartar o comprar directo antes de que se agote.</p>
+            <div class="qr-pill">📲 ESCANEA PARA VER PRECIOS Y REGISTRARTE</div>
+            <p class="qr-headline">¡Checa los precios oficiales y aparta tu equipo!</p>
+            <p class="qr-sub">Apunta la cámara de tu celular para consultar precios, apartar tu producto y recibir promociones y novedades antes que nadie.</p>
             <span class="qr-url" id="spotQrUrl">terrapescaapi.com/cliente</span>
           </div>
         </div>
@@ -608,20 +733,22 @@
 
   </div>
 
-  <!-- Audio Player -->
+  <!-- Audio Player del Locutor -->
   <audio id="spotAudio" preload="auto"></audio>
 
   <script>
     let SPOTS = [];
     let currentIdx = 0;
-    let isLooping = true;
+    let mode = 'loop'; // 'loop' (carrusel constante) o 'reactive' (desaparece y vuelve a standby)
     let isPlaying = false;
-    let spotTimer = null;
     let progressInterval = null;
-    const SPOT_DURATION_SECS = 22; // 22 segundos por spot en carrusel
-    let secondsElapsed = 0;
+    const SPOT_DURATION_SECS = 22; // 22 segundos por spot
 
     const audioEl = document.getElementById('spotAudio');
+    const tvStage = document.getElementById('tvStage');
+    const standbyScreen = document.getElementById('standbyScreen');
+    const spotVideoEl = document.getElementById('spotVideo');
+    const spotPhotoEl = document.getElementById('spotPhoto');
 
     // Cargar Spots locales de Buen Fin
     async function loadSpots() {
@@ -630,7 +757,27 @@
         const data = await r.json();
         SPOTS = data.spots || data;
         renderNav();
-        loadSpot(0, false);
+
+        // Verificar si la URL trae un spot_id directo (ej. por trigger)
+        const params = new URLSearchParams(window.location.search);
+        const trigSpot = params.get('spot_id');
+        const isReactiveParam = params.get('trigger') === 'true' || params.has('spot_id');
+        if (isReactiveParam) {
+          mode = 'reactive';
+          document.getElementById('btnMode').textContent = '📡 Modo: Reactivo Radio';
+        }
+
+        if (trigSpot) {
+          const idx = SPOTS.findIndex(x => x.spot_id === trigSpot);
+          loadSpot(idx >= 0 ? idx : 0, true);
+        } else {
+          loadSpot(0, false);
+        }
+
+        // Monitorear música de fondo para la pantalla standby
+        pollCurrentRadioTrack();
+        setInterval(pollCurrentRadioTrack, 10000);
+
       } catch (e) {
         console.error('Error cargando spots:', e);
       }
@@ -645,13 +792,18 @@
       `).join('');
     }
 
-    function loadSpot(idx, autoPlay = true) {
+    async function loadSpot(idx, autoPlay = true) {
       if (!SPOTS.length) return;
       currentIdx = (idx + SPOTS.length) % SPOTS.length;
       const s = SPOTS[currentIdx];
 
-      // Actualizar UI
-      document.getElementById('spotCategory').textContent = s.categoria.toUpperCase();
+      // Mostrar escenario de producto
+      standbyScreen.style.display = 'none';
+      tvStage.style.display = 'flex';
+      tvStage.style.opacity = '1';
+
+      // Actualizar Textos
+      document.getElementById('spotCategory').textContent = (s.categoria || 'BUEN FIN').toUpperCase();
       document.getElementById('spotTitle').textContent = s.titulo;
       document.getElementById('spotDesc').textContent = s.descripcion;
       document.getElementById('spotIsla').textContent = '📍 ' + (s.isla || 'Exhibición Buen Fin');
@@ -659,23 +811,24 @@
       document.getElementById('spotPriceReg').textContent = 'REGULAR: $' + Number(s.precio_regular).toFixed(2);
       document.getElementById('spotPriceDeal').textContent = '$' + Number(s.precio_buenfin).toFixed(2);
       document.getElementById('spotSavings').textContent = 'AHORRAS: $' + Number(s.ahorro).toFixed(2) + ' MXN';
-      document.getElementById('spotSubtitles').textContent = '"' + s.frase_locutor + '"';
+      document.getElementById('spotSubtitles').textContent = '"' + (s.frase_locutor || '') + '"';
       document.getElementById('spotQrUrl').textContent = (s.qr_compra_url || '').replace('https://', '');
 
-      // Fotos y QRs locales
-      document.getElementById('spotPhoto').src = '/buenfin/' + s.spot_id + '.jpg';
+      // Foto oficial actualizada
+      spotPhotoEl.src = '/buenfin/' + s.spot_id + '.jpg';
       document.getElementById('spotQR').src = '/buenfin/' + s.spot_id + '_qr.png';
+
+      // Revisar si existe video generado por IA (spot_id.mp4)
+      checkVideoAvailable(s.spot_id);
 
       // Audio oficial VoiceKiller
       audioEl.src = '/buenfin/' + s.spot_id + '.mp3';
 
-      // Nav dots
+      // Actualizar dots
       document.querySelectorAll('.nav-dot').forEach((el, i) => {
         el.classList.toggle('active', i === currentIdx);
       });
 
-      // Reset barra
-      secondsElapsed = 0;
       updateProgressBar(0);
 
       if (autoPlay) {
@@ -683,9 +836,31 @@
       }
     }
 
+    // Si el usuario sube un video MP4 para el spot, se activa automáticamente
+    function checkVideoAvailable(spotId) {
+      const videoSrc = '/buenfin/' + spotId + '.mp4';
+      fetch(videoSrc, { method: 'HEAD' })
+        .then(res => {
+          if (res.ok) {
+            spotVideoEl.src = videoSrc;
+            spotVideoEl.style.display = 'block';
+            spotPhotoEl.style.display = 'none';
+            spotVideoEl.play().catch(() => {});
+          } else {
+            spotVideoEl.style.display = 'none';
+            spotPhotoEl.style.display = 'block';
+          }
+        })
+        .catch(() => {
+          spotVideoEl.style.display = 'none';
+          spotPhotoEl.style.display = 'block';
+        });
+    }
+
     function playSpot() {
       isPlaying = true;
       document.getElementById('btnPlayPause').textContent = '⏸ Pausar';
+      audioEl.currentTime = 0;
       audioEl.play().catch(() => {});
       startProgress();
     }
@@ -702,9 +877,15 @@
       else playSpot();
     }
 
-    function toggleLoop() {
-      isLooping = !isLooping;
-      document.getElementById('btnLoop').classList.toggle('active', isLooping);
+    function toggleMode() {
+      if (mode === 'loop') {
+        mode = 'reactive';
+        document.getElementById('btnMode').textContent = '📡 Modo: Reactivo Radio';
+      } else {
+        mode = 'loop';
+        document.getElementById('btnMode').textContent = '🔄 Modo: Bucle TV';
+        loadSpot(currentIdx, true);
+      }
     }
 
     function selectSpot(i) {
@@ -720,13 +901,27 @@
         step++;
         const pct = (step / totalSteps) * 100;
         updateProgressBar(pct);
-        if (step >= totalSteps) {
+
+        if (step >= totalSteps || audioEl.ended) {
           clearInterval(progressInterval);
-          if (isLooping) {
+          if (mode === 'loop') {
             loadSpot(currentIdx + 1, true);
+          } else {
+            // MODO REACTIVO: El spot termina y la pantalla DESAPARECE, volviendo a Standby de música
+            finishAndGoStandby();
           }
         }
       }, 100);
+    }
+
+    function finishAndGoStandby() {
+      pauseSpot();
+      tvStage.style.opacity = '0';
+      setTimeout(() => {
+        tvStage.style.display = 'none';
+        standbyScreen.style.display = 'flex';
+        standbyScreen.style.opacity = '1';
+      }, 500);
     }
 
     function updateProgressBar(pct) {
@@ -741,7 +936,24 @@
       }
     }
 
-    // Atajos de teclado para TV / Presentador
+    // Consulta la canción actual sonando en Radio Terrapesca para la pantalla de Standby
+    async function pollCurrentRadioTrack() {
+      try {
+        const r = await fetch('/api/history');
+        if (r.ok) {
+          const list = await r.json();
+          if (list && list.length) {
+            const cur = list[list.length - 1];
+            if (cur && cur.name) {
+              document.getElementById('stTrackTitle').textContent = cur.name;
+              document.getElementById('stTrackArtist').textContent = cur.artist ? ('por ' + cur.artist) : 'Radio Terrapesca';
+            }
+          }
+        }
+      } catch (_) {}
+    }
+
+    // Atajos de teclado para TV
     window.addEventListener('keydown', (e) => {
       if (e.key === ' ' || e.code === 'Space') { togglePlay(); }
       else if (e.key === 'ArrowRight') { loadSpot(currentIdx + 1, isPlaying); }
@@ -752,7 +964,7 @@
       }
     });
 
-    // Partículas de fondo en Canvas
+    // Partículas doradas y de fuego en Canvas
     const canvas = document.getElementById('bgCanvas');
     const ctx = canvas.getContext('2d');
     let particles = [];
@@ -764,7 +976,7 @@
     window.addEventListener('resize', resizeCanvas);
     resizeCanvas();
 
-    for (let i = 0; i < 70; i++) {
+    for (let i = 0; i < 75; i++) {
       particles.push({
         x: Math.random() * canvas.width,
         y: Math.random() * canvas.height,
@@ -810,7 +1022,6 @@
         const eCtx = expCanvas.getContext('2d');
         const W = 1920, H = 1080;
 
-        // Cargar imagen del producto y QR
         const imgPhoto = new Image(); imgPhoto.crossOrigin = 'anonymous';
         const imgQr = new Image(); imgQr.crossOrigin = 'anonymous';
         await Promise.all([
@@ -818,7 +1029,6 @@
           new Promise(r => { imgQr.onload = r; imgQr.src = '/buenfin/' + s.spot_id + '_qr.png'; })
         ]);
 
-        // Cargar audio
         const audio = new Audio('/buenfin/' + s.spot_id + '.mp3');
         const actx = new (window.AudioContext || window.webkitAudioContext)();
         const src = actx.createMediaElementSource(audio);
@@ -874,12 +1084,12 @@
 
           // 2. Cabezal
           eCtx.fillStyle = '#ff2a2a';
-          eCtx.fillRect(60, 45, 420, 52);
+          eCtx.fillRect(60, 45, 430, 52);
           eCtx.fillStyle = '#ffffff';
           eCtx.font = 'bold 28px sans-serif';
           eCtx.fillText('🔥 GRAN BUEN FIN TERRAPESCA', 80, 82);
 
-          // 3. Foto con zoom Ken Burns
+          // 3. Foto con zoom dinámico Ken Burns
           const scale = 1 + (elapsed / durationSecs) * 0.08;
           eCtx.save();
           eCtx.translate(560, 540);
@@ -892,56 +1102,59 @@
           eCtx.fillStyle = 'rgba(15, 23, 42, 0.9)';
           eCtx.strokeStyle = '#ffbe1a';
           eCtx.lineWidth = 4;
-          eCtx.roundRect(1100, 160, 740, 780, 24);
+          eCtx.roundRect(1080, 150, 760, 800, 24);
           eCtx.fill();
           eCtx.stroke();
 
           // Título
           eCtx.fillStyle = '#ffffff';
-          eCtx.font = '900 44px sans-serif';
-          eCtx.fillText(s.titulo.slice(0, 32), 1140, 240);
+          eCtx.font = '900 42px sans-serif';
+          eCtx.fillText(s.titulo.slice(0, 32), 1120, 230);
 
           // Badge de Descuento
           eCtx.fillStyle = '#ff2a2a';
-          eCtx.roundRect(1140, 280, 320, 60, 12);
+          eCtx.roundRect(1120, 260, 320, 60, 12);
           eCtx.fill();
           eCtx.fillStyle = '#ffffff';
           eCtx.font = 'bold 36px sans-serif';
-          eCtx.fillText(s.descuento_pct + '% DE DESCUENTO', 1160, 324);
+          eCtx.fillText(s.descuento_pct + '% DE DESCUENTO', 1140, 304);
 
           // Precio tachado
           eCtx.fillStyle = '#94a3b8';
-          eCtx.font = '32px monospace';
-          eCtx.fillText('REGULAR: $' + Number(s.precio_regular).toFixed(2), 1140, 400);
+          eCtx.font = '30px monospace';
+          eCtx.fillText('REGULAR: $' + Number(s.precio_regular).toFixed(2), 1120, 375);
 
           // Precio Buen Fin Gigante
           eCtx.fillStyle = '#ffbe1a';
           eCtx.font = '900 86px sans-serif';
-          eCtx.fillText('$' + Number(s.precio_buenfin).toFixed(2), 1140, 490);
+          eCtx.fillText('$' + Number(s.precio_buenfin).toFixed(2), 1120, 465);
 
           // Ahorro
           eCtx.fillStyle = '#10b981';
-          eCtx.font = 'bold 28px monospace';
-          eCtx.fillText('¡AHORRAS $' + Number(s.ahorro).toFixed(2) + ' PESOS!', 1140, 545);
+          eCtx.font = 'bold 26px monospace';
+          eCtx.fillText('¡AHORRAS $' + Number(s.ahorro).toFixed(2) + ' PESOS!', 1120, 515);
 
           // QR Gigante
           eCtx.fillStyle = '#ffffff';
-          eCtx.fillRect(1140, 600, 240, 240);
-          eCtx.drawImage(imgQr, 1150, 610, 220, 220);
+          eCtx.fillRect(1120, 560, 260, 260);
+          eCtx.drawImage(imgQr, 1130, 570, 240, 240);
 
           eCtx.fillStyle = '#ffffff';
-          eCtx.font = 'bold 26px sans-serif';
-          eCtx.fillText('📱 ESCANEA PARA APARTAR', 1410, 660);
+          eCtx.font = 'bold 24px sans-serif';
+          eCtx.fillText('📱 ESCANEA PARA VER PRECIOS', 1410, 620);
+          eCtx.fillStyle = '#ffbe1a';
+          eCtx.font = 'bold 20px sans-serif';
+          eCtx.fillText('¡Y RECIBE NOVEDADES ANTES!', 1410, 655);
           eCtx.fillStyle = '#94a3b8';
-          eCtx.font = '20px sans-serif';
-          eCtx.fillText('Compra directa desde tu celular', 1410, 700);
+          eCtx.font = '18px sans-serif';
+          eCtx.fillText('Regístrate y asegura tu descuento.', 1410, 695);
 
           // Subtítulo locución en barra inferior
-          eCtx.fillStyle = 'rgba(0,0,0,0.8)';
+          eCtx.fillStyle = 'rgba(0,0,0,0.85)';
           eCtx.fillRect(0, 990, W, 90);
           eCtx.fillStyle = '#f8fafc';
-          eCtx.font = 'italic 24px sans-serif';
-          eCtx.fillText(s.frase_locutor.slice(0, 115) + '...', 80, 1045);
+          eCtx.font = 'italic 23px sans-serif';
+          eCtx.fillText(s.frase_locutor.slice(0, 120) + '...', 80, 1045);
 
           requestAnimationFrame(drawFrame);
         }

@@ -18,7 +18,7 @@
       "isla": "Isla 1 — Entrada Principal (50% Directo)",
       "foto_url": "/api/v1/buenfin/foto/00000000020270?sucursal=buceo",
       "qr_compra_url": "https://buenfin.terrapescaapi.com/cliente?sucursal=buceo&sku=20270",
-      "frase_locutor": "¡Atención pescadores y exploradores! Durante este Buen Fin, todas las gorras Terrapesca están al 50% de descuento. ¡Aprovecha hoy mismo, escanea el código en pantalla y asegura la tuya antes de que vuelen!",
+      "frase_locutor": "¡Atención aventureros y pescadores de Sinaloa! Durante este Buen Fin, todas las gorras Terrapesca tienen cincuenta por ciento de descuento directo. Escanea el código QR en pantalla para consultar precios, apartar tu gorra y registrarte para recibir las mejores promociones y novedades antes que nadie. ¡Visítanos en Terrapesca: equipa tu aventura!",
       "qr_imagen_url": "https://api.qrserver.com/v1/create-qr-code/?size=280x280&margin=6&data=https://buenfin.terrapescaapi.com/cliente?sucursal=buceo&sku=20270",
       "trigger_pantalla_url": "https://buenfin.terrapescaapi.com/api/v1/buenfin/radio-trigger?spot_id=spot_gorras_50&sucursal=buceo"
     },
@@ -37,7 +37,7 @@
       "isla": "Isla 4 — Muro de Liquidación y Ocasión 40%",
       "foto_url": "/api/v1/buenfin/foto/00000000018803?sucursal=buceo",
       "qr_compra_url": "https://buenfin.terrapescaapi.com/cliente?sucursal=buceo&sku=18803",
-      "frase_locutor": "¡El señuelo que nunca falla! Llévate el legendario Rapala Shad Rap con un insólito 40% de descuento directo en caja. ¡Piezas contadas en el muro de señuelos!",
+      "frase_locutor": "¡El señuelo legendario que nunca falla! Llévate el auténtico Rapala Shad Rap con un insólito cuarenta por ciento de descuento en caja. Escanea el código QR en pantalla para checar precios, apartar tus piezas y registrarte para recibir nuestras promociones y lanzamientos exclusivos antes que nadie. ¡Corre a Terrapesca!",
       "qr_imagen_url": "https://api.qrserver.com/v1/create-qr-code/?size=280x280&margin=6&data=https://buenfin.terrapescaapi.com/cliente?sucursal=buceo&sku=18803",
       "trigger_pantalla_url": "https://buenfin.terrapescaapi.com/api/v1/buenfin/radio-trigger?spot_id=spot_shadrap_40&sucursal=buceo"
     },
@@ -56,7 +56,7 @@
       "isla": "Isla 3 — Vitrina de Carretes Shimano (20% en Combo con Vara)",
       "foto_url": "/api/v1/buenfin/foto/00000000039108?sucursal=buceo",
       "qr_compra_url": "https://buenfin.terrapescaapi.com/cliente?sucursal=buceo&sku=39108",
-      "frase_locutor": "¡Precisión japonesa al mejor precio del año! Carrete Shimano Vanford con 15% individual o 20% parejo armando tu combo con cualquier vara. ¡Visita la vitrina central!",
+      "frase_locutor": "¡Potencia y suavidad japonesa al mejor precio del año! Carrete Shimano Vanford con quince por ciento de descuento individual o veinte por ciento parejo al armar tu combo con cualquier vara. Escanea el código QR en pantalla para ver precios, apartar el tuyo y registrarte para recibir ofertas exclusivas antes que nadie. ¡Terrapesca: equipa tu aventura!",
       "qr_imagen_url": "https://api.qrserver.com/v1/create-qr-code/?size=280x280&margin=6&data=https://buenfin.terrapescaapi.com/cliente?sucursal=buceo&sku=39108",
       "trigger_pantalla_url": "https://buenfin.terrapescaapi.com/api/v1/buenfin/radio-trigger?spot_id=spot_vanford_15&sucursal=buceo"
     },
@@ -75,7 +75,7 @@
       "isla": "Isla 6 — Bahía de Kayaks (6 MSI y Preventa con Precio Congelado)",
       "foto_url": "/api/v1/buenfin/foto/00000000040516?sucursal=buceo",
       "qr_compra_url": "https://buenfin.terrapescaapi.com/cliente?sucursal=buceo&sku=40516",
-      "frase_locutor": "¡Conquista el agua en tu propio kayak! Aprovecha 6 Meses Sin Intereses con tarjeta de crédito en todos los kayaks. Si el modelo que buscas se agota, ¡apártalo hoy con precio congelado para entrega en Diciembre!",
+      "frase_locutor": "¿Listo para conquistar el agua? En este Buen Fin llévate tu kayak Tilapia con diez por ciento de descuento o a seis meses sin intereses. Y si se agota, ¡apártalo con precio congelado para entrega en diciembre! Escanea el código QR en pantalla para checar precios, apartar tu kayak e inscribirte para recibir promociones y novedades antes que nadie. ¡Encuéntralo en Terrapesca!",
       "qr_imagen_url": "https://api.qrserver.com/v1/create-qr-code/?size=280x280&margin=6&data=https://buenfin.terrapescaapi.com/cliente?sucursal=buceo&sku=40516",
       "trigger_pantalla_url": "https://buenfin.terrapescaapi.com/api/v1/buenfin/radio-trigger?spot_id=spot_kayak_tilapia&sucursal=buceo"
     },
@@ -94,7 +94,7 @@
       "isla": "Isla 5A — Boutique MAJA Sportswear (Hasta Agotar Existencias)",
       "foto_url": "/api/v1/buenfin/foto/00000000080838?sucursal=buceo",
       "qr_compra_url": "https://buenfin.terrapescaapi.com/cliente?sucursal=buceo&sku=78921",
-      "frase_locutor": "¡Estrena con estilo en tu próxima aventura! Toda la línea MAJA Sportswear tiene 30% de descuento directo en caja. ¡Válido únicamente hasta agotar existencias en sucursal!",
+      "frase_locutor": "¡Viste como los profesionales en tu próxima expedición! Toda la línea técnica de MAJA Sportswear tiene treinta por ciento de descuento hasta agotar existencias. Escanea el código QR en pantalla para consultar precios, apartar tus prendas y registrarte para recibir nuestras novedades y promociones antes que nadie. ¡Solo en Terrapesca!",
       "qr_imagen_url": "https://api.qrserver.com/v1/create-qr-code/?size=280x280&margin=6&data=https://buenfin.terrapescaapi.com/cliente?sucursal=buceo&sku=78921",
       "trigger_pantalla_url": "https://buenfin.terrapescaapi.com/api/v1/buenfin/radio-trigger?spot_id=spot_maja_30&sucursal=buceo"
     },
@@ -113,7 +113,7 @@
       "isla": "Isla 5B — Exhibición Central de Hieleras",
       "foto_url": "/api/v1/buenfin/foto/00000000015692?sucursal=buceo",
       "qr_compra_url": "https://buenfin.terrapescaapi.com/cliente?sucursal=buceo&sku=15692",
-      "frase_locutor": "¡Mantén tus capturas y bebidas heladas en cualquier expedición! 15% de ahorro directo en todas las hieleras y coolers marinos durante este Buen Fin.",
+      "frase_locutor": "¡Que el frío te dure días enteros bajo el sol de Sinaloa! Quince por ciento de descuento en todas las hieleras y coolers marinos de alto rendimiento. Escanea el código QR en pantalla para checar precios, apartar tu hielera e inscribirte para recibir todas las promociones y novedades antes que nadie. ¡Terrapesca: equipa tu aventura!",
       "qr_imagen_url": "https://api.qrserver.com/v1/create-qr-code/?size=280x280&margin=6&data=https://buenfin.terrapescaapi.com/cliente?sucursal=buceo&sku=15692",
       "trigger_pantalla_url": "https://buenfin.terrapescaapi.com/api/v1/buenfin/radio-trigger?spot_id=spot_hieleras_15&sucursal=buceo"
     }
