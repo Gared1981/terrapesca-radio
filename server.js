@@ -1343,13 +1343,16 @@ function searchYouTubeNoKey(q) {
         };
         const stat = fs.statSync(bPath);
         const contentType = types[ext] || 'application/octet-stream';
+        const cacheHeader = (ext === '.json' || ext === '.html')
+          ? 'no-cache, no-store, must-revalidate'
+          : 'public, max-age=86400';
 
         if (req.method === 'HEAD') {
           res.writeHead(200, {
             'Content-Type': contentType,
             'Content-Length': stat.size,
             'Accept-Ranges': 'bytes',
-            'Cache-Control': 'public, max-age=86400',
+            'Cache-Control': cacheHeader,
             'Access-Control-Allow-Origin': '*'
           });
           res.end();
@@ -1378,7 +1381,7 @@ function searchYouTubeNoKey(q) {
           'Content-Type': contentType,
           'Content-Length': stat.size,
           'Accept-Ranges': 'bytes',
-          'Cache-Control': 'public, max-age=86400',
+          'Cache-Control': cacheHeader,
           'Access-Control-Allow-Origin': '*'
         });
         fs.createReadStream(bPath).pipe(res);
@@ -1478,7 +1481,8 @@ function searchYouTubeNoKey(q) {
     res.writeHead(200, {
       'Content-Type': 'text/html; charset=utf-8',
       'X-Content-Type-Options': 'nosniff',
-      'X-Frame-Options': 'SAMEORIGIN'
+      'X-Frame-Options': 'SAMEORIGIN',
+      'Cache-Control': 'no-cache, no-store, must-revalidate'
     });
     fs.createReadStream(filePath).pipe(res);
     return;
