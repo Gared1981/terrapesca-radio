@@ -253,6 +253,40 @@
       background: #020611;
     }
 
+    /* Efectos Navideños / Decembrinos */
+    .snow-canvas {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      pointer-events: none;
+      z-index: 5;
+    }
+    .holiday-badge {
+      position: absolute;
+      top: 14px; right: 14px;
+      z-index: 6;
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.95), rgba(5, 120, 85, 0.98));
+      border: 1.5px solid #6ee7b7;
+      color: #ffffff;
+      font-family: 'Cabinet Grotesk', sans-serif;
+      font-size: 1.6vh;
+      font-weight: 800;
+      padding: 6px 14px;
+      border-radius: 999px;
+      box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4), 0 0 20px rgba(255, 215, 0, 0.4);
+      letter-spacing: 0.5px;
+      animation: holidayPulse 2.5s infinite alternate;
+      pointer-events: none;
+    }
+    @keyframes holidayPulse {
+      0% { transform: scale(1); box-shadow: 0 0 15px rgba(16, 185, 129, 0.4); }
+      100% { transform: scale(1.04); box-shadow: 0 0 25px rgba(110, 231, 183, 0.8), 0 0 30px rgba(255, 215, 0, 0.6); }
+    }
+    .holiday-card-glow {
+      border-color: #34d399 !important;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8), 0 0 35px rgba(16, 185, 129, 0.4), 0 0 45px rgba(255, 42, 42, 0.25) !important;
+    }
+
     /* Columna Derecha: Oferta + QR Gigante */
     .offer-box {
       display: flex;
@@ -688,12 +722,17 @@
           <div class="category-pill" id="spotCategory">GORRAS TERRAPESCA</div>
           <div class="isla-pill" id="spotIsla">📍 Isla 1 — Entrada Principal (50% Directo)</div>
         </div>
-        <div class="product-photo-card">
+        <div class="product-photo-card" id="productCard">
           <div class="product-glow"></div>
           <!-- Video AI (si existe el archivo .mp4) -->
           <video id="spotVideo" class="product-video" autoplay muted loop playsinline style="display:none;"></video>
           <!-- Imagen del producto con movimiento dinámico -->
           <img class="product-img" id="spotPhoto" src="/buenfin/spot_gorras_50.jpg" alt="Producto">
+          <!-- Efectos Navideños / Decembrinos (Nieve, destellos dorados y badge festivo) -->
+          <canvas id="snowCanvas" class="snow-canvas" style="display:none;"></canvas>
+          <div id="holidayBadge" class="holiday-badge" style="display:none;">
+            🎄 PREVENTA DICIEMBRE • ENTREGA GARANTIZADA ❄️
+          </div>
         </div>
         <div class="product-info-wrap">
           <h1 class="product-title" id="spotTitle">GORRAS TERRAPESCA TRUCKER AL 50%</h1>
@@ -840,6 +879,23 @@
       // Audio oficial VoiceKiller (con cache busting)
       audioEl.src = '/buenfin/' + s.spot_id + '.mp3?v=' + Date.now();
 
+      // Efectos Navideños / Decembrinos (Nieve suave y badge festivo)
+      const isHoliday = s.spot_id === 'spot_kayak_tilapia' || (s.titulo && s.titulo.toLowerCase().includes('diciembre'));
+      const snowEl = document.getElementById('snowCanvas');
+      const holiBadge = document.getElementById('holidayBadge');
+      const cardEl = document.getElementById('productCard');
+      if (isHoliday) {
+        if (snowEl) snowEl.style.display = 'block';
+        if (holiBadge) holiBadge.style.display = 'block';
+        if (cardEl) cardEl.classList.add('holiday-card-glow');
+        initSnow(cardEl);
+      } else {
+        if (snowEl) snowEl.style.display = 'none';
+        if (holiBadge) holiBadge.style.display = 'none';
+        if (cardEl) cardEl.classList.remove('holiday-card-glow');
+        if (snowAnimId) cancelAnimationFrame(snowAnimId);
+      }
+
       // Actualizar dots
       document.querySelectorAll('.nav-dot').forEach((el, i) => {
         el.classList.toggle('active', i === currentIdx);
@@ -886,8 +942,11 @@
     function playSpot() {
       isPlaying = true;
       document.getElementById('btnPlayPause').textContent = '⏸ Pausar';
-      audioEl.currentTime = 0;
+      if (audioEl.ended) audioEl.currentTime = 0;
       audioEl.play().catch(() => {});
+      if (spotVideoEl && spotVideoEl.style.display !== 'none') {
+        spotVideoEl.play().catch(() => {});
+      }
       startProgress();
     }
 
@@ -895,6 +954,9 @@
       isPlaying = false;
       document.getElementById('btnPlayPause').textContent = '▶ Reproducir';
       audioEl.pause();
+      if (spotVideoEl && !spotVideoEl.paused) {
+        spotVideoEl.pause();
+      }
       clearInterval(progressInterval);
     }
 
@@ -928,22 +990,37 @@
 
     function startProgress() {
       clearInterval(progressInterval);
-      const totalSteps = SPOT_DURATION_SECS * 10;
-      let step = 0;
-      progressInterval = setInterval(() => {
-        if (!isPlaying) return;
-        step++;
-        const pct = (step / totalSteps) * 100;
-        updateProgressBar(pct);
 
-        if (step >= totalSteps || audioEl.ended) {
-          clearInterval(progressInterval);
+      // Reproducción asegurada al 100%: Espera a que termine todo el audio del locutor
+      audioEl.onended = () => {
+        clearInterval(progressInterval);
+        updateProgressBar(100);
+        setTimeout(() => {
+          if (!isPlaying) return;
           if (mode === 'loop') {
             loadSpot(currentIdx + 1, true);
           } else {
             // MODO REACTIVO: El spot termina y la pantalla DESAPARECE, volviendo a Standby de música
             finishAndGoStandby();
           }
+        }, 1200); // Pausa estética de 1.2 segundos tras finalizar locución
+      };
+
+      // Si hay error en audio, usar temporizador seguro
+      audioEl.onerror = () => {
+        console.warn('Audio no disponible o bloqueado, usando temporizador por defecto');
+        setTimeout(() => {
+          if (!isPlaying) return;
+          if (mode === 'loop') loadSpot(currentIdx + 1, true);
+          else finishAndGoStandby();
+        }, 25000);
+      };
+
+      progressInterval = setInterval(() => {
+        if (!isPlaying) return;
+        if (audioEl.duration && !isNaN(audioEl.duration) && audioEl.duration > 0) {
+          const pct = (audioEl.currentTime / audioEl.duration) * 100;
+          updateProgressBar(Math.min(99.5, pct));
         }
       }, 100);
     }
@@ -1006,6 +1083,12 @@
     function resizeCanvas() {
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
+      const cardEl = document.getElementById('productCard');
+      const snowEl = document.getElementById('snowCanvas');
+      if (cardEl && snowEl && snowEl.style.display !== 'none') {
+        snowEl.width = cardEl.clientWidth;
+        snowEl.height = cardEl.clientHeight;
+      }
     }
     window.addEventListener('resize', resizeCanvas);
     resizeCanvas();
@@ -1043,6 +1126,63 @@
       requestAnimationFrame(renderParticles);
     }
     renderParticles();
+
+    /* ================= EFECTOS NAVIDEÑOS / DECEMBRINOS EN VIDEO ================= */
+    let snowAnimId = null;
+    let snowflakes = [];
+    function initSnow(containerEl) {
+      const c = document.getElementById('snowCanvas');
+      if (!c) return;
+      c.width = containerEl ? containerEl.clientWidth : 800;
+      c.height = containerEl ? containerEl.clientHeight : 500;
+      snowflakes = [];
+      const count = 55;
+      for (let i = 0; i < count; i++) {
+        snowflakes.push({
+          x: Math.random() * c.width,
+          y: Math.random() * c.height,
+          r: Math.random() * 2.8 + 1.2,
+          vx: (Math.random() - 0.5) * 0.7,
+          vy: Math.random() * 1.3 + 0.8,
+          isSparkle: Math.random() > 0.7,
+          alpha: Math.random() * 0.7 + 0.3
+        });
+      }
+      if (snowAnimId) cancelAnimationFrame(snowAnimId);
+      renderSnow();
+    }
+
+    function renderSnow() {
+      const c = document.getElementById('snowCanvas');
+      if (!c || c.style.display === 'none') return;
+      const sCtx = c.getContext('2d');
+      sCtx.clearRect(0, 0, c.width, c.height);
+
+      for (const p of snowflakes) {
+        p.x += p.vx;
+        p.y += p.vy;
+        if (p.y > c.height) { p.y = -5; p.x = Math.random() * c.width; }
+        if (p.x < 0) p.x = c.width;
+        if (p.x > c.width) p.x = 0;
+
+        sCtx.beginPath();
+        sCtx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        if (p.isSparkle) {
+          sCtx.fillStyle = '#fde047'; // Destello dorado
+          sCtx.shadowBlur = 8;
+          sCtx.shadowColor = '#facc15';
+        } else {
+          sCtx.fillStyle = '#ffffff'; // Copo de nieve
+          sCtx.shadowBlur = 5;
+          sCtx.shadowColor = '#bae6fd';
+        }
+        sCtx.globalAlpha = p.alpha;
+        sCtx.fill();
+        sCtx.shadowBlur = 0;
+        sCtx.globalAlpha = 1;
+      }
+      snowAnimId = requestAnimationFrame(renderSnow);
+    }
 
     /* ================= EXPORTADOR DE VIDEO SPOT A ARCHIVO MP4/WEBM ================= */
     async function exportVideoSpot() {
