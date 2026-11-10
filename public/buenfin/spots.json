@@ -100,7 +100,8 @@
       "qr_compra_url": "https://buenfin.terrapescaapi.com/cliente?sucursal=buceo&sku=78921",
       "frase_locutor": "¡Viste como los profesionales en tu próxima expedición! Toda la línea técnica de MAJA Sportswear tiene treinta por ciento de descuento hasta agotar existencias. Escanea el código QR en pantalla para consultar precios, apartar tus prendas y registrarte para recibir nuestras novedades y promociones antes que nadie. ¡Solo en Terrapesca!",
       "qr_imagen_url": "https://api.qrserver.com/v1/create-qr-code/?size=280x280&margin=6&data=https://buenfin.terrapescaapi.com/cliente?sucursal=buceo&sku=78921",
-      "trigger_pantalla_url": "https://buenfin.terrapescaapi.com/api/v1/buenfin/radio-trigger?spot_id=spot_maja_30&sucursal=buceo"
+      "trigger_pantalla_url": "https://buenfin.terrapescaapi.com/api/v1/buenfin/radio-trigger?spot_id=spot_maja_30&sucursal=buceo",
+      "video_url": "/buenfin/spot_maja_30.mp4"
     },
     {
       "spot_id": "spot_hieleras_15",
