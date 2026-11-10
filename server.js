@@ -558,6 +558,27 @@ function parseSpotifyEmbed(html) {
   return { name, count: tracks.length, tracks };
 }
 
+function _clientIP(req) {
+  const xf = (req.headers && req.headers['x-forwarded-for'] || '').split(',')[0].trim();
+  return (xf || (req.socket && req.socket.remoteAddress) || '').replace(/^::ffff:/, '');
+}
+
+const _loginRateLimit = new Map(); // ip -> { count, resetAt }
+function checkLoginRateLimit(ip) {
+  const now = Date.now();
+  const entry = _loginRateLimit.get(ip);
+  if (entry && entry.resetAt > now) {
+    if (entry.count >= 10) return false;
+    entry.count++;
+  } else {
+    _loginRateLimit.set(ip, { count: 1, resetAt: now + 60000 });
+  }
+  return true;
+}
+function recordLoginSuccess(ip) {
+  _loginRateLimit.delete(ip);
+}
+
 // ---- HTTP SERVER ----
 const server = http.createServer((req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -566,13 +587,20 @@ const server = http.createServer((req, res) => {
 
   if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
 
-  // ── Login: valida credenciales y setea cookie httpOnly ──
+  // ── Login: valida credenciales y setea cookie httpOnly con rate-limit ──
   if (req.url === '/api/login' && req.method === 'POST') {
+    const ip = _clientIP(req);
+    if (!checkLoginRateLimit(ip)) {
+      res.writeHead(429, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: false, error: 'Demasiados intentos fallidos. Espera 1 minuto antes de reintentar.' }));
+      return;
+    }
     readBody(req, (body) => {
       let user = '', pass = '';
-      try { const j = JSON.parse(body || '{}'); user = String(j.user || ''); pass = String(j.pass || ''); } catch (_) {}
-      const match = AUTH_USERS.find(u => u.user === user && u.pass === pass);
+      try { const j = JSON.parse(body || '{}'); user = String(j.user || '').trim(); pass = String(j.pass || ''); } catch (_) {}
+      const match = AUTH_USERS.find(u => u.user.toUpperCase() === user.toUpperCase() && u.pass === pass);
       if (match) {
+        recordLoginSuccess(ip);
         const secure = (req.headers['x-forwarded-proto'] === 'https') ? '; Secure' : '';
         res.setHeader('Set-Cookie', `${AUTH_COOKIE}=${match.token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000${secure}`);
         res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -595,7 +623,7 @@ const server = http.createServer((req, res) => {
   }
 
   // ── Health check ──
-  if (req.url === '/health') {
+  if (req.url === '/health' || req.url === '/api/health') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
       status: 'ok',
@@ -612,7 +640,7 @@ const server = http.createServer((req, res) => {
   }
 
   // ── /radio/stream — continuous HTTP audio stream ──
-  const urlPath = req.url.split('?')[0];
+  const urlPath = req.url.split('?')[0].replace(/\/+$/, '') || '/';
   if (urlPath === '/radio/stream' || urlPath === '/live.mp3' || urlPath === '/stream.mp3') {
     res.writeHead(200, {
       'Content-Type': 'audio/mpeg',
@@ -748,16 +776,66 @@ const server = http.createServer((req, res) => {
   }
 
   // ── Proxy YouTube search (Fase 2 plan Spotify) ──
+function searchYouTubeNoKey(q) {
+  return new Promise((resolve) => {
+    const url = 'https://www.youtube.com/results?search_query=' + encodeURIComponent(q + ' audio');
+    const sReq = https.get(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept-Language': 'es-MX,es;q=0.9,en;q=0.8'
+      },
+      timeout: 10000
+    }, res => {
+      let html = '';
+      res.on('data', chunk => { if (html.length < 2 * 1024 * 1024) html += chunk; });
+      res.on('end', () => {
+        try {
+          const match = html.match(/var ytInitialData = ({.*?});<\/script>/s) || html.match(/ytInitialData\s*=\s*({.+?});/);
+          if (!match) return resolve([]);
+          const data = JSON.parse(match[1]);
+          const contents = data?.contents?.twoColumnSearchResultsRenderer?.primaryContents?.sectionListRenderer?.contents?.[0]?.itemSectionRenderer?.contents || [];
+          const results = [];
+          for (const item of contents) {
+            const vr = item.videoRenderer;
+            if (vr && vr.videoId) {
+              const title = vr.title?.runs?.[0]?.text || '';
+              const channel = vr.ownerText?.runs?.[0]?.text || '';
+              const durText = vr.lengthText?.simpleText || '';
+              let duration = 0;
+              if (durText) {
+                const parts = durText.split(':').map(Number);
+                if (parts.length === 2) duration = parts[0] * 60 + parts[1];
+                else if (parts.length === 3) duration = parts[0] * 3600 + parts[1] * 60 + parts[2];
+              }
+              results.push({
+                ytId: vr.videoId,
+                title,
+                channel,
+                duration: duration || 210,
+                thumb: `https://img.youtube.com/vi/${vr.videoId}/mqdefault.jpg`
+              });
+              if (results.length >= 8) break;
+            }
+          }
+          resolve(results);
+        } catch (_) { resolve([]); }
+      });
+    });
+    sReq.on('error', () => resolve([]));
+    sReq.on('timeout', () => { sReq.destroy(); resolve([]); });
+  });
+}
+
   // GET /api/ytsearch?q=...&key=... → busca videos de música y devuelve
   // items:[{ytId,title,channel,thumb,duration}] con duración en segundos
-  // (search.list + videos.list). La key viaja del navegador (tp_yt), como en /api/ytplaylist.
+  // (search.list + videos.list o búsqueda directa sin key cuando no hay cuota).
   if (req.url.startsWith('/api/ytsearch') && req.method === 'GET') {
     const u = new URL(req.url, 'http://localhost');
     const q      = u.searchParams.get('q')   || '';
     const apiKey = u.searchParams.get('key') || '';
-    if (!q || !apiKey) {
+    if (!q) {
       res.writeHead(400, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'q and key required' }));
+      res.end(JSON.stringify({ error: 'q required' }));
       return;
     }
     // Caché: si ya resolvimos esta búsqueda antes, la devolvemos sin gastar
@@ -788,34 +866,48 @@ const server = http.createServer((req, res) => {
       return (+m[1] || 0) * 3600 + (+m[2] || 0) * 60 + (+m[3] || 0);
     };
     (async () => {
-      const sr = await getJson(`/youtube/v3/search?part=snippet&type=video&videoCategoryId=10&maxResults=12&q=${encodeURIComponent(q)}&key=${encodeURIComponent(apiKey)}`);
-      if (sr.status !== 200) {
-        const msg = sr.json?.error?.message || 'Error de YouTube';
-        res.writeHead(sr.status, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: msg }));
-        return;
-      }
-      const items = (sr.json.items || []).filter(it => it.id && it.id.videoId).map(it => ({
-        ytId: it.id.videoId,
-        title: it.snippet?.title || 'YouTube',
-        channel: it.snippet?.channelTitle || '',
-        thumb: it.snippet?.thumbnails?.medium?.url || `https://img.youtube.com/vi/${it.id.videoId}/mqdefault.jpg`,
-        duration: 0,
-      }));
-      // Duraciones en una sola llamada extra (best effort — si falla, van en 0)
-      if (items.length) {
+      let items = [];
+      if (apiKey) {
         try {
-          const vr = await getJson(`/youtube/v3/videos?part=contentDetails&id=${items.map(i => i.ytId).join(',')}&key=${encodeURIComponent(apiKey)}`);
-          const durs = {};
-          (vr.json.items || []).forEach(v => { durs[v.id] = iso8601ToSecs(v.contentDetails?.duration); });
-          items.forEach(i => { i.duration = durs[i.ytId] || 0; });
+          const sr = await getJson(`/youtube/v3/search?part=snippet&type=video&videoCategoryId=10&maxResults=8&q=${encodeURIComponent(q)}&key=${encodeURIComponent(apiKey)}`);
+          if (sr.status === 200) {
+            items = (sr.json.items || []).filter(it => it.id && it.id.videoId).map(it => ({
+              ytId: it.id.videoId,
+              title: it.snippet?.title || 'YouTube',
+              channel: it.snippet?.channelTitle || '',
+              thumb: it.snippet?.thumbnails?.medium?.url || `https://img.youtube.com/vi/${it.id.videoId}/mqdefault.jpg`,
+              duration: 0,
+            }));
+            if (items.length) {
+              try {
+                const vr = await getJson(`/youtube/v3/videos?part=contentDetails&id=${items.map(i => i.ytId).join(',')}&key=${encodeURIComponent(apiKey)}`);
+                const durs = {};
+                (vr.json.items || []).forEach(v => { durs[v.id] = iso8601ToSecs(v.contentDetails?.duration); });
+                items.forEach(i => { i.duration = durs[i.ytId] || 0; });
+              } catch (_) {}
+            }
+          }
         } catch (_) {}
       }
-      _ytsPut(q, items); // guarda en caché para no volver a gastar cuota
+
+      // Si no hay key o falló la API oficial (cuota o error), usar búsqueda directa sin key
+      if (!items || !items.length) {
+        items = await searchYouTubeNoKey(q);
+      }
+
+      if (items && items.length) {
+        _ytsPut(q, items);
+      }
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ items }));
+      res.end(JSON.stringify({ items: items || [] }));
     })().catch(e => {
-      try { res.writeHead(502, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: e.message })); } catch (_) {}
+      searchYouTubeNoKey(q).then(items => {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ items: items || [] }));
+      }).catch(() => {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ items: [] }));
+      });
     });
     return;
   }
@@ -947,16 +1039,17 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // ── Importar playlist pública de Spotify (título+artista) ──
+  // ── Importar playlist o album público de Spotify (título+artista) ──
   // Lee SOLO metadatos de la página embed pública; el cliente resuelve cada
   // canción en YouTube (que sí se puede transmitir a las sucursales).
-  if (req.url.startsWith('/api/spotify/playlist') && req.method === 'GET') {
+  if ((req.url.startsWith('/api/spotify/playlist') || req.url.startsWith('/api/spotify/album')) && req.method === 'GET') {
     let id = '';
+    const isAlbum = req.url.startsWith('/api/spotify/album');
     try { id = (new URL(req.url, 'http://x').searchParams.get('id') || '').replace(/[^A-Za-z0-9]/g, ''); } catch (_) {}
-    if (!id) { res.writeHead(400, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ error: 'Falta el id de la playlist' })); }
+    if (!id) { res.writeHead(400, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ error: 'Falta el id de Spotify' })); }
     const sReq = https.request({
       hostname: 'open.spotify.com',
-      path: `/embed/playlist/${id}`,
+      path: `/${isAlbum ? 'embed/album' : 'embed/playlist'}/${id}`,
       method: 'GET',
       headers: {
         'User-Agent': 'Mozilla/5.0 (compatible; TerrapescaRadio/1.0)',
@@ -981,7 +1074,7 @@ const server = http.createServer((req, res) => {
           res.end(JSON.stringify(parseSpotifyEmbed(raw)));
         } catch (e) {
           res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'No se pudo leer la playlist: ' + e.message }));
+          res.end(JSON.stringify({ error: 'No se pudo leer la lista de Spotify: ' + e.message }));
         }
       });
     });
@@ -991,10 +1084,61 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // ── Importar canción individual de Spotify ──
+  if (req.url.startsWith('/api/spotify/track') && req.method === 'GET') {
+    let id = '';
+    try { id = (new URL(req.url, 'http://x').searchParams.get('id') || '').replace(/[^A-Za-z0-9]/g, ''); } catch (_) {}
+    if (!id) { res.writeHead(400, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ error: 'Falta el id de la canción' })); }
+    const sReq = https.request({
+      hostname: 'open.spotify.com',
+      path: `/embed/track/${id}`,
+      method: 'GET',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; TerrapescaRadio/1.0)',
+        'Accept': 'text/html,application/xhtml+xml',
+        'Accept-Language': 'es-MX,es;q=0.9'
+      },
+      timeout: 10000
+    }, (sRes) => {
+      let raw = '';
+      sRes.on('data', c => { if (raw.length < 500000) raw += c; });
+      sRes.on('end', () => {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        try {
+          const m = raw.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
+          if (m) {
+            const data = JSON.parse(m[1]);
+            const entity = data.props?.pageProps?.state?.data?.entity;
+            if (entity) {
+              const title = entity.name || '';
+              const artist = (entity.artists && entity.artists[0]?.name) || '';
+              res.writeHead(200, { 'Content-Type': 'application/json' });
+              return res.end(JSON.stringify({ title, artist }));
+            }
+          }
+          const tm = raw.match(/<title>([^<]+)<\/title>/i);
+          if (tm) {
+            const parts = tm[1].replace(/ \| Spotify$/, '').split(' - ');
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ title: parts[0]?.trim() || '', artist: parts[1]?.trim() || '' }));
+          }
+          res.writeHead(404, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'No se pudo leer la canción' }));
+        } catch (e) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: e.message }));
+        }
+      });
+    });
+    sReq.on('error', (e) => { res.writeHead(502, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: e.message })); });
+    sReq.end();
+    return;
+  }
+
   // ── TideCheck: mareas, sol/luna e índice solunar (1 consulta por zona al día, caché 24 h) ──
   if (req.url.startsWith('/api/tides') && req.method === 'GET') {
     const send = (o) => { res.setHeader('Access-Control-Allow-Origin', '*'); res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(o)); };
-    if (!TIDECHECK_KEY) { send({ ok: false, error: 'Falta TIDECHECK_KEY en el servidor (Railway → Variables)' }); return; }
+    if (!TIDECHECK_KEY) { send({ ok: false, error: 'Servicio de mareas temporalmente no disponible' }); return; }
     let zone = ''; try { zone = (new URL(req.url, 'http://x').searchParams.get('zone') || '').toLowerCase(); } catch (_) {}
     if (!TIDE_ZONES[zone]) zone = 'culiacan';
     buildTideZone(zone, (data) => { send(data || { ok: false, error: 'sin datos de mareas' }); });
@@ -1169,11 +1313,52 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // PWA Web App Manifest
+  if (urlPath === '/manifest.json') {
+    res.writeHead(200, { 'Content-Type': 'application/manifest+json; charset=utf-8' });
+    res.end(JSON.stringify({
+      name: "Radio Terrapesca",
+      short_name: "Radio TP",
+      description: "Radio en vivo y música para aventura y pesca deportiva",
+      start_url: "/listen",
+      display: "standalone",
+      background_color: "#05070c",
+      theme_color: "#e0241c",
+      icons: [
+        {
+          src: "https://cdn.shopify.com/s/files/1/0205/5752/9188/files/Logo-Terrapesca-01_205270e5-d546-4e33-a8d1-db0a91f1e554.png?v=1700262873",
+          sizes: "512x512",
+          type: "image/png",
+          purpose: "any maskable"
+        }
+      ]
+    }));
+    return;
+  }
+
+  // Favicon
+  if (urlPath === '/favicon.ico') {
+    res.writeHead(302, { Location: 'https://cdn.shopify.com/s/files/1/0205/5752/9188/files/Logo-Terrapesca-01_205270e5-d546-4e33-a8d1-db0a91f1e554.png?v=1700262873' });
+    res.end();
+    return;
+  }
+
+  // Robots.txt
+  if (urlPath === '/robots.txt') {
+    res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
+    res.end("User-agent: *\nAllow: /\nDisallow: /studio\nDisallow: /sucursal\nDisallow: /panel\n");
+    return;
+  }
+
   // Página de login (siempre pública)
-  if (req.url === '/login' || req.url === '/login.html') {
+  if (urlPath === '/login' || urlPath === '/login.html') {
     const lp = path.join(__dirname, 'login.html');
     if (fs.existsSync(lp)) {
-      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.writeHead(200, {
+        'Content-Type': 'text/html; charset=utf-8',
+        'X-Content-Type-Options': 'nosniff',
+        'X-Frame-Options': 'SAMEORIGIN'
+      });
       fs.createReadStream(lp).pipe(res);
       return;
     }
@@ -1181,19 +1366,19 @@ const server = http.createServer((req, res) => {
 
   let filePath = null;
   let isPublicPage = false; // /listen es pública, el resto exige login
-  if (req.url === '/' || req.url === '/index.html') {
+  if (urlPath === '/' || urlPath === '/index.html') {
     // Portada: selector de rol (Cabina / Sucursal / Escuchar / Tienda)
     filePath = path.join(__dirname, 'index.html');
-  } else if (req.url === '/panel' || req.url === '/panel.html') {
+  } else if (urlPath === '/panel' || urlPath === '/panel.html') {
     // panel.html jubilado (Fase B): la cabina única es /studio. La URL vieja redirige.
     res.writeHead(302, { Location: '/studio' }); res.end(); return;
-  } else if (req.url === '/studio' || req.url === '/studio.html') {
+  } else if (urlPath === '/studio' || urlPath === '/studio.html') {
     filePath = path.join(__dirname, 'studio.html');
-  } else if (req.url === '/tienda' || req.url === '/tienda.html') {
+  } else if (urlPath === '/tienda' || urlPath === '/tienda.html') {
     filePath = path.join(__dirname, 'tienda.html');
-  } else if (req.url === '/sucursal' || req.url === '/sucursal.html') {
+  } else if (urlPath === '/sucursal' || urlPath === '/sucursal.html') {
     filePath = path.join(__dirname, 'sucursal.html');
-  } else if (req.url === '/listen' || req.url === '/listen.html') {
+  } else if (urlPath === '/listen' || urlPath === '/listen.html') {
     filePath = path.join(__dirname, 'listen.html');
     isPublicPage = true;
   }
@@ -1203,19 +1388,27 @@ const server = http.createServer((req, res) => {
     if (!isPublicPage && !isAuthed(req)) {
       const lp = path.join(__dirname, 'login.html');
       if (fs.existsSync(lp)) {
-        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.writeHead(200, {
+          'Content-Type': 'text/html; charset=utf-8',
+          'X-Content-Type-Options': 'nosniff',
+          'X-Frame-Options': 'SAMEORIGIN'
+        });
         fs.createReadStream(lp).pipe(res);
         return;
       }
       res.writeHead(302, { Location: '/login' }); res.end(); return;
     }
-    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    res.writeHead(200, {
+      'Content-Type': 'text/html; charset=utf-8',
+      'X-Content-Type-Options': 'nosniff',
+      'X-Frame-Options': 'SAMEORIGIN'
+    });
     fs.createReadStream(filePath).pipe(res);
     return;
   }
 
-  res.writeHead(200, { 'Content-Type': 'text/plain' });
-  res.end('Terrapesca Radio Server running');
+  res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+  res.end('404 Not Found');
 });
 
 // ---- WEBSOCKET ----
@@ -1239,6 +1432,28 @@ const MAX_JINGLE_B64 = 3 * 1024 * 1024; // ~2.2MB of audio
 // clientes, igual que lo haría la cabina — pero sin necesidad de tener el
 // studio abierto. El audio sigue sonando en cada navegador oyente (YouTube).
 const AP_FILE = path.join(__dirname, '.autopilot.json');
+const DEFAULT_AUTOPILOT_PLAYLIST = [
+  { ytId: 'teprnzF6J1I', name: 'En el Muelle de San Blás', artist: 'Maná', duration: 352 },
+  { ytId: 'u1V8Yqmu51U', name: 'Have You Ever Seen The Rain', artist: 'Creedence Clearwater Revival', duration: 160 },
+  { ytId: '09839DpTctU', name: 'Hotel California', artist: 'Eagles', duration: 390 },
+  { ytId: '1vrEljMfXYo', name: 'Take Me Home, Country Roads', artist: 'John Denver', duration: 198 },
+  { ytId: 'wR9jZ_D-n_A', name: 'Rayando el Sol', artist: 'Maná', duration: 254 },
+  { ytId: 'XfyEpmQM7bw', name: 'Proud Mary', artist: 'Creedence Clearwater Revival', duration: 187 },
+  { ytId: '1w7OgIMMRc4', name: "Sweet Child O' Mine", artist: "Guns N' Roses", duration: 303 },
+  { ytId: 'L_XJ_s5IsQc', name: 'Oye Como Va', artist: 'Santana', duration: 258 },
+  { ytId: 'tH2w6Oxx0kQ', name: 'Dust in the Wind', artist: 'Kansas', duration: 206 },
+  { ytId: 'jR14O_0xOQY', name: 'Ventura Highway', artist: 'America', duration: 212 },
+  { ytId: 'l5gq_a1P9fE', name: 'La Chona', artist: 'Los Tucanes de Tijuana', duration: 203 },
+  { ytId: '4W8cK5_s6rA', name: 'El Sinaloense', artist: 'Banda El Recodo', duration: 165 },
+  { ytId: 'T_FkEw27XJ0', name: 'De Música Ligera', artist: 'Soda Stereo', duration: 213 },
+  { ytId: 'kRt2SZu939Y', name: 'La Camisa Negra', artist: 'Juanes', duration: 216 },
+  { ytId: 'fJ9rUzIMcZQ', name: 'Bohemian Rhapsody', artist: 'Queen', duration: 359 },
+  { ytId: 'pAgnJDJN4VA', name: 'Back In Black', artist: 'AC/DC', duration: 255 },
+  { ytId: 'btPJPFnesV4', name: 'Eye of the Tiger', artist: 'Survivor', duration: 245 },
+  { ytId: 'k4V3gVg7BXg', name: 'Don\'t Stop Believin\'', artist: 'Journey', duration: 251 },
+  { ytId: 'qQkBeOisNM0', name: 'Bailando', artist: 'Enrique Iglesias', duration: 243 },
+  { ytId: 'hT_nvWreIhg', name: 'Counting Stars', artist: 'OneRepublic', duration: 257 }
+];
 let autopilot = { on: false, list: [], idx: 0, timer: null };
 
 function _apSave() {
@@ -1355,6 +1570,7 @@ wss.on('connection', (ws, req) => {
   console.log('Cliente conectado. Total:', wss.clients.size);
   ws.isAlive = true;
   ws._ip = _clientIP(req);
+  ws._isAuthed = isAuthed(req);
   ws.on('pong', () => { ws.isAlive = true; });
   ws.send(JSON.stringify({ type: 'SYNC', state: radioState }));
   if (radioState.jingleB64) ws.send(JSON.stringify({ type: 'JINGLE_SET', b64: radioState.jingleB64 }));
@@ -1365,7 +1581,13 @@ wss.on('connection', (ws, req) => {
       switch (msg.type) {
         case 'HELLO':
           // El cliente se identifica (listener/sucursal/tienda/studio/panel).
-          ws._role = String(msg.role || '').slice(0, 20);
+          const reqRole = String(msg.role || '').slice(0, 20);
+          if (CONTROLLER_ROLES.includes(reqRole) && !ws._isAuthed) {
+            console.warn(`[ws] Rol '${reqRole}' rechazado (requiere login) para IP ${ws._ip}`);
+            ws._role = 'listener';
+          } else {
+            ws._role = reqRole || 'listener';
+          }
           if (LISTENER_ROLES.includes(ws._role) && !ws._geo) {
             _geoLookup(ws._ip, (g) => { if (g) ws._geo = g; broadcastListeners(); });
           }
@@ -1429,10 +1651,18 @@ wss.on('connection', (ws, req) => {
           else broadcast({ type: msg.type }, ws);
           break;
         case 'AUTOPILOT_START':
+          if (!ws._isAuthed && CONTROLLER_ROLES.includes(ws._role)) {
+            console.warn(`[ws] AUTOPILOT_START no autorizado desde ${ws._ip}`);
+            break;
+          }
           // La cabina entrega su playlist (con duraciones) y el servidor toma el control 24/7.
           startAutopilot(msg.playlist, msg.startIdx);
           break;
         case 'AUTOPILOT_STOP':
+          if (!ws._isAuthed && CONTROLLER_ROLES.includes(ws._role)) {
+            console.warn(`[ws] AUTOPILOT_STOP no autorizado desde ${ws._ip}`);
+            break;
+          }
           stopAutopilot();
           radioState.isPlaying = false;
           broadcast({ type: 'PAUSE', position: 0 });
@@ -1471,12 +1701,18 @@ server.listen(PORT, () => {
   console.log(`Terrapesca Radio corriendo en puerto ${PORT}`);
   console.log(`Stream disponible en /radio/stream`);
   console.log(`ytdl-core: ${ytdl ? 'disponible' : 'no disponible'}`);
-  // Reanudar Radio 24/7 si estaba activa antes de reiniciar
+  // Reanudar Radio 24/7 si estaba activa antes de reiniciar, o arrancar con playlist por defecto
+  let resumed = false;
   try {
     const saved = JSON.parse(fs.readFileSync(AP_FILE, 'utf8'));
     if (saved && saved.on && Array.isArray(saved.list) && saved.list.length) {
       console.log('[24/7] reanudando desde el disco…');
       startAutopilot(saved.list, saved.idx || 0);
+      resumed = true;
     }
   } catch (_) {}
+  if (!resumed) {
+    console.log('[24/7] arrancando autopilot autónomo con playlist por defecto...');
+    startAutopilot(DEFAULT_AUTOPILOT_PLAYLIST, 0);
+  }
 });

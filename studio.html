@@ -828,6 +828,7 @@ input[type=range]::-moz-range-thumb{width:18px;height:24px;border-radius:5px;bac
         <button onclick="plCreateUI()" title="Crear playlist vacía">＋</button>
         <button onclick="plFromQueue()" title="Guardar la cola actual como playlist" style="white-space:nowrap">💾 Desde cola</button>
         <button onclick="plMoodUI()" id="plMoodBtn" title="La IA arma una playlist con canciones de tu biblioteca que encajan con el mood de esta hora" style="white-space:nowrap">✨ Del momento</button>
+        <button onclick="plImportSpotifyPrompt()" title="Pegar enlace de Spotify" style="white-space:nowrap;background:linear-gradient(135deg,#1db954,#14833b);color:#fff">🟢 Enlace Spotify</button>
       </div>
       <div class="list" id="plsList" style="max-height:30vh"><div class="empty">Sin playlists</div></div>
     </div>
@@ -2391,10 +2392,20 @@ function getYTPlaylistId(u){
   const m=u.match(/[?&]list=([\w-]+)/);
   return m?m[1]:null;
 }
-// Detecta un link/URI de playlist de Spotify → devuelve el id (o null).
+// Detecta un link/URI de playlist, album o track de Spotify → devuelve { type, id } (o null).
+function getSpotifyInfo(u){
+  if(!u) return null;
+  let m=u.match(/(?:open\.spotify\.com\/(?:intl-[a-z]+\/)?(?:embed\/)?playlist\/|spotify:playlist:)([A-Za-z0-9]+)/);
+  if(m) return { type:'playlist', id:m[1] };
+  m=u.match(/(?:open\.spotify\.com\/(?:intl-[a-z]+\/)?(?:embed\/)?album\/|spotify:album:)([A-Za-z0-9]+)/);
+  if(m) return { type:'album', id:m[1] };
+  m=u.match(/(?:open\.spotify\.com\/(?:intl-[a-z]+\/)?(?:embed\/)?track\/|spotify:track:)([A-Za-z0-9]+)/);
+  if(m) return { type:'track', id:m[1] };
+  return null;
+}
 function getSpotifyPlaylistId(u){
-  const m=u.match(/(?:open\.spotify\.com\/(?:intl-[a-z]+\/)?(?:embed\/)?playlist\/|spotify:playlist:)([A-Za-z0-9]+)/);
-  return m?m[1]:null;
+  const info=getSpotifyInfo(u);
+  return (info && (info.type==='playlist' || info.type==='album')) ? info.id : null;
 }
 function _loadPlaylistViaIframe(plId){
   return new Promise((resolve,reject)=>{
@@ -2607,9 +2618,14 @@ async function addYTLink(){
   const raw=inp.value.trim();
   if(!raw){return;}
 
-  // Spotify playlist link → importa metadatos y resuelve cada canción en YouTube
-  const spId=getSpotifyPlaylistId(raw);
-  if(spId){ inp.value=''; await importSpotifyPlaylist(spId); return; }
+  // Spotify (playlist, album o canción) → importa metadatos y resuelve cada una en YouTube
+  const spInfo=getSpotifyInfo(raw);
+  if(spInfo){
+    inp.value='';
+    if(spInfo.type==='track') await importSpotifyTrack(spInfo.id);
+    else await importSpotifyPlaylist(spInfo.id, spInfo.type);
+    return;
+  }
 
   // Check if it's a playlist link
   const plId=getYTPlaylistId(raw);
@@ -2672,48 +2688,38 @@ async function addYTLink(){
     const q=queue.find(x=>x.ytId===id);if(q){q.name=d.title||q.name;q.artist=d.author_name||'';renderQueue();saveQueue();libUpsert(q);}
   }).catch(()=>{});
 }
-// Importa una playlist de Spotify: el servidor lee título+artista de cada
-// canción (Spotify no permite retransmitir su audio), y aquí cada una se busca
-// en YouTube para tocarla con el motor de la radio.
-async function importSpotifyPlaylist(spId){
-  if(!cfg.ytKey){toast('Configura tu YouTube API key en CONFIG para importar de Spotify','error');return;}
-  toast('Leyendo playlist de Spotify…','ok');
+// Importa una playlist o album de Spotify: el servidor lee título+artista de cada
+// canción y aquí cada una se busca en YouTube para tocarla con el motor de la radio.
+async function importSpotifyPlaylist(spId, type){
+  toast('Leyendo lista de Spotify…','ok');
   let data;
+  const endpoint = type === 'album' ? `/api/spotify/album?id=${encodeURIComponent(spId)}` : `/api/spotify/playlist?id=${encodeURIComponent(spId)}`;
   try{
-    const r=await fetch(`/api/spotify/playlist?id=${encodeURIComponent(spId)}`);
+    const r=await fetch(endpoint);
     data=await r.json();
     if(!r.ok||data.error) throw new Error(data.error||'Error');
-  }catch(e){ toast('No se pudo leer la playlist de Spotify: '+e.message,'error'); return; }
+  }catch(e){ toast('No se pudo leer la lista de Spotify: '+e.message,'error'); return; }
   const tracks=(data.tracks||[]);
-  if(!tracks.length){ toast('La playlist no trajo canciones (¿es privada?)','error'); return; }
-  // Importa TODAS las canciones de la playlist. Cada búsqueda de YouTube cuesta
-  // cuota (100 unidades c/u; ~10,000 al día): si se agota, paramos en seco y
-  // avisamos cuántas llevamos para no fallar en silencio.
+  if(!tracks.length){ toast('La lista no trajo canciones (¿es privada?)','error'); return; }
+
   const list=tracks;
-  const plName=(data.name||'Playlist de Spotify').trim(); // el nombre es el "estilo"
-  toast(`Spotify: ${tracks.length} canciones. Buscando en YouTube…`,'ok');
-  let added=0, miss=0, quota=false, keyErr=''; const plIds=[];
+  const plName=(data.name||'Spotify').trim();
+  toast(`Spotify: ${tracks.length} canciones encontradas. Buscando y cargando…`,'ok');
+  let added=0, miss=0; const plIds=[];
   for(let i=0;i<list.length;i++){
     const t=list[i];
     const q=`${t.title} ${t.artist}`.trim();
     try{
-      const r=await fetch(`/api/ytsearch?q=${encodeURIComponent(q)}&key=${encodeURIComponent(cfg.ytKey)}`);
+      const ytKeyParam = cfg.ytKey ? `&key=${encodeURIComponent(cfg.ytKey)}` : '';
+      const r=await fetch(`/api/ytsearch?q=${encodeURIComponent(q)}${ytKeyParam}`);
       const d=await r.json();
-      // Distinguir "cuota agotada" de "API key inválida/restringida": ambos
-      // pueden dar 403, pero el mensaje cambia (y el remedio también).
-      const errTxt=d&&d.error?String(d.error.message||d.error):'';
-      const isQuota=/quota|exceeded|dailylimit|rate.?limit/i.test(errTxt);
-      if(isQuota){ quota=true; break; }
-      if(r.status===400||r.status===403||/api key|keyinvalid|not valid|forbidden|accessnotconfigured|disabled|referer|restricted/i.test(errTxt)){
-        keyErr=errTxt||'La API key de YouTube no es válida o está restringida'; break;
-      }
       const hit=(d.items||[])[0];
       if(hit){
         plIds.push(hit.ytId);
         if(!queue.find(x=>x.ytId===hit.ytId)){
-          const tr={ytId:hit.ytId,name:hit.title||t.title,artist:hit.channel||t.artist};
+          const tr={ytId:hit.ytId,name:hit.title||t.title,artist:hit.channel||t.artist,duration:hit.duration||0};
           queue.push(tr);
-          libUpsert(tr,{duration:hit.duration||0,style:plName}); // guarda el estilo en la biblioteca
+          libUpsert(tr,{duration:hit.duration||0,style:plName});
           added++;
         }else{ libUpsert({ytId:hit.ytId},{style:plName}); }
       }else{ miss++; }
@@ -2721,18 +2727,52 @@ async function importSpotifyPlaylist(spId){
     if((i+1)%5===0){ renderQueue(); toast(`Importando de Spotify… ${added}/${list.length}`,'ok'); }
   }
   renderQueue(); saveQueue();
-  // Guarda la playlist en la carpeta Playlists (con su nombre = estilo).
   if(plIds.length){
     await plSave({id:'pl_sp_'+spId,name:plName,trackIds:plIds,createdAt:Date.now()});
     if(typeof renderPls==='function') renderPls();
   }
-  if(keyErr){
-    toast(`❌ Problema con tu API key de YouTube (no es cuota): ${keyErr}. Revisa la key en CONFIG y que YouTube Data API v3 esté habilitada. Importé ${added} de ${list.length}.`,'error');
-  }else if(quota){
-    toast(`⚠ Se agotó la cuota diaria de YouTube. Importé ${added} de ${list.length} de "${plName}". La cuota se reinicia a medianoche (hora del Pacífico); reimportar lo ya hecho ahora cuesta 0 cuota.`,'error');
-  }else{
-    toast(`✅ ${added} de "${plName}" importadas y guardadas en Playlists${miss?` · ${miss} no encontradas`:''}`,'ok');
+  toast(`✅ ${added} canciones de "${plName}" listas para sonar`,'ok');
+  // Si no hay nada sonando, arrancar de inmediato con la primera canción importada
+  if((!decks[0].playing && !decks[1].playing) || queue.length === added){
+    const firstIdx = queue.findIndex(q => plIds.includes(q.ytId));
+    if(firstIdx >= 0) playFromQueue(firstIdx);
   }
+}
+
+async function importSpotifyTrack(trackId){
+  toast('Leyendo canción de Spotify…','ok');
+  try{
+    const r=await fetch(`/api/spotify/track?id=${encodeURIComponent(trackId)}`);
+    const d=await r.json();
+    if(!r.ok||d.error) throw new Error(d.error||'Error');
+    const q=`${d.title} ${d.artist}`.trim();
+    toast(`Buscando en YouTube: "${q}"…`,'ok');
+    const ytKeyParam = cfg.ytKey ? `&key=${encodeURIComponent(cfg.ytKey)}` : '';
+    const sr=await fetch(`/api/ytsearch?q=${encodeURIComponent(q)}${ytKeyParam}`);
+    const sd=await sr.json();
+    const hit=(sd.items||[])[0];
+    if(hit){
+      const tr={ytId:hit.ytId,name:hit.title||d.title,artist:hit.channel||d.artist,duration:hit.duration||0};
+      queue.push(tr);
+      libUpsert(tr);
+      renderQueue(); saveQueue();
+      toast(`✅ "${tr.name}" agregada a la cola`,'ok');
+      if(!decks[0].playing && !decks[1].playing){
+        playFromQueue(queue.length - 1);
+      }
+    } else {
+      toast('No se encontró el video en YouTube','error');
+    }
+  }catch(e){ toast('Error: '+e.message,'error'); }
+}
+
+function plImportSpotifyPrompt(){
+  const url = prompt('Pega el enlace de la playlist o canción de Spotify (ej. https://open.spotify.com/playlist/...):');
+  if(!url || !url.trim()) return;
+  const info = getSpotifyInfo(url.trim());
+  if(!info){ toast('Enlace de Spotify no válido','error'); return; }
+  if(info.type === 'track') importSpotifyTrack(info.id);
+  else importSpotifyPlaylist(info.id, info.type);
 }
 function playFromQueue(i){
   waitReady(()=>{
