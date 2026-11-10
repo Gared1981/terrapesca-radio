@@ -1039,6 +1039,18 @@ function searchYouTubeNoKey(q) {
     return;
   }
 
+  // ── Proxy OpenAI Chat Completions (guiones para spots + intervenciones) ──
+  if (req.url === '/api/openai/chat' && req.method === 'POST') {
+    readLimitedBody(req, res, (body) => {
+      const apiKey = req.headers['x-openai-key'] || '';
+      proxyPost('api.openai.com', '/v1/chat/completions', {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + apiKey
+      }, body, res);
+    });
+    return;
+  }
+
   // ── Importar playlist o album público de Spotify (título+artista) ──
   // Lee SOLO metadatos de la página embed pública; el cliente resuelve cada
   // canción en YouTube (que sí se puede transmitir a las sucursales).

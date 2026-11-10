@@ -20,7 +20,7 @@ window.TPVoice = (function () {
 
     if (engine === 'voicekiller') {
       if (!o.vkKey || !o.vkUser) throw new Error('Faltan credenciales de VoiceKiller (config)');
-      const vkBody = JSON.stringify({ script: String(input).slice(0, 6000), voice_name: (o.vkVoice || 'Jett'), instructions: String(instructions).slice(0, 2000) });
+      const vkBody = JSON.stringify({ script: String(input).slice(0, 6000), voice_name: (o.vkVoice || 'Podcaster 1 (es-419)'), instructions: String(instructions).slice(0, 2000) });
       // Reintenta en errores de gateway (502/503/504): VoiceKiller a veces se satura.
       let last = '';
       for (let attempt = 0; attempt < 3; attempt++) {

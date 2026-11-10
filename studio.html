@@ -464,108 +464,51 @@ input[type=range]::-moz-range-thumb{width:18px;height:24px;border-radius:5px;bac
     </div>
   </div>
 
-  <!-- SETTINGS MODAL -->
+  <!-- SETTINGS MODAL (Limpio y enfocado) -->
   <div class="modal-ov hide" id="settingsModal" onclick="if(event.target===this)closeSettings()">
     <div class="modal-box">
-      <h2>⚙️ CONFIGURACIÓN STUDIO <button onclick="closeSettings()">✕</button></h2>
+      <h2>⚙️ CONFIGURACIÓN CABINA <button onclick="closeSettings()">✕</button></h2>
 
       <div class="cfg-section">
-        <h4>🔑 Claves API</h4>
-        <div class="cfg-row"><label>WebSocket URL</label><input id="cfgWs" placeholder="Automático (déjalo vacío) — usa este mismo servidor"/></div>
-        <div class="cfg-row"><label>OpenAI</label><input id="cfgOai" type="password" placeholder="Clave OpenAI (voz de DJ Rodo y spots) — sk-..."/></div>
-        <div class="cfg-row"><label>Anthropic</label><input id="cfgAnt" type="password" placeholder="Clave Anthropic/Claude"/></div>
-        <div class="cfg-row"><label>YouTube API</label><input id="cfgYt" type="password" placeholder="Clave YouTube Data v3"/></div>
+        <h4>🎙️ Motor de Voz (Locución con IA)</h4>
+        <div class="cfg-row"><label>Motor Activo</label>
+          <select id="cfgEngine" onchange="_toggleEngineFields(this.value)">
+            <option value="voicekiller">VoiceKiller (Recomendado — Locutor Real)</option>
+            <option value="openai">OpenAI (gpt-4o-mini-tts)</option>
+          </select>
+        </div>
+
+        <div id="vkRows">
+          <div class="cfg-row"><label>VK API Key</label><input id="cfgVkKey" type="password" placeholder="api-key de voicekiller.com/api-dashboard"/></div>
+          <div class="cfg-row"><label>VK User ID</label><input id="cfgVkUser" type="password" placeholder="userid de voicekiller.com/api-dashboard"/></div>
+          <div style="font-size:11px;color:var(--txt3);padding:2px 2px 4px">
+            Copia ambos valores desde tu cuenta en <a href="https://voicekiller.com/api-dashboard" target="_blank" style="color:var(--pri)">voicekiller.com/api-dashboard</a>.
+          </div>
+        </div>
+
+        <div id="oaiRows" style="display:none">
+          <div class="cfg-row"><label>OpenAI Key</label><input id="cfgOai" type="password" placeholder="sk-... (voz OpenAI)"/></div>
+        </div>
+      </div>
+
+      <div class="cfg-section">
+        <h4>🤖 Inteligencia Artificial (Redacción de Guiones)</h4>
+        <div class="cfg-row"><label>Anthropic / OpenAI</label><input id="cfgAnt" type="password" placeholder="sk-ant-... (Anthropic) o deja vacío para usar OpenAI"/></div>
+        <div style="font-size:11px;color:var(--txt3);padding:2px 2px 0">
+          Redacta los guiones del Buen Fin y las intervenciones del locutor.
+        </div>
       </div>
 
       <div class="cfg-section">
         <h4>📻 Estación</h4>
         <div class="cfg-row"><label>Slogan</label><input id="cfgSl" placeholder="La estación oficial de Terrapesca"/></div>
-        <div class="cfg-row"><label>Ciudad Clima</label>
-          <select id="cfgWeatherCity">
-            <option value="auto">🎲 Aleatoria (Culiacán/Mazatlán/Los Mochis)</option>
-            <option value="culiacan">Culiacán</option>
-            <option value="mazatlan">Mazatlán</option>
-            <option value="los_mochis">Los Mochis</option>
-          </select>
-        </div>
-        <div class="cfg-row"><label>Presas (respaldo)</label><input id="cfgPresas" placeholder="Ej: López Mateos 62%, Sanalona 78%, Bacurato 55%"/></div>
-        <div style="font-size:10px;color:var(--txt3);padding:0 2px 2px">Rodo intenta jalar los niveles de CONAGUA solo; si no responde, usa esto. Actualízalo cuando salga el reporte mensual (cidh.org.mx/almacenamiento-de-presas).</div>
       </div>
 
       <div class="cfg-section">
-        <h4>🎙️ Voz DJ Rodo</h4>
-        <div class="cfg-row"><label>Voz</label>
-          <select id="cfgVoiceDJ">
-            <option value="alloy">Alloy (neutra, equilibrada)</option>
-            <option value="ash">Ash (masculina, expresiva)</option>
-            <option value="ballad">Ballad (suave, melódica)</option>
-            <option value="coral">Coral (femenina, cálida)</option>
-            <option value="echo">Echo (masculina, clara)</option>
-            <option value="fable">Fable (narrativa, teatral)</option>
-            <option value="nova">Nova (femenina, brillante)</option>
-            <option value="onyx">Onyx (masculina, grave)</option>
-            <option value="sage">Sage (serena, madura)</option>
-            <option value="shimmer">Shimmer (femenina, suave)</option>
-            <option value="verse">Verse (versátil, cálida)</option>
-          </select>
-        </div>
-        <div class="cfg-row"><label>Voz Spots</label>
-          <select id="cfgVoiceSpot">
-            <option value="alloy">Alloy (neutra, equilibrada)</option>
-            <option value="ash">Ash (masculina, expresiva)</option>
-            <option value="ballad">Ballad (suave, melódica)</option>
-            <option value="coral">Coral (femenina, cálida)</option>
-            <option value="echo">Echo (masculina, clara)</option>
-            <option value="fable">Fable (narrativa, teatral)</option>
-            <option value="nova">Nova (femenina, brillante)</option>
-            <option value="onyx">Onyx (masculina, grave)</option>
-            <option value="sage">Sage (serena, madura)</option>
-            <option value="shimmer">Shimmer (femenina, suave)</option>
-            <option value="verse">Verse (versátil, cálida)</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="cfg-section">
-        <h4>🔊 Motor de voz</h4>
-        <div class="cfg-row"><label>Motor</label>
-          <select id="cfgEngine" onchange="document.getElementById('vkRows').style.display=this.value==='voicekiller'?'block':'none'">
-            <option value="openai">OpenAI (gpt-4o-mini-tts)</option>
-            <option value="voicekiller">VoiceKiller</option>
-          </select>
-        </div>
-        <div id="vkRows" style="display:none">
-          <div class="cfg-row"><label>VK API Key</label><input id="cfgVkKey" type="password" placeholder="Tu api-key de VoiceKiller"/></div>
-          <div class="cfg-row"><label>VK User ID</label><input id="cfgVkUser" type="password" placeholder="Tu userid de VoiceKiller"/></div>
-          <div class="cfg-row"><label>VK Voz</label>
-            <select id="cfgVkVoice">
-              <option value="Jett">Jett (masc. enérgica)</option>
-              <option value="Ashton">Ashton (masc.)</option>
-              <option value="Jax">Jax (masc.)</option>
-              <option value="Blaze">Blaze (masc.)</option>
-              <option value="Quest">Quest (masc.)</option>
-              <option value="Kael">Kael (masc.)</option>
-              <option value="Jack">Jack (masc.)</option>
-              <option value="Liam">Liam (masc.)</option>
-              <option value="William">William (masc.)</option>
-              <option value="North">North (masc.)</option>
-              <option value="Stella">Stella (fem.)</option>
-              <option value="Sienna">Sienna (fem.)</option>
-              <option value="Harper">Harper (fem.)</option>
-              <option value="Zoey">Zoey (fem.)</option>
-              <option value="Coraline">Coraline (fem.)</option>
-              <option value="Faye">Faye (neutra)</option>
-            </select>
-          </div>
-          <div style="font-size:10px;color:var(--txt3);padding:2px 2px 0">Tus llaves se guardan solo en este navegador. VoiceKiller cobra por minuto de tu plan.</div>
-        </div>
-      </div>
-
-      <div class="cfg-section">
-        <h4>🛒 Shopify (spots desde tu catálogo)</h4>
+        <h4>🛒 Catálogo Shopify (Spots automáticos de productos)</h4>
         <div class="cfg-row"><label>Dominio</label><input id="cfgShopDomain" placeholder="tudienda.myshopify.com"/></div>
         <div class="cfg-row"><label>Storefront token</label><input id="cfgShopToken" type="password" placeholder="Storefront API access token"/></div>
-        <div style="font-size:10px;color:var(--txt3);padding:2px 2px 0">Solo lectura de productos. Se guarda solo en tu navegador. Créalo en Shopify → Configuración → Apps y canales → Desarrollar apps → tu app → Storefront API.</div>
+        <div style="font-size:11px;color:var(--txt3);padding:2px 2px 0">Opcional. Permite jalar productos reales de Terrapesca directamente al creador de spots del Buen Fin.</div>
       </div>
 
       <button class="cfg-save" onclick="saveSettings()">💾 GUARDAR CONFIGURACIÓN</button>
@@ -681,8 +624,9 @@ input[type=range]::-moz-range-thumb{width:18px;height:24px;border-radius:5px;bac
       <button onclick="previewSpotScript()">▶ Preview</button>
     </div>
     <div style="display:flex;gap:8px;margin-bottom:6px;align-items:center">
-      <input style="flex:1;padding:8px 10px;border-radius:8px;border:1px solid var(--line2);background:#060d0a;color:var(--txt);font-size:12px" id="spotTopic" placeholder="Tema del spot o pega un enlace de producto…"/>
+      <input style="flex:1;padding:8px 10px;border-radius:8px;border:1px solid var(--line2);background:#060d0a;color:var(--txt);font-size:12px" id="spotTopic" placeholder="Tema del spot (ej: Ofertas de Buen Fin en cañas y carretes)…"/>
       <select id="spotEstilo" style="padding:8px 10px;border-radius:8px;border:1px solid var(--line2);background:#060d0a;color:var(--txt);font-size:11px;font-family:var(--mono);cursor:pointer">
+        <option value="buen_fin" selected>🏷️ BUEN FIN (Locutor Perrón)</option>
         <option value="eufórico">⚡ Eufórico</option>
         <option value="dinámico">🚀 Dinámico</option>
         <option value="elegante">✨ Elegante</option>
@@ -690,6 +634,14 @@ input[type=range]::-moz-range-thumb{width:18px;height:24px;border-radius:5px;bac
       </select>
       <select id="spotVoiceSel" title="Voz del spot (independiente de DJ Rodo)" onchange="_onSpotVoicePick(this.value)" style="padding:8px 10px;border-radius:8px;border:1px solid var(--line2);background:#060d0a;color:var(--txt);font-size:11px;font-family:var(--mono);cursor:pointer;max-width:150px"></select>
       <select id="spotBedSel" title="Fondo musical del spot" onchange="localStorage.setItem('tp_spot_bed',this.value)" style="padding:8px 10px;border-radius:8px;border:1px solid var(--line2);background:#060d0a;color:var(--txt);font-size:11px;font-family:var(--mono);cursor:pointer;max-width:140px"></select>
+    </div>
+    <!-- Plantillas rápidas Buen Fin -->
+    <div style="display:flex;gap:5px;margin-bottom:8px;flex-wrap:wrap;align-items:center">
+      <span style="font-size:10px;font-family:var(--mono);color:var(--txt3)">BUEN FIN RÁPIDO:</span>
+      <button type="button" onclick="setBuenFinTopic('Gran Venta del Buen Fin en toda la tienda Terrapesca: cañas, carretes, kayaks y equipo de pesca con descuentos exclusivos')" style="padding:3px 8px;border-radius:4px;border:1px solid #7b4dd6;background:#1a0a2e;color:#c9a2ff;font-size:10px;cursor:pointer">🏷️ Tienda Completa</button>
+      <button type="button" onclick="setBuenFinTopic('Combos especiales de Buen Fin: caña más carrete para agua dulce y salada con precio irresistible')" style="padding:3px 8px;border-radius:4px;border:1px solid #2a5a2e;background:#122016;color:#7dffaa;font-size:10px;cursor:pointer">🎣 Cañas + Carretes</button>
+      <button type="button" onclick="setBuenFinTopic('Kayaks de pesca y aventura con los mejores precios del año este Buen Fin en Terrapesca')" style="padding:3px 8px;border-radius:4px;border:1px solid #2a4a5a;background:#0d1d28;color:#7dd4ff;font-size:10px;cursor:pointer">🛶 Kayaks</button>
+      <button type="button" onclick="setBuenFinTopic('Hieleras de alto rendimiento, señuelos y equipo para tu próxima salida de pesca este Buen Fin')" style="padding:3px 8px;border-radius:4px;border:1px solid #5a4a2a;background:#281f0d;color:#ffd47d;font-size:10px;cursor:pointer">❄️ Hieleras y Señuelos</button>
     </div>
     <div style="margin-bottom:6px;display:flex;gap:8px;align-items:center">
       <input style="flex:1;padding:8px 10px;border-radius:8px;border:1px solid var(--line2);background:#060d0a;color:var(--txt);font-size:12px" id="shopSearch" placeholder="🛒 Busca un producto de tu Shopify (ej: kayak, hielera, caña)…" onkeydown="if(event.key==='Enter')shopSearch()"/>
@@ -1223,22 +1175,34 @@ const SPOT_TTS_STYLE='Es un spot publicitario de radio: engancha en los primeros
 const SPOT_BASE_INSTR='Eres un locutor comercial de radio mexicana grabando un ANUNCIO de Terrapesca, tienda de pesca y outdoors. '+
   'Voz clara, cálida y con energía; español mexicano natural, sin acento gringo ni voz de tráiler cinematográfico. '+
   'Suena como comercial de radio real: enganchas en los primeros segundos, resaltas el beneficio y cierras con un llamado a la acción. Sin gritar, sin modismos de barrio.';
+// Instrucciones para VoiceKiller (Locutor Perrón de Radio Comercial Mexicana)
+const VK_BASE_INSTR='Locutor estrella de radio comercial FM mexicana. Voz con presencia, cuerpo, resonancia y pegada. ' +
+  'Estilo enérgico, dinámico y con mucha actitud norteña y sinaloense. ' +
+  'Locución comercial de alto impacto: entusiasmo contagioso, articulación impecable, pausas dramáticas en los precios y descuentos, y remates contundentes y vibrantes. ' +
+  '¡Suena 100% como un locutor profesional en vivo, apasionado por la pesca, la aventura y las grandes ofertas!';
+
 // Matiz de voz por estilo del spot.
-const SPOT_ESTILO_VOZ={ 'eufórico':'Tono eufórico y muy enérgico.', 'dinámico':'Tono dinámico y ágil.', 'elegante':'Tono elegante, cálido y sobrio.', 'urgente':'Tono urgente y contundente, con sensación de oferta por tiempo limitado.' };
+const SPOT_ESTILO_VOZ={
+  'buen_fin':'¡Tono explosivo de BUEN FIN! Voz de locutor perrón de radio comercial mexicana: potente, enérgico, anunciando grandes promociones con entusiasmo contagioso, ritmo ágil y remate de impacto.',
+  'eufórico':'Tono eufórico y muy enérgico.',
+  'dinámico':'Tono dinámico y ágil.',
+  'elegante':'Tono elegante, cálido y sobrio.',
+  'urgente':'Tono urgente y contundente, con sensación de oferta por tiempo limitado.'
+};
 // Voz de VoiceKiller para spots (independiente de la de Rodo).
-function _spotVkVoice(){ return localStorage.getItem('tp_vk_voice_spot')||localStorage.getItem('tp_vk_voice')||'Jett'; }
+function _spotVkVoice(){ return localStorage.getItem('tp_vk_voice_spot')||'Commercial Voiceover 1 (es-419)'; }
 // Extra de voz para el spot según el estilo elegido en el panel.
 function _spotVoiceExtra(){ const e=document.getElementById('spotEstilo')?.value||''; return SPOT_TTS_STYLE+(SPOT_ESTILO_VOZ[e]?(' '+SPOT_ESTILO_VOZ[e]):''); }
-// Motor de voz activo: 'openai' (default) o 'voicekiller'.
-function _ttsEngine(){ return localStorage.getItem('tp_engine')||'openai'; }
+// Motor de voz activo: 'openai' o 'voicekiller' (VoiceKiller por defecto si hay llaves).
+function _ttsEngine(){ return localStorage.getItem('tp_engine')||'voicekiller'; }
 // Limpia un valor para usarlo como header HTTP: deja solo ASCII imprimible sin
 // espacios. Evita el error "non ISO-8859-1 code point" por caracteres invisibles
 // (zero-width space, comillas curvas, etc.) que se cuelan al copiar/pegar llaves.
 function _hv(s){ return (window.TPRodo&&TPRodo.hv) ? TPRodo.hv(s) : String(s||'').replace(/[^\x21-\x7E]/g,''); }
 // Devuelve un mensaje si faltan credenciales del motor activo, o '' si están OK.
 function _voiceCredsMissing(){
-  if(_ttsEngine()==='voicekiller') return (!cfg.vkKey||!cfg.vkUser)?'Faltan credenciales de VoiceKiller (config)':'';
-  return (!cfg.oaiKey)?'Falta la clave de OpenAI (config)':'';
+  if(_ttsEngine()==='voicekiller') return (!cfg.vkKey||!cfg.vkUser)?'Faltan credenciales de VoiceKiller (configura en ⚙️ CONFIG)':'';
+  return (!cfg.oaiKey)?'Falta la clave de OpenAI (configura en ⚙️ CONFIG)':'';
 }
 // Sintetiza voz y devuelve un ArrayBuffer (mp3). `voice` = voz OpenAI, `vkVoice`
 // = voz VoiceKiller (cada motor usa la suya). `base` reemplaza las instrucciones
@@ -1246,11 +1210,14 @@ function _voiceCredsMissing(){
 async function synthTTS(rawText,{voice,vkVoice,base,extra}={}){
   const input=ttsPrep(stripElTags(rawText||''));
   if(!input) throw new Error('Texto vacío');
-  const instructions=(base||OAI_BASE_INSTR)+' '+(OAI_TONE[_expLevel]||OAI_TONE.natural)+(extra?(' '+extra):'');
-  if(window.TPVoice&&TPVoice.synth) return TPVoice.synth({input,instructions,engine:_ttsEngine(),voice,vkVoice:(vkVoice||localStorage.getItem('tp_vk_voice')||'Jett'),oaiKey:cfg.oaiKey,vkKey:cfg.vkKey,vkUser:cfg.vkUser,hv:_hv});
+  const isVK=_ttsEngine()==='voicekiller';
+  const defaultBase=isVK?VK_BASE_INSTR:OAI_BASE_INSTR;
+  const defaultVkVoice=localStorage.getItem('tp_vk_voice')||'Podcaster 1 (es-419)';
+  const instructions=(base||defaultBase)+' '+(OAI_TONE[_expLevel]||OAI_TONE.natural)+(extra?(' '+extra):'');
+  if(window.TPVoice&&TPVoice.synth) return TPVoice.synth({input,instructions,engine:_ttsEngine(),voice,vkVoice:(vkVoice||defaultVkVoice),oaiKey:cfg.oaiKey,vkKey:cfg.vkKey,vkUser:cfg.vkUser,hv:_hv});
   if(_ttsEngine()==='voicekiller'){
     if(!cfg.vkKey||!cfg.vkUser) throw new Error('Faltan credenciales de VoiceKiller (config)');
-    const vkBody=JSON.stringify({script:input.slice(0,6000),voice_name:(vkVoice||localStorage.getItem('tp_vk_voice')||'Jett'),instructions:instructions.slice(0,2000)});
+    const vkBody=JSON.stringify({script:input.slice(0,6000),voice_name:(vkVoice||defaultVkVoice),instructions:instructions.slice(0,2000)});
     // Reintenta en errores de gateway (502/503/504) — VoiceKiller a veces se
     // satura y responde lento; un reintento corto suele resolverlo.
     let last='';
@@ -3010,12 +2977,13 @@ function _buildSpotPrompt(contenido, estilo){
   ];
   const apertura=aperturas[Math.floor(Math.random()*aperturas.length)];
   const estilosVenta={
+    'buen_fin':'BUEN FIN + LOCUTOR PERRÓN: máxima energía y emoción comercial mexicana, ofertas espectaculares de pesca y aventura en Terrapesca, urgencia positiva y llamado directo a aprovechar antes de que vuelen.',
     'eufórico':'ENERGÍA + CONFIANZA: alta energía, frases cortas y directas, el producto es la decisión obvia.',
     'dinámico':'ACCIÓN + BENEFICIO: ritmo ágil, qué ganas con este producto, cierre contundente.',
     'elegante':'ASPIRACIÓN + CALIDAD: tono premium, el pescador profesional elige con criterio.',
     'urgente':'MOMENTO + DECISIÓN: las condiciones están ahora, el equipo correcto marca la diferencia hoy.',
   };
-  const estrategia=estilosVenta[estilo]||estilosVenta['eufórico'];
+  const estrategia=estilosVenta[estilo]||estilosVenta['buen_fin'];
   const slogan=cfg.slogan||'Terrapesca, todo para pescar';
 
   return `Eres el mejor guionista de radio comercial de México — nivel Cannes Lions. Creas spots modernos que suenan a marca premium, no a "anuncio de radio viejo": gancho inmediato, micro-historia sensorial y cierre que se queda en la cabeza.
@@ -3057,21 +3025,42 @@ TITULO: [título creativo y corto del spot, máximo 6 palabras, en español]
 GUION: [texto final del spot listo para narrar, sin etiquetas]`;
 }
 
+function setBuenFinTopic(topic){
+  const el=document.getElementById('spotTopic');
+  if(el) el.value=topic;
+  const es=document.getElementById('spotEstilo');
+  if(es) es.value='buen_fin';
+  genSpotAI();
+}
+
 async function genSpotAI(){
   const topic=document.getElementById('spotTopic').value.trim();
   if(!topic){_sgStatus('Escribe el tema del spot primero','var(--amber)');return;}
-  if(!cfg.antKey){_sgStatus('Falta clave Anthropic (⚙️ CONFIG)','var(--red)');return;}
-  const estilo=document.getElementById('spotEstilo')?.value||'eufórico';
+  if(!cfg.antKey && !cfg.oaiKey){_sgStatus('Configura tu clave de Anthropic u OpenAI en ⚙️ CONFIG','var(--red)');return;}
+  const estilo=document.getElementById('spotEstilo')?.value||'buen_fin';
   _sgStatus(`Generando guión (${estilo})…`,'var(--cyan)');
+  const prompt=_buildSpotPrompt(topic,estilo);
   try{
-    const r=await fetch('/api/anthropic',{method:'POST',
-      headers:{'Content-Type':'application/json','x-api-key':_hv(cfg.antKey)},
-      body:JSON.stringify({model:'claude-sonnet-5',thinking:{type:'disabled'},max_tokens:1600,
-        messages:[{role:'user',content:_buildSpotPrompt(topic,estilo)}]})
-    });
-    const d=await r.json();
-    if(!r.ok||d.error) throw new Error(d.error?.message||d.error||('Error de API ('+r.status+')'));
-    const raw=aiText(d).trim();
+    let raw='';
+    if(cfg.antKey){
+      const r=await fetch('/api/anthropic',{method:'POST',
+        headers:{'Content-Type':'application/json','x-api-key':_hv(cfg.antKey)},
+        body:JSON.stringify({model:'claude-sonnet-5',thinking:{type:'disabled'},max_tokens:1600,
+          messages:[{role:'user',content:prompt}]})
+      });
+      const d=await r.json();
+      if(!r.ok||d.error) throw new Error(d.error?.message||d.error||('Error de API ('+r.status+')'));
+      raw=aiText(d).trim();
+    } else {
+      const r=await fetch('/api/openai/chat',{method:'POST',
+        headers:{'Content-Type':'application/json','x-openai-key':_hv(cfg.oaiKey)},
+        body:JSON.stringify({model:'gpt-4o-mini',max_tokens:1200,
+          messages:[{role:'user',content:prompt}]})
+      });
+      const d=await r.json();
+      if(!r.ok||d.error) throw new Error(d.error?.message||d.error||('Error de OpenAI ('+r.status+')'));
+      raw=(d.choices?.[0]?.message?.content||'').trim();
+    }
     if(!raw) throw new Error('Sin respuesta de IA');
     const titleMatch=raw.match(/TITULO:\s*(.+)/i);
     const guionMatch=raw.match(/GUION:\s*([\s\S]+)/i);
@@ -3331,104 +3320,143 @@ function saveQueue(){
 /* ================= SETTINGS ================= */
 function openSettings(){
   const m=document.getElementById('settingsModal');
-  // Abrir SIEMPRE primero: si algún campo faltara, el panel igual se abre
-  // (antes, un elemento nulo lanzaba error y CONFIG "no abría").
   if(m) m.classList.remove('hide');
   const sv=(id,val)=>{ const el=document.getElementById(id); if(el) el.value=val; };
-  sv('cfgWs',localStorage.getItem('tp_ws')||'');
   sv('cfgOai',localStorage.getItem('tp_oai')||'');
   sv('cfgAnt',localStorage.getItem('tp_ant')||'');
-  sv('cfgYt',localStorage.getItem('tp_yt')||'');
-  sv('cfgSl',localStorage.getItem('tp_slogan')||'');
-  sv('cfgWeatherCity',localStorage.getItem('tp_weather_city')||'auto');
-  sv('cfgPresas',localStorage.getItem('tp_presas')||'');
-  sv('cfgVoiceDJ',_migVoice(localStorage.getItem('tp_voice_dj')));
-  sv('cfgVoiceSpot',_migVoice(localStorage.getItem('tp_voice_spot')));
-  sv('cfgEngine',localStorage.getItem('tp_engine')||'openai');
-  sv('cfgVkKey',localStorage.getItem('tp_vk_key')||'');
+  sv('cfgSl',localStorage.getItem('tp_slogan')||'La estación oficial de Terrapesca');
+  const eng=localStorage.getItem('tp_engine')||'voicekiller';
+  sv('cfgEngine',eng);
+  // Precargar la clave de VoiceKiller dada por el usuario
+  sv('cfgVkKey',localStorage.getItem('tp_vk_key')||'r69mmhvwcmiqidkh5rcxg0j0d3r1ct4d');
   sv('cfgVkUser',localStorage.getItem('tp_vk_user')||'');
   sv('cfgShopDomain',localStorage.getItem('tp_shopify_domain')||'');
   sv('cfgShopToken',localStorage.getItem('tp_shopify_token')||'');
-  const _vkSel=document.getElementById('cfgVkVoice');
-  if(_vkSel) _vkSel.innerHTML=VK_VOICE_OPTS.map(o=>'<option value="'+o[0]+'">'+o[1]+'</option>').join('');
-  sv('cfgVkVoice',localStorage.getItem('tp_vk_voice')||'Jett');
-  const vr=document.getElementById('vkRows'); if(vr) vr.style.display=(localStorage.getItem('tp_engine')==='voicekiller')?'block':'none';
+  _toggleEngineFields(eng);
+}
+function _toggleEngineFields(eng){
+  const vk=document.getElementById('vkRows');
+  const oai=document.getElementById('oaiRows');
+  if(vk) vk.style.display=(eng==='voicekiller')?'block':'none';
+  if(oai) oai.style.display=(eng==='openai')?'block':'none';
 }
 function closeSettings(){ document.getElementById('settingsModal').classList.add('hide'); }
 function saveSettings(){
-  const set=(k,id)=>{ const v=document.getElementById(id).value.trim(); if(v) localStorage.setItem(k,v); else localStorage.removeItem(k); };
-  set('tp_ws','cfgWs'); set('tp_oai','cfgOai'); set('tp_ant','cfgAnt'); set('tp_yt','cfgYt');
-  set('tp_slogan','cfgSl'); set('tp_weather_city','cfgWeatherCity'); set('tp_presas','cfgPresas');
-  set('tp_voice_dj','cfgVoiceDJ'); set('tp_voice_spot','cfgVoiceSpot');
-  set('tp_engine','cfgEngine'); set('tp_vk_key','cfgVkKey'); set('tp_vk_user','cfgVkUser'); set('tp_vk_voice','cfgVkVoice');
-  set('tp_shopify_domain','cfgShopDomain'); set('tp_shopify_token','cfgShopToken');
-  // Reload cfg object
-  cfg.ws=localStorage.getItem('tp_ws')||'';
+  const set=(k,id)=>{ const el=document.getElementById(id); if(el){ const v=el.value.trim(); if(v) localStorage.setItem(k,v); else localStorage.removeItem(k); } };
+  set('tp_oai','cfgOai');
+  set('tp_ant','cfgAnt');
+  set('tp_slogan','cfgSl');
+  set('tp_engine','cfgEngine');
+  set('tp_vk_key','cfgVkKey');
+  set('tp_vk_user','cfgVkUser');
+  set('tp_shopify_domain','cfgShopDomain');
+  set('tp_shopify_token','cfgShopToken');
+
+  // Recargar cfg en memoria
   cfg.oaiKey=localStorage.getItem('tp_oai')||'';
+  cfg.antKey=localStorage.getItem('tp_ant')||'';
   cfg.vkKey=localStorage.getItem('tp_vk_key')||'';
   cfg.vkUser=localStorage.getItem('tp_vk_user')||'';
   cfg.shopDomain=localStorage.getItem('tp_shopify_domain')||'';
   cfg.shopToken=localStorage.getItem('tp_shopify_token')||'';
-  cfg.antKey=localStorage.getItem('tp_ant')||'';
-  cfg.ytKey=localStorage.getItem('tp_yt')||'';
   cfg.slogan=localStorage.getItem('tp_slogan')||'La estación oficial de Terrapesca';
-  // Sync selectors on DJ card
-  const wc=localStorage.getItem('tp_weather_city')||'auto';
-  document.getElementById('djWeatherCity').value=wc;
+
   _refreshDJVoiceSelector();
   _refreshSpotVoiceSelector();
   closeSettings();
   toast('Configuración guardada','ok');
-  // Reconnect WS if URL changed
-  _connectServerWS();
 }
 // Selector de VOZ DJ consciente del motor: muestra las voces del motor activo
-// (OpenAI o VoiceKiller) y guarda en la clave correcta. Resuelve la confusión
-// de "no veo las voces de VoiceKiller".
+// (OpenAI o VoiceKiller) y guarda en la clave correcta.
 const OAI_VOICE_OPTS=[['ash','Ash (masc. expresiva)'],['onyx','Onyx (masc. grave)'],['verse','Verse (versátil)'],['echo','Echo (masc. clara)'],['nova','Nova (fem. clara)'],['shimmer','Shimmer (fem. suave)'],['coral','Coral (fem. cálida)'],['alloy','Alloy (neutra)'],['ballad','Ballad (suave)'],['fable','Fable (narrativa)'],['sage','Sage (serena)']];
-// Las 55 voces de VoiceKiller. Las "⭐ recomendadas" (radio comercial) van
-// arriba — apuesta por timbre/género; confírmalas por oído. La energía la dan
-// las acting-instructions (que van al máximo), no la voz base.
+
+// Voces de VoiceKiller — Priorizadas con las voces mexicanas reales de locutor comercial y radio:
 const VK_VOICE_OPTS=[
-  ['Jett','⭐ Jett (masc. enérgica)'],['Blaze','⭐ Blaze (masc. potente)'],['Jax','⭐ Jax (masc.)'],
-  ['Quest','⭐ Quest (masc.)'],['Kael','⭐ Kael (masc.)'],['Ashton','⭐ Ashton (masc.)'],['North','⭐ North (masc.)'],
-  ['Stella','⭐ Stella (fem. enérgica)'],['Storm','⭐ Storm (fem.)'],['Sienna','⭐ Sienna (fem.)'],['Harper','⭐ Harper (fem.)'],
-  ['Jack','Jack (masc.)'],['Liam','Liam (masc.)'],['William','William (masc.)'],['Oak','Oak (masc.)'],['Avery','Avery (masc.)'],
-  ['Pax','Pax (masc.)'],['Reef','Reef (masc.)'],['Rune','Rune (masc.)'],['Lyric','Lyric (masc.)'],['Indigo','Indigo (masc.)'],
-  ['Cove','Cove (masc.)'],['Quill','Quill (masc.)'],['Blair','Blair (masc.)'],['Arden','Arden (masc.)'],['Elara','Elara (masc.)'],
-  ['Juniper','Juniper (masc.)'],['Bella','Bella (masc.)'],['Sage','Sage (masc.)'],
-  ['Zoey','Zoey (fem.)'],['Coraline','Coraline (fem.)'],['Claire','Claire (fem.)'],['Lucy','Lucy (fem.)'],['Skylar','Skylar (fem.)'],
-  ['Isabella','Isabella (fem.)'],['Hannah','Hannah (fem.)'],['Nora','Nora (fem.)'],['Lily','Lily (fem.)'],['Marin','Marin (fem.)'],
-  ['Cedar','Cedar (fem.)'],['Evelyn','Evelyn (fem.)'],['Sky','Sky (fem.)'],['Riley','Riley (fem.)'],['Zen','Zen (fem.)'],
-  ['Jordan','Jordan (fem.)'],['Onyx','Onyx (fem.)'],['Haven','Haven (fem.)'],['Finch','Finch (fem.)'],['Vale','Vale (fem.)'],
-  ['Slate','Slate (fem.)'],['Wren','Wren (fem.)'],['Romy','Romy (fem.)'],['Sol','Sol (fem.)'],['Faye','Faye (neutra)']
+  ['Podcaster 1 (es-419)','🎙️ Podcaster 1 (Locutor Radio México 37a — ⭐ Recomendado DJ Rodo)'],
+  ['Commercial Voiceover 1 (es-419)','📢 Commercial 1 (Locutor Comercial México 24a — ⭐ Recomendado Spots)'],
+  ['Commercial Voiceover 11 (es-419)','📢 Commercial 11 (Locutor Comercial México 27a)'],
+  ['Commercial Voiceover 12 (es-419)','📢 Commercial 12 (Locutor Comercial México 23a)'],
+  ['Commercial Voiceover 4 (es-419)','📢 Commercial 4 (Locutor Reality/Comercial México 21a)'],
+  ['Podcaster 3 (es-419)','🎙️ Podcaster 3 (Entrevistador Radio México 37a)'],
+  ['Podcaster 4 (es-419)','🎙️ Podcaster 4 (Entrevistador Podcast México 43a)'],
+  ['Call Center Agent 4 (es-419)','🎧 Call Center 4 (Locución México 44a, Masc.)'],
+  ['Call Center Agent 9 (es-419)','🎧 Call Center 9 (Locución México 57a, Masc.)'],
+  ['Concierge 2 (es-419)','🎧 Concierge 2 (Guía Turístico México 61a, Masc.)'],
+  ['Concierge 8 (es-419)','🎧 Concierge 8 (Guía Turístico México 42a, Masc.)'],
+  ['Podcaster 2 (es-419)','🎙️ Podcaster 2 (Locutora Radio México 25a, Fem.)'],
+  ['Commercial Voiceover 6 (es-419)','📢 Commercial 6 (Locutora Comercial México 23a, Fem.)'],
+  ['Commercial Voiceover 8 (es-419)','📢 Commercial 8 (Locutora Comercial México 24a, Fem.)'],
+  ['Commercial Voiceover 9 (es-419)','📢 Commercial 9 (Locutora Comercial México 28a, Fem.)'],
+  ['Authoritative Advisor 4 (es-419)','⚖️ Advisor 4 (Locutora Abogada México 40a, Fem.)'],
+  ['Authoritative Advisor 6 (es-419)','⚖️ Advisor 6 (Locutora Abogada México 35a, Fem.)'],
+  ['Authoritative Advisor 7 (es-419)','⚖️ Advisor 7 (Locutora NPR México 32a, Fem.)'],
+  ['Alex','⭐ Alex (Locutor enérgico internacional)'],
+  ['Ashton','⭐ Ashton (Locutor comercial)'],
+  ['Blaze','⭐ Blaze (Locutor potente)'],
+  ['Quest','⭐ Quest (Locutor radio)'],
+  ['Kael','⭐ Kael (Locutor dinámico)'],
+  ['North','⭐ North (Locutor formal)'],
+  ['Jack','Jack (Locución grave)'],
+  ['Stella','⭐ Stella (Locutora enérgica, Fem.)'],
+  ['Storm','⭐ Storm (Locutora potente, Fem.)'],
+  ['Sienna','⭐ Sienna (Locutora, Fem.)'],
+  ['Harper','⭐ Harper (Locutora, Fem.)'],
+  ['__custom__','✏️ Otra voz de VoiceKiller (escribir nombre)...']
 ];
+
 function _refreshDJVoiceSelector(){
   const sel=document.getElementById('djVoiceSel'); if(!sel) return;
   const vk=_ttsEngine()==='voicekiller';
-  const opts=vk?VK_VOICE_OPTS:OAI_VOICE_OPTS;
-  const cur=vk?(localStorage.getItem('tp_vk_voice')||'Jett'):_migVoice(localStorage.getItem('tp_voice_dj'));
+  const opts=vk?VK_VOICE_OPTS.slice():OAI_VOICE_OPTS.slice();
+  const cur=vk?(localStorage.getItem('tp_vk_voice')||'Podcaster 1 (es-419)'):_migVoice(localStorage.getItem('tp_voice_dj'));
+  if(vk && !opts.some(o=>o[0]===cur)) opts.unshift([cur, '🎙️ '+cur+' (Personalizada)']);
   sel.innerHTML=opts.map(o=>'<option value="'+o[0]+'">'+o[1]+'</option>').join('');
   sel.value=cur;
   const lbl=sel.parentElement&&sel.parentElement.querySelector('label');
-  if(lbl) lbl.textContent=vk?'VOZ (VOICEKILLER)':'VOZ DJ';
+  if(lbl) lbl.textContent=vk?'VOZ (VOICEKILLER 🇲🇽)':'VOZ DJ';
 }
+
 function _onDJVoicePick(v){
-  if(_ttsEngine()==='voicekiller') localStorage.setItem('tp_vk_voice',v);
-  else localStorage.setItem('tp_voice_dj',v);
+  if(_ttsEngine()==='voicekiller'){
+    if(v==='__custom__'){
+      const custom=prompt('Escribe el nombre exacto de la voz en Voicekiller (ej: Alex, Alain, etc.):', localStorage.getItem('tp_vk_voice')||'');
+      if(custom && custom.trim()){
+        localStorage.setItem('tp_vk_voice', custom.trim());
+      }
+      _refreshDJVoiceSelector();
+      return;
+    }
+    localStorage.setItem('tp_vk_voice',v);
+  } else {
+    localStorage.setItem('tp_voice_dj',v);
+  }
 }
+
 // Selector de voz del SPOT (independiente de Rodo), también consciente del motor.
 function _refreshSpotVoiceSelector(){
   const sel=document.getElementById('spotVoiceSel'); if(!sel) return;
   const vk=_ttsEngine()==='voicekiller';
-  const opts=vk?VK_VOICE_OPTS:OAI_VOICE_OPTS;
+  const opts=vk?VK_VOICE_OPTS.slice():OAI_VOICE_OPTS.slice();
   const cur=vk?_spotVkVoice():_migVoice(localStorage.getItem('tp_voice_spot'));
+  if(vk && !opts.some(o=>o[0]===cur)) opts.unshift([cur, '📢 '+cur+' (Personalizada)']);
   sel.innerHTML=opts.map(o=>'<option value="'+o[0]+'">'+o[1]+'</option>').join('');
   sel.value=cur;
 }
+
 function _onSpotVoicePick(v){
-  if(_ttsEngine()==='voicekiller') localStorage.setItem('tp_vk_voice_spot',v);
-  else localStorage.setItem('tp_voice_spot',v);
+  if(_ttsEngine()==='voicekiller'){
+    if(v==='__custom__'){
+      const custom=prompt('Escribe el nombre exacto de la voz en Voicekiller para spots (ej: Commercial Voiceover 1 (es-419), Alex, etc.):', localStorage.getItem('tp_vk_voice_spot')||'');
+      if(custom && custom.trim()){
+        localStorage.setItem('tp_vk_voice_spot', custom.trim());
+      }
+      _refreshSpotVoiceSelector();
+      return;
+    }
+    localStorage.setItem('tp_vk_voice_spot',v);
+  } else {
+    localStorage.setItem('tp_voice_spot',v);
+  }
 }
 // Llena el selector de fondo del spot y marca el guardado.
 function _initSpotBedSel(){
