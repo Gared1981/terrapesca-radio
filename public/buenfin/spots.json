@@ -60,7 +60,8 @@
       "qr_compra_url": "https://buenfin.terrapescaapi.com/cliente?sucursal=buceo&sku=39108",
       "frase_locutor": "¡Potencia y suavidad japonesa al mejor precio del año! Carrete Shimano Vanford con quince por ciento de descuento individual o veinte por ciento parejo al armar tu combo con cualquier vara. Escanea el código QR en pantalla para ver precios, apartar el tuyo y registrarte para recibir ofertas exclusivas antes que nadie. ¡Terrapesca: equipa tu aventura!",
       "qr_imagen_url": "https://api.qrserver.com/v1/create-qr-code/?size=280x280&margin=6&data=https://buenfin.terrapescaapi.com/cliente?sucursal=buceo&sku=39108",
-      "trigger_pantalla_url": "https://buenfin.terrapescaapi.com/api/v1/buenfin/radio-trigger?spot_id=spot_vanford_15&sucursal=buceo"
+      "trigger_pantalla_url": "https://buenfin.terrapescaapi.com/api/v1/buenfin/radio-trigger?spot_id=spot_vanford_15&sucursal=buceo",
+      "video_url": "/buenfin/spot_vanford_15.mp4"
     },
     {
       "spot_id": "spot_kayak_tilapia",
