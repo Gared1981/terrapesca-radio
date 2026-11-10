@@ -838,9 +838,9 @@
 
     // Si el usuario sube un video MP4 para el spot, se activa automáticamente
     function checkVideoAvailable(spotId, directVideoUrl) {
-      const vTag = '?v=20261110_1';
+      const vTag = 'v=' + Date.now();
       const baseSrc = directVideoUrl || ('/buenfin/' + spotId + '.mp4');
-      const videoSrc = baseSrc.includes('?') ? baseSrc : (baseSrc + vTag);
+      const videoSrc = baseSrc + (baseSrc.includes('?') ? '&' : '?') + vTag;
 
       if (directVideoUrl) {
         spotVideoEl.src = videoSrc;
