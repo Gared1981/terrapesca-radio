@@ -838,9 +838,12 @@
 
     // Si el usuario sube un video MP4 para el spot, se activa automáticamente
     function checkVideoAvailable(spotId, directVideoUrl) {
-      const videoSrc = directVideoUrl || ('/buenfin/' + spotId + '.mp4');
+      const vTag = '?v=20261110_1';
+      const baseSrc = directVideoUrl || ('/buenfin/' + spotId + '.mp4');
+      const videoSrc = baseSrc.includes('?') ? baseSrc : (baseSrc + vTag);
+
       if (directVideoUrl) {
-        spotVideoEl.src = directVideoUrl;
+        spotVideoEl.src = videoSrc;
         spotVideoEl.style.display = 'block';
         spotPhotoEl.style.display = 'none';
         spotVideoEl.play().catch(() => {});
@@ -1096,13 +1099,18 @@
           eCtx.font = 'bold 28px sans-serif';
           eCtx.fillText('🔥 GRAN BUEN FIN TERRAPESCA', 80, 82);
 
-          // 3. Foto con zoom dinámico Ken Burns
-          const scale = 1 + (elapsed / durationSecs) * 0.08;
+          // 3. Foto o Video con zoom dinámico Ken Burns
+          const hasVideo = spotVideoEl.style.display !== 'none' && !spotVideoEl.paused && spotVideoEl.readyState >= 2;
+          const scale = 1 + (elapsed / durationSecs) * 0.06;
           eCtx.save();
           eCtx.translate(560, 540);
           eCtx.scale(scale, scale);
           const dw = 750, dh = 750;
-          eCtx.drawImage(imgPhoto, -dw / 2, -dh / 2, dw, dh);
+          if (hasVideo) {
+            eCtx.drawImage(spotVideoEl, -dw / 2, -dh / 2, dw, dh);
+          } else {
+            eCtx.drawImage(imgPhoto, -dw / 2, -dh / 2, dw, dh);
+          }
           eCtx.restore();
 
           // 4. Panel lateral de Oferta y Precios
