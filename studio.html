@@ -1801,16 +1801,21 @@ function djShouldFire(){
 }
 // Dentro del horario de locución: tipo ALEATORIO entre spot, clima, hora y consejos.
 // Fuera del horario (noches, domingos, etc.): SOLO spots. Sin spots → nada.
+let _lastDJType='';
 function nextDJItem(){
   if(!_djHoursOK()){
     return spots.length ? {kind:'spot'} : null;
   }
   // Prioriza el clima cuando hay probabilidad alta de lluvia (aviso útil).
-  if(_highRainNow()!=null && Math.random()<0.7) return {kind:'dj',type:'WEATHER_REPORT'};
-  const pool=['WEATHER_REPORT','TIME_CHECK','FISHING_TIP','RESERVOIR_UPDATE'];
+  if(_highRainNow()!=null && Math.random()<0.6) return {kind:'dj',type:'WEATHER_REPORT'};
+  const pool=['WEATHER_REPORT','TIME_CHECK','FISHING_TIP','BUEN_FIN_MINI','RESERVOIR_UPDATE','GEAR_TIP','SAFETY_TIP','STATION_ID'];
   if(_tidesAvailable) pool.push('TIDE_REPORT');
   if(spots.length) pool.push('SPOT');
-  const pick=pool[Math.floor(Math.random()*pool.length)];
+  // Anti-cíclico: jamás repetir el mismo tipo consecutivamente
+  const fresh=pool.filter(t=>t!==_lastDJType);
+  const candidates=fresh.length?fresh:pool;
+  const pick=candidates[Math.floor(Math.random()*candidates.length)];
+  _lastDJType=pick;
   return pick==='SPOT' ? {kind:'spot'} : {kind:'dj',type:pick};
 }
 /* DJ talks over the tail (ducked) then crossfade — no silence, between songs */
@@ -1848,10 +1853,13 @@ async function djBetweenThenCrossfade(){
 }
 function djInterveneNow(){
   if(djActive){return;}
-  // Botón manual: override — Rodo interviene ahora aunque sea fuera de horario.
-  const pool=['WEATHER_REPORT','TIME_CHECK','FISHING_TIP'];
+  // Botón manual: override — Rodo interviene ahora con tipo dinámico y sin repetir el anterior
+  const pool=['WEATHER_REPORT','TIME_CHECK','FISHING_TIP','BUEN_FIN_MINI','RESERVOIR_UPDATE','GEAR_TIP','SAFETY_TIP','STATION_ID'];
   if(spots.length) pool.push('SPOT');
-  const pick=pool[Math.floor(Math.random()*pool.length)];
+  const fresh=pool.filter(t=>t!==_lastDJType);
+  const candidates=fresh.length?fresh:pool;
+  const pick=candidates[Math.floor(Math.random()*candidates.length)];
+  _lastDJType=pick;
   if(pick==='SPOT') playSpot(); else playDJ(pick);
 }
 async function playDJ(type){
@@ -2234,69 +2242,187 @@ Entrega EXCLUSIVAMENTE las palabras que Rodo debe pronunciar, en un solo párraf
 
   return typePrompts[type]||`${systemPrompt}\n\nSon ${hora}. Genera una intervención breve de 10 a 15 segundos sobre pesca, clima, seguridad o equipo para oyentes de Radio Terrapesca en Sinaloa.`;
 }
-// Respaldo cuando la IA no está disponible. Cada tipo tiene VARIAS variantes y
-// se elige una al azar (evitando repetir la última) para que no suene idéntico.
-let _lastFallback='';
-function djFallback(type,ctx){
-  const pick=a=>{ if(a.length<2) return a[0]; let v; do{ v=a[Math.floor(Math.random()*a.length)]; }while(v===_lastFallback); _lastFallback=v; return v; };
-  if(type==='SONG_BRIDGE'){
-    const opts=ctx.queue||[];
-    if(opts.length){
-      const s=opts[Math.floor(Math.random()*opts.length)];
-      return pick([
-        `A continuación, "${s.name}"${s.artist?' de '+s.artist:''}, aquí en Radio Terrapesca.`,
-        `Sigue la buena música en Radio Terrapesca.`,
-        `Seguimos contigo con más música, aquí en Radio Terrapesca.`
-      ]);
-    }
-    return pick(['Seguimos con más música aquí en Radio Terrapesca.','La buena música continúa en Radio Terrapesca.']);
+// Respaldo cuando la IA no está disponible o para intervenciones dinámicas instantáneas.
+// Cuenta con memoria anti-repetición de 35 frases y generador modular del clima.
+let _recentDJPhrases=[];
+function pickUnused(arr){
+  if(!arr||!arr.length) return '';
+  if(arr.length===1) return arr[0];
+  const fresh=arr.filter(x=>!_recentDJPhrases.includes(x));
+  const pool=fresh.length?fresh:arr;
+  const picked=pool[Math.floor(Math.random()*pool.length)];
+  _recentDJPhrases.push(picked);
+  if(_recentDJPhrases.length>35) _recentDJPhrases.shift();
+  return picked;
+}
+
+function numEnLetras(n){
+  n=Math.round(Number(n)||0);
+  const u=['cero','uno','dos','tres','cuatro','cinco','seis','siete','ocho','nueve','diez',
+    'once','doce','trece','catorce','quince','dieciséis','diecisiete','dieciocho','diecinueve','veinte',
+    'veintiuno','veintidós','veintitrés','veinticuatro','veinticinco','veintiséis','veintisiete','veintiocho','veintinueve',
+    'treinta','treinta y uno','treinta y dos','treinta y tres','treinta y cuatro','treinta y cinco',
+    'treinta y seis','treinta y siete','treinta y ocho','treinta y nueve','cuarenta','cuarenta y uno',
+    'cuarenta y dos','cuarenta y tres','cuarenta y cuatro','cuarenta y cinco'];
+  return (n>=0&&n<u.length)?u[n]:String(n);
+}
+
+function genDynamicWeather(ctx){
+  const w=ctx.w||{};
+  const city=w.city||'la región';
+  const temp=(w.temp!=null)?w.temp:29;
+  const wind=(w.wind!=null)?w.wind:12;
+  const desc=(w.code!=null?wDesc(w.code):'')||'cielo mayormente despejado';
+  const tempTxt=numEnLetras(temp)+' grados';
+  const windTxt=numEnLetras(wind)+' kilómetros por hora';
+
+  const intros=[
+    `¡Qué tal mi gente pescadora! Rodo al micrófono en Radio Terrapesca con el tiempo en ${city}:`,
+    `¡Atención a todos los que andan en el agua o alistando la lancha! Así pinta el clima en ${city}:`,
+    `Actualizamos las condiciones meteorológicas desde la cabina de Radio Terrapesca para todo ${city}:`,
+    `Para la plebada que pregunta cómo está el ambiente: aquí tienen el reporte oficial para ${city}:`,
+    `Rodo con ustedes para checar cómo está el ambiente hoy en ${city}:`,
+    `Vámonos de volada con las condiciones del mar y la costa para nuestros amigos de ${city}:`,
+    `¡Pónganse al tiro! Así se sienten la temperatura y los vientos en ${city} en este momento:`,
+    `Radio Terrapesca te acompaña en la aventura; chequemos el termómetro al momento en ${city}:`,
+    `Para que no los agarre desprevenidos el calor o el viento, así están las cosas en ${city}:`,
+    `Reporte oficial del clima al momento para pescadores y navegantes en ${city}:`,
+    `Saludos a toda la comunidad que nos sintoniza en el taller, en la tienda o rumbo al estero en ${city}:`,
+    `Condiciones en tiempo real para salir a castear a gusto hoy en ${city}:`,
+    `Así están soplando los vientos y calentando el sol en este momento para la costa de ${city}:`,
+    `Desde la cabina de Terrapesca, actualización meteorológica al momento para ${city}:`
+  ];
+
+  let cuerpo='';
+  if(temp>=31){
+    cuerpo=pickUnused([
+      `tenemos ${tempTxt} centígrados con ${desc} y viento de ${windTxt}. Sol bravo de nuestra tierra sinaloense, así que no olviden su jersey con protección solar, gorra bien puesta y abundante agua helada.`,
+      `el termómetro está marcando ${tempTxt}, ${desc}, con rachas de ${windTxt}. Con este calor, busquen la pesca temprano en los bajos o al atardecer cuando baje el sol.`,
+      `registramos ${tempTxt}, ${desc}, y vientos de ${windTxt}. Clima caliente, ideal para hidratarse bien y trabajar señuelos a media agua o de profundidad buscando zonas oxigenadas.`,
+      `estamos alcanzando los ${tempTxt} con ${desc}, y viento soplando a ${windTxt}. Manténganse frescos y cuiden bien sus capturas en una buena hielera con bastante hielo.`
+    ]);
+  } else if(temp>=24){
+    cuerpo=pickUnused([
+      `marcamos ${tempTxt} centígrados, muy agradable, con ${desc} y viento navegable de ${windTxt}. Condiciones excelentes para tirar lances en bahía, estero o presa.`,
+      `el clima marca ${tempTxt}, ${desc}, con vientos tranquilos de ${windTxt}. Día perfecto para agarrar el kayak o la lancha y buscar buenos ejemplares.`,
+      `tenemos ${tempTxt} con ${desc} y brisa marina de ${windTxt}. Tiempo ideal para disfrutar del aire libre con la familia o los amigos de pesca.`,
+      `temperatura muy sabrosa de ${tempTxt}, ${desc}, y viento de ${windTxt}. Todo puesto para una jornada exitosa con buena visibilidad y aguas tranquilas.`
+    ]);
+  } else {
+    cuerpo=pickUnused([
+      `ambiente fresco con ${tempTxt} centígrados y ${desc}, viento de ${windTxt}. La lobina y el robalo suelen activarse en las orillas con este cambio, preparen sus señuelos.`,
+      `el termómetro registra ${tempTxt}, ${desc}, y vientos de ${windTxt}. Mañana fresca ideal para un buen café y una jornada de pesca deportiva con calma.`,
+      `reportamos ${tempTxt} con ${desc} y viento de ${windTxt}. Buen momento para salir bien equipados y buscar el pique en las estructuras y riscos.`
+    ]);
   }
-  const w=ctx.w, hasW=w&&w.temp!=null, city=hasW?w.city:'la región', t=hasW?w.temp:null, desc=hasW?wDesc(w.code):'';
+
+  const cierres=[
+    `Recuerden: equipo listo, chaleco puesto y ¡a disfrutar la jornada con Radio Terrapesca!`,
+    `En Terrapesca encuentras todo para protegerte del sol y equipar tu lancha. ¡Equipa tu aventura!`,
+    `Seguimos con más música perrona aquí en tu estación, Radio Terrapesca.`,
+    `¡Buena pesca y que canten esos carretes en todo Sinaloa!`,
+    `La aventura comienza donde termina el pavimento. Esto es Radio Terrapesca.`,
+    `Visítanos en sucursal o en terrapesca punto com. ¡Continúa la buena música en tu radio!`,
+    `Cuiden nuestros esteros y presas, practiquen captura y libera responsable. ¡Seguimos al aire!`,
+    `Pásenla al cien en el agua y nos escuchamos en el próximo corte.`
+  ];
+
+  return `${pickUnused(intros)} ${cuerpo} ${pickUnused(cierres)}`;
+}
+
+function djFallback(type,ctx){
+  if(type==='WEATHER_REPORT'||type==='FISHING_FORECAST'){
+    return genDynamicWeather(ctx);
+  }
+  if(type==='SONG_BRIDGE'){
+    const bridges=[
+      `Seguimos con más música perrona aquí en Radio Terrapesca.`,
+      `¡Puro ritmo y buena vibra en Radio Terrapesca! Continúa la programación musical.`,
+      `La música no para en la estación oficial de tu aventura: Radio Terrapesca.`,
+      `Acompañando tus mejores momentos al aire libre. ¡Esto es Radio Terrapesca!`,
+      `Quédate en la sintonía que te acompaña en cada lance y en cada jornada: Radio Terrapesca.`
+    ];
+    return pickUnused(bridges);
+  }
+
   const V={
     TIME_CHECK:[
-      `Son ${ctx.hora||'un gran momento'} y seguimos contigo en Radio Terrapesca.`,
-      `Aquí Radio Terrapesca, acompañando tu jornada. Gracias por escucharnos.`,
-      `Continúa Radio Terrapesca, la señal que te conecta con el mar.`
+      `Costa Kayaks patrocina la hora en Radio Terrapesca: son ${ctx.hora||'un gran momento'}, excelente hora para planear tu salida de pesca.`,
+      `Marcamos el tiempo en el Pacífico: ${ctx.hora||'un momento perfecto'}, cortesía de Terrapesca Marine and Outdoors. Equipa tu aventura.`,
+      `¡Plebada, son ${ctx.hora||'la hora de pescar'}! La hora exacta en Radio Terrapesca. Sigue disfrutando de la mejor música.`,
+      `Tiempo de pescar, tiempo de buena música: son ${ctx.hora||'un excelente momento'} en toda la señal de Radio Terrapesca.`,
+      `Actualizamos la hora oficial en Sinaloa: ${ctx.hora||'tiempo de aventura'}. Recuerda revisar tus equipos antes de salir.`,
+      `Costa Kayaks te da la hora en tu radio: ${ctx.hora||'el momento justo'}. Encuentra tu kayak en Terrapesca a seis meses sin intereses.`,
+      `Son ${ctx.hora||'la hora'} en cabina. Saludos a toda la gente que nos escucha en el taller, en carretera o en altamar.`,
+      `Radio Terrapesca te da la hora: ${ctx.hora||'en punto'}. Todo el equipo que necesitas para el mar o la presa está en Terrapesca.`
     ],
     STATION_ID:[
-      `Radio Terrapesca, ${ctx.slogan}.`,
-      `Estás escuchando Radio Terrapesca, experiencia y equipo para vivir la pesca.`,
-      `Radio Terrapesca, acompañando tu jornada en Culiacán, Mazatlán y Los Mochis.`,
-      `Del mar, el río o la presa, la aventura comienza en Terrapesca. Esto es Radio Terrapesca.`
-    ],
-    WEATHER_REPORT: hasW ? [
-      `En ${city} tenemos ${t} grados, ${desc}. Buen momento para preparar tu equipo.`,
-      `El clima en ${city} marca ${t} grados, ${desc}. Aprovecha tu jornada.`,
-      `Ahora mismo en ${city}, ${t} grados y ${desc}. Recuerda tu equipo de seguridad.`,
-      `Reporte del mar: ${city} con ${t} grados${w.wind!=null?' y viento de '+w.wind+' kilómetros por hora':''}, ${desc}. Sal con precaución.`,
-      `${desc.charAt(0).toUpperCase()+desc.slice(1)} en ${city}, ${t} grados. Con este calor, hidrátate y busca sombra entre lances.`,
-      `Pescadores de ${city}: ${t} grados${w.wind!=null?', viento de '+w.wind+' por hora':''}. Planea tu salida según cómo esté el agua.`
-    ] : [
-      `El clima en la región se ve bien para la pesca de hoy.`,
-      `Buen día en la región para salir al agua. Revisa tu equipo antes de partir.`
-    ],
-    FISHING_FORECAST: hasW ? [
-      `Para hoy en ${city}, con ${t} grados, buen momento para robalo cerca de estructura.`,
-      `Hoy en ${city}, ${t} grados: prueba temprano o al atardecer, cuando hay más actividad.`
-    ] : [
-      `Hoy es buen día para la pesca, prepara tu equipo.`,
-      `Buenas condiciones para salir hoy. Planea tu jornada con calma.`
+      `Estás escuchando Radio Terrapesca, la señal oficial de los apasionados por el mar, el estero y la presa en Sinaloa. ¡Equipa tu aventura!`,
+      `Desde Culiacán, Mazatlán y Los Mochis para todo el Pacífico mexicano: esto es Radio Terrapesca, la estación que te conecta con la naturaleza.`,
+      `Música, pasión por la aventura y el mejor equipo deportivo: Radio Terrapesca te acompaña en cada lance y en cada jornada.`,
+      `Del río al mar abierto, la mejor vibra se escucha aquí. Transmitiendo en vivo: Radio Terrapesca.`,
+      `Radio Terrapesca: más que una tienda, somos tu comunidad de pesca y aventura en Sinaloa. ¡Quédate con nosotros!`,
+      `Donde hay agua, cañas y buena música, ahí está Radio Terrapesca. ¡Sigue con nosotros!`
     ],
     FISHING_TIP:[
-      `Un consejo: al amanecer y al atardecer es cuando más pica. Aprovecha esas horas.`,
-      `Recuerda revisar cabos, nudos y conexiones antes de cada salida.`,
-      `Ajusta el color del señuelo según el agua: claros en agua clara, llamativos en agua turbia.`,
-      `Mantén siempre a bordo tu chaleco y tu equipo de seguridad. La prevención primero.`
+      `Un tip perrón para la lobina en presa: cuando el sol se pone alto, los peces buscan la sombra en palizadas y riscos hondos. Métele señuelos tipo jig con trailer o una lombriz en arreglo Texas en verde calabaza, y déjalo caer lento pegadito al fondo.`,
+      `Para el robalo en esteros: checa las caídas de marea. Cuando el agua baja y arrastra camarones y lisitas por las bocas de los canales, colócate contra corriente y tira curricanes tipo suspending o jigs de pelo blanco.`,
+      `Atención con el líder de fluorocarbono: nunca unas el trenzado directo al señuelo en agua salada. Un tramo de metro y medio de fluorocarbono de treinta o cuarenta libras te da invisibilidad y aguanta la rasposa boca del pez.`,
+      `Para pescar en el mar al amanecer: nada supera la emoción de un señuelo de superficie tipo popper o paseante. Muévelo con tirones secos para que salpique agua; el ataque del jurel o dorado en superficie es una chulada.`,
+      `Cuidado con los anzuelos: después de una salida al mar, enjuaga tus señuelos con agua dulce tibia y sécalos bien. Si un anzuelo pierde filo, afílalo o cámbialo por un anzuelo nuevo para no perder la captura de tu vida.`,
+      `Ajuste del freno del carrete: regúlalo al veinticinco o treinta por ciento de la resistencia de tu línea antes de tirar el primer lance. Si lo dejas muy apretado el pez te va a reventar el hilo en la primera corrida.`,
+      `En la pesca con señuelos plásticos: la mayoría de los piques se dan en la caída libre del señuelo. Mantén la vista fija en el hilo; si ves un jalón o un brinco raro en la línea, clava la vara con decisión.`,
+      `Tip de troleo costero: mantén la lancha a una velocidad de cuatro a seis nudos según el señuelo. Las plumas y cucharas funcionan de maravilla dejando una línea corta pegada a la estela y otra más larga en agua limpia.`,
+      `Para la curvina en playa o estero: busca las zonas donde rompe la ola y se forman canalizos hondos de agua revuelta. Ahí es donde las curvinas esperan que la resaca les arrastre comida. Una cuchara dorada o camarón de goma es matón.`,
+      `Al terminar tu jornada de pesca: nunca guardes tu carrete con el freno apretado al tope. Afloja la estrella o la perilla frontal para que los discos descansen y conserven su suavidad para la próxima batalla.`,
+      `En la pesca con señuelos ligeros: el viento de frente puede ser tu aliado. El viento empuja el plancton y los peces chicos hacia la orilla donde estás parado, trayendo a los depredadores grandes a tiro de lance.`,
+      `El color del señuelo manda según el agua: en agua cristalina usa tonos naturales como plateado, humo, azul o blanco; en aguas turbias o revueltas, saca los colores chillones como amarillo chartreuse, naranja o rojo fuego.`
+    ],
+    RESERVOIR_UPDATE:[
+      `Reporte de presas en Sinaloa: para los pescadores que frecuentan la presa Sanalona en Culiacán, la lobina se está moviendo bien en las puntas de cerro y las entradas de agua limpia. Buen momento para plásticos oscuros temprano.`,
+      `En la presa Picachos cerca de Mazatlán, la actividad deportiva sigue siendo de campeonato. Gran cantidad de capturas de lobina trofeo en coberturas de árboles sumergidos. Si van para allá, lleven varas de acción media pesada con buen trenzado.`,
+      `Vámonos a la presa El Salto: una de las mecas mundiales de la lobina. Con los niveles actuales de agua, los peces se concentran en las estructuras principales y caídas pronunciadas. Los curricanes de paletón hondo están dando excelentes resultados.`,
+      `Para la plebada que visita la presa Gustavo Díaz Ordaz, el Bacurato: famosa por sus lobinas monstruosas. Les recomendamos pescar las mañanas con señuelos de superficie grandes o swimbaits pegados a las paredes de roca.`,
+      `En la presa Adolfo López Mateos, El Varejonal: excelente opción para lobina, tilapia y bagre. Salgan temprano, respeten los límites de navegación y dejen limpias las orillas para conservar nuestros ecosistemas.`,
+      `Recomendación para pesca en presa: siempre revisen su motor fuera de borda y lleven su troleador con buena carga. En las presas de Sinaloa el calor aprieta al mediodía, así que su hielera con hielo y bebidas de Terrapesca es obligatoria.`
+    ],
+    BUEN_FIN_MINI:[
+      `¡Recordatorio del Buen Fin en Terrapesca! Si te llevas una vara y un carrete en el mismo ticket, ¡ambos se van con veinte por ciento de descuento parejo! Aplica también en carretes Shimano. Arma tu combo hoy mismo en Terrapesca.`,
+      `¡Aprovecha el Gran Buen Fin en Terrapesca! Cincuenta por ciento de descuento en gorras seleccionadas y treinta por ciento en ropa técnica y jerseys con protección solar. Equípate con lo mejor al mejor precio.`,
+      `Atención kayakistas: en este Buen Fin tu próximo kayak de pesca te espera con diez por ciento de descuento directo o llévatelo a seis meses sin intereses en Terrapesca. ¡Conquista el agua con Costa Kayaks!`,
+      `Gran venta Buen Fin en Terrapesca: señuelos con hasta cuarenta por ciento de descuento y cañas de pesca con rebajas de hasta el cuarenta por ciento. Renueva tu caja con equipo ganador.`,
+      `¡Mantén el frío por días enteros! Este Buen Fin aprovecha quince por ciento de descuento en hieleras de alto rendimiento, termos térmicos, navajas y artículos de camping en Terrapesca. ¡Visítanos!`,
+      `No dejes pasar el combo estrella del Buen Fin en Terrapesca: carrete más vara con veinte por ciento parejo. El momento ideal para estrenar equipo de primera calidad.`
+    ],
+    SAFETY_TIP:[
+      `Consejo de seguridad en el agua: el chaleco salvavidas no salva vidas si se queda guardado en la bodega. Póntelo siempre antes de encender el motor o subirte al kayak, especialmente con viento o marejada.`,
+      `Antes de zarpar al mar o a la presa: avisa siempre a alguien en tierra a qué zona vas y a qué hora planeas regresar. Además, verifica que tu radio VHF o teléfono tengan batería completa.`,
+      `Seguridad en lancha: conecta siempre el corta-corriente de seguridad al chaleco o a tu muñeca. Si por un oleaje inesperado caes al agua, el motor se apagará de inmediato evitando un accidente grave.`,
+      `Para los amigos del kayak de pesca: no salgan sin su silbato marítimo de emergencia, bandera de alta visibilidad y luz de 360 grados si van a navegar al amanecer o anochecer. La prevención es tu mejor aliada.`,
+      `En días de calor intenso en Sinaloa: la deshidratación y el golpe de calor llegan sin avisar. Toma agua constantemente aunque no sientas sed y usa ropa técnica de manga larga con protección ultravioleta.`,
+      `Revisión preventiva antes de botar la embarcación: tapón de achique bien puesto, bomba funcionando, ancla con cabo suficiente y extintor vigente a bordo. Navega seguro con Radio Terrapesca.`
+    ],
+    GEAR_TIP:[
+      `Hablemos de líneas de pesca: el hilo trenzado te da cero elasticidad y máxima sensibilidad para sentir el pique más tímido, pero recuerda siempre usar un líder de fluorocarbono para darle amortiguación a la pelea y evitar cortes.`,
+      `¿Varas de grafito o fibra de vidrio? El grafito te da ligereza y sensibilidad extrema para sentir la estructura del fondo; la fibra de vidrio te da flexibilidad y resistencia para señuelos de paletón grande y troleo pesado. En Terrapesca te asesoramos.`,
+      `Cuidado de tus carretes después del agua salada: nunca los enjuagues a presión con manguera, porque el agua puede meter la sal dentro de los baleros. Usa un rociador suave de agua dulce con el freno apretado, seca con toalla y lubrica los puntos clave.`,
+      `Para la pesca en kayak: busca varas de siete a siete pies y medio de largo con culata corta. Te darán el alcance perfecto para pasar la línea de un lado a otro del kayak sin atorarte con el asiento.`,
+      `¿Sabías que los anzuelos circulares aumentan la supervivencia del pez en captura y libera? Al morder la carnada viva, el anzuelo circular se desliza y se clava justo en la comisura de la boca, evitando que el pez se lo trague.`
+    ],
+    TIDE_REPORT:[
+      `Reporte de mareas para la costa sinaloense: el movimiento del agua marca el apetito de los peces. Aprovecha las dos horas antes y después del cambio de marea en esteros y bocas para tus mejores lances.`,
+      `Condiciones de marea en el Pacífico: con marea llena, los peces entran a comer a las bahías y marismas; con marea bajando, colócate en los canales de salida para atrapar a los depredadores al acecho.`,
+      `Navegación y mareas: recuerda calcular la profundidad en zonas de bajos y bancos de arena al bajar la marea para no encallar tu motor o kayak. Pesca informado con Radio Terrapesca.`
     ],
     PROMO_TEASER:[
-      `En Terrapesca tienes todo para tu próxima jornada. Acércate y equípate.`,
-      `¿Buscas equipo? Nuestros asesores en Terrapesca te ayudan a elegir lo adecuado.`,
-      `Cañas, carretes, líneas y señuelos: encuéntralo en Terrapesca.`
-    ],
-    VENTA_NOCTURNA:[`Este ${CAMPAIGN.eventDate} es la Venta Nocturna Terrapesca. Culiacán de 9 a 5, Mazatlán y Los Mochis de 6 a 10. Un solo día.`],
-    VENTA_OPEN:[`¡Bienvenidos a la Venta Nocturna Terrapesca! Arrancamos ahora. Kayaks al 20, combos vara más carrete al 20, señuelos al 15. De 6 a 10 de la noche. Acércate a un colaborador con cualquier pregunta. ${CAMPAIGN.marca}. ${CAMPAIGN.frase}.`],
+      `En Terrapesca tienes todo para tu próxima jornada de aventura: cañas, carretes, kayaks, señuelos y hieleras. Pasa a visitarnos o entra a terrapesca punto com.`,
+      `¿Buscas asesoría para tu próximo equipo de pesca? En Terrapesca te atendemos pescadores de verdad para que te lleves justo lo que necesitas.`,
+      `Desde un anzuelo hasta un kayak totalmente equipado: todo para tu pasión está en Terrapesca Marine and Outdoors.`
+    ]
   };
-  return pick(V[type]||V.TIME_CHECK);
+
+  const pool=V[type]||V.TIME_CHECK;
+  return pickUnused(pool);
 }
 async function testWeather(){const w=await getWeather();toast(`🌤 ${w.city}: ${w.temp!=null?w.temp+'°C':'sin datos'}`,'ok');playDJ('WEATHER_REPORT');}
 
