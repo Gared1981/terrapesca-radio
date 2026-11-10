@@ -652,6 +652,20 @@ input[type=range]::-moz-range-thumb{width:18px;height:24px;border-radius:5px;bac
       <input style="flex:1;padding:8px 10px;border-radius:8px;border:1px solid var(--line2);background:#060d0a;color:var(--txt);font-size:12px" id="spotUrl" placeholder="🔗 O pega enlace de página de producto (opcional)…"/>
       <button onclick="importSpotUrl()" style="padding:8px 12px;border-radius:8px;border:1px solid #2a3a5a;background:#0a1828;color:#6ab4ff;font-size:11px;font-family:var(--mono);cursor:pointer;white-space:nowrap">📥 Importar</button>
     </div>
+    <div style="display:flex;gap:8px;margin-bottom:6px;align-items:center">
+      <label style="font-size:10px;font-family:var(--mono);color:#c9a2ff;font-weight:700;white-space:nowrap">🔥 GUIONES BUEN FIN:</label>
+      <select id="buenFinPresetSel" onchange="applyBuenFinPreset(this.value)" style="flex:1;padding:6px 10px;border-radius:6px;border:1px solid #7b4dd6;background:#140824;color:#f0e6ff;font-size:11px;font-weight:600;cursor:pointer">
+        <option value="">-- Cargar guión perrón del Buen Fin ya redactado --</option>
+        <option value="0">🎣 1. Combo Vara + Carrete (20% Parejo / Especial Shimano)</option>
+        <option value="1">🏷️ 2. Gran Buen Fin Terrapesca (Toda la Tienda)</option>
+        <option value="2">🛶 3. Kayaks de Pesca (10% Descuento o 6 MSI)</option>
+        <option value="3">⚡ 4. Señuelos de Pesca (Hasta 40% de Descuento)</option>
+        <option value="4">🎣 5. Varas y Cañas (25% y 40% de Descuento)</option>
+        <option value="5">⚙️ 6. Carretes y Alianza Shimano (Hasta 20% Descuento)</option>
+        <option value="6">❄️ 7. Hieleras, Termos, Navajas y Camping (15% Descuento)</option>
+        <option value="7">🧢 8. Gorras (50%) y Ropa Técnica con Protección UV (30%)</option>
+      </select>
+    </div>
     <textarea id="spotScript" placeholder="El guión del spot aparecerá aquí. También puedes escribir uno manualmente."></textarea>
     <div class="row2">
       <input id="spotName" placeholder="Nombre del spot (para guardarlo)"/>
@@ -895,13 +909,24 @@ input[type=range]::-moz-range-thumb{width:18px;height:24px;border-radius:5px;bac
 <script src="/core/voice.js"></script>
 <script>
 /* ================= CONFIG (compartida con panel.html) ================= */
+// Credenciales por defecto para VoiceKiller (Locutor Real)
+const DEFAULT_VK_KEY='r69mmhvwcmiqidkh5rcxg0j0d3r1ct4d';
+const DEFAULT_VK_USER='390516e3-a4cf-4015-8498-35eda8fc5cf4';
+try{
+  if(!localStorage.getItem('tp_vk_key')) localStorage.setItem('tp_vk_key', DEFAULT_VK_KEY);
+  if(!localStorage.getItem('tp_vk_user')) localStorage.setItem('tp_vk_user', DEFAULT_VK_USER);
+  if(!localStorage.getItem('tp_engine')) localStorage.setItem('tp_engine', 'voicekiller');
+  if(!localStorage.getItem('tp_vk_voice')) localStorage.setItem('tp_vk_voice', 'Podcaster 1 (es-419)');
+  if(!localStorage.getItem('tp_vk_voice_spot')) localStorage.setItem('tp_vk_voice_spot', 'Commercial Voiceover 1 (es-419)');
+}catch(_){}
+
 const cfg={
   ws:localStorage.getItem('tp_ws')||'',
-  elKey:localStorage.getItem('tp_el')||'',       // legado (ya no se usa para voz)
-  oaiKey:localStorage.getItem('tp_oai')||'',     // OpenAI: voz de DJ Rodo + spots
-  vkKey:localStorage.getItem('tp_vk_key')||'',   // VoiceKiller (motor alterno)
-  vkUser:localStorage.getItem('tp_vk_user')||'',
-  shopDomain:localStorage.getItem('tp_shopify_domain')||'', // Shopify (buscar productos)
+  elKey:localStorage.getItem('tp_el')||'',
+  oaiKey:localStorage.getItem('tp_oai')||'',
+  vkKey:localStorage.getItem('tp_vk_key')||DEFAULT_VK_KEY,
+  vkUser:localStorage.getItem('tp_vk_user')||DEFAULT_VK_USER,
+  shopDomain:localStorage.getItem('tp_shopify_domain')||'',
   shopToken:localStorage.getItem('tp_shopify_token')||'',
   antKey:localStorage.getItem('tp_ant')||'',
   ytKey:localStorage.getItem('tp_yt')||'',
@@ -1378,6 +1403,14 @@ window.onYouTubeIframeAPIReady=buildPlayers;
 function onDeckState(d,e){
   if(e.data===YT.PlayerState.PLAYING){
     clearTimeout(d._bufTimeout);
+    // Si el deck NO es el activo y NO estamos en medio de un crossfade, JAMÁS debe sonar
+    if(d.id!==activeDeck && !_xfading){
+      console.warn('[Studio] Deck inactivo ('+d.id+') intentó sonar fuera de crossfade — silenciando y pausando');
+      try{ d.vol=0; d.player.setVolume(0); d.player.pauseVideo(); }catch(_){}
+      d.playing=false;
+      renderDeck(d.id);
+      return;
+    }
     d.playing=true;
     try{d.dur=d.player.getDuration()||0;}catch(_){}
     updateOnAir();
@@ -1415,11 +1448,16 @@ function startStation(){
   if(!queue.length){toast('Agrega canciones a la cola','error');return;}
   waitReady(()=>{
     queuePos=0; activeDeck=0;
+    try{ decks[1].vol=0; decks[1].player.setVolume(0); decks[1].player.stopVideo(); }catch(_){}
     loadDeck(0,queue[0],true);
     setCrossfader(0);
-    // Preload deck B as soon as it's ready (it may lag deck A a moment)
-    const tryCueB=()=>{ if(queue[1]){ if(decks[1].ready) cueDeck(1,queue[1]);
-      else { let n=0;const iv=setInterval(()=>{n++; if(decks[1].ready){clearInterval(iv);cueDeck(1,queue[1]);} else if(n>40)clearInterval(iv);},300); } } };
+    // Preload deck B en modo CUE (silenciado y en pausa, NUNCA sonando a la vez)
+    const tryCueB=()=>{
+      if(queue[1]){
+        if(decks[1].ready) cueDeck(1,queue[1]);
+        else { let n=0;const iv=setInterval(()=>{n++; if(decks[1].ready){clearInterval(iv);cueDeck(1,queue[1]);} else if(n>40)clearInterval(iv);},300); }
+      }
+    };
     tryCueB();
   });
 }
@@ -1428,37 +1466,40 @@ function loadDeck(id,item,play){
   d.item=item; d.dur=0;
   if(play!==false) _trackPlayed(item.ytId);
   try{
-    d.player.loadVideoById(item.ytId);
-    d.player.setVolume(dvol(d));
-    d.vol=1;
-    if(play!==false){ setTimeout(()=>{try{d.player.playVideo();}catch(_){}} ,200); }
-    else { setTimeout(()=>{try{d.player.pauseVideo();}catch(_){}} ,350); }
+    if(play!==false){
+      d.vol=1;
+      d.player.loadVideoById(item.ytId);
+      d.player.setVolume(dvol(d));
+      setTimeout(()=>{try{d.player.playVideo();}catch(_){}} ,200);
+    } else {
+      // Si play es false, CUE sin reproducir y con volumen 0
+      d.vol=0;
+      try{
+        d.player.setVolume(0);
+        d.player.cueVideoById(item.ytId);
+        d.player.pauseVideo();
+      }catch(_){}
+    }
   }catch(_){}
   renderDeck(id);
   if(play!==false){
     _onTrackStarted(item,id);
-    // Only notify server when this deck is (or will be) the active one
     if(id===activeDeck || !decks[activeDeck===0?1:0].playing){
       _wsPlayTrack(item, 0);
     }
   }
 }
 function cueDeck(id,item){
-  // Cue without playing — zero bandwidth, zero memory overhead.
-  // YouTube will NOT download the video until playVideo() is called.
-  const d=decks[id]; if(!d.ready||!item||d.playing) return;
-  if(d.item?.ytId===item.ytId) return;
+  // Cue sin reproducir: volumen 0 y pausa obligatoria
+  const d=decks[id]; if(!d.ready||!item) return;
+  if(d.playing && d.id===activeDeck) return;
   d.item=item; d.dur=0; d.vol=0;
-  try{ d.player.cueVideoById(item.ytId); d.player.setVolume(0); }catch(_){}
+  try{ d.player.setVolume(0); d.player.cueVideoById(item.ytId); d.player.pauseVideo(); }catch(_){}
   renderDeck(id);
 }
-let _prebufDone=false; // track if we already started the prebuffer for this song
+let _prebufDone=false;
 let _prebufTimeout=null;
 function prebufferNext(item){
-  // Called PREBUFFER_AHEAD seconds before the song ends: start the inactive deck
-  // at vol=0 so YouTube downloads/buffers it before the crossfade begins.
-  // At forced 240p the buffer fills in ~2-3s, so the lead is short and the
-  // crossfade is seamless (no stutter, no silence).
   const other=activeDeck===0?1:0;
   const d=decks[other];
   if(!d.ready||d.playing||_prebufDone) return;
@@ -1467,17 +1508,14 @@ function prebufferNext(item){
   _prebufDone=true;
   d.item=it; d.dur=0; d.vol=0;
   try{
-    d.player.loadVideoById(it.ytId);
     d.player.setVolume(0);
+    d.player.cueVideoById(it.ytId);
+    d.player.pauseVideo();
   }catch(_){}
   renderDeck(other);
-  // Safety: if YouTube stalls loading the inactive deck (never reaches PLAYING),
-  // release the prebuffer lock so the next watcher tick can retry instead of
-  // sitting silent until the next song. The crossfade clears this on success.
   clearTimeout(_prebufTimeout);
   _prebufTimeout=setTimeout(()=>{
     if(_prebufDone && !_xfading && !d.playing){
-      console.warn('[prebuffer] stalled — reset, will retry');
       _prebufDone=false;
     }
   },6000);
@@ -1488,83 +1526,86 @@ function deckPlayPause(id){
   try{
     const st=d.player.getPlayerState();
     if(st===YT.PlayerState.PLAYING){d.player.pauseVideo();}
-    else{d.player.playVideo();activeDeck=id;}
+    else{
+      // Al dar play a este deck, aseguramos que sea el activo y el otro se silencie/pause
+      activeDeck=id;
+      setCrossfader(id===0?0:100);
+      d.vol=1;
+      d.player.setVolume(dvol(d));
+      d.player.playVideo();
+      const other=id===0?1:0;
+      try{ decks[other].vol=0; decks[other].player.setVolume(0); decks[other].player.pauseVideo(); }catch(_){}
+    }
   }catch(_){}
 }
 function deckCueFromQueue(id){
   if(!queue.length){toast('Cola vacía','error');return;}
   const next=nextQueueIndex(queuePos);
-  waitReady(()=>{ loadDeck(id,queue[next],true); queuePos=next; activeDeck=id;
+  waitReady(()=>{ loadDeck(id,queue[next],true); queuePos=next; activeDeck=id; setCrossfader(id===0?0:100);
     const other=id===0?1:0; const after=nextQueueIndex(next);
     if(queue[after]) cueDeck(other,queue[after]);
   });
 }
 
-/* core: crossfade active → other deck (which is preloaded) */
+/* core: crossfade de 10 segundos active → other deck */
 function forceCrossfade(){ if(!_xfading) doCrossfade(); }
 function doCrossfade(){
-  if(_xfading) return; // guard: prevent double-call from 250ms watcher
+  if(_xfading) return;
   const cur=decks[activeDeck];
   const nxt=decks[activeDeck===0?1:0];
   if(!nxt.item){ advanceQueueInto(nxt.id); return; }
   _xfading=true;
-  // Safety net: if the fade never completes (YouTube stall/throw), force-release
-  // the lock after 14s and log it, so the station never freezes silently.
-  const _xfadeSafe=setTimeout(()=>{ if(_xfading){ console.warn('[crossfade] safety timeout fired — forcing release'); _xfading=false; _prebufDone=false; } },14000);
-  console.log('[crossfade] start → "'+(nxt.item.name||nxt.item.ytId)+'"');
+  const _xfadeSafe=setTimeout(()=>{ if(_xfading){ console.warn('[crossfade] timeout 14s'); _xfading=false; _prebufDone=false; } },14000);
+  console.log('[crossfade] arrancando 10s → "'+(nxt.item.name||nxt.item.ytId)+'"');
   try{
-    try{ nxt.player.setVolume(0); }catch(_){}
-    // Deck B may already be playing (prebuffered) — if not, start it now
-    try{ if(nxt.player.getPlayerState()!==1) nxt.player.playVideo(); }catch(_){}
+    nxt.vol=0;
+    try{ nxt.player.setVolume(0); nxt.player.playVideo(); }catch(_){}
   }catch(err){
     console.error('[crossfade] start error:',err&&err.message);
     _xfading=false; clearTimeout(_xfadeSafe); return;
   }
-  setTimeout(()=>{
-    const dur=CROSSFADE_SECS*1000, steps=60, iv=dur/steps; let s=0;
-    const startCur=cur.vol;
-    const nxtItem=nxt.item; // capture before async
-    const t=setInterval(()=>{
-      s++; const p=s/steps;
-      cur.vol=Math.max(0,startCur*(1-p));
-      nxt.vol=Math.min(1,p);
-      try{cur.player.setVolume(dvol(cur));}catch(_){}
-      try{nxt.player.setVolume(dvol(nxt));}catch(_){}
-      // Mueve la perilla del crossfader en tiempo real junto con el audio,
-      // en vez de saltar de golpe al final. Va hacia el deck que entra (nxt).
-      try{ const xf=document.getElementById('xf'); if(xf) xf.value=nxt.id===1?Math.round(p*100):Math.round(100*(1-p)); }catch(_){}
-      if(s>=steps){
-        clearInterval(t); clearTimeout(_xfadeSafe);
-        // Finalize: protect every step so a single throw never leaves _xfading stuck true.
-        try{
-          cur.playing=false; cur.vol=1;
-          try{cur.player.stopVideo();}catch(_){} // full stop on the old deck
-          nxt.vol=1;
-          activeDeck=nxt.id;
-          const foundPos=queue.findIndex(q=>q.ytId===nxtItem.ytId);
-          queuePos=foundPos>=0?foundPos:queuePos; // don't reset to 0 if not found
-          setCrossfader(activeDeck===0?0:100);
-          const after=nextQueueIndex(queuePos);
-          if(queue.length>1 && queue[after]) cueDeck(cur.id,queue[after]);
-          _trackPlayed(nxtItem.ytId);
-          _onTrackStarted(nxtItem,nxt.id); // historial + biblioteca (antes el auto-mix no registraba historial)
-          renderQueue();
-          let _syncPos=0; try{_syncPos=nxt.player.getCurrentTime()||0;}catch(_){}
-          _wsPlayTrack(nxtItem, _syncPos);
-          console.log('[crossfade] done → deck '+(activeDeck?'B':'A')+' "'+(nxtItem.name||nxtItem.ytId)+'"');
-          // Si había una intervención pendiente, suena ahora sobre la canción nueva.
-          if(_pendingDJItem){ const _it=_pendingDJItem; _pendingDJItem=null; setTimeout(()=>_runIntervention(_it),700); }
-        }catch(err){
-          console.error('[crossfade] finalize error:',err&&err.message);
-        }finally{
-          // Always release locks, even if finalize threw.
-          _xfading=false;
-          _prebufDone=false; // reset so next song can prebuffer
-          clearTimeout(_prebufTimeout);
-        }
+  const durMs=CROSSFADE_SECS*1000; // 10 segundos
+  const steps=50, iv=durMs/steps; let s=0;
+  const startCur=cur.vol;
+  const nxtItem=nxt.item;
+  const t=setInterval(()=>{
+    s++; const p=s/steps;
+    cur.vol=Math.max(0, startCur*(1-p));
+    nxt.vol=Math.min(1, p);
+    try{cur.player.setVolume(dvol(cur));}catch(_){}
+    try{nxt.player.setVolume(dvol(nxt));}catch(_){}
+    try{
+      const xf=document.getElementById('xf');
+      if(xf) xf.value=nxt.id===1?Math.round(p*100):Math.round(100*(1-p));
+    }catch(_){}
+    if(s>=steps){
+      clearInterval(t); clearTimeout(_xfadeSafe);
+      try{
+        cur.playing=false; cur.vol=0;
+        try{cur.player.stopVideo();}catch(_){}
+        nxt.vol=1;
+        activeDeck=nxt.id;
+        const foundPos=queue.findIndex(q=>q.ytId===nxtItem.ytId);
+        queuePos=foundPos>=0?foundPos:queuePos;
+        setCrossfader(activeDeck===0?0:100);
+        const after=nextQueueIndex(queuePos);
+        if(queue.length>1 && queue[after]) cueDeck(cur.id,queue[after]);
+        _trackPlayed(nxtItem.ytId);
+        _onTrackStarted(nxtItem,nxt.id);
+        renderQueue();
+        let _syncPos=0; try{_syncPos=nxt.player.getCurrentTime()||0;}catch(_){}
+        _wsPlayTrack(nxtItem, _syncPos);
+        console.log('[crossfade] 10s completado → deck '+(activeDeck?'B':'A'));
+        if(_pendingDJItem){ const _it=_pendingDJItem; _pendingDJItem=null; setTimeout(()=>_runIntervention(_it),700); }
+      }catch(err){
+        console.error('[crossfade] finalize error:',err&&err.message);
+      }finally{
+        _xfading=false;
+        _prebufDone=false;
+        clearTimeout(_prebufTimeout);
       }
-    },iv);
-  },400);
+    }
+  },iv);
 }
 function advanceQueueInto(id){
   const next=nextQueueIndex(queuePos);
@@ -1581,16 +1622,16 @@ function advanceNoXfade(){
   else advanceQueueInto(other);
 }
 
-/* AUTO-MIX watcher: when active deck nears end, run DJ (optional) then crossfade */
+/* AUTO-MIX watcher: crossfade de 10s al acercarse al final */
 setInterval(()=>{
   const d=decks[activeDeck];
   if(!d||!d.playing||_xfading||djActive) return;
   let ct=0,dur=0;
   try{ct=d.player.getCurrentTime()||0;dur=d.player.getDuration()||0;}catch(_){return;}
   d.dur=dur; updateDeckTime(d.id,ct,dur);
-  if(!flags.auto||dur<=0) return;
+  // Solo actuar si dur > 10s y ya avanzó al menos 8s (evita que arranquen las dos juntas al inicio)
+  if(!flags.auto||dur<=CROSSFADE_SECS||ct<8) return;
   const rem=dur-ct;
-  // Pre-buffer next song before end so YouTube downloads it before the crossfade
   if(rem<=PREBUFFER_AHEAD && rem>CROSSFADE_SECS && !_prebufDone){
     const other=activeDeck===0?1:0;
     const after=nextQueueIndex(queuePos);
@@ -1598,9 +1639,6 @@ setInterval(()=>{
     if(next) prebufferNext(next);
   }
   if(rem<=CROSSFADE_SECS && rem>0){
-    // SIEMPRE hacemos el crossfade suave (10s antes del final). Si toca
-    // intervención, la guardamos y suena ENCIMA de la nueva canción (ducked)
-    // al terminar el crossfade — así el spot nunca corta la canción a la mitad.
     if(flags.dj && djShouldFire()) _pendingDJItem=nextDJItem();
     doCrossfade();
   }
@@ -1619,10 +1657,10 @@ setInterval(()=>{
   drawVU();
 },300);
 
-/* ================= DUCKING ================= */
+/* ================= DUCKING & RAMPAS (RADIO MODERNA) ================= */
 function duckTo(level,ms=400){
   const d=decks[activeDeck]; if(!d||!d.ready) return;
-  const start=d.vol, steps=15, iv=ms/steps; let s=0;
+  const start=d.vol, steps=18, iv=Math.max(15, ms/steps); let s=0;
   clearInterval(window._duck);
   window._duck=setInterval(()=>{s++;const p=s/steps;
     d.vol=start+(level-start)*p;
@@ -1631,25 +1669,32 @@ function duckTo(level,ms=400){
   },iv);
 }
 function unduck(ms=900){ duckTo(1,ms); }
-// Para SPOTS: baja el volumen a 0 y PAUSA la canción (no solo la agacha).
-function fadeOutAndPause(ms=900){
+// Para SPOTS: baja el volumen a 0 y pausa la canción suavemente
+function fadeOutAndPause(ms=600){
   const d=decks[activeDeck]; if(!d||!d.ready) return;
-  const start=d.vol, steps=15, iv=ms/steps; let s=0;
+  const start=d.vol, steps=15, iv=Math.max(15, ms/steps); let s=0;
   clearInterval(window._duck);
   window._duck=setInterval(()=>{ s++; const p=s/steps; d.vol=Math.max(0,start*(1-p));
     try{d.player.setVolume(dvol(d));}catch(_){}
     if(s>=steps){ clearInterval(window._duck); try{d.player.pauseVideo();}catch(_){} d.playing=false; }
   },iv);
 }
-// Al terminar el spot: reanuda la canción y sube el volumen (fade in).
-function fadeInAndResume(ms=900){
+// Radio moderna: arranca la música y sube gradualmente el volumen antes de que termine el spot
+function fadeInAndResume(ms=2800){
   const d=decks[activeDeck]; if(!d||!d.ready) return;
-  try{ d.player.playVideo(); d.playing=true; }catch(_){}
-  const steps=15, iv=ms/steps; let s=0;
+  try{
+    d.player.setVolume(0);
+    d.player.playVideo();
+    d.playing=true;
+  }catch(_){}
+  const start=d.vol||0;
+  const steps=28, iv=Math.max(20, ms/steps); let s=0;
   clearInterval(window._duck);
-  window._duck=setInterval(()=>{ s++; const p=s/steps; d.vol=Math.min(1,p);
+  window._duck=setInterval(()=>{
+    s++; const p=s/steps;
+    d.vol=Math.min(1, start + (1 - start)*p);
     try{d.player.setVolume(dvol(d));}catch(_){}
-    if(s>=steps){ clearInterval(window._duck); d.vol=1; }
+    if(s>=steps){ clearInterval(window._duck); d.vol=1; try{d.player.setVolume(dvol(d));}catch(_){} }
   },iv);
 }
 
@@ -1833,14 +1878,17 @@ async function playDJ(type){
     const ab=await synthTTS(script||'',{voice:djVoice()});
     setDJState('al aire');
     _wsSpotAudio(ab, `🎙️ DJ Rodo — ${type}`); // relay voice to sucursales
-    if(flags.duck) duckTo(0.18);
+    if(flags.duck) duckTo(0.12, 350);
     // Play stinger before Rodo speaks
     await playStinger();
-    await playClip(URL.createObjectURL(new Blob([ab],{type:'audio/mpeg'})));
+    await playClip(URL.createObjectURL(new Blob([ab],{type:'audio/mpeg'})), ()=>{
+      // Rampa gradual de música 2.4s antes del final de la voz
+      if(flags.duck) duckTo(1.0, 2400);
+    });
   }catch(e){ if(e&&e.message&&e.message!=='no key') toast('No se generó la voz: '+e.message,'error'); }
   finally{
     console.log('[Rodo] DJ ended — restoring music');
-    if(flags.duck) unduck();
+    if(flags.duck) duckTo(1.0, 450);
     djActive=false; setDJState('standby');
     if(_endedDuringDJ && !_xfading){ console.log('[Rodo] song ended during DJ — advancing'); advanceNoXfade(); }
     else { _resumeActiveDeckIfStalled(); }
@@ -1852,15 +1900,35 @@ async function playDJ(type){
     setTimeout(()=>{ if(!_xfading) _wsSendCurrentState(); }, 300);
   }
 }
-function playClip(url){
+function playClip(url, onNearEnd){
   return new Promise(res=>{
-    // Stop any existing DJ/spot audio before starting new one
+    // Detener cualquier audio previo de DJ/spot antes de iniciar nuevo
     if(_djAudio){try{_djAudio.pause();_djAudio.src='';}catch(_){}_djAudio=null;}
     const a=new Audio(url);_djAudio=a;
-    a.volume=master; // respect master fader
-    let done=false;const fin=()=>{if(done)return;done=true;try{URL.revokeObjectURL(url);}catch(_){}_djAudio=null;res();};
-    a.onended=fin;a.onerror=fin;a.play().catch(fin);
-    setTimeout(fin,45000);
+    a.volume=master; // respeta el fader master
+    let done=false, nearEndFired=false;
+    const triggerNearEnd=()=>{
+      if(nearEndFired) return;
+      nearEndFired=true;
+      if(typeof onNearEnd==='function'){
+        try{ onNearEnd(); }catch(e){ console.warn('[playClip] onNearEnd err:',e); }
+      }
+    };
+    // Radio moderna: 2.8s antes de terminar el spot/clip, se dispara la rampa musical
+    a.ontimeupdate=()=>{
+      if(!nearEndFired && a.duration && (a.duration - a.currentTime <= 2.8)){
+        triggerNearEnd();
+      }
+    };
+    const fin=()=>{
+      if(done)return;
+      done=true;
+      triggerNearEnd();
+      try{URL.revokeObjectURL(url);}catch(_){}_djAudio=null;
+      res();
+    };
+    a.onended=fin; a.onerror=fin; a.play().catch(fin);
+    setTimeout(fin,55000);
   });
 }
 async function playSpot(){
@@ -1876,13 +1944,22 @@ async function playSpot(){
     document.getElementById('djNow').textContent='📢 '+(sp.name||'Spot Terrapesca');
     pushHistory({name:sp.name||'Spot',artist:'Spot publicitario',spot:true});
     _wsSpotAudio(arr.buffer, sp.name||'Spot Terrapesca', mime);
-    if(flags.duck) fadeOutAndPause(); // el spot: la canción baja y se PAUSA
+    // Spot: la canción baja suavemente y se pausa
+    if(flags.duck) fadeOutAndPause(600);
     if(!baked && sp.bed && sp.bed!=='none') playSpotBed(sp.bed); // spots viejos: fondo en vivo
-    await playClip(URL.createObjectURL(new Blob([arr],{type:mime})));
-  }catch(e){}
+    // Radio moderna: 2.8s antes de que termine el spot, reanuda la canción y sube gradualmente
+    await playClip(URL.createObjectURL(new Blob([arr],{type:mime})), ()=>{
+      console.log('[Radio] Rampa musical gradual antes de que finalice el spot…');
+      if(flags.duck) fadeInAndResume(2800);
+    });
+  }catch(e){
+    console.warn('[Spot] Error reproduciendo spot:',e);
+  }
   finally{
     console.log('[Rodo] spot ended — restoring music');
-    if(flags.duck) fadeInAndResume(); // al terminar: reanuda con fade in
+    if(flags.duck && decks[activeDeck] && decks[activeDeck].vol < 0.95){
+      fadeInAndResume(800);
+    }
     stopSpotBed();
     djActive=false; setDJState('standby');
     if(_endedDuringDJ && !_xfading){ console.log('[Rodo] song ended during spot — advancing'); advanceNoXfade(); }
@@ -3025,6 +3102,51 @@ TITULO: [título creativo y corto del spot, máximo 6 palabras, en español]
 GUION: [texto final del spot listo para narrar, sin etiquetas]`;
 }
 
+const BUEN_FIN_PRESETS=[
+  {
+    name:'Combo Vara y Carrete 20% Parejo',
+    script:'¡Ponte bien trucha este Buen Fin en Terrapesca con la jugada maestra! Si te llevas una vara y un carrete en el mismo ticket, ¡los dos califican automáticamente con el veinte por ciento de descuento parejo! Sí, escuchaste bien: aplica incluso para carretes Shimano, que solos tienen el quince, pero en combo suben directo al veinte por ciento. Arma la combinación perfecta para tu próxima salida. ¡Corre a Terrapesca o compra en terrapesca punto com! Terrapesca: ¡equipa tu aventura!'
+  },
+  {
+    name:'Gran Buen Fin Terrapesca',
+    script:'¡Atención Sinaloa! Arrancó el Gran Buen Fin en Terrapesca y los descuentos están que arden. Cincuenta por ciento en gorras seleccionadas, treinta por ciento en ropa técnica y jerseys, quince por ciento en hieleras y termos, y rebajas de hasta el cuarenta por ciento en varas y señuelos. No te quedes fuera, porque las mejores piezas se van volando. ¡Visítanos hoy mismo en tu sucursal más cercana o en terrapesca punto com! Terrapesca: ¡equipa tu aventura!'
+  },
+  {
+    name:'Kayaks 10% o 6 Meses Sin Intereses',
+    script:'¿Listo para conquistar esteros, presas y mar abierto? En este Buen Fin, el kayak de tus sueños te espera en Terrapesca. Llévatelo con diez por ciento de descuento directo o págalo cómodamente a seis meses sin intereses. Estabilidad inigualable, resistencia marina y el mejor equipamiento para tus travesías. Haz de cada salida una expedición épica. ¡Elige tu kayak hoy en Terrapesca! Terrapesca: ¡equipa tu aventura!'
+  },
+  {
+    name:'Señuelos de Pesca Hasta 40% Off',
+    script:'Si buscas ese pique violento que hace vibrar el agua y cantar el carrete, este Buen Fin tienes que surtir tu caja en Terrapesca. Señuelos de las mejores marcas mundiales con veinte, veinticinco y hasta cuarenta por ciento de descuento. Curricanes, plásticos, jigs y poppers listos para la acción en agua dulce o salada. Renueva tu arsenal al mejor precio. ¡Te esperamos en Terrapesca! Terrapesca: ¡equipa tu aventura!'
+  },
+  {
+    name:'Varas y Cañas 25% y 40% Off',
+    script:'Siente cada toque y domina la pelea con las mejores varas del mercado. Este Buen Fin en Terrapesca, aprovecha descuentos del veinticinco y hasta el cuarenta por ciento en cañas seleccionadas para troleo, casteo y spinning. Potencia, sensibilidad y la mejor tecnología en tus manos. ¡Ven y prueba tu próxima vara hoy mismo en Terrapesca! Terrapesca: ¡equipa tu aventura!'
+  },
+  {
+    name:'Carretes y Alianza Shimano 20%',
+    script:'La suavidad, el freno y la precisión que exigen los pescadores de verdad están en Terrapesca. En este Buen Fin, llévate carretes con hasta veinte por ciento de descuento. Y ojo: si armas tu combo de vara más carrete Shimano, ¡tu carrete sube automáticamente al veinte por ciento parejo! No compres a ciegas, invierte en equipo de campeonato. ¡Encuéntralo en Terrapesca! Terrapesca: ¡equipa tu aventura!'
+  },
+  {
+    name:'Hieleras, Camping y Navajas 15%',
+    script:'Para el sol bravo de Sinaloa y las jornadas pesadas en el monte, la presa o altamar, necesitas equipo que nunca te deje tirado. Este Buen Fin aprovecha quince por ciento de descuento en hieleras de alto rendimiento, termos térmicos indestructibles, navajas tácticas y artículos de campamento. Mantén tus capturas y bebidas heladas por días. ¡Equípate al cien en Terrapesca! Terrapesca: ¡equipa tu aventura!'
+  },
+  {
+    name:'Gorras 50% y Ropa Técnica 30%',
+    script:'¡Protégete del calor y luce el mejor estilo pescador! Este Buen Fin en Terrapesca, aprovecha un descuentazo del cincuenta por ciento en gorras seleccionadas y treinta por ciento en ropa técnica y jerseys de secado rápido con protección solar. Máxima frescura y durabilidad para tus días de sol. Viste como los profesionales. ¡Pasa hoy mismo a Terrapesca! Terrapesca: ¡equipa tu aventura!'
+  }
+];
+
+function applyBuenFinPreset(val){
+  if(val===''||val==null) return;
+  const p=BUEN_FIN_PRESETS[parseInt(val,10)];
+  if(!p) return;
+  document.getElementById('spotName').value=p.name;
+  document.getElementById('spotScript').value=p.script;
+  document.getElementById('spotEstilo').value='buen_fin';
+  toast('Guión cargado: '+p.name,'ok');
+}
+
 function setBuenFinTopic(topic){
   const el=document.getElementById('spotTopic');
   if(el) el.value=topic;
@@ -3327,9 +3449,9 @@ function openSettings(){
   sv('cfgSl',localStorage.getItem('tp_slogan')||'La estación oficial de Terrapesca');
   const eng=localStorage.getItem('tp_engine')||'voicekiller';
   sv('cfgEngine',eng);
-  // Precargar la clave de VoiceKiller dada por el usuario
-  sv('cfgVkKey',localStorage.getItem('tp_vk_key')||'r69mmhvwcmiqidkh5rcxg0j0d3r1ct4d');
-  sv('cfgVkUser',localStorage.getItem('tp_vk_user')||'');
+  // Precargar las claves de VoiceKiller dadas por el usuario
+  sv('cfgVkKey',localStorage.getItem('tp_vk_key')||DEFAULT_VK_KEY);
+  sv('cfgVkUser',localStorage.getItem('tp_vk_user')||DEFAULT_VK_USER);
   sv('cfgShopDomain',localStorage.getItem('tp_shopify_domain')||'');
   sv('cfgShopToken',localStorage.getItem('tp_shopify_token')||'');
   _toggleEngineFields(eng);
