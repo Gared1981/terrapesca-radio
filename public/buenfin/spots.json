@@ -40,7 +40,8 @@
       "qr_compra_url": "https://buenfin.terrapescaapi.com/cliente?sucursal=buceo&sku=18803",
       "frase_locutor": "¡El señuelo legendario que nunca falla! Llévate el auténtico Rapala Shad Rap con un insólito cuarenta por ciento de descuento en caja. Escanea el código QR en pantalla para checar precios, apartar tus piezas y registrarte para recibir nuestras promociones y lanzamientos exclusivos antes que nadie. ¡Corre a Terrapesca!",
       "qr_imagen_url": "https://api.qrserver.com/v1/create-qr-code/?size=280x280&margin=6&data=https://buenfin.terrapescaapi.com/cliente?sucursal=buceo&sku=18803",
-      "trigger_pantalla_url": "https://buenfin.terrapescaapi.com/api/v1/buenfin/radio-trigger?spot_id=spot_shadrap_40&sucursal=buceo"
+      "trigger_pantalla_url": "https://buenfin.terrapescaapi.com/api/v1/buenfin/radio-trigger?spot_id=spot_shadrap_40&sucursal=buceo",
+      "video_url": "/buenfin/spot_shadrap_40.mp4"
     },
     {
       "spot_id": "spot_vanford_15",
