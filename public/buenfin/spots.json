@@ -80,7 +80,8 @@
       "qr_compra_url": "https://buenfin.terrapescaapi.com/cliente?sucursal=buceo&sku=40516",
       "frase_locutor": "¿Listo para conquistar el agua? En este Buen Fin llévate tu kayak Tilapia con diez por ciento de descuento o a seis meses sin intereses. Y si se agota, ¡apártalo con precio congelado para entrega en diciembre! Escanea el código QR en pantalla para checar precios, apartar tu kayak e inscribirte para recibir promociones y novedades antes que nadie. ¡Encuéntralo en Terrapesca!",
       "qr_imagen_url": "https://api.qrserver.com/v1/create-qr-code/?size=280x280&margin=6&data=https://buenfin.terrapescaapi.com/cliente?sucursal=buceo&sku=40516",
-      "trigger_pantalla_url": "https://buenfin.terrapescaapi.com/api/v1/buenfin/radio-trigger?spot_id=spot_kayak_tilapia&sucursal=buceo"
+      "trigger_pantalla_url": "https://buenfin.terrapescaapi.com/api/v1/buenfin/radio-trigger?spot_id=spot_kayak_tilapia&sucursal=buceo",
+      "video_url": "/buenfin/spot_kayak_tilapia.mp4"
     },
     {
       "spot_id": "spot_maja_30",
