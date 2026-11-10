@@ -1325,15 +1325,62 @@ function searchYouTubeNoKey(q) {
     return;
   }
 
-  // Buen Fin assets (fotos, QRs, audios locales de spots)
+  // Buen Fin assets (fotos, QRs, audios locales de spots, videos MP4)
   {
     const mBf = (req.url.split('?')[0]).match(/^\/buenfin\/([a-z0-9_\-.]+)$/i);
     if (mBf) {
       const bPath = path.join(__dirname, 'public', 'buenfin', mBf[1]);
       if (fs.existsSync(bPath)) {
         const ext = path.extname(bPath).toLowerCase();
-        const types = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.mp3': 'audio/mpeg', '.json': 'application/json' };
-        res.writeHead(200, { 'Content-Type': types[ext] || 'application/octet-stream', 'Cache-Control': 'public, max-age=86400', 'Access-Control-Allow-Origin': '*' });
+        const types = {
+          '.jpg': 'image/jpeg',
+          '.jpeg': 'image/jpeg',
+          '.png': 'image/png',
+          '.mp3': 'audio/mpeg',
+          '.mp4': 'video/mp4',
+          '.webm': 'video/webm',
+          '.json': 'application/json'
+        };
+        const stat = fs.statSync(bPath);
+        const contentType = types[ext] || 'application/octet-stream';
+
+        if (req.method === 'HEAD') {
+          res.writeHead(200, {
+            'Content-Type': contentType,
+            'Content-Length': stat.size,
+            'Accept-Ranges': 'bytes',
+            'Cache-Control': 'public, max-age=86400',
+            'Access-Control-Allow-Origin': '*'
+          });
+          res.end();
+          return;
+        }
+
+        const range = req.headers.range;
+        if (range && ext === '.mp4') {
+          const parts = range.replace(/bytes=/, "").split("-");
+          const start = parseInt(parts[0], 10);
+          const end = parts[1] ? parseInt(parts[1], 10) : stat.size - 1;
+          const chunksize = (end - start) + 1;
+          const file = fs.createReadStream(bPath, { start, end });
+          res.writeHead(206, {
+            'Content-Range': `bytes ${start}-${end}/${stat.size}`,
+            'Accept-Ranges': 'bytes',
+            'Content-Length': chunksize,
+            'Content-Type': contentType,
+            'Access-Control-Allow-Origin': '*'
+          });
+          file.pipe(res);
+          return;
+        }
+
+        res.writeHead(200, {
+          'Content-Type': contentType,
+          'Content-Length': stat.size,
+          'Accept-Ranges': 'bytes',
+          'Cache-Control': 'public, max-age=86400',
+          'Access-Control-Allow-Origin': '*'
+        });
         fs.createReadStream(bPath).pipe(res);
         return;
       }

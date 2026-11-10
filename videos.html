@@ -818,8 +818,8 @@
       spotPhotoEl.src = '/buenfin/' + s.spot_id + '.jpg';
       document.getElementById('spotQR').src = '/buenfin/' + s.spot_id + '_qr.png';
 
-      // Revisar si existe video generado por IA (spot_id.mp4)
-      checkVideoAvailable(s.spot_id);
+      // Revisar si existe video generado por IA (spot_id.mp4 o video_url)
+      checkVideoAvailable(s.spot_id, s.video_url);
 
       // Audio oficial VoiceKiller
       audioEl.src = '/buenfin/' + s.spot_id + '.mp3';
@@ -837,8 +837,15 @@
     }
 
     // Si el usuario sube un video MP4 para el spot, se activa automáticamente
-    function checkVideoAvailable(spotId) {
-      const videoSrc = '/buenfin/' + spotId + '.mp4';
+    function checkVideoAvailable(spotId, directVideoUrl) {
+      const videoSrc = directVideoUrl || ('/buenfin/' + spotId + '.mp4');
+      if (directVideoUrl) {
+        spotVideoEl.src = directVideoUrl;
+        spotVideoEl.style.display = 'block';
+        spotPhotoEl.style.display = 'none';
+        spotVideoEl.play().catch(() => {});
+        return;
+      }
       fetch(videoSrc, { method: 'HEAD' })
         .then(res => {
           if (res.ok) {

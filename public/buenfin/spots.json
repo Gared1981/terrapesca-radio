@@ -20,7 +20,8 @@
       "qr_compra_url": "https://buenfin.terrapescaapi.com/cliente?sucursal=buceo&sku=20270",
       "frase_locutor": "¡Atención aventureros y pescadores de Sinaloa! Durante este Buen Fin, todas las gorras Terrapesca tienen cincuenta por ciento de descuento directo. Escanea el código QR en pantalla para consultar precios, apartar tu gorra y registrarte para recibir las mejores promociones y novedades antes que nadie. ¡Visítanos en Terrapesca: equipa tu aventura!",
       "qr_imagen_url": "https://api.qrserver.com/v1/create-qr-code/?size=280x280&margin=6&data=https://buenfin.terrapescaapi.com/cliente?sucursal=buceo&sku=20270",
-      "trigger_pantalla_url": "https://buenfin.terrapescaapi.com/api/v1/buenfin/radio-trigger?spot_id=spot_gorras_50&sucursal=buceo"
+      "trigger_pantalla_url": "https://buenfin.terrapescaapi.com/api/v1/buenfin/radio-trigger?spot_id=spot_gorras_50&sucursal=buceo",
+      "video_url": "/buenfin/spot_gorras_50.mp4"
     },
     {
       "spot_id": "spot_shadrap_40",
