@@ -769,7 +769,7 @@
     // Cargar Spots locales de Buen Fin
     async function loadSpots() {
       try {
-        const r = await fetch('/buenfin/spots.json');
+        const r = await fetch('/buenfin/spots.json?v=' + Date.now());
         const data = await r.json();
         SPOTS = data.spots || data;
         renderNav();
@@ -837,8 +837,8 @@
       // Revisar si existe video generado por IA (spot_id.mp4 o video_url)
       checkVideoAvailable(s.spot_id, s.video_url);
 
-      // Audio oficial VoiceKiller
-      audioEl.src = '/buenfin/' + s.spot_id + '.mp3';
+      // Audio oficial VoiceKiller (con cache busting)
+      audioEl.src = '/buenfin/' + s.spot_id + '.mp3?v=' + Date.now();
 
       // Actualizar dots
       document.querySelectorAll('.nav-dot').forEach((el, i) => {
