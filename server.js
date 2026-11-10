@@ -1325,6 +1325,21 @@ function searchYouTubeNoKey(q) {
     return;
   }
 
+  // Buen Fin assets (fotos, QRs, audios locales de spots)
+  {
+    const mBf = (req.url.split('?')[0]).match(/^\/buenfin\/([a-z0-9_\-.]+)$/i);
+    if (mBf) {
+      const bPath = path.join(__dirname, 'public', 'buenfin', mBf[1]);
+      if (fs.existsSync(bPath)) {
+        const ext = path.extname(bPath).toLowerCase();
+        const types = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.mp3': 'audio/mpeg', '.json': 'application/json' };
+        res.writeHead(200, { 'Content-Type': types[ext] || 'application/octet-stream', 'Cache-Control': 'public, max-age=86400', 'Access-Control-Allow-Origin': '*' });
+        fs.createReadStream(bPath).pipe(res);
+        return;
+      }
+    }
+  }
+
   // PWA Web App Manifest
   if (urlPath === '/manifest.json') {
     res.writeHead(200, { 'Content-Type': 'application/manifest+json; charset=utf-8' });
@@ -1393,6 +1408,9 @@ function searchYouTubeNoKey(q) {
   } else if (urlPath === '/listen' || urlPath === '/listen.html') {
     filePath = path.join(__dirname, 'listen.html');
     isPublicPage = true;
+  } else if (urlPath === '/tv' || urlPath === '/tv.html' || urlPath === '/pantalla' || urlPath === '/pantalla.html' || urlPath === '/videos' || urlPath === '/videos.html') {
+    filePath = path.join(__dirname, 'videos.html');
+    isPublicPage = true; // Pública para que las pantallas de tienda carguen directo
   }
 
   if (filePath && fs.existsSync(filePath)) {

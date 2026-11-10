@@ -1,0 +1,960 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TERRAPESCA TV — Video Spots Buen Fin 2026</title>
+  <link rel="icon" type="image/png" href="https://cdn.shopify.com/s/files/1/0205/5752/9188/files/Logo-Terrapesca-01_205270e5-d546-4e33-a8d1-db0a91f1e554.png?v=1700262873">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cabinet+Grotesk:wght@700;800;900&family=Plus+Jakarta+Sans:wght@400;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #040914;
+      --card-bg: rgba(10, 20, 36, 0.75);
+      --card-border: rgba(255, 180, 0, 0.25);
+      --gold: #ffbe1a;
+      --gold-glow: rgba(255, 190, 26, 0.5);
+      --red: #ff2a2a;
+      --red-glow: rgba(255, 42, 42, 0.6);
+      --cyan: #00e5ff;
+      --txt: #ffffff;
+      --txt-dim: #94a3b8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--txt);
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      overflow: hidden;
+      width: 100vw;
+      height: 100vh;
+      user-select: none;
+    }
+
+    /* Fondo animado con Canvas de partículas */
+    #bgCanvas {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    /* Contenedor principal de TV (16:9) */
+    .tv-stage {
+      position: relative;
+      z-index: 10;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 2.5vh 3.5vw 2vh;
+      background: radial-gradient(circle at 50% 50%, rgba(13, 27, 50, 0.4) 0%, rgba(4, 9, 20, 0.85) 100%);
+    }
+
+    /* Barra Superior */
+    .top-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 2px solid rgba(255, 190, 26, 0.3);
+      padding-bottom: 1.5vh;
+    }
+    .brand-box {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .brand-logo {
+      height: 5vh;
+      filter: drop-shadow(0 0 12px rgba(255, 42, 42, 0.4));
+    }
+    .campaign-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: linear-gradient(135deg, #ff1a1a, #ff7b00);
+      color: #fff;
+      font-family: 'Cabinet Grotesk', sans-serif;
+      font-weight: 900;
+      font-size: 2.2vh;
+      letter-spacing: 1.5px;
+      padding: 6px 18px;
+      border-radius: 50px;
+      box-shadow: 0 0 25px var(--red-glow);
+      text-transform: uppercase;
+      animation: pulseGlow 2.5s infinite alternate;
+    }
+    @keyframes pulseGlow {
+      from { box-shadow: 0 0 15px rgba(255, 42, 42, 0.5); }
+      to { box-shadow: 0 0 35px rgba(255, 120, 0, 0.85); }
+    }
+    .store-tag {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 1.6vh;
+      color: var(--gold);
+      background: rgba(255, 190, 26, 0.1);
+      border: 1px solid rgba(255, 190, 26, 0.3);
+      padding: 6px 14px;
+      border-radius: 8px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .live-dot {
+      width: 10px; height: 10px; border-radius: 50%;
+      background: #00ff66;
+      box-shadow: 0 0 10px #00ff66;
+      animation: blink 1.2s infinite;
+    }
+    @keyframes blink { 0%,100%{opacity:1;} 50%{opacity:0.3;} }
+
+    /* Área Central de Transmisión (2 Columnas) */
+    .spot-content {
+      display: grid;
+      grid-template-columns: 1.15fr 0.85fr;
+      gap: 3.5vw;
+      align-items: center;
+      flex: 1;
+      padding: 2vh 0;
+      min-height: 0;
+    }
+
+    /* Columna Izquierda: Showcase de Producto */
+    .product-showcase {
+      display: flex;
+      flex-direction: column;
+      gap: 2vh;
+      height: 100%;
+      justify-content: center;
+    }
+    .category-pill {
+      align-self: flex-start;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 1.6vh;
+      font-weight: 700;
+      color: var(--cyan);
+      background: rgba(0, 229, 255, 0.1);
+      border: 1px solid rgba(0, 229, 255, 0.3);
+      padding: 5px 14px;
+      border-radius: 6px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+    .product-title {
+      font-family: 'Cabinet Grotesk', sans-serif;
+      font-size: 5.2vh;
+      font-weight: 900;
+      line-height: 1.1;
+      color: #ffffff;
+      text-shadow: 0 4px 20px rgba(0, 0, 0, 0.8);
+      letter-spacing: -0.5px;
+    }
+    .product-desc {
+      font-size: 2.1vh;
+      color: var(--txt-dim);
+      line-height: 1.4;
+      font-weight: 500;
+    }
+    .isla-pill {
+      align-self: flex-start;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 1.8vh;
+      color: #ffd27d;
+      background: rgba(255, 210, 125, 0.1);
+      border: 1px dashed rgba(255, 210, 125, 0.4);
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-weight: 600;
+    }
+
+    /* Tarjeta Visual de Foto */
+    .product-photo-card {
+      position: relative;
+      background: var(--card-bg);
+      border: 2px solid var(--card-border);
+      border-radius: 20px;
+      padding: 2.5vh;
+      height: 44vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 15px 40px rgba(0, 0, 0, 0.6), inset 0 0 30px rgba(255, 190, 26, 0.05);
+      backdrop-filter: blur(12px);
+      overflow: hidden;
+    }
+    .product-photo-card::after {
+      content: '';
+      position: absolute;
+      top: -50%; left: -50%;
+      width: 200%; height: 200%;
+      background: linear-gradient(45deg, transparent 45%, rgba(255, 255, 255, 0.08) 50%, transparent 55%);
+      animation: sheen 6s infinite;
+      pointer-events: none;
+    }
+    @keyframes sheen {
+      0% { transform: translateY(-100%) rotate(25deg); }
+      20%,100% { transform: translateY(100%) rotate(25deg); }
+    }
+    .product-img {
+      max-height: 100%;
+      max-width: 100%;
+      object-fit: contain;
+      filter: drop-shadow(0 10px 25px rgba(0, 0, 0, 0.8));
+      transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+      animation: kenBurns 18s infinite alternate ease-in-out;
+    }
+    @keyframes kenBurns {
+      0% { transform: scale(1) translate(0, 0); }
+      50% { transform: scale(1.08) translate(-1%, -1%); }
+      100% { transform: scale(1.03) translate(1%, 0.5%); }
+    }
+
+    /* Columna Derecha: Oferta + QR Gigante */
+    .offer-box {
+      display: flex;
+      flex-direction: column;
+      gap: 2vh;
+      height: 100%;
+      justify-content: center;
+    }
+    .deal-card {
+      background: linear-gradient(145deg, rgba(20, 10, 10, 0.85), rgba(30, 15, 15, 0.95));
+      border: 2px solid var(--red);
+      border-radius: 20px;
+      padding: 2.5vh 2.5vw;
+      box-shadow: 0 0 35px rgba(255, 42, 42, 0.35);
+      display: flex;
+      flex-direction: column;
+      gap: 1.5vh;
+    }
+    .discount-ribbon {
+      align-self: flex-start;
+      background: linear-gradient(90deg, #ff1a1a, #ff5500);
+      color: #fff;
+      font-family: 'Cabinet Grotesk', sans-serif;
+      font-size: 3.2vh;
+      font-weight: 900;
+      padding: 6px 20px;
+      border-radius: 8px;
+      box-shadow: 0 4px 15px var(--red-glow);
+      letter-spacing: 1px;
+    }
+    .price-row {
+      display: flex;
+      align-items: baseline;
+      gap: 20px;
+    }
+    .regular-price {
+      font-size: 2.2vh;
+      color: #94a3b8;
+      text-decoration: line-through;
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 600;
+    }
+    .buenfin-price {
+      font-family: 'Cabinet Grotesk', sans-serif;
+      font-size: 6.8vh;
+      font-weight: 900;
+      color: var(--gold);
+      text-shadow: 0 0 25px var(--gold-glow);
+      line-height: 1;
+    }
+    .savings-badge {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 1.8vh;
+      color: #10b981;
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      padding: 6px 14px;
+      border-radius: 8px;
+      font-weight: 700;
+      align-self: flex-start;
+    }
+
+    /* Caja del QR Gigante con Escáner */
+    .qr-card {
+      background: var(--card-bg);
+      border: 2px solid rgba(0, 229, 255, 0.3);
+      border-radius: 20px;
+      padding: 2.5vh 2vw;
+      display: flex;
+      align-items: center;
+      gap: 2.2vw;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+      position: relative;
+      overflow: hidden;
+    }
+    .qr-frame {
+      position: relative;
+      background: #ffffff;
+      padding: 10px;
+      border-radius: 12px;
+      width: 19vh;
+      height: 19vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 25px rgba(255, 255, 255, 0.3);
+      flex-shrink: 0;
+    }
+    .qr-frame img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+    /* Línea láser de escaneo animada */
+    .laser-line {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%;
+      height: 3px;
+      background: linear-gradient(90deg, transparent, #00ffaa, transparent);
+      box-shadow: 0 0 10px #00ffaa;
+      animation: scanLaser 2.2s infinite ease-in-out;
+    }
+    @keyframes scanLaser {
+      0% { top: 6%; opacity: 0; }
+      15% { opacity: 1; }
+      85% { opacity: 1; }
+      100% { top: 92%; opacity: 0; }
+    }
+    .qr-cta {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .qr-pill {
+      background: rgba(0, 229, 255, 0.15);
+      border: 1px solid var(--cyan);
+      color: #e0faff;
+      font-size: 1.9vh;
+      font-weight: 800;
+      padding: 6px 14px;
+      border-radius: 50px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      align-self: flex-start;
+      box-shadow: 0 0 15px rgba(0, 229, 255, 0.3);
+    }
+    .qr-sub {
+      font-size: 1.6vh;
+      color: #94a3b8;
+      line-height: 1.35;
+      font-weight: 500;
+    }
+    .qr-url {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 1.3vh;
+      color: var(--cyan);
+      opacity: 0.85;
+      word-break: break-all;
+    }
+
+    /* Barra Inferior: Subtítulos del Locutor & Temporizador */
+    .bottom-bar {
+      display: flex;
+      flex-direction: column;
+      gap: 1vh;
+      border-top: 1px solid rgba(255, 255, 255, 0.12);
+      padding-top: 1.5vh;
+    }
+    .subtitles-box {
+      background: rgba(0, 0, 0, 0.6);
+      border-left: 4px solid var(--gold);
+      padding: 10px 20px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .audio-wave {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      height: 20px;
+    }
+    .wave-bar {
+      width: 4px;
+      background: var(--gold);
+      border-radius: 2px;
+      animation: wave 0.8s infinite ease-in-out alternate;
+    }
+    .wave-bar:nth-child(1) { height: 8px; animation-delay: 0.1s; }
+    .wave-bar:nth-child(2) { height: 18px; animation-delay: 0.3s; }
+    .wave-bar:nth-child(3) { height: 12px; animation-delay: 0.2s; }
+    .wave-bar:nth-child(4) { height: 20px; animation-delay: 0.4s; }
+    .wave-bar:nth-child(5) { height: 10px; animation-delay: 0.15s; }
+    @keyframes wave { from{transform:scaleY(0.3);} to{transform:scaleY(1.2);} }
+
+    .subtitles-text {
+      font-size: 1.9vh;
+      color: #f1f5f9;
+      font-weight: 600;
+      line-height: 1.3;
+      font-style: italic;
+    }
+    .progress-bar-wrap {
+      width: 100%;
+      height: 6px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .progress-bar {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--red), var(--gold));
+      box-shadow: 0 0 10px var(--gold-glow);
+      transition: width 0.15s linear;
+    }
+
+    /* Barra Flotante de Control (se oculta en modo TV para display limpio) */
+    .controls-overlay {
+      position: absolute;
+      top: 15px;
+      right: 25px;
+      display: flex;
+      gap: 10px;
+      z-index: 100;
+      opacity: 0.25;
+      transition: opacity 0.3s ease;
+      background: rgba(6, 14, 26, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      padding: 8px 14px;
+      border-radius: 50px;
+      backdrop-filter: blur(10px);
+    }
+    .controls-overlay:hover {
+      opacity: 1;
+    }
+    .ctrl-btn {
+      background: rgba(255, 255, 255, 0.1);
+      color: #fff;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      padding: 6px 14px;
+      border-radius: 30px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+    }
+    .ctrl-btn:hover {
+      background: var(--gold);
+      color: #000;
+      border-color: var(--gold);
+    }
+    .ctrl-btn.active {
+      background: var(--red);
+      color: #fff;
+      border-color: var(--red);
+    }
+
+    /* Mini selector de spots */
+    .spots-nav {
+      position: absolute;
+      bottom: 6.5vh;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 10px;
+      z-index: 90;
+      background: rgba(6, 14, 26, 0.9);
+      padding: 6px 14px;
+      border-radius: 40px;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      opacity: 0.2;
+      transition: opacity 0.3s;
+    }
+    .spots-nav:hover { opacity: 1; }
+    .nav-dot {
+      padding: 5px 12px;
+      border-radius: 20px;
+      background: rgba(255, 255, 255, 0.1);
+      color: #94a3b8;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .nav-dot.active {
+      background: var(--gold);
+      color: #000;
+      box-shadow: 0 0 10px var(--gold);
+    }
+
+    /* Grabador en progreso */
+    .recording-indicator {
+      display: none;
+      position: absolute;
+      top: 25px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(255, 0, 0, 0.9);
+      color: #fff;
+      padding: 8px 20px;
+      border-radius: 30px;
+      font-weight: 800;
+      font-size: 13px;
+      z-index: 200;
+      box-shadow: 0 0 20px red;
+      animation: blink 1s infinite;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Canvas para partículas y exportador de video HD -->
+  <canvas id="bgCanvas"></canvas>
+  <canvas id="exportCanvas" width="1920" height="1080" style="display:none;"></canvas>
+
+  <div class="recording-indicator" id="recBadge">🔴 GRABANDO VIDEO SPOT (1080p)... ESPERA UN MOMENTO</div>
+
+  <!-- Controles Superiores Flotantes -->
+  <div class="controls-overlay">
+    <button class="ctrl-btn" id="btnPlayPause" onclick="togglePlay()">▶ Reproducir Spot</button>
+    <button class="ctrl-btn active" id="btnLoop" onclick="toggleLoop()">🔄 Bucle TV (Auto)</button>
+    <button class="ctrl-btn" onclick="exportVideoSpot()" style="color:#00ffaa;border-color:#00ffaa">🎬 Descargar Video MP4</button>
+    <button class="ctrl-btn" onclick="toggleFullscreen()">⛶ Pantalla Completa</button>
+  </div>
+
+  <!-- Selector rápido de Spots -->
+  <div class="spots-nav" id="spotsNav"></div>
+
+  <!-- Escenario TV Principal -->
+  <div class="tv-stage">
+    
+    <!-- Barra Superior -->
+    <header class="top-bar">
+      <div class="brand-box">
+        <img class="brand-logo" src="https://cdn.shopify.com/s/files/1/0205/5752/9188/files/Logo-Terrapesca-01_205270e5-d546-4e33-a8d1-db0a91f1e554.png?v=1700262873" alt="Terrapesca">
+        <div class="campaign-badge">🔥 GRAN BUEN FIN TERRAPESCA 2026</div>
+      </div>
+      <div class="store-tag">
+        <div class="live-dot"></div>
+        <span id="storeName">SUCURSAL BUCEO — EN VIVO</span>
+      </div>
+    </header>
+
+    <!-- Centro: Showcase + Oferta + QR -->
+    <main class="spot-content">
+      
+      <!-- Columna Izquierda -->
+      <section class="product-showcase">
+        <div class="category-pill" id="spotCategory">GORRAS TERRAPESCA</div>
+        <div class="product-photo-card">
+          <img class="product-img" id="spotPhoto" src="/buenfin/spot_gorras_50.jpg" alt="Producto">
+        </div>
+        <div>
+          <h1 class="product-title" id="spotTitle">GORRAS TERRAPESCA TRUCKER AL 50%</h1>
+          <p class="product-desc" id="spotDesc">Gorra Terrapesca Edición Especial Trucker con logo bordado de alta calidad.</p>
+        </div>
+        <div class="isla-pill" id="spotIsla">📍 Isla 1 — Entrada Principal (50% Directo)</div>
+      </section>
+
+      <!-- Columna Derecha -->
+      <section class="offer-box">
+        <div class="deal-card">
+          <div class="discount-ribbon" id="spotDiscount">50% DE DESCUENTO</div>
+          <div class="price-row">
+            <span class="regular-price" id="spotPriceReg">$450.00</span>
+            <span class="buenfin-price" id="spotPriceDeal">$225.00</span>
+          </div>
+          <div class="savings-badge" id="spotSavings">AHORRAS: $225.00 MXN</div>
+        </div>
+
+        <div class="qr-card">
+          <div class="qr-frame">
+            <div class="laser-line"></div>
+            <img id="spotQR" src="/buenfin/spot_gorras_50_qr.png" alt="QR Compra">
+          </div>
+          <div class="qr-cta">
+            <div class="qr-pill">📱 ESCANEA CON TU CELULAR</div>
+            <p class="qr-sub">Apunta tu cámara aquí para apartar o comprar directo antes de que se agote.</p>
+            <span class="qr-url" id="spotQrUrl">terrapescaapi.com/cliente</span>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- Barra Inferior -->
+    <footer class="bottom-bar">
+      <div class="subtitles-box">
+        <div class="audio-wave">
+          <div class="wave-bar"></div>
+          <div class="wave-bar"></div>
+          <div class="wave-bar"></div>
+          <div class="wave-bar"></div>
+          <div class="wave-bar"></div>
+        </div>
+        <div class="subtitles-text" id="spotSubtitles">
+          "¡Atención pescadores y exploradores! Durante este Buen Fin, todas las gorras Terrapesca están al 50% de descuento..."
+        </div>
+      </div>
+      <div class="progress-bar-wrap">
+        <div class="progress-bar" id="progressBar"></div>
+      </div>
+    </footer>
+
+  </div>
+
+  <!-- Audio Player -->
+  <audio id="spotAudio" preload="auto"></audio>
+
+  <script>
+    let SPOTS = [];
+    let currentIdx = 0;
+    let isLooping = true;
+    let isPlaying = false;
+    let spotTimer = null;
+    let progressInterval = null;
+    const SPOT_DURATION_SECS = 22; // 22 segundos por spot en carrusel
+    let secondsElapsed = 0;
+
+    const audioEl = document.getElementById('spotAudio');
+
+    // Cargar Spots locales de Buen Fin
+    async function loadSpots() {
+      try {
+        const r = await fetch('/buenfin/spots.json');
+        const data = await r.json();
+        SPOTS = data.spots || data;
+        renderNav();
+        loadSpot(0, false);
+      } catch (e) {
+        console.error('Error cargando spots:', e);
+      }
+    }
+
+    function renderNav() {
+      const nav = document.getElementById('spotsNav');
+      nav.innerHTML = SPOTS.map((s, i) => `
+        <div class="nav-dot ${i === 0 ? 'active' : ''}" onclick="selectSpot(${i})">
+          ${i + 1}. ${s.categoria || s.spot_id.replace('spot_', '')}
+        </div>
+      `).join('');
+    }
+
+    function loadSpot(idx, autoPlay = true) {
+      if (!SPOTS.length) return;
+      currentIdx = (idx + SPOTS.length) % SPOTS.length;
+      const s = SPOTS[currentIdx];
+
+      // Actualizar UI
+      document.getElementById('spotCategory').textContent = s.categoria.toUpperCase();
+      document.getElementById('spotTitle').textContent = s.titulo;
+      document.getElementById('spotDesc').textContent = s.descripcion;
+      document.getElementById('spotIsla').textContent = '📍 ' + (s.isla || 'Exhibición Buen Fin');
+      document.getElementById('spotDiscount').textContent = s.descuento_pct + '% DE DESCUENTO';
+      document.getElementById('spotPriceReg').textContent = 'REGULAR: $' + Number(s.precio_regular).toFixed(2);
+      document.getElementById('spotPriceDeal').textContent = '$' + Number(s.precio_buenfin).toFixed(2);
+      document.getElementById('spotSavings').textContent = 'AHORRAS: $' + Number(s.ahorro).toFixed(2) + ' MXN';
+      document.getElementById('spotSubtitles').textContent = '"' + s.frase_locutor + '"';
+      document.getElementById('spotQrUrl').textContent = (s.qr_compra_url || '').replace('https://', '');
+
+      // Fotos y QRs locales
+      document.getElementById('spotPhoto').src = '/buenfin/' + s.spot_id + '.jpg';
+      document.getElementById('spotQR').src = '/buenfin/' + s.spot_id + '_qr.png';
+
+      // Audio oficial VoiceKiller
+      audioEl.src = '/buenfin/' + s.spot_id + '.mp3';
+
+      // Nav dots
+      document.querySelectorAll('.nav-dot').forEach((el, i) => {
+        el.classList.toggle('active', i === currentIdx);
+      });
+
+      // Reset barra
+      secondsElapsed = 0;
+      updateProgressBar(0);
+
+      if (autoPlay) {
+        playSpot();
+      }
+    }
+
+    function playSpot() {
+      isPlaying = true;
+      document.getElementById('btnPlayPause').textContent = '⏸ Pausar';
+      audioEl.play().catch(() => {});
+      startProgress();
+    }
+
+    function pauseSpot() {
+      isPlaying = false;
+      document.getElementById('btnPlayPause').textContent = '▶ Reproducir';
+      audioEl.pause();
+      clearInterval(progressInterval);
+    }
+
+    function togglePlay() {
+      if (isPlaying) pauseSpot();
+      else playSpot();
+    }
+
+    function toggleLoop() {
+      isLooping = !isLooping;
+      document.getElementById('btnLoop').classList.toggle('active', isLooping);
+    }
+
+    function selectSpot(i) {
+      loadSpot(i, isPlaying);
+    }
+
+    function startProgress() {
+      clearInterval(progressInterval);
+      const totalSteps = SPOT_DURATION_SECS * 10;
+      let step = 0;
+      progressInterval = setInterval(() => {
+        if (!isPlaying) return;
+        step++;
+        const pct = (step / totalSteps) * 100;
+        updateProgressBar(pct);
+        if (step >= totalSteps) {
+          clearInterval(progressInterval);
+          if (isLooping) {
+            loadSpot(currentIdx + 1, true);
+          }
+        }
+      }, 100);
+    }
+
+    function updateProgressBar(pct) {
+      document.getElementById('progressBar').style.width = Math.min(100, pct) + '%';
+    }
+
+    function toggleFullscreen() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(() => {});
+      } else {
+        document.exitFullscreen().catch(() => {});
+      }
+    }
+
+    // Atajos de teclado para TV / Presentador
+    window.addEventListener('keydown', (e) => {
+      if (e.key === ' ' || e.code === 'Space') { togglePlay(); }
+      else if (e.key === 'ArrowRight') { loadSpot(currentIdx + 1, isPlaying); }
+      else if (e.key === 'ArrowLeft') { loadSpot(currentIdx - 1, isPlaying); }
+      else if (e.key === 'f' || e.key === 'F') { toggleFullscreen(); }
+      else if (!isNaN(e.key) && Number(e.key) >= 1 && Number(e.key) <= 6) {
+        selectSpot(Number(e.key) - 1);
+      }
+    });
+
+    // Partículas de fondo en Canvas
+    const canvas = document.getElementById('bgCanvas');
+    const ctx = canvas.getContext('2d');
+    let particles = [];
+
+    function resizeCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    for (let i = 0; i < 70; i++) {
+      particles.push({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        r: Math.random() * 2.5 + 0.8,
+        vx: (Math.random() - 0.5) * 0.4,
+        vy: -Math.random() * 0.8 - 0.2,
+        alpha: Math.random() * 0.7 + 0.3,
+        color: Math.random() > 0.4 ? '#ffbe1a' : '#ff4422'
+      });
+    }
+
+    function renderParticles() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      for (const p of particles) {
+        p.x += p.vx;
+        p.y += p.vy;
+        if (p.y < 0) { p.y = canvas.height; p.x = Math.random() * canvas.width; }
+        if (p.x < 0) p.x = canvas.width;
+        if (p.x > canvas.width) p.x = 0;
+
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fillStyle = p.color;
+        ctx.globalAlpha = p.alpha;
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = p.color;
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+      requestAnimationFrame(renderParticles);
+    }
+    renderParticles();
+
+    /* ================= EXPORTADOR DE VIDEO SPOT A ARCHIVO MP4/WEBM ================= */
+    async function exportVideoSpot() {
+      const s = SPOTS[currentIdx];
+      if (!s) return;
+      const recBadge = document.getElementById('recBadge');
+      recBadge.style.display = 'block';
+
+      try {
+        const expCanvas = document.getElementById('exportCanvas');
+        const eCtx = expCanvas.getContext('2d');
+        const W = 1920, H = 1080;
+
+        // Cargar imagen del producto y QR
+        const imgPhoto = new Image(); imgPhoto.crossOrigin = 'anonymous';
+        const imgQr = new Image(); imgQr.crossOrigin = 'anonymous';
+        await Promise.all([
+          new Promise(r => { imgPhoto.onload = r; imgPhoto.src = '/buenfin/' + s.spot_id + '.jpg'; }),
+          new Promise(r => { imgQr.onload = r; imgQr.src = '/buenfin/' + s.spot_id + '_qr.png'; })
+        ]);
+
+        // Cargar audio
+        const audio = new Audio('/buenfin/' + s.spot_id + '.mp3');
+        const actx = new (window.AudioContext || window.webkitAudioContext)();
+        const src = actx.createMediaElementSource(audio);
+        const dest = actx.createMediaStreamDestination();
+        src.connect(dest);
+        src.connect(actx.destination);
+
+        const videoStream = expCanvas.captureStream(30);
+        const combinedStream = new MediaStream([
+          ...videoStream.getVideoTracks(),
+          ...dest.stream.getAudioTracks()
+        ]);
+
+        const mime = MediaRecorder.isTypeSupported('video/mp4; codecs=avc1') ? 'video/mp4' : 'video/webm';
+        const recorder = new MediaRecorder(combinedStream, { mimeType: mime, videoBitsPerSecond: 8000000 });
+        const chunks = [];
+        recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+
+        recorder.onstop = () => {
+          recBadge.style.display = 'none';
+          const blob = new Blob(chunks, { type: mime });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `TERRAPESCA_BUENFIN_${s.spot_id}.${mime.includes('mp4') ? 'mp4' : 'webm'}`;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          setTimeout(() => URL.revokeObjectURL(url), 20000);
+        };
+
+        recorder.start();
+        audio.currentTime = 0;
+        await audio.play();
+
+        let startTs = performance.now();
+        const durationSecs = Math.max(12, audio.duration || 18);
+
+        function drawFrame(now) {
+          const elapsed = (now - startTs) / 1000;
+          if (elapsed > durationSecs || audio.ended) {
+            recorder.stop();
+            audio.pause();
+            return;
+          }
+
+          // 1. Fondo oscuro con viñeta
+          const grad = eCtx.createRadialGradient(W / 2, H / 2, 200, W / 2, H / 2, 1100);
+          grad.addColorStop(0, '#0d1d36');
+          grad.addColorStop(1, '#030710');
+          eCtx.fillStyle = grad;
+          eCtx.fillRect(0, 0, W, H);
+
+          // 2. Cabezal
+          eCtx.fillStyle = '#ff2a2a';
+          eCtx.fillRect(60, 45, 420, 52);
+          eCtx.fillStyle = '#ffffff';
+          eCtx.font = 'bold 28px sans-serif';
+          eCtx.fillText('🔥 GRAN BUEN FIN TERRAPESCA', 80, 82);
+
+          // 3. Foto con zoom Ken Burns
+          const scale = 1 + (elapsed / durationSecs) * 0.08;
+          eCtx.save();
+          eCtx.translate(560, 540);
+          eCtx.scale(scale, scale);
+          const dw = 750, dh = 750;
+          eCtx.drawImage(imgPhoto, -dw / 2, -dh / 2, dw, dh);
+          eCtx.restore();
+
+          // 4. Panel lateral de Oferta y Precios
+          eCtx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+          eCtx.strokeStyle = '#ffbe1a';
+          eCtx.lineWidth = 4;
+          eCtx.roundRect(1100, 160, 740, 780, 24);
+          eCtx.fill();
+          eCtx.stroke();
+
+          // Título
+          eCtx.fillStyle = '#ffffff';
+          eCtx.font = '900 44px sans-serif';
+          eCtx.fillText(s.titulo.slice(0, 32), 1140, 240);
+
+          // Badge de Descuento
+          eCtx.fillStyle = '#ff2a2a';
+          eCtx.roundRect(1140, 280, 320, 60, 12);
+          eCtx.fill();
+          eCtx.fillStyle = '#ffffff';
+          eCtx.font = 'bold 36px sans-serif';
+          eCtx.fillText(s.descuento_pct + '% DE DESCUENTO', 1160, 324);
+
+          // Precio tachado
+          eCtx.fillStyle = '#94a3b8';
+          eCtx.font = '32px monospace';
+          eCtx.fillText('REGULAR: $' + Number(s.precio_regular).toFixed(2), 1140, 400);
+
+          // Precio Buen Fin Gigante
+          eCtx.fillStyle = '#ffbe1a';
+          eCtx.font = '900 86px sans-serif';
+          eCtx.fillText('$' + Number(s.precio_buenfin).toFixed(2), 1140, 490);
+
+          // Ahorro
+          eCtx.fillStyle = '#10b981';
+          eCtx.font = 'bold 28px monospace';
+          eCtx.fillText('¡AHORRAS $' + Number(s.ahorro).toFixed(2) + ' PESOS!', 1140, 545);
+
+          // QR Gigante
+          eCtx.fillStyle = '#ffffff';
+          eCtx.fillRect(1140, 600, 240, 240);
+          eCtx.drawImage(imgQr, 1150, 610, 220, 220);
+
+          eCtx.fillStyle = '#ffffff';
+          eCtx.font = 'bold 26px sans-serif';
+          eCtx.fillText('📱 ESCANEA PARA APARTAR', 1410, 660);
+          eCtx.fillStyle = '#94a3b8';
+          eCtx.font = '20px sans-serif';
+          eCtx.fillText('Compra directa desde tu celular', 1410, 700);
+
+          // Subtítulo locución en barra inferior
+          eCtx.fillStyle = 'rgba(0,0,0,0.8)';
+          eCtx.fillRect(0, 990, W, 90);
+          eCtx.fillStyle = '#f8fafc';
+          eCtx.font = 'italic 24px sans-serif';
+          eCtx.fillText(s.frase_locutor.slice(0, 115) + '...', 80, 1045);
+
+          requestAnimationFrame(drawFrame);
+        }
+
+        requestAnimationFrame(drawFrame);
+      } catch (err) {
+        recBadge.style.display = 'none';
+        alert('Error exportando video: ' + err.message);
+      }
+    }
+
+    // Iniciar al cargar
+    loadSpots();
+  </script>
+</body>
+</html>
