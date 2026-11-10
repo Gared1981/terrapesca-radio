@@ -116,11 +116,11 @@
     /* Área Central de Transmisión (2 Columnas) */
     .spot-content {
       display: grid;
-      grid-template-columns: 1.15fr 0.85fr;
-      gap: 3.5vw;
+      grid-template-columns: 1.25fr 0.8fr;
+      gap: 2.8vw;
       align-items: center;
       flex: 1;
-      padding: 2vh 0;
+      padding: 1vh 0;
       min-height: 0;
     }
 
@@ -128,14 +128,20 @@
     .product-showcase {
       display: flex;
       flex-direction: column;
-      gap: 2vh;
+      gap: 1.2vh;
       height: 100%;
       justify-content: center;
     }
+    .product-header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
+      padding: 0 4px;
+    }
     .category-pill {
-      align-self: flex-start;
       font-family: 'JetBrains Mono', monospace;
-      font-size: 1.7vh;
+      font-size: 1.6vh;
       font-weight: 700;
       color: var(--cyan);
       background: rgba(0, 229, 255, 0.12);
@@ -145,58 +151,64 @@
       letter-spacing: 1px;
       text-transform: uppercase;
     }
+    .isla-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 1.6vh;
+      color: #ffd27d;
+      background: rgba(255, 210, 125, 0.12);
+      border: 1px dashed rgba(255, 210, 125, 0.45);
+      padding: 5px 14px;
+      border-radius: 6px;
+      font-weight: 600;
+    }
+    .product-info-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4vh;
+      padding: 0 4px;
+    }
     .product-title {
       font-family: 'Cabinet Grotesk', sans-serif;
-      font-size: 4.8vh;
+      font-size: 3.4vh;
       font-weight: 900;
-      line-height: 1.12;
+      line-height: 1.15;
       color: #ffffff;
       text-shadow: 0 4px 20px rgba(0, 0, 0, 0.8);
       letter-spacing: -0.5px;
     }
     .product-desc {
-      font-size: 2.1vh;
+      font-size: 1.8vh;
       color: var(--txt-dim);
-      line-height: 1.4;
+      line-height: 1.35;
       font-weight: 500;
     }
-    .isla-pill {
-      align-self: flex-start;
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 1.8vh;
-      color: #ffd27d;
-      background: rgba(255, 210, 125, 0.12);
-      border: 1px dashed rgba(255, 210, 125, 0.45);
-      padding: 8px 16px;
-      border-radius: 8px;
-      font-weight: 600;
-    }
 
-    /* Tarjeta Visual de Foto o Video Dinámico */
+    /* Tarjeta Visual de Foto o Video Dinámico (Mucho más alta y amplia) */
     .product-photo-card {
       position: relative;
-      background: var(--card-bg);
+      background: #020611;
       border: 2px solid var(--card-border);
       border-radius: 20px;
-      padding: 2vh;
-      height: 44vh;
+      padding: 0;
+      height: 57vh;
+      width: 100%;
       display: flex;
       align-items: center;
       justify-content: center;
-      box-shadow: 0 15px 45px rgba(0, 0, 0, 0.7), inset 0 0 30px rgba(255, 190, 26, 0.08);
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8), inset 0 0 35px rgba(255, 190, 26, 0.08);
       backdrop-filter: blur(14px);
       overflow: hidden;
     }
     /* Luz volumétrica de fondo */
     .product-glow {
       position: absolute;
-      width: 60%;
-      height: 60%;
+      width: 70%;
+      height: 70%;
       border-radius: 50%;
       background: radial-gradient(circle, rgba(255, 190, 26, 0.22) 0%, transparent 70%);
-      filter: blur(30px);
+      filter: blur(40px);
       z-index: 1;
       pointer-events: none;
       animation: pulseGlow 4s infinite alternate;
@@ -206,7 +218,7 @@
       position: absolute;
       top: -50%; left: -50%;
       width: 200%; height: 200%;
-      background: linear-gradient(45deg, transparent 45%, rgba(255, 255, 255, 0.1) 50%, transparent 55%);
+      background: linear-gradient(45deg, transparent 45%, rgba(255, 255, 255, 0.08) 50%, transparent 55%);
       animation: sheen 5s infinite;
       pointer-events: none;
       z-index: 4;
@@ -219,8 +231,8 @@
     .product-img {
       position: relative;
       z-index: 2;
-      max-height: 94%;
-      max-width: 94%;
+      max-height: 92%;
+      max-width: 92%;
       object-fit: contain;
       filter: drop-shadow(0 15px 35px rgba(0, 0, 0, 0.9));
       animation: dynamicFloat 7s infinite ease-in-out alternate;
@@ -230,14 +242,15 @@
       50% { transform: scale(1.08) translateY(-10px) rotate(1.2deg); }
       100% { transform: scale(1.04) translateY(6px) rotate(-0.6deg); }
     }
-    /* Video de fondo generado por IA */
+    /* Video de fondo generado por IA (100% visible, sin recortes) */
     .product-video {
       position: absolute;
       top: 0; left: 0;
       width: 100%; height: 100%;
-      object-fit: cover;
+      object-fit: contain;
       border-radius: 18px;
       z-index: 2;
+      background: #020611;
     }
 
     /* Columna Derecha: Oferta + QR Gigante */
@@ -623,6 +636,7 @@
   <div class="controls-overlay">
     <button class="ctrl-btn" id="btnPlayPause" onclick="togglePlay()">▶ Reproducir Spot</button>
     <button class="ctrl-btn active" id="btnMode" onclick="toggleMode()">🔄 Modo: Bucle TV</button>
+    <button class="ctrl-btn" id="btnFit" onclick="toggleVideoFit()" title="Alternar entre ver video completo 100% o llenar el marco">🔲 Video Completo</button>
     <button class="ctrl-btn" onclick="exportVideoSpot()" style="color:#00ffaa;border-color:#00ffaa">🎬 Descargar Video MP4</button>
     <button class="ctrl-btn" onclick="toggleFullscreen()">⛶ Pantalla Completa</button>
   </div>
@@ -668,9 +682,12 @@
     <!-- Centro: Showcase + Oferta + QR -->
     <main class="spot-content">
       
-      <!-- Columna Izquierda: Showcase de Producto -->
+      <!-- Columna Izquierda: Showcase de Producto (Video Expandido y Completo) -->
       <section class="product-showcase">
-        <div class="category-pill" id="spotCategory">GORRAS TERRAPESCA</div>
+        <div class="product-header-row">
+          <div class="category-pill" id="spotCategory">GORRAS TERRAPESCA</div>
+          <div class="isla-pill" id="spotIsla">📍 Isla 1 — Entrada Principal (50% Directo)</div>
+        </div>
         <div class="product-photo-card">
           <div class="product-glow"></div>
           <!-- Video AI (si existe el archivo .mp4) -->
@@ -678,11 +695,10 @@
           <!-- Imagen del producto con movimiento dinámico -->
           <img class="product-img" id="spotPhoto" src="/buenfin/spot_gorras_50.jpg" alt="Producto">
         </div>
-        <div>
+        <div class="product-info-wrap">
           <h1 class="product-title" id="spotTitle">GORRAS TERRAPESCA TRUCKER AL 50%</h1>
           <p class="product-desc" id="spotDesc">Gorra Terrapesca Edición Especial Trucker con logo bordado de alta calidad.</p>
         </div>
-        <div class="isla-pill" id="spotIsla">📍 Isla 1 — Entrada Principal (50% Directo)</div>
       </section>
 
       <!-- Columna Derecha: Oferta + QR Gigante -->
@@ -896,6 +912,14 @@
         document.getElementById('btnMode').textContent = '🔄 Modo: Bucle TV';
         loadSpot(currentIdx, true);
       }
+    }
+
+    let videoFit = 'contain';
+    function toggleVideoFit() {
+      videoFit = videoFit === 'contain' ? 'cover' : 'contain';
+      spotVideoEl.style.objectFit = videoFit;
+      const b = document.getElementById('btnFit');
+      if (b) b.textContent = videoFit === 'contain' ? '🔲 Video Completo' : '📐 Video Llenar Marco';
     }
 
     function selectSpot(i) {
