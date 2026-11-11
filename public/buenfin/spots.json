@@ -120,7 +120,8 @@
       "qr_compra_url": "https://buenfin.terrapescaapi.com/cliente?sucursal=buceo&sku=15692",
       "frase_locutor": "¡Que el frío te dure días enteros bajo el sol de Sinaloa! Quince por ciento de descuento en todas las hieleras y coolers marinos de alto rendimiento. Escanea el código QR en pantalla para checar precios, apartar tu hielera e inscribirte para recibir todas las promociones y novedades antes que nadie. ¡Terrapesca: equipa tu aventura!",
       "qr_imagen_url": "https://api.qrserver.com/v1/create-qr-code/?size=280x280&margin=6&data=https://buenfin.terrapescaapi.com/cliente?sucursal=buceo&sku=15692",
-      "trigger_pantalla_url": "https://buenfin.terrapescaapi.com/api/v1/buenfin/radio-trigger?spot_id=spot_hieleras_15&sucursal=buceo"
+      "trigger_pantalla_url": "https://buenfin.terrapescaapi.com/api/v1/buenfin/radio-trigger?spot_id=spot_hieleras_15&sucursal=buceo",
+      "video_url": "/buenfin/spot_hieleras_15.mp4"
     }
   ]
 }
