@@ -18,7 +18,7 @@
       "isla": "Isla 1 — Entrada Principal (50% Directo)",
       "foto_url": "/api/v1/buenfin/foto/00000000020270?sucursal=buceo",
       "qr_compra_url": "https://buenfin.terrapescaapi.com/cliente?sucursal=buceo&sku=20270",
-      "frase_locutor": "¡Siente la pasión del mar y el orgullo Terrapesca! ¡En este Gran Buen Fin, viste la aventura con un explosivo cincuenta por ciento de descuento directo en todas las gorras trucker oficiales! ¡No dejes que te la ganen! Escanea ya mismo el código QR en tu pantalla para apartar la tuya y registrarte antes que nadie. ¡Terrapesca: equipa tu pasión y vive la aventura!",
+      "frase_locutor": "¡Atención Sinaloa! ¡Llegó el momento de vestir la pasión del mar! En este Gran Buen Fin, llévate todas las gorras trucker oficiales Terrapesca con un explosivo cincuenta por ciento de descuento directo. ¡Estilo, orgullo y aventura en cada salida! Escanea el código QR en tu pantalla y asegura la tuya antes de que se agoten. ¡Terrapesca: equipa tu pasión y vive la aventura!... ¡Te esperamos en tienda y en línea!",
       "qr_imagen_url": "https://api.qrserver.com/v1/create-qr-code/?size=280x280&margin=6&data=https://buenfin.terrapescaapi.com/cliente?sucursal=buceo&sku=20270",
       "trigger_pantalla_url": "https://buenfin.terrapescaapi.com/api/v1/buenfin/radio-trigger?spot_id=spot_gorras_50&sucursal=buceo",
       "video_url": "/buenfin/spot_gorras_50.mp4"
@@ -28,7 +28,7 @@
       "codigo": "18803",
       "n123": "00000000018803",
       "alterno": "510-SR07-FT",
-      "titulo": "¡ADRENALINA PURA! RAPALA SHAD RAP AL 40% OFF",
+      "titulo": "¡ADRENALINA PURA! SEÑUELOS DEL 20% AL 40% OFF",
       "descripcion": "El legendario Shad Rap de Rapala para agua dulce y salada con acción inigualable.",
       "categoria": "Señuelos",
       "descuento_pct": 40,
@@ -38,7 +38,7 @@
       "isla": "Isla 4 — Muro de Liquidación y Ocasión 40%",
       "foto_url": "/api/v1/buenfin/foto/00000000018803?sucursal=buceo",
       "qr_compra_url": "https://buenfin.terrapescaapi.com/cliente?sucursal=buceo&sku=18803",
-      "frase_locutor": "¡La leyenda de la pesca deportiva está a un precio irrepetible! ¡Llévate el imbatible Rapala Shad Rap con un insólito cuarenta por ciento de descuento! ¡Siente la adrenalina del ataque en cada lance! Escanea ahora el código QR en pantalla, asegura tus señuelos favoritos y recibe promociones exclusivas. ¡Corre a Terrapesca y siente la gloria de pescar en grande!",
+      "frase_locutor": "¡Siente la adrenalina pura en cada lance! Durante este Gran Buen Fin, aprovecha señuelos de pesca deportiva desde un veinte hasta un cuarenta por ciento de descuento. ¡Ataque agresivo y máxima efectividad con leyendas como Rapala Shad Rap! Escanea ahora el código QR en pantalla y llévate tus señuelos favoritos al mejor precio del año. ¡Terrapesca: equipa tu pasión y siente la gloria de pescar en grande!... ¡Aprovecha hoy mismo!",
       "qr_imagen_url": "https://api.qrserver.com/v1/create-qr-code/?size=280x280&margin=6&data=https://buenfin.terrapescaapi.com/cliente?sucursal=buceo&sku=18803",
       "trigger_pantalla_url": "https://buenfin.terrapescaapi.com/api/v1/buenfin/radio-trigger?spot_id=spot_shadrap_40&sucursal=buceo",
       "video_url": "/buenfin/spot_shadrap_40.mp4"
@@ -48,7 +48,7 @@
       "codigo": "39108",
       "n123": "00000000039108",
       "alterno": "510-VF2500HGF",
-      "titulo": "¡PRECISIÓN JAPONESA! CARRETE SHIMANO VANFORD (15% / 20% EN COMBO)",
+      "titulo": "¡PRECISIÓN JAPONESA! CARRETES SHIMANO (15% / 20% EN COMBO)",
       "descripcion": "Tecnología Ci4+, ligereza extrema y freno micrométrico de alta precisión Shimano.",
       "categoria": "Carretes",
       "descuento_pct": 15,
@@ -58,7 +58,7 @@
       "isla": "Isla 3 — Vitrina de Carretes Shimano (20% en Combo con Vara)",
       "foto_url": "/api/v1/buenfin/foto/00000000039108?sucursal=buceo",
       "qr_compra_url": "https://buenfin.terrapescaapi.com/cliente?sucursal=buceo&sku=39108",
-      "frase_locutor": "¡Poder, ligereza y precisión extrema que aceleran tu corazón! ¡El legendario carrete Shimano Vanford está en Terrapesca con quince por ciento de descuento individual, o llévatelo con un veinte por ciento al armar tu combo con cualquier caña! ¡Haz historia en tu próxima pesca! Escanea el código QR en pantalla, congela tu precio y sé parte de la élite. ¡Terrapesca: tecnología que te lleva al límite!",
+      "frase_locutor": "¡Precisión japonesa, ligereza Ci4 plus y máximo poder en tus manos! En este Gran Buen Fin, llévate carretes Shimano desde un quince por ciento de descuento individual, o aprovecha un veinte por ciento armando tu combo con cualquier caña. ¡Siente la batalla con la tecnología Vanford! Escanea el código QR en pantalla y congela tu precio de Buen Fin. ¡Terrapesca: tecnología que te lleva al límite!... ¡No te quedes sin el tuyo!",
       "qr_imagen_url": "https://api.qrserver.com/v1/create-qr-code/?size=280x280&margin=6&data=https://buenfin.terrapescaapi.com/cliente?sucursal=buceo&sku=39108",
       "trigger_pantalla_url": "https://buenfin.terrapescaapi.com/api/v1/buenfin/radio-trigger?spot_id=spot_vanford_15&sucursal=buceo",
       "video_url": "/buenfin/spot_vanford_15.mp4"
@@ -78,7 +78,7 @@
       "isla": "Bahía de Kayaks — 6 MSI de $4,983.47 o 10% Contado • Preventa Diciembre Garantizada",
       "foto_url": "/api/v1/buenfin/foto/00000000040516?sucursal=buceo",
       "qr_compra_url": "https://www.terrapesca.com/collections/kayaks-y-accesorios/products/kayak-big-mero",
-      "frase_locutor": "¡Atención Sinaloa! ¡Llegó el monstruo de los mares, el kayak de pedales Costa Kayak Big Mero! ¡Manos libres para castear, máxima estabilidad y potencia! ¡Aprovecha la Hora Costa Kayak con diez por ciento de descuento y seis meses sin intereses! ¡Y si no hay existencia en tienda, aparta el tuyo con entrega en diciembre garantizada! ¡Escanea el código QR ahora mismo! ¡Terrapesca: equipa tu aventura!",
+      "frase_locutor": "¡Conquista el agua con total libertad! El kayak de pedales Costa Kayak Big Mero está en este Gran Buen Fin con diez por ciento de descuento y seis meses sin intereses. ¡Manos libres para pescar, máxima estabilidad y preventa garantizada con entrega en diciembre para estrenar estas fiestas! Escanea ya el código QR en pantalla y aparta tu kayak. ¡Terrapesca: equipa tu aventura!... ¡Aparta el tuyo hoy!",
       "qr_imagen_url": "https://api.qrserver.com/v1/create-qr-code/?size=320x320&margin=10&data=https%3A%2F%2Fwww.terrapesca.com%2Fcollections%2Fkayaks-y-accesorios%2Fproducts%2Fkayak-big-mero",
       "trigger_pantalla_url": "https://buenfin.terrapescaapi.com/api/v1/buenfin/radio-trigger?spot_id=spot_kayak_tilapia&sucursal=buceo",
       "video_url": "/buenfin/spot_kayak_tilapia.mp4"
@@ -118,7 +118,7 @@
       "isla": "Isla 5B — Exhibición Central de Hieleras",
       "foto_url": "/api/v1/buenfin/foto/00000000015692?sucursal=buceo",
       "qr_compra_url": "https://buenfin.terrapescaapi.com/cliente?sucursal=buceo&sku=15692",
-      "frase_locutor": "¡Mantén la emoción helada y la frescura al máximo en cada jornada bajo el sol de Sinaloa! ¡Llévate las hieleras marinas de uso rudo con un quince por ciento de descuento directo! ¡Resistencia extrema para tus mejores capturas y convivencias inolvidables! Escanea el código QR en pantalla, aparta tu cooler marino y vive el mejor Buen Fin de tu vida. ¡Terrapesca: la aventura de tu vida te espera!",
+      "frase_locutor": "¡Que el calor no detenga tu jornada de pesca! Protege tus capturas y bebidas con hieleras marinas de alto rendimiento con un quince por ciento de descuento exclusivo de Buen Fin. ¡Frío extremo garantizado incluso bajo el sol más intenso! Escanea el código QR en pantalla y asegura tu hielera antes de que vuelen. ¡Terrapesca: equipa tu pasión y vive la aventura!... ¡Te esperamos!",
       "qr_imagen_url": "https://api.qrserver.com/v1/create-qr-code/?size=280x280&margin=6&data=https://buenfin.terrapescaapi.com/cliente?sucursal=buceo&sku=15692",
       "trigger_pantalla_url": "https://buenfin.terrapescaapi.com/api/v1/buenfin/radio-trigger?spot_id=spot_hieleras_15&sucursal=buceo",
       "video_url": "/buenfin/spot_hieleras_15.mp4"

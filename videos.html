@@ -1173,7 +1173,7 @@
     let isPlaying = false;
     let isInSpot = false;
     let progressInterval = null;
-    const SPOT_DURATION_SECS = 22; // Duración base referencial
+    const SPOT_DURATION_SECS = 30; // Duración base referencial
 
     // Sincronización en vivo con Radio Terrapesca (YouTube IFrame API + WebSocket)
     const AUTO_WS = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host;
@@ -1959,7 +1959,7 @@
             // Regresa a Standby de música de Radio
             finishAndGoStandby();
           }
-        }, 1200); // Pausa estética de 1.2 segundos tras finalizar locución
+        }, 1600); // Pausa estética de 1.6 segundos tras finalizar locución
       };
 
       // Si hay error en audio, usar temporizador seguro
@@ -1969,7 +1969,7 @@
           if (!isPlaying) return;
           if (mode === 'loop') loadSpot(currentIdx + 1, true);
           else finishAndGoStandby();
-        }, 22000);
+        }, 32000);
       };
 
       progressInterval = setInterval(() => {
@@ -2580,12 +2580,17 @@
           setTimeout(() => URL.revokeObjectURL(url), 20000);
         };
 
+        await new Promise(r => {
+          if (!isNaN(audio.duration) && audio.duration > 0) return r();
+          audio.addEventListener('loadedmetadata', r, { once: true });
+          setTimeout(r, 1200);
+        });
         recorder.start();
         audio.currentTime = 0;
         await audio.play();
 
         let startTs = performance.now();
-        const durationSecs = Math.max(12, audio.duration || 18);
+        const durationSecs = Math.max(15, (audio.duration || 30) + 1.2);
 
         function drawFrame(now) {
           const elapsed = (now - startTs) / 1000;
