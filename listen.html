@@ -354,6 +354,19 @@
     pointer-events: none;
     z-index: 1;
   }
+  .car-video {
+    position: relative;
+    z-index: 2;
+    width: 100%;
+    height: 100%;
+    max-height: 48vh;
+    object-fit: contain;
+    border-radius: 14px;
+    filter: drop-shadow(0 15px 35px rgba(0, 0, 0, 0.9));
+    transition: opacity 0.35s ease;
+    background: #020611;
+    pointer-events: none;
+  }
   .car-img {
     position: relative;
     z-index: 2;
@@ -795,6 +808,9 @@
       min-height: 220px;
       max-height: 320px;
     }
+    .car-video {
+      max-height: 320px;
+    }
     .player-column {
       order: 1;
       padding: 18px 16px;
@@ -875,11 +891,12 @@
 
       <!-- Cuerpo del Slide -->
       <div class="car-body">
-        <!-- Visual / Imagen con Efectos -->
+        <!-- Visual / Video con Efectos (Sin audio para no interferir con la radio) -->
         <div class="car-visual-box">
           <div class="car-ambient-glow"></div>
           <span class="car-discount-badge" id="carDiscount">50% OFF</span>
-          <img class="car-img" id="carImg" src="/buenfin/spot_gorras_50.jpg" alt="Producto Buen Fin"/>
+          <video id="carVideo" class="car-video" src="/buenfin/spot_gorras_50.mp4" muted autoplay loop playsinline preload="auto"></video>
+          <img class="car-img" id="carImg" src="/buenfin/spot_gorras_50.jpg" alt="Producto Buen Fin" style="display:none;"/>
         </div>
 
         <!-- Info del Producto + Precios + QR + CTA -->
@@ -1002,6 +1019,7 @@ const BUEN_FIN_SPOTS_DEFAULT = [
     ahorro: 225,
     isla: "Isla 1 — Entrada Principal (50% Directo)",
     foto_url: "/buenfin/spot_gorras_50.jpg",
+    video_url: "/buenfin/spot_gorras_50.mp4",
     qr_imagen_url: "/buenfin/spot_gorras_50_qr.png",
     qr_compra_url: "https://buenfin.terrapescaapi.com/cliente?sucursal=buceo&sku=20270"
   },
@@ -1016,6 +1034,7 @@ const BUEN_FIN_SPOTS_DEFAULT = [
     ahorro: 94.56,
     isla: "Isla 4 — Muro de Liquidación y Ocasión 40%",
     foto_url: "/buenfin/spot_shadrap_40.jpg",
+    video_url: "/buenfin/spot_shadrap_40.mp4",
     qr_imagen_url: "/buenfin/spot_shadrap_40_qr.png",
     qr_compra_url: "https://buenfin.terrapescaapi.com/cliente?sucursal=buceo&sku=18803"
   },
@@ -1030,6 +1049,7 @@ const BUEN_FIN_SPOTS_DEFAULT = [
     ahorro: 922.5,
     isla: "Isla 3 — Vitrina de Carretes Shimano (20% en Combo)",
     foto_url: "/buenfin/spot_vanford_15.jpg",
+    video_url: "/buenfin/spot_vanford_15.mp4",
     qr_imagen_url: "/buenfin/spot_vanford_15_qr.png",
     qr_compra_url: "https://buenfin.terrapescaapi.com/cliente?sucursal=buceo&sku=39108"
   },
@@ -1044,6 +1064,7 @@ const BUEN_FIN_SPOTS_DEFAULT = [
     ahorro: 3322.31,
     isla: "Bahía de Kayaks — Preventa Diciembre Garantizada",
     foto_url: "/buenfin/spot_kayak_tilapia.jpg",
+    video_url: "/buenfin/spot_kayak_tilapia.mp4",
     qr_imagen_url: "/buenfin/spot_kayak_tilapia_qr.png",
     qr_compra_url: "https://www.terrapesca.com/collections/kayaks-y-accesorios/products/kayak-big-mero"
   },
@@ -1058,6 +1079,7 @@ const BUEN_FIN_SPOTS_DEFAULT = [
     ahorro: 387,
     isla: "Isla 5A — Boutique MAJA Sportswear",
     foto_url: "/buenfin/spot_maja_30.jpg",
+    video_url: "/buenfin/spot_maja_30.mp4",
     qr_imagen_url: "/buenfin/spot_maja_30_qr.png",
     qr_compra_url: "https://buenfin.terrapescaapi.com/cliente?sucursal=buceo&sku=78921"
   },
@@ -1072,6 +1094,7 @@ const BUEN_FIN_SPOTS_DEFAULT = [
     ahorro: 433.5,
     isla: "Isla 5B — Exhibición Central de Hieleras",
     foto_url: "/buenfin/spot_hieleras_15.jpg",
+    video_url: "/buenfin/spot_hieleras_15.mp4",
     qr_imagen_url: "/buenfin/spot_hieleras_15_qr.png",
     qr_compra_url: "https://buenfin.terrapescaapi.com/cliente?sucursal=buceo&sku=15692"
   }
@@ -1097,7 +1120,8 @@ async function loadServerSpots() {
         BUEN_FIN_SPOTS = data.spots.map(s => ({
           ...s,
           descuento_txt: s.descuento_pct ? (s.descuento_pct + '% OFF') : (s.descuento_txt || 'OFERTA'),
-          foto_url: '/buenfin/' + s.spot_id + '.jpg',
+          foto_url: s.foto_url || ('/buenfin/' + s.spot_id + '.jpg'),
+          video_url: s.video_url || ('/buenfin/' + s.spot_id + '.mp4'),
           qr_imagen_url: '/buenfin/' + s.spot_id + '_qr.png'
         }));
       }
@@ -1140,13 +1164,45 @@ function renderPromo(idx) {
   document.getElementById('carPriceReg').textContent = '$' + pr.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   document.getElementById('carSavings').textContent = 'AHORRAS: $' + ah.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' MXN';
 
+  const vid = document.getElementById('carVideo');
   const img = document.getElementById('carImg');
-  img.style.opacity = '0';
-  setTimeout(() => {
-    img.src = s.foto_url || ('/buenfin/' + s.spot_id + '.jpg');
-    img.onerror = () => { img.src = TP_LOGO; };
-    img.style.opacity = '1';
-  }, 150);
+  const videoUrl = s.video_url || ('/buenfin/' + s.spot_id + '.mp4');
+  const photoUrl = s.foto_url || ('/buenfin/' + s.spot_id + '.jpg');
+
+  if (vid) {
+    // Estrictamente SILENCIOSO (sin audio) para no chocar jamás con la radio
+    vid.muted = true;
+    vid.volume = 0;
+    vid.playsInline = true;
+    vid.loop = true;
+    vid.style.opacity = '0';
+    vid.style.display = 'block';
+    if (img) img.style.display = 'none';
+
+    vid.src = videoUrl;
+    vid.currentTime = 0;
+    vid.oncanplay = () => {
+      vid.style.opacity = '1';
+      vid.play().catch(() => {});
+    };
+    vid.onerror = () => {
+      // Fallback a imagen estática si el video fallara
+      vid.style.display = 'none';
+      if (img) {
+        img.style.display = 'block';
+        img.src = photoUrl;
+        img.style.opacity = '1';
+      }
+    };
+    vid.play().catch(() => {});
+  } else if (img) {
+    img.style.opacity = '0';
+    setTimeout(() => {
+      img.src = photoUrl;
+      img.onerror = () => { img.src = TP_LOGO; };
+      img.style.opacity = '1';
+    }, 150);
+  }
 
   const qrImg = document.getElementById('carQrImg');
   qrImg.src = s.qr_imagen_url || ('/buenfin/' + s.spot_id + '_qr.png');
