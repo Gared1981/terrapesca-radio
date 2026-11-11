@@ -1563,18 +1563,43 @@ function searchYouTubeNoKey(q) {
     }
   }
 
-  // PWA Web App Manifest
+  // PWA Web App Manifest (Instalable en Android, iOS y Escritorio)
   if (urlPath === '/manifest.json') {
-    res.writeHead(200, { 'Content-Type': 'application/manifest+json; charset=utf-8' });
+    res.writeHead(200, {
+      'Content-Type': 'application/manifest+json; charset=utf-8',
+      'Cache-Control': 'public, max-age=3600'
+    });
     res.end(JSON.stringify({
-      name: "Radio Terrapesca",
+      id: "/listen",
+      name: "Radio Terrapesca 24/7",
       short_name: "Radio TP",
-      description: "Radio en vivo y música para aventura y pesca deportiva",
-      start_url: "/listen",
+      description: "Radio oficial Terrapesca — Transmisión continua 24/7 de música y pesca deportiva",
+      start_url: "/listen?utm_source=pwa",
+      scope: "/",
       display: "standalone",
-      background_color: "#05070c",
+      orientation: "portrait-primary",
+      background_color: "#040914",
       theme_color: "#e0241c",
+      categories: ["music", "entertainment", "sports"],
       icons: [
+        {
+          src: "/buenfin/logo_terrapesca_marine.png",
+          sizes: "192x192 512x512",
+          type: "image/png",
+          purpose: "any maskable"
+        },
+        {
+          src: "/icon-192.png",
+          sizes: "192x192",
+          type: "image/png",
+          purpose: "any"
+        },
+        {
+          src: "/icon-512.png",
+          sizes: "512x512",
+          type: "image/png",
+          purpose: "any maskable"
+        },
         {
           src: "https://cdn.shopify.com/s/files/1/0205/5752/9188/files/Logo-Terrapesca-01_205270e5-d546-4e33-a8d1-db0a91f1e554.png?v=1700262873",
           sizes: "512x512",
@@ -1584,6 +1609,17 @@ function searchYouTubeNoKey(q) {
       ]
     }));
     return;
+  }
+
+  // Iconos PWA locales
+  if (urlPath === '/icon-192.png' || urlPath === '/icon-512.png') {
+    const iconName = urlPath === '/icon-192.png' ? 'icon-192.png' : 'icon-512.png';
+    const iconPath = path.join(__dirname, 'public', iconName);
+    if (fs.existsSync(iconPath)) {
+      res.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=604800' });
+      fs.createReadStream(iconPath).pipe(res);
+      return;
+    }
   }
 
   // Favicon

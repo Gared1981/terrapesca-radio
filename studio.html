@@ -303,8 +303,8 @@ input[type=range]::-moz-range-thumb{width:18px;height:24px;border-radius:5px;bac
 .toast.error{border-color:var(--red);color:#ff8a80}
 .toast.ok{border-color:var(--grn2);color:#7dffaa}
 
-/* hidden YT players — tiny but present (YouTube blocks playback in 0x0/hidden) */
-.yt-hidden{position:fixed;bottom:0;right:0;width:2px;height:2px;opacity:.01;pointer-events:none;z-index:-1}
+/* hidden YT players — dimensiones reales y render activo para que Chromium jamás suspenda en segundo plano */
+.yt-hidden{position:fixed;bottom:0;right:0;width:200px;height:113px;opacity:1;pointer-events:none;z-index:-9999;clip-path:inset(100%)}
 
 /* SETTINGS MODAL */
 .modal-ov{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:500;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
@@ -967,13 +967,94 @@ function _connectServerWS(){
 // oyente no pueda saltar canciones en ráfaga a toda la red de sucursales.
 let _lastRemoteCmd=0;
 let _autopilotOn=false; // Radio 24/7 activa (el servidor maneja la reproducción)
+let _apElapsedTimer=null;
+let _apCurrentPos=0;
+let _apCurrentDur=210;
+
+function _renderAutopilotTrackInStudio(track, position, preview){
+  if(!track) return;
+  activeDeck=0;
+  decks[0].item={
+    ytId: track.ytId,
+    name: track.name || 'Pista 24/7',
+    artist: track.channelTitle || track.artist || 'Radio Terrapesca',
+    duration: track.duration || 210
+  };
+  decks[0].playing=true;
+  decks[0].dur=track.duration || 210;
+  renderDeck(0);
+
+  _apCurrentPos=position || 0;
+  _apCurrentDur=decks[0].dur;
+  updateDeckTime(0, _apCurrentPos, _apCurrentDur);
+
+  clearInterval(_apElapsedTimer);
+  _apElapsedTimer=setInterval(()=>{
+    if(!_autopilotOn){ clearInterval(_apElapsedTimer); return; }
+    _apCurrentPos=Math.min(_apCurrentDur, _apCurrentPos+1);
+    updateDeckTime(0, _apCurrentPos, _apCurrentDur);
+  }, 1000);
+
+  if(preview && preview.length){
+    _renderAutopilotPreviewInStudio(preview);
+  }
+
+  setCrossfader(0);
+  updateOnAir();
+}
+
+function _renderAutopilotPreviewInStudio(items){
+  if(!items || !items.length) return;
+  const nextTrack=items[0];
+  decks[1].item={
+    ytId: nextTrack.ytId,
+    name: nextTrack.name || 'Siguiente',
+    artist: nextTrack.artist || nextTrack.channelTitle || '',
+    duration: nextTrack.duration || 210
+  };
+  decks[1].playing=false;
+  decks[1].dur=nextTrack.duration || 210;
+  renderDeck(1);
+  updateDeckTime(1, 0, decks[1].dur);
+}
+
+function _renderAutopilotSpotInStudio(spot){
+  toast('🎙️ '+(spot.name||'Intervención en el aire'), 'ok');
+  setDJState('AL AIRE');
+  setTimeout(()=>{
+    if(_autopilotOn) setDJState('standby');
+  }, (spot.duration || 20) * 1000);
+}
+
 function _onRemoteCmd(ev){
   let msg=null; try{ msg=JSON.parse(ev.data); }catch(_){ return; }
   // Oyentes en vivo (conteo + ubicación) que reporta el servidor
   if(msg.type==='LISTENERS'){ renderListeners(msg); return; }
   // Reflejar el estado de la Radio 24/7 que reporta el servidor
-  if(msg.type==='AUTOPILOT'){ _setAutopilotUI(!!msg.on); return; }
-  if(msg.type==='SYNC'){ if(msg.state&&typeof msg.state.autopilotOn==='boolean') _setAutopilotUI(msg.state.autopilotOn); return; }
+  if(msg.type==='AUTOPILOT'){
+    _setAutopilotUI(!!msg.on);
+    return;
+  }
+  if(msg.type==='SYNC'){
+    const st=msg.state||{};
+    if(typeof st.autopilotOn==='boolean') _setAutopilotUI(st.autopilotOn);
+    if(st.autopilotOn && st.currentTrack){
+      _renderAutopilotTrackInStudio(st.currentTrack, st.position, st.queuePreview);
+    }
+    return;
+  }
+  if(msg.type==='PLAY' && _autopilotOn){
+    if(msg.track) _renderAutopilotTrackInStudio(msg.track, msg.position || 0);
+    return;
+  }
+  if(msg.type==='SPOT' && _autopilotOn){
+    if(msg.track) _renderAutopilotSpotInStudio(msg.track);
+    return;
+  }
+  if(msg.type==='QUEUE_PREVIEW' && _autopilotOn){
+    if(msg.items) _renderAutopilotPreviewInStudio(msg.items);
+    return;
+  }
   // En modo 24/7 el servidor maneja NEXT/PREV; el studio no debe intervenir.
   if(_autopilotOn) return;
   if(msg.type!=='NEXT_TRACK'&&msg.type!=='PREV_TRACK') return;
@@ -1402,6 +1483,86 @@ window.onYouTubeIframeAPIReady=buildPlayers;
     else if(n>40){ clearInterval(iv); console.error('[YT] iframe_api never loaded'); }
   },250);
 })();
+
+let _studioAudioCtx = null, _studioOsc = null;
+let _studioTicker = null;
+let _studioUserPaused = false;
+
+function startStudioBgAudio(){
+  try{
+    if(!_studioAudioCtx){
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if(AC) _studioAudioCtx = new AC();
+    }
+    if(_studioAudioCtx && _studioAudioCtx.state === 'suspended'){
+      _studioAudioCtx.resume();
+    }
+    if(_studioAudioCtx && !_studioOsc){
+      _studioOsc = _studioAudioCtx.createOscillator();
+      _studioOsc.type = 'sine';
+      _studioOsc.frequency.setValueAtTime(40, _studioAudioCtx.currentTime);
+      const gain = _studioAudioCtx.createGain();
+      gain.gain.setValueAtTime(0.00001, _studioAudioCtx.currentTime);
+      _studioOsc.connect(gain);
+      gain.connect(_studioAudioCtx.destination);
+      _studioOsc.start();
+    }
+  }catch(_){}
+  initStudioTicker();
+}
+
+function initStudioTicker(){
+  if(_studioTicker) return;
+  try{
+    const blob = new Blob([`
+      let tid = null;
+      self.onmessage = function(e){
+        if(e.data === 'start'){
+          if(!tid) tid = setInterval(function(){ self.postMessage('tick'); }, 200);
+        } else if(e.data === 'stop'){
+          clearInterval(tid);
+          tid = null;
+        }
+      };
+    `], { type: 'application/javascript' });
+    _studioTicker = new Worker(URL.createObjectURL(blob));
+    _studioTicker.onmessage = function(){
+      if(!_studioUserPaused && !_autopilotOn){
+        const cur = decks[activeDeck];
+        if(cur && cur.player && cur.ready && cur.playing){
+          try{
+            const st = cur.player.getPlayerState();
+            if(st === YT.PlayerState.PAUSED || st === YT.PlayerState.CUED){
+              cur.player.playVideo();
+            }
+          }catch(_){}
+        }
+      }
+    };
+    _studioTicker.postMessage('start');
+  }catch(_){}
+}
+
+['click','keydown','touchstart'].forEach(ev => {
+  window.addEventListener(ev, () => { startStudioBgAudio(); }, { once: false, passive: true });
+});
+
+document.addEventListener('visibilitychange', () => {
+  if(!document.hidden){
+    if(_studioAudioCtx && _studioAudioCtx.state === 'suspended') {
+      try { _studioAudioCtx.resume(); } catch(_) {}
+    }
+    if(!_studioUserPaused && !_autopilotOn){
+      const cur = decks[activeDeck];
+      if(cur && cur.player && cur.ready && cur.playing){
+        try{
+          if(cur.player.getPlayerState() !== YT.PlayerState.PLAYING) cur.player.playVideo();
+        }catch(_){}
+      }
+    }
+  }
+});
+
 function onDeckState(d,e){
   if(e.data===YT.PlayerState.PLAYING){
     clearTimeout(d._bufTimeout);
@@ -1417,7 +1578,14 @@ function onDeckState(d,e){
     try{d.dur=d.player.getDuration()||0;}catch(_){}
     updateOnAir();
   }
-  else if(e.data===YT.PlayerState.PAUSED){ d.playing=false; updateOnAir(); }
+  else if(e.data===YT.PlayerState.PAUSED){
+    if(d.id===activeDeck && document.hidden && !_studioUserPaused){
+      console.warn('[Studio Deck '+d.id+'] Pausa en segundo plano detectada — intentando reactivar');
+      try{ d.player.playVideo(); }catch(_){}
+      return;
+    }
+    d.playing=false; updateOnAir();
+  }
   else if(e.data===YT.PlayerState.BUFFERING){
     if(d.id===activeDeck && !_xfading && !djActive){
       clearTimeout(d._bufTimeout);
@@ -1557,7 +1725,47 @@ function doCrossfade(){
   const nxt=decks[activeDeck===0?1:0];
   if(!nxt.item){ advanceQueueInto(nxt.id); return; }
   _xfading=true;
-  const _xfadeSafe=setTimeout(()=>{ if(_xfading){ console.warn('[crossfade] timeout 16s'); _xfading=false; _prebufDone=false; } },16000);
+  const durMs=CROSSFADE_SECS*1000; // 12 segundos
+  const nxtItem=nxt.item;
+  const startCur=cur.vol;
+  const startX=Date.now();
+
+  const _finalize=()=>{
+    clearInterval(t); clearTimeout(_xfadeSafe); clearTimeout(_watchdog);
+    try{
+      cur.playing=false; cur.vol=0;
+      try{cur.player.stopVideo();}catch(_){}
+      nxt.vol=1;
+      activeDeck=nxt.id;
+      const foundPos=queue.findIndex(q=>q.ytId===nxtItem.ytId);
+      queuePos=foundPos>=0?foundPos:queuePos;
+      setCrossfader(activeDeck===0?0:100);
+      const after=nextQueueIndex(queuePos);
+      if(queue.length>1 && queue[after]) cueDeck(cur.id,queue[after]);
+      _trackPlayed(nxtItem.ytId);
+      _onTrackStarted(nxtItem,nxt.id);
+      renderQueue();
+      let _syncPos=0; try{_syncPos=nxt.player.getCurrentTime()||0;}catch(_){}
+      _wsPlayTrack(nxtItem, _syncPos);
+      updateOnAir();
+      console.log('[crossfade] completado → deck '+(activeDeck?'B':'A'));
+      if(_pendingDJItem){ const _it=_pendingDJItem; _pendingDJItem=null; setTimeout(()=>_runIntervention(_it),700); }
+    }catch(err){
+      console.error('[crossfade] finalize error:',err&&err.message);
+    }finally{
+      _xfading=false;
+      _prebufDone=false;
+      clearTimeout(_prebufTimeout);
+    }
+  };
+
+  const _xfadeSafe=setTimeout(()=>{
+    if(_xfading){
+      console.warn('[crossfade] timeout de seguridad — finalizando');
+      _finalize();
+    }
+  }, 16000);
+
   console.log('[crossfade] arrancando 12s → "'+(nxt.item.name||nxt.item.ytId)+'"');
   try{
     nxt.vol=0;
@@ -1566,12 +1774,26 @@ function doCrossfade(){
     console.error('[crossfade] start error:',err&&err.message);
     _xfading=false; clearTimeout(_xfadeSafe); return;
   }
-  const durMs=CROSSFADE_SECS*1000; // 12 segundos
-  const steps=60, iv=durMs/steps; let s=0;
-  const startCur=cur.vol;
-  const nxtItem=nxt.item;
+
+  // Watchdog de 2.5s para evitar que navegadores en pestañas ocultas dejen el crossfade congelado
+  const _watchdog=setTimeout(()=>{
+    if(_xfading){
+      let isPlaying = false;
+      try { isPlaying = (nxt.player.getPlayerState() === YT.PlayerState.PLAYING); } catch(_) {}
+      if(!isPlaying){
+        console.warn('[crossfade] Deck siguiente bloqueado o dormido en segundo plano — reactivando');
+        try{ nxt.player.loadVideoById(nxtItem.ytId); nxt.player.playVideo(); }catch(_){}
+        if(document.hidden){
+          _finalize();
+        }
+      }
+    }
+  }, 2500);
+
+  const iv=200;
   const t=setInterval(()=>{
-    s++; const p=s/steps;
+    const elapsed=Date.now()-startX;
+    const p=Math.min(1, elapsed/durMs);
     cur.vol=Math.max(0, startCur*(1-p));
     nxt.vol=Math.min(1, p);
     try{cur.player.setVolume(dvol(cur));}catch(_){}
@@ -1580,34 +1802,10 @@ function doCrossfade(){
       const xf=document.getElementById('xf');
       if(xf) xf.value=nxt.id===1?Math.round(p*100):Math.round(100*(1-p));
     }catch(_){}
-    if(s>=steps){
-      clearInterval(t); clearTimeout(_xfadeSafe);
-      try{
-        cur.playing=false; cur.vol=0;
-        try{cur.player.stopVideo();}catch(_){}
-        nxt.vol=1;
-        activeDeck=nxt.id;
-        const foundPos=queue.findIndex(q=>q.ytId===nxtItem.ytId);
-        queuePos=foundPos>=0?foundPos:queuePos;
-        setCrossfader(activeDeck===0?0:100);
-        const after=nextQueueIndex(queuePos);
-        if(queue.length>1 && queue[after]) cueDeck(cur.id,queue[after]);
-        _trackPlayed(nxtItem.ytId);
-        _onTrackStarted(nxtItem,nxt.id);
-        renderQueue();
-        let _syncPos=0; try{_syncPos=nxt.player.getCurrentTime()||0;}catch(_){}
-        _wsPlayTrack(nxtItem, _syncPos);
-        console.log('[crossfade] 10s completado → deck '+(activeDeck?'B':'A'));
-        if(_pendingDJItem){ const _it=_pendingDJItem; _pendingDJItem=null; setTimeout(()=>_runIntervention(_it),700); }
-      }catch(err){
-        console.error('[crossfade] finalize error:',err&&err.message);
-      }finally{
-        _xfading=false;
-        _prebufDone=false;
-        clearTimeout(_prebufTimeout);
-      }
+    if(p>=1){
+      _finalize();
     }
-  },iv);
+  }, iv);
 }
 function advanceQueueInto(id){
   const next=nextQueueIndex(queuePos);
@@ -2478,8 +2676,25 @@ function updateDeckTime(id,ct,dur){
   document.getElementById(id?'reB':'reA').textContent='-'+fmt(dur-ct);
   document.getElementById(id?'pgB':'pgA').style.width=(dur>0?(ct/dur*100):0)+'%';
 }
-function updateOnAir(){const live=decks.some(d=>d.playing)||djActive;setOnAir(live);renderDeck(0);renderDeck(1);}
-function setOnAir(live){const o=document.getElementById('onair');o.classList.toggle('live',live);document.getElementById('onairTxt').textContent=live?'EN VIVO':'FUERA DE AIRE';}
+function updateOnAir(){
+  if(_autopilotOn){
+    setOnAir(true);
+    renderDeck(0);
+    renderDeck(1);
+    return;
+  }
+  const live=decks.some(d=>d.playing)||djActive;
+  setOnAir(live);
+  renderDeck(0);
+  renderDeck(1);
+}
+function setOnAir(live){
+  const o=document.getElementById('onair');
+  const isLive = _autopilotOn || !!live;
+  o.classList.toggle('live', isLive);
+  const ot=document.getElementById('onairTxt');
+  if(ot) ot.textContent = _autopilotOn ? 'EN VIVO (24/7)' : (isLive ? 'EN VIVO' : 'FUERA DE AIRE');
+}
 function setDJState(s){document.getElementById('djState').textContent=s;document.getElementById('djState').style.color=s==='standby'?'var(--txt3)':'#c9a2ff';}
 
 function renderQueue(){

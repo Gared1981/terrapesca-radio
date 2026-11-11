@@ -1,8 +1,19 @@
-// Radio Terrapesca Service Worker
-// Keeps audio alive in background and caches static assets
+// Radio Terrapesca Service Worker - PWA & Background Audio Engine
+// Mantiene activos los recursos en segundo plano y caché inteligente
 
-const CACHE = 'terrapesca-radio-v4';
-const STATIC = ['/', '/index.html', '/listen.html', '/studio.html', '/sucursal.html'];
+const CACHE = 'terrapesca-radio-v6';
+const STATIC = [
+  '/',
+  '/index.html',
+  '/listen.html',
+  '/studio.html',
+  '/sucursal.html',
+  '/manifest.json',
+  '/buenfin/logo_terrapesca_marine.png',
+  '/buenfin/logo_buen_fin.png',
+  '/icon-192.png',
+  '/icon-512.png'
+];
 
 self.addEventListener('install', e => {
   e.waitUntil(
@@ -23,21 +34,24 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
 
-  // Never intercept the audio stream — let it flow through normally
+  // Never intercept audio streams or real-time APIs — let them stream natively
   if (url.pathname.startsWith('/radio/stream') ||
       url.pathname.startsWith('/live.mp3') ||
       url.pathname.startsWith('/stream.mp3') ||
-      url.pathname.startsWith('/api/')) {
+      url.pathname.startsWith('/api/') ||
+      url.pathname.startsWith('/ws') ||
+      url.pathname.startsWith('/rodo/') ||
+      url.pathname.startsWith('/spots/')) {
     e.respondWith(fetch(e.request));
     return;
   }
 
-  // Network-first for static HTML: always serve the freshly deployed version,
-  // falling back to cache only when offline. (Cache-first left stale UIs after deploys.)
+  // Network-first for HTML pages: siempre sirve la versión fresca desplegada,
+  // con fallback a la caché si se pierde la conexión.
   e.respondWith(
     fetch(e.request)
       .then(resp => {
-        if (resp.ok) {
+        if (resp && resp.ok) {
           const copy = resp.clone();
           caches.open(CACHE).then(c => c.put(e.request, copy)).catch(() => {});
         }
@@ -47,7 +61,7 @@ self.addEventListener('fetch', e => {
   );
 });
 
-// Keep alive: respond to ping messages from the page
+// Keep alive: responde a pulsos ping de la página para evitar que el Service Worker se duerma
 self.addEventListener('message', e => {
   if (e.data === 'ping') e.ports[0]?.postMessage('pong');
 });
