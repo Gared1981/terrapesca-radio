@@ -716,16 +716,131 @@
       border-radius: 50px;
       letter-spacing: 1px;
     }
+    .standby-player-card {
+      display: flex;
+      align-items: center;
+      gap: 3.5vw;
+      background: rgba(10, 20, 36, 0.78);
+      border: 1.5px solid rgba(56, 189, 248, 0.4);
+      padding: 3vh 3.5vw;
+      border-radius: 28px;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.8), 0 0 35px rgba(56, 189, 248, 0.2);
+      backdrop-filter: blur(15px);
+      max-width: 950px;
+      width: 100%;
+      text-align: left;
+    }
+    .standby-cover-box {
+      position: relative;
+      width: 18vh;
+      height: 18vh;
+      border-radius: 18px;
+      overflow: hidden;
+      flex-shrink: 0;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
+      border: 2px solid rgba(255, 255, 255, 0.15);
+    }
+    .standby-cover-img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .standby-eq-wave {
+      position: absolute;
+      bottom: 8px; right: 8px;
+      display: flex;
+      gap: 3px;
+      align-items: flex-end;
+      height: 24px;
+      background: rgba(0, 0, 0, 0.6);
+      padding: 4px 6px;
+      border-radius: 6px;
+    }
+    .eq-b {
+      width: 3px;
+      background: #00ff66;
+      border-radius: 2px;
+      animation: eqBounce 1.2s infinite ease-in-out alternate;
+    }
+    .b1 { height: 14px; animation-delay: 0.1s; }
+    .b2 { height: 22px; animation-delay: 0.3s; }
+    .b3 { height: 10px; animation-delay: 0.5s; }
+    .b4 { height: 18px; animation-delay: 0.2s; }
+    .b5 { height: 12px; animation-delay: 0.4s; }
+    @keyframes eqBounce {
+      0% { height: 4px; }
+      100% { height: 22px; }
+    }
+    .standby-track-info {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.8vh;
+      flex: 1;
+    }
+    .standby-next-pill {
+      margin-top: 1vh;
+      background: rgba(255, 190, 26, 0.15);
+      border: 1px solid #ffbe1a;
+      color: #ffbe1a;
+      font-size: 1.5vh;
+      font-weight: 700;
+      padding: 6px 14px;
+      border-radius: 999px;
+      letter-spacing: 0.5px;
+    }
+    .tap-overlay {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100vw; height: 100vh;
+      background: rgba(0, 0, 0, 0.88);
+      z-index: 999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+    .tap-card {
+      background: #0d1b30;
+      border: 2px solid #38bdf8;
+      border-radius: 20px;
+      padding: 35px 45px;
+      text-align: center;
+      box-shadow: 0 0 50px rgba(56, 189, 248, 0.5);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+    }
+    .tap-icon {
+      font-size: 44px;
+    }
+    .tap-text {
+      font-size: 2.2vh;
+      font-weight: 700;
+      color: #fff;
+    }
+    .tap-btn {
+      background: #38bdf8;
+      color: #030e1c;
+      border: none;
+      padding: 12px 28px;
+      font-size: 1.8vh;
+      font-weight: 900;
+      border-radius: 8px;
+      cursor: pointer;
+      box-shadow: 0 4px 15px rgba(56, 189, 248, 0.4);
+    }
     .standby-now-title {
       font-family: 'Cabinet Grotesk', sans-serif;
-      font-size: 6.5vh;
+      font-size: 4.8vh;
       font-weight: 900;
       color: #fff;
-      line-height: 1.1;
+      line-height: 1.15;
       text-shadow: 0 5px 25px rgba(0,0,0,0.8);
     }
     .standby-now-artist {
-      font-size: 2.8vh;
+      font-size: 2.4vh;
       color: var(--gold);
       font-weight: 600;
     }
@@ -850,8 +965,9 @@
 
   <!-- Controles Superiores Flotantes -->
   <div class="controls-overlay">
-    <button class="ctrl-btn" id="btnPlayPause" onclick="togglePlay()">▶ Reproducir Spot</button>
-    <button class="ctrl-btn active" id="btnMode" onclick="toggleMode()">🔄 Modo: Bucle TV</button>
+    <button class="ctrl-btn" id="btnPlayPause" onclick="togglePlay()">▶ Reproducir</button>
+    <button class="ctrl-btn active" id="btnMode" onclick="toggleMode()">📻 Modo: Radio + Video Spots</button>
+    <button class="ctrl-btn" id="btnInterval" onclick="toggleInterval()">⏱ Frecuencia: 2.5 Min</button>
     <button class="ctrl-btn" id="btnFit" onclick="toggleVideoFit()" title="Alternar entre ver video completo 100% o llenar el marco">🔲 Video Completo</button>
     <button class="ctrl-btn" onclick="exportVideoSpot()" style="color:#00ffaa;border-color:#00ffaa">🎬 Descargar Video MP4</button>
     <button class="ctrl-btn" onclick="toggleFullscreen()">⛶ Pantalla Completa</button>
@@ -860,22 +976,42 @@
   <!-- Selector rápido de Spots -->
   <div class="spots-nav" id="spotsNav"></div>
 
-  <!-- PANTALLA STANDBY (MÚSICA / AMBIENTAL DE TIENDA) -->
+  <!-- PANTALLA STANDBY (MÚSICA / AMBIENTAL DE TIENDA CON RADIO EN VIVO) -->
   <div class="standby-screen" id="standbyScreen">
     <div class="standby-content">
       <img class="standby-logo" src="https://cdn.shopify.com/s/files/1/0205/5752/9188/files/Logo-Terrapesca-01_205270e5-d546-4e33-a8d1-db0a91f1e554.png?v=1700262873" alt="Terrapesca">
-      <div class="standby-badge">
-        <div class="live-dot"></div>
-        RADIO TERRAPESCA AL AIRE
+      
+      <!-- Tarjeta del Reproductor de Radio en Vivo -->
+      <div class="standby-player-card">
+        <div class="standby-cover-box">
+          <img id="stTrackCover" class="standby-cover-img" src="https://img.youtube.com/vi/teprnzF6J1I/mqdefault.jpg" alt="Carátula">
+          <div class="standby-eq-wave">
+            <div class="eq-b b1"></div>
+            <div class="eq-b b2"></div>
+            <div class="eq-b b3"></div>
+            <div class="eq-b b4"></div>
+            <div class="eq-b b5"></div>
+          </div>
+        </div>
+        <div class="standby-track-info">
+          <div class="standby-badge">
+            <div class="live-dot"></div>
+            <span>🔴 EN VIVO • RADIO TERRAPESCA 24/7</span>
+          </div>
+          <h1 class="standby-now-title" id="stTrackTitle">En el Muelle de San Blás</h1>
+          <p class="standby-now-artist" id="stTrackArtist">por Maná</p>
+          <div class="standby-next-pill" id="stNextSpotNotice">
+            ⏱ Próximo Spot Buen Fin: <strong>Gorras al 50%</strong> (en breve)
+          </div>
+        </div>
       </div>
-      <h1 class="standby-now-title" id="stTrackTitle">Sonando en Sucursales</h1>
-      <p class="standby-now-artist" id="stTrackArtist">Música, Pesca y Aventura en Sinaloa</p>
+
       <div class="standby-buenfin-banner">
-        <span>🔥 GRAN BUEN FIN TERRAPESCA</span>
+        <span>🔥 GRAN BUEN FIN TERRAPESCA 2026</span>
         <span>•</span>
-        <span>Descuentos de hasta el 50%</span>
+        <span>6 MESES SIN INTERESES Y HASTA 50% DE DESCUENTO</span>
         <span>•</span>
-        <span>Escanea el QR en cuanto suene el spot</span>
+        <span>ESCANEA EL QR AL SONAR EL SPOT</span>
       </div>
     </div>
   </div>
@@ -1013,19 +1149,322 @@
   <!-- Audio Player del Locutor -->
   <audio id="spotAudio" preload="auto"></audio>
 
+  <!-- Contenedor oculto del reproductor de YouTube para la Radio -->
+  <div id="yt-container" style="position:fixed;bottom:-500px;left:-500px;width:200px;height:200px;opacity:0.001;pointer-events:none;">
+    <div id="yt-player"></div>
+  </div>
+
+  <!-- Overlay para desbloquear audio en navegadores/TVs que bloquean autoplay -->
+  <div id="tapOverlay" class="tap-overlay" onclick="unmuteAll()" style="display:none;">
+    <div class="tap-card">
+      <div class="tap-icon">🔊</div>
+      <div class="tap-text">Toca la pantalla para activar el audio de Radio Terrapesca</div>
+      <button class="tap-btn">▶ Iniciar Radio y Pantalla</button>
+    </div>
+  </div>
+
+  <!-- YouTube IFrame API para reproducir la radio en vivo -->
+  <script src="https://www.youtube.com/iframe_api"></script>
+
   <script>
     let SPOTS = [];
     let currentIdx = 0;
-    let mode = 'loop'; // 'loop' (carrusel constante) o 'reactive' (desaparece y vuelve a standby)
+    let mode = 'radio_spots'; // 'radio_spots' (por defecto: radio 24/7 + spots periódicos), 'loop' (carrusel), 'reactive'
     let isPlaying = false;
+    let isInSpot = false;
     let progressInterval = null;
-    const SPOT_DURATION_SECS = 22; // 22 segundos por spot
+    const SPOT_DURATION_SECS = 22; // Duración base referencial
+
+    // Sincronización en vivo con Radio Terrapesca (YouTube IFrame API + WebSocket)
+    const AUTO_WS = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host;
+    let ws = null;
+    let ytPlayer = null;
+    let ytReady = false;
+    let pendingYtTrack = null;
+    let currentYtTrack = null;
+    let currentYtPos = 0;
+    let _lastLoadedYtId = null;
+
+    // Frecuencia e intervalos para spots
+    const INTERVALS = [150, 180, 300, 0, 120]; // 2.5m, 3m, 5m, cada canción, 2m
+    let intervalIdx = 0;
+    let spotIntervalSecs = 150;
+    let spotCountdownTimer = null;
+    let secondsUntilNextSpot = 150;
+    let nextSpotIdx = 0;
 
     const audioEl = document.getElementById('spotAudio');
     const tvStage = document.getElementById('tvStage');
     const standbyScreen = document.getElementById('standbyScreen');
     const spotVideoEl = document.getElementById('spotVideo');
     const spotPhotoEl = document.getElementById('spotPhoto');
+
+    // Inicialización del Reproductor de YouTube Iframe API
+    window.onYouTubeIframeAPIReady = function() {
+      ytPlayer = new YT.Player('yt-player', {
+        height: '1',
+        width: '1',
+        playerVars: {
+          autoplay: 1,
+          controls: 0,
+          modestbranding: 1,
+          rel: 0,
+          playsinline: 1
+        },
+        events: {
+          onReady: () => {
+            ytReady = true;
+            console.log('[TV] Reproductor YouTube de Radio listo');
+            if (pendingYtTrack) {
+              const p = pendingYtTrack;
+              pendingYtTrack = null;
+              syncYtTrack(p.track, p.pos);
+            }
+          },
+          onStateChange: (e) => {
+            if (e.data === YT.PlayerState.PLAYING) {
+              hideTapOverlay();
+            } else if (e.data === YT.PlayerState.ENDED) {
+              // Si la frecuencia está configurada a 'Cada Canción', lanzar el spot al terminar la canción
+              if (mode === 'radio_spots' && spotIntervalSecs === 0 && !isInSpot) {
+                launchNextSpotSequence();
+              }
+            }
+          },
+          onError: (err) => {
+            console.warn('[TV] Error en YT Player:', err);
+          }
+        }
+      });
+    };
+
+    function unmuteAll() {
+      hideTapOverlay();
+      if (ytPlayer && ytReady) {
+        try {
+          ytPlayer.unMute();
+          ytPlayer.setVolume(85);
+          ytPlayer.playVideo();
+        } catch (_) {}
+      }
+    }
+
+    function showTapOverlay() {
+      const el = document.getElementById('tapOverlay');
+      if (el) el.style.display = 'flex';
+    }
+
+    function hideTapOverlay() {
+      const el = document.getElementById('tapOverlay');
+      if (el) el.style.display = 'none';
+    }
+
+    function syncYtTrack(track, pos = 0) {
+      if (!track || track.type !== 'yt' || !track.ytId) return;
+      currentYtTrack = track;
+      currentYtPos = pos;
+      updateStandbyCard(track);
+
+      // Si actualmente se está transmitiendo un spot con su propio audio/video, no encender video de radio
+      if (isInSpot) {
+        console.log('[TV] Track recibido durante spot; guardado para reanudación');
+        return;
+      }
+
+      if (!ytReady) {
+        pendingYtTrack = { track, pos };
+        return;
+      }
+
+      try {
+        const isSameTrack = (_lastLoadedYtId === track.ytId);
+        ytPlayer.setVolume(85);
+        if (isSameTrack) {
+          if (pos > 2) {
+            try { ytPlayer.seekTo(pos, true); } catch (_) {}
+          }
+          ytPlayer.playVideo();
+        } else {
+          _lastLoadedYtId = track.ytId;
+          ytPlayer.loadVideoById({
+            videoId: track.ytId,
+            startSeconds: pos > 2 ? pos : 0
+          });
+        }
+
+        setTimeout(() => {
+          if (!isInSpot && ytPlayer && ytPlayer.getPlayerState && ytPlayer.getPlayerState() !== YT.PlayerState.PLAYING) {
+            showTapOverlay();
+          }
+        }, 2500);
+      } catch (err) {
+        console.warn('[TV] Error sincronizando YT:', err);
+      }
+    }
+
+    function pauseRadioPlayback() {
+      if (ytPlayer && ytReady) {
+        try {
+          ytPlayer.pauseVideo();
+        } catch (_) {}
+      }
+    }
+
+    function resumeRadioPlayback() {
+      if (ytPlayer && ytReady && currentYtTrack) {
+        try {
+          ytPlayer.setVolume(85);
+          ytPlayer.playVideo();
+        } catch (_) {}
+      }
+    }
+
+    function updateStandbyCard(track) {
+      if (!track) return;
+      const titleEl = document.getElementById('stTrackTitle');
+      const artistEl = document.getElementById('stTrackArtist');
+      const coverEl = document.getElementById('stTrackCover');
+
+      if (titleEl && track.name) titleEl.textContent = track.name;
+      if (artistEl) artistEl.textContent = (track.channelTitle || track.artist) ? ('por ' + (track.channelTitle || track.artist)) : 'Radio Terrapesca en vivo';
+      if (coverEl) {
+        const coverUrl = track.cover || ('https://img.youtube.com/vi/' + track.ytId + '/mqdefault.jpg');
+        coverEl.src = coverUrl;
+      }
+    }
+
+    function initWS() {
+      try {
+        ws = new WebSocket(AUTO_WS);
+        ws.onopen = () => {
+          console.log('[TV WS] Conectado a Radio Terrapesca');
+          try { ws.send(JSON.stringify({ type: 'HELLO', role: 'tv' })); } catch (_) {}
+        };
+        ws.onclose = () => {
+          console.warn('[TV WS] Conexión cerrada. Reconectando en 4s...');
+          setTimeout(initWS, 4000);
+        };
+        ws.onerror = (e) => console.error('[TV WS] Error en WebSocket:', e);
+        ws.onmessage = (e) => {
+          try {
+            const msg = JSON.parse(e.data);
+            handleWsMsg(msg);
+          } catch (_) {}
+        };
+      } catch (e) {
+        console.error('[TV WS] Error al inicializar:', e);
+      }
+    }
+
+    function handleWsMsg(msg) {
+      switch (msg.type) {
+        case 'SYNC':
+          if (msg.state && msg.state.currentTrack) {
+            syncYtTrack(msg.state.currentTrack, msg.state.position || 0);
+          }
+          break;
+        case 'PLAY':
+          if (msg.track) {
+            syncYtTrack(msg.track, msg.position || 0);
+          }
+          break;
+        case 'PAUSE':
+          if (!isInSpot) pauseRadioPlayback();
+          break;
+        case 'RESUME':
+          if (!isInSpot) resumeRadioPlayback();
+          break;
+        case 'BUENFIN_TRIGGER':
+        case 'SPOT_TRIGGER':
+          const targetSpot = msg.spot_id;
+          let targetIdx = 0;
+          if (targetSpot && SPOTS.length) {
+            const idx = SPOTS.findIndex(x => x.spot_id === targetSpot);
+            if (idx >= 0) targetIdx = idx;
+          }
+          launchNextSpotSequence(targetIdx);
+          break;
+      }
+    }
+
+    // Programador de cuenta regresiva para el siguiente spot
+    function scheduleNextSpot() {
+      clearInterval(spotCountdownTimer);
+      if (mode !== 'radio_spots') {
+        updateNextSpotNotice();
+        return;
+      }
+
+      if (spotIntervalSecs === 0) {
+        updateNextSpotNotice('al terminar la canción');
+        return;
+      }
+
+      secondsUntilNextSpot = spotIntervalSecs;
+      updateNextSpotNotice(formatTimeRemaining(secondsUntilNextSpot));
+
+      spotCountdownTimer = setInterval(() => {
+        if (isInSpot) return;
+        secondsUntilNextSpot--;
+        if (secondsUntilNextSpot <= 0) {
+          clearInterval(spotCountdownTimer);
+          launchNextSpotSequence();
+        } else {
+          updateNextSpotNotice(formatTimeRemaining(secondsUntilNextSpot));
+        }
+      }, 1000);
+    }
+
+    function formatTimeRemaining(secs) {
+      const m = Math.floor(secs / 60);
+      const s = secs % 60;
+      return `${m}:${s < 10 ? '0' : ''}${s}`;
+    }
+
+    function updateNextSpotNotice(timeText) {
+      const noticeEl = document.getElementById('stNextSpotNotice');
+      if (!noticeEl) return;
+      if (!SPOTS.length) return;
+      const nextSpot = SPOTS[nextSpotIdx % SPOTS.length];
+      const spotName = nextSpot ? (nextSpot.titulo || nextSpot.categoria || 'Oferta Buen Fin') : 'Ofertas Buen Fin';
+
+      if (mode === 'loop') {
+        noticeEl.innerHTML = `🔄 Modo: <strong>Carrusel Continuo de Videos</strong>`;
+      } else if (mode === 'reactive') {
+        noticeEl.innerHTML = `📡 En espera: <strong>Spot Buen Fin bajo demanda</strong>`;
+      } else if (spotIntervalSecs === 0) {
+        noticeEl.innerHTML = `⏱ Próximo Spot Buen Fin: <strong>${spotName}</strong> (al terminar canción)`;
+      } else {
+        noticeEl.innerHTML = `⏱ Próximo Spot Buen Fin: <strong>${spotName}</strong> (en ${timeText || formatTimeRemaining(secondsUntilNextSpot)})`;
+      }
+    }
+
+    function toggleInterval() {
+      intervalIdx = (intervalIdx + 1) % INTERVALS.length;
+      spotIntervalSecs = INTERVALS[intervalIdx];
+      const btn = document.getElementById('btnInterval');
+      if (btn) {
+        if (spotIntervalSecs === 0) btn.textContent = '⏱ Frecuencia: Cada Canción';
+        else btn.textContent = `⏱ Frecuencia: ${(spotIntervalSecs / 60).toFixed(1)} Min`;
+      }
+      scheduleNextSpot();
+    }
+
+    function launchNextSpotSequence(specificIdx) {
+      if (!SPOTS.length) return;
+      clearInterval(spotCountdownTimer);
+      isInSpot = true;
+
+      // 1. Pausar música de radio para que se escuche el spot
+      pauseRadioPlayback();
+
+      // 2. Determinar índice del spot
+      const idxToLoad = (typeof specificIdx === 'number') ? specificIdx : nextSpotIdx;
+      nextSpotIdx = (idxToLoad + 1) % SPOTS.length;
+
+      // 3. Cargar y reproducir el spot
+      loadSpot(idxToLoad, true);
+    }
 
     // Cargar Spots locales de Buen Fin
     async function loadSpots() {
@@ -1035,23 +1474,41 @@
         SPOTS = data.spots || data;
         renderNav();
 
-        // Verificar si la URL trae un spot_id directo (ej. por trigger)
+        // Conectar WebSocket con Radio Terrapesca
+        initWS();
+
+        // Parámetros URL (ej. ?spot_id=... o ?mode=loop)
         const params = new URLSearchParams(window.location.search);
         const trigSpot = params.get('spot_id');
-        const isReactiveParam = params.get('trigger') === 'true' || params.has('spot_id');
+        const isReactiveParam = params.get('trigger') === 'true';
+        const isLoopParam = params.get('mode') === 'loop';
+
         if (isReactiveParam) {
           mode = 'reactive';
           document.getElementById('btnMode').textContent = '📡 Modo: Reactivo Radio';
+        } else if (isLoopParam) {
+          mode = 'loop';
+          document.getElementById('btnMode').textContent = '🔄 Modo: Carrusel Videos';
+        } else {
+          mode = 'radio_spots';
+          document.getElementById('btnMode').textContent = '📻 Modo: Radio + Video Spots';
         }
 
         if (trigSpot) {
           const idx = SPOTS.findIndex(x => x.spot_id === trigSpot);
-          loadSpot(idx >= 0 ? idx : 0, true);
+          launchNextSpotSequence(idx >= 0 ? idx : 0);
+        } else if (mode === 'loop') {
+          launchNextSpotSequence(0);
         } else {
-          loadSpot(0, false);
+          // Por defecto: Iniciar en Pantalla Standby con Radio Terrapesca en vivo
+          isInSpot = false;
+          standbyScreen.style.display = 'flex';
+          standbyScreen.style.opacity = '1';
+          tvStage.style.display = 'none';
+          scheduleNextSpot();
         }
 
-        // Monitorear música de fondo para la pantalla standby
+        // Monitoreo de respaldo por REST
         pollCurrentRadioTrack();
         setInterval(pollCurrentRadioTrack, 10000);
 
@@ -1199,18 +1656,28 @@
     }
 
     function togglePlay() {
-      if (isPlaying) pauseSpot();
-      else playSpot();
+      if (isInSpot) {
+        if (isPlaying) pauseSpot();
+        else playSpot();
+      } else {
+        launchNextSpotSequence();
+      }
     }
 
     function toggleMode() {
-      if (mode === 'loop') {
+      if (mode === 'radio_spots') {
+        mode = 'loop';
+        document.getElementById('btnMode').textContent = '🔄 Modo: Carrusel Videos';
+        pauseRadioPlayback();
+        launchNextSpotSequence(currentIdx);
+      } else if (mode === 'loop') {
         mode = 'reactive';
         document.getElementById('btnMode').textContent = '📡 Modo: Reactivo Radio';
+        finishAndGoStandby();
       } else {
-        mode = 'loop';
-        document.getElementById('btnMode').textContent = '🔄 Modo: Bucle TV';
-        loadSpot(currentIdx, true);
+        mode = 'radio_spots';
+        document.getElementById('btnMode').textContent = '📻 Modo: Radio + Video Spots';
+        finishAndGoStandby();
       }
     }
 
@@ -1223,7 +1690,7 @@
     }
 
     function selectSpot(i) {
-      loadSpot(i, isPlaying);
+      launchNextSpotSequence(i);
     }
 
     function startProgress() {
@@ -1238,7 +1705,7 @@
           if (mode === 'loop') {
             loadSpot(currentIdx + 1, true);
           } else {
-            // MODO REACTIVO: El spot termina y la pantalla DESAPARECE, volviendo a Standby de música
+            // Regresa a Standby de música de Radio
             finishAndGoStandby();
           }
         }, 1200); // Pausa estética de 1.2 segundos tras finalizar locución
@@ -1251,7 +1718,7 @@
           if (!isPlaying) return;
           if (mode === 'loop') loadSpot(currentIdx + 1, true);
           else finishAndGoStandby();
-        }, 25000);
+        }, 22000);
       };
 
       progressInterval = setInterval(() => {
@@ -1265,11 +1732,22 @@
 
     function finishAndGoStandby() {
       pauseSpot();
+      isInSpot = false;
       tvStage.style.opacity = '0';
       setTimeout(() => {
         tvStage.style.display = 'none';
         standbyScreen.style.display = 'flex';
         standbyScreen.style.opacity = '1';
+
+        if (mode === 'radio_spots') {
+          // Reanudar música de Radio Terrapesca en vivo
+          resumeRadioPlayback();
+          // Programar el siguiente spot
+          scheduleNextSpot();
+        } else if (mode === 'reactive') {
+          resumeRadioPlayback();
+          updateNextSpotNotice();
+        }
       }, 500);
     }
 
@@ -1293,9 +1771,11 @@
           const list = await r.json();
           if (list && list.length) {
             const cur = list[list.length - 1];
-            if (cur && cur.name) {
-              document.getElementById('stTrackTitle').textContent = cur.name;
-              document.getElementById('stTrackArtist').textContent = cur.artist ? ('por ' + cur.artist) : 'Radio Terrapesca';
+            if (cur && cur.name && (!currentYtTrack || !currentYtTrack.name)) {
+              const tEl = document.getElementById('stTrackTitle');
+              const aEl = document.getElementById('stTrackArtist');
+              if (tEl) tEl.textContent = cur.name;
+              if (aEl) aEl.textContent = cur.artist ? ('por ' + cur.artist) : 'Radio Terrapesca en vivo';
             }
           }
         }
@@ -1305,8 +1785,8 @@
     // Atajos de teclado para TV
     window.addEventListener('keydown', (e) => {
       if (e.key === ' ' || e.code === 'Space') { togglePlay(); }
-      else if (e.key === 'ArrowRight') { loadSpot(currentIdx + 1, isPlaying); }
-      else if (e.key === 'ArrowLeft') { loadSpot(currentIdx - 1, isPlaying); }
+      else if (e.key === 'ArrowRight') { launchNextSpotSequence((currentIdx + 1) % SPOTS.length); }
+      else if (e.key === 'ArrowLeft') { launchNextSpotSequence((currentIdx - 1 + SPOTS.length) % SPOTS.length); }
       else if (e.key === 'f' || e.key === 'F') { toggleFullscreen(); }
       else if (!isNaN(e.key) && Number(e.key) >= 1 && Number(e.key) <= 6) {
         selectSpot(Number(e.key) - 1);
