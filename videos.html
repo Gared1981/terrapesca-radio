@@ -1465,21 +1465,77 @@
       }
     }
 
-    function pauseRadioPlayback() {
-      if (ytPlayer && ytReady) {
-        try {
-          ytPlayer.pauseVideo();
-        } catch (_) {}
-      }
+    // ================= CROSSFADE SUAVE PARA SPOTS Y DJ RODO =================
+    let _ytFadeTimer = null;
+    function fadeOutYT(durationMs = 800, targetVol = 0, onComplete) {
+      clearInterval(_ytFadeTimer);
+      if (!ytPlayer || !ytReady) { if (onComplete) onComplete(); return; }
+      let curVol = 85;
+      try { curVol = ytPlayer.getVolume() || 85; } catch (_) {}
+      const steps = 16;
+      const stepTime = Math.max(15, durationMs / steps);
+      const volStep = (curVol - targetVol) / steps;
+      let step = 0;
+      _ytFadeTimer = setInterval(() => {
+        step++;
+        curVol = Math.max(targetVol, curVol - volStep);
+        try { ytPlayer.setVolume(Math.round(curVol)); } catch (_) {}
+        if (step >= steps || curVol <= targetVol) {
+          clearInterval(_ytFadeTimer);
+          try {
+            ytPlayer.setVolume(targetVol);
+            if (targetVol === 0) ytPlayer.pauseVideo();
+          } catch (_) {}
+          if (onComplete) onComplete();
+        }
+      }, stepTime);
     }
 
-    function resumeRadioPlayback() {
-      if (ytPlayer && ytReady && currentYtTrack) {
-        try {
-          ytPlayer.setVolume(85);
-          ytPlayer.playVideo();
-        } catch (_) {}
+    function fadeInYT(durationMs = 1200, targetVol = 85, onComplete) {
+      clearInterval(_ytFadeTimer);
+      if (!ytPlayer || !ytReady) { if (onComplete) onComplete(); return; }
+      let curVol = 0;
+      try {
+        ytPlayer.setVolume(0);
+        ytPlayer.playVideo();
+      } catch (_) {}
+      const steps = 24;
+      const stepTime = Math.max(15, durationMs / steps);
+      const volStep = targetVol / steps;
+      let step = 0;
+      _ytFadeTimer = setInterval(() => {
+        step++;
+        curVol = Math.min(targetVol, curVol + volStep);
+        try { ytPlayer.setVolume(Math.round(curVol)); } catch (_) {}
+        if (step >= steps || curVol >= targetVol) {
+          clearInterval(_ytFadeTimer);
+          try { ytPlayer.setVolume(targetVol); } catch (_) {}
+          if (onComplete) onComplete();
+        }
+      }, stepTime);
+    }
+
+    function pauseRadioPlayback(crossfade = true) {
+      if (!crossfade) {
+        if (ytPlayer && ytReady) {
+          try { ytPlayer.pauseVideo(); } catch (_) {}
+        }
+        return;
       }
+      fadeOutYT(750, 0);
+    }
+
+    function resumeRadioPlayback(crossfade = true) {
+      if (!crossfade) {
+        if (ytPlayer && ytReady && currentYtTrack) {
+          try {
+            ytPlayer.setVolume(85);
+            ytPlayer.playVideo();
+          } catch (_) {}
+        }
+        return;
+      }
+      fadeInYT(1200, 85);
     }
 
     function updateStandbyCard(track) {

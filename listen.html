@@ -1353,10 +1353,99 @@ function stopSpotAudio() {
   }
 }
 
-// Spots periódicos de audio de Buen Fin / DJ Rodo
+// ================= UTILIDADES DE CROSSFADE SUAVE =================
+let _ytFadeTimer = null;
+
+function fadeOutYT(durationMs = 800, targetVol = 0, onComplete) {
+  clearInterval(_ytFadeTimer);
+  if (!ytPlayer || !ytReady) { if (onComplete) onComplete(); return; }
+  let curVol = 85;
+  try { curVol = ytPlayer.getVolume() || 85; } catch (_) {}
+  const steps = 16;
+  const stepTime = Math.max(15, durationMs / steps);
+  const volStep = (curVol - targetVol) / steps;
+  let step = 0;
+
+  _ytFadeTimer = setInterval(() => {
+    step++;
+    curVol = Math.max(targetVol, curVol - volStep);
+    try { ytPlayer.setVolume(Math.round(curVol)); } catch (_) {}
+    if (step >= steps || curVol <= targetVol) {
+      clearInterval(_ytFadeTimer);
+      try {
+        ytPlayer.setVolume(targetVol);
+        if (targetVol === 0) ytPlayer.pauseVideo();
+      } catch (_) {}
+      if (onComplete) onComplete();
+    }
+  }, stepTime);
+}
+
+function fadeInYT(durationMs = 1200, targetVol = 85, onComplete) {
+  clearInterval(_ytFadeTimer);
+  if (!ytPlayer || !ytReady) { if (onComplete) onComplete(); return; }
+  const target = (typeof targetVol === 'number' && targetVol > 0) ? targetVol : 85;
+  let curVol = 0;
+  try {
+    ytPlayer.setVolume(0);
+    ytPlayer.playVideo();
+  } catch (_) {}
+  const steps = 24;
+  const stepTime = Math.max(15, durationMs / steps);
+  const volStep = target / steps;
+  let step = 0;
+
+  _ytFadeTimer = setInterval(() => {
+    step++;
+    curVol = Math.min(target, curVol + volStep);
+    try { ytPlayer.setVolume(Math.round(curVol)); } catch (_) {}
+    if (step >= steps || curVol >= target) {
+      clearInterval(_ytFadeTimer);
+      try { ytPlayer.setVolume(target); } catch (_) {}
+      if (onComplete) onComplete();
+    }
+  }, stepTime);
+}
+
+function fadeInAudio(audioEl, durationMs = 500, targetVol = 0.95) {
+  if (!audioEl) return;
+  audioEl.volume = 0;
+  audioEl.play().catch(() => {});
+  const steps = 12;
+  const stepTime = Math.max(15, durationMs / steps);
+  const volStep = targetVol / steps;
+  let step = 0;
+  let v = 0;
+  const timer = setInterval(() => {
+    step++;
+    v = Math.min(targetVol, v + volStep);
+    try { audioEl.volume = v; } catch (_) {}
+    if (step >= steps || v >= targetVol) clearInterval(timer);
+  }, stepTime);
+}
+
+function fadeOutAudio(audioEl, durationMs = 600, onComplete) {
+  if (!audioEl) { if (onComplete) onComplete(); return; }
+  const steps = 12;
+  const stepTime = Math.max(15, durationMs / steps);
+  let v = audioEl.volume || 0.95;
+  const volStep = v / steps;
+  let step = 0;
+  const timer = setInterval(() => {
+    step++;
+    v = Math.max(0, v - volStep);
+    try { audioEl.volume = v; } catch (_) {}
+    if (step >= steps || v <= 0) {
+      clearInterval(timer);
+      try { audioEl.pause(); } catch (_) {}
+      if (onComplete) onComplete();
+    }
+  }, stepTime);
+}
+
+// Spots periódicos de audio de Buen Fin / DJ Rodo con Crossfade Profesional
 function playSpotB64(track) {
   if (!started) return;
-  try { if (ytReady) ytPlayer.pauseVideo(); } catch (_) {}
   stopSpotAudio();
 
   const bin = atob(track.b64);
@@ -1367,28 +1456,35 @@ function playSpotB64(track) {
 
   spotAudio = new Audio(url);
   spotAudio._u = url;
-  spotAudio.volume = (parseInt(document.getElementById('volSlider').value, 10) || 85) / 100;
+  const curVol = (parseInt(document.getElementById('volSlider').value, 10) || 85);
+  const userVol = curVol / 100;
 
   setStatus('📣 ' + (track.name || 'Spot al aire'), 'spot');
 
+  // Crossfade: la música baja suavemente mientras la voz / spot entra gradualmente
+  fadeOutYT(750, 0);
+  fadeInAudio(spotAudio, 450, userVol);
+
   const resume = () => {
-    stopSpotAudio();
+    fadeOutAudio(spotAudio, 400, () => {
+      stopSpotAudio();
+    });
     try {
       if (ytReady && _lastYtId) {
         const p = _liveNow();
         if (p > 2) ytPlayer.seekTo(p, true);
-        ytPlayer.playVideo();
       }
     } catch (_) {}
+    // Música sube suavemente en crossfade
+    fadeInYT(1200, curVol);
     setStatus('● EN VIVO', 'live');
   };
 
   spotAudio.onended = resume;
   spotAudio.onerror = resume;
-  spotAudio.play().catch(resume);
 }
 
-// Reproducción periódica autónoma de spots de Buen Fin (cada ~3.5 min)
+// Reproducción periódica autónoma de spots de Buen Fin (cada ~3.5 min) con Crossfade
 let bfAudioRotationTimer = null;
 function startBfSpotAudioLoop() {
   clearInterval(bfAudioRotationTimer);
@@ -1396,28 +1492,34 @@ function startBfSpotAudioLoop() {
     if (started && playing && !spotAudio && BUEN_FIN_SPOTS.length) {
       const s = BUEN_FIN_SPOTS[curPromoIdx];
       if (!s) return;
-      try { if (ytReady) ytPlayer.pauseVideo(); } catch (_) {}
       stopSpotAudio();
 
       spotAudio = new Audio('/buenfin/' + s.spot_id + '.mp3?v=' + Date.now());
-      spotAudio.volume = (parseInt(document.getElementById('volSlider').value, 10) || 85) / 100;
+      const curVol = (parseInt(document.getElementById('volSlider').value, 10) || 85);
+      const userVol = curVol / 100;
       setStatus('📣 ' + s.titulo.slice(0, 32), 'spot');
 
+      // Crossfade de entrada suave
+      fadeOutYT(750, 0);
+      fadeInAudio(spotAudio, 450, userVol);
+
       const resume = () => {
-        stopSpotAudio();
+        fadeOutAudio(spotAudio, 400, () => {
+          stopSpotAudio();
+        });
         try {
           if (ytReady && _lastYtId) {
             const p = _liveNow();
             if (p > 2) ytPlayer.seekTo(p, true);
-            ytPlayer.playVideo();
           }
         } catch (_) {}
+        // Crossfade de salida: música regresa gradualmente
+        fadeInYT(1200, curVol);
         setStatus('● EN VIVO', 'live');
       };
 
       spotAudio.onended = resume;
       spotAudio.onerror = resume;
-      spotAudio.play().catch(resume);
     }
   }, 210000);
 }
