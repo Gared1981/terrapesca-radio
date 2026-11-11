@@ -287,6 +287,188 @@
       box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8), 0 0 35px rgba(16, 185, 129, 0.4), 0 0 45px rgba(255, 42, 42, 0.25) !important;
     }
 
+    /* ================= EFECTOS VISUALES MAJA SPORTSWEAR ================= */
+    .maja-canvas {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      pointer-events: none;
+      z-index: 5;
+      border-radius: 18px;
+    }
+    .maja-overlay {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      pointer-events: none;
+      z-index: 7;
+      border-radius: 18px;
+      overflow: hidden;
+    }
+    .maja-card-glow {
+      border-color: #38bdf8 !important;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8), 0 0 35px rgba(56, 189, 248, 0.4), 0 0 45px rgba(14, 165, 233, 0.25) !important;
+    }
+    .maja-top-badge {
+      position: absolute;
+      top: 14px; left: 14px; right: 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 8;
+    }
+    .maja-brand-pill {
+      background: rgba(3, 14, 28, 0.9);
+      border: 1.5px solid #38bdf8;
+      border-radius: 999px;
+      padding: 6px 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6), 0 0 20px rgba(56, 189, 248, 0.4);
+      backdrop-filter: blur(8px);
+    }
+    .maja-brand-icon {
+      font-size: 1.8vh;
+    }
+    .maja-brand-name {
+      font-family: 'Cabinet Grotesk', sans-serif;
+      font-weight: 900;
+      font-size: 2.2vh;
+      color: #ffffff;
+      letter-spacing: 2px;
+    }
+    .maja-brand-tag {
+      font-size: 1.2vh;
+      color: #38bdf8;
+      font-weight: 800;
+      letter-spacing: 1px;
+    }
+    .maja-tech-pill {
+      background: linear-gradient(135deg, rgba(14, 165, 233, 0.95), rgba(2, 132, 199, 0.95));
+      border: 1.5px solid #7dd3fc;
+      color: #ffffff;
+      font-family: 'Cabinet Grotesk', sans-serif;
+      font-weight: 800;
+      font-size: 1.4vh;
+      padding: 6px 14px;
+      border-radius: 999px;
+      box-shadow: 0 4px 15px rgba(14, 165, 233, 0.4), 0 0 20px rgba(56, 189, 248, 0.3);
+    }
+    .maja-chest-callout {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(3, 14, 28, 0.88);
+      border: 1.5px solid #38bdf8;
+      border-radius: 999px;
+      padding: 10px 22px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      box-shadow: 0 10px 35px rgba(0, 0, 0, 0.75), 0 0 30px rgba(56, 189, 248, 0.5);
+      backdrop-filter: blur(12px);
+      z-index: 8;
+      animation: majaPulse 3s infinite alternate ease-in-out;
+      pointer-events: none;
+      white-space: nowrap;
+    }
+    @keyframes majaPulse {
+      0% { transform: translate(-50%, -50%) scale(1); box-shadow: 0 10px 30px rgba(0,0,0,0.7), 0 0 20px rgba(56, 189, 248, 0.4); }
+      100% { transform: translate(-50%, -50%) scale(1.03); box-shadow: 0 12px 35px rgba(0,0,0,0.8), 0 0 35px rgba(56, 189, 248, 0.7); }
+    }
+    .maja-callout-icon {
+      font-size: 2.2vh;
+      color: #facc15;
+    }
+    .maja-callout-text {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .maja-callout-title {
+      font-family: 'Cabinet Grotesk', sans-serif;
+      font-weight: 900;
+      font-size: 1.6vh;
+      letter-spacing: 1.5px;
+      color: #ffffff;
+    }
+    .maja-callout-sub {
+      font-size: 1.1vh;
+      font-weight: 700;
+      letter-spacing: 1px;
+      color: #7dd3fc;
+    }
+    .maja-broadcast-bar {
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      background: linear-gradient(90deg, rgba(2, 10, 22, 0.96) 0%, rgba(6, 28, 55, 0.94) 50%, rgba(2, 10, 22, 0.96) 100%);
+      border-top: 1.5px solid rgba(56, 189, 248, 0.6);
+      padding: 10px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 -6px 25px rgba(0, 0, 0, 0.6);
+      z-index: 8;
+      overflow: hidden;
+    }
+    .maja-bar-glare {
+      position: absolute;
+      top: 0; left: -100%;
+      width: 50%; height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.18), transparent);
+      transform: skewX(-25deg);
+      animation: glareSweep 4s infinite ease-in-out;
+    }
+    @keyframes glareSweep {
+      0% { left: -100%; }
+      50%, 100% { left: 200%; }
+    }
+    .maja-bar-left {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+    }
+    .maja-bar-logo {
+      font-family: 'Cabinet Grotesk', sans-serif;
+      font-weight: 900;
+      font-size: 2.6vh;
+      color: #38bdf8;
+      letter-spacing: 2px;
+      text-shadow: 0 0 10px rgba(56, 189, 248, 0.7);
+    }
+    .maja-bar-edition {
+      font-size: 1.2vh;
+      font-weight: 800;
+      color: #cbd5e1;
+      letter-spacing: 1px;
+    }
+    .maja-bar-sep {
+      width: 1px;
+      height: 22px;
+      background: rgba(255, 255, 255, 0.2);
+    }
+    .maja-bar-center {
+      font-size: 1.3vh;
+      font-weight: 700;
+      color: #94a3b8;
+      letter-spacing: 1px;
+    }
+    .maja-deal-badge {
+      background: linear-gradient(135deg, #ef4444, #dc2626);
+      border: 1px solid #f87171;
+      color: #ffffff;
+      font-family: 'Cabinet Grotesk', sans-serif;
+      font-weight: 900;
+      font-size: 1.4vh;
+      padding: 5px 12px;
+      border-radius: 6px;
+      box-shadow: 0 0 15px rgba(239, 68, 68, 0.5);
+      letter-spacing: 0.5px;
+    }
+
     /* Columna Derecha: Oferta + QR Gigante */
     .offer-box {
       display: flex;
@@ -733,6 +915,46 @@
           <div id="holidayBadge" class="holiday-badge" style="display:none;">
             🎄 PREVENTA DICIEMBRE • ENTREGA GARANTIZADA ❄️
           </div>
+
+          <!-- Efectos y Overlays MAJA Sportswear (Ocultan y desenfocan detalles de la prenda) -->
+          <canvas id="majaCanvas" class="maja-canvas" style="display:none;"></canvas>
+          <div id="majaOverlay" class="maja-overlay" style="display:none;">
+            <!-- Badge Superior Oficial MAJA -->
+            <div class="maja-top-badge">
+              <div class="maja-brand-pill">
+                <span class="maja-brand-icon">🌊</span>
+                <span class="maja-brand-name">MAJA</span>
+                <span class="maja-brand-tag">SPORTSWEAR</span>
+              </div>
+              <div class="maja-tech-pill">☀️ FILTRO SOLAR UPF 50+</div>
+            </div>
+
+            <!-- Parche Central Dinámico sobre la Prenda (Cubre el pecho/torso) -->
+            <div class="maja-chest-callout">
+              <div class="maja-callout-icon">⚡</div>
+              <div class="maja-callout-text">
+                <span class="maja-callout-title">COLECCIÓN TÉCNICA OFICIAL</span>
+                <span class="maja-callout-sub">TELA TÉCNICA TRANSPIRABLE • SECADO RÁPIDO</span>
+              </div>
+            </div>
+
+            <!-- Cinta Inferior Cinematográfica de Alta Visibilidad -->
+            <div class="maja-broadcast-bar">
+              <div class="maja-bar-glare"></div>
+              <div class="maja-bar-left">
+                <span class="maja-bar-logo">MAJA</span>
+                <span class="maja-bar-edition">EDICIÓN BUEN FIN 2026</span>
+              </div>
+              <div class="maja-bar-sep"></div>
+              <div class="maja-bar-center">
+                <span>🛡️ ORIGINAL OUTDOOR PERFORMANCE</span>
+              </div>
+              <div class="maja-bar-sep"></div>
+              <div class="maja-bar-right">
+                <span class="maja-deal-badge">🔥 30% DE DESCUENTO</span>
+              </div>
+            </div>
+          </div>
         </div>
         <div class="product-info-wrap">
           <h1 class="product-title" id="spotTitle">GORRAS TERRAPESCA TRUCKER AL 50%</h1>
@@ -894,6 +1116,22 @@
         if (holiBadge) holiBadge.style.display = 'none';
         if (cardEl) cardEl.classList.remove('holiday-card-glow');
         if (snowAnimId) cancelAnimationFrame(snowAnimId);
+      }
+
+      // Efectos MAJA Sportswear (Cubre y desenfoca la prenda con overlays oficiales y destellos solares)
+      const isMaja = s.spot_id === 'spot_maja_30' || (s.categoria && s.categoria.toLowerCase().includes('maja'));
+      const majaOverlay = document.getElementById('majaOverlay');
+      const majaCanvas = document.getElementById('majaCanvas');
+      if (isMaja) {
+        if (majaOverlay) majaOverlay.style.display = 'block';
+        if (majaCanvas) majaCanvas.style.display = 'block';
+        if (cardEl) cardEl.classList.add('maja-card-glow');
+        initMajaEffects(cardEl);
+      } else {
+        if (majaOverlay) majaOverlay.style.display = 'none';
+        if (majaCanvas) majaCanvas.style.display = 'none';
+        if (cardEl) cardEl.classList.remove('maja-card-glow');
+        if (majaAnimId) cancelAnimationFrame(majaAnimId);
       }
 
       // Actualizar dots
@@ -1089,6 +1327,11 @@
         snowEl.width = cardEl.clientWidth;
         snowEl.height = cardEl.clientHeight;
       }
+      const majaEl = document.getElementById('majaCanvas');
+      if (cardEl && majaEl && majaEl.style.display !== 'none') {
+        majaEl.width = cardEl.clientWidth;
+        majaEl.height = cardEl.clientHeight;
+      }
     }
     window.addEventListener('resize', resizeCanvas);
     resizeCanvas();
@@ -1182,6 +1425,89 @@
         sCtx.globalAlpha = 1;
       }
       snowAnimId = requestAnimationFrame(renderSnow);
+    }
+
+    /* ================= EFECTOS SOLARES Y ATMOSFÉRICOS MAJA ================= */
+    let majaAnimId = null;
+    let majaParticles = [];
+    let sunbeamPhase = 0;
+
+    function initMajaEffects(containerEl) {
+      const c = document.getElementById('majaCanvas');
+      if (!c) return;
+      c.width = containerEl ? containerEl.clientWidth : 800;
+      c.height = containerEl ? containerEl.clientHeight : 500;
+      majaParticles = [];
+      const count = 40;
+      for (let i = 0; i < count; i++) {
+        majaParticles.push({
+          x: Math.random() * c.width,
+          y: Math.random() * c.height,
+          r: Math.random() * 2.5 + 1,
+          vx: (Math.random() - 0.3) * 1.2,
+          vy: -Math.random() * 0.9 - 0.3,
+          alpha: Math.random() * 0.6 + 0.25,
+          color: Math.random() > 0.5 ? '#38bdf8' : '#fbbf24'
+        });
+      }
+      if (majaAnimId) cancelAnimationFrame(majaAnimId);
+      renderMajaEffects();
+    }
+
+    function renderMajaEffects() {
+      const c = document.getElementById('majaCanvas');
+      if (!c || c.style.display === 'none') return;
+      const mCtx = c.getContext('2d');
+      mCtx.clearRect(0, 0, c.width, c.height);
+
+      sunbeamPhase += 0.015;
+
+      // 1. Destello solar / flare dinámico que cruza el área central (pecho/torso)
+      // Genera un brillo de luz exterior natural que oculta imperfecciones de la tela
+      const flareY = c.height * 0.50 + Math.sin(sunbeamPhase) * 15;
+      const flareX = c.width * 0.50 + Math.cos(sunbeamPhase * 0.7) * 45;
+      
+      const flareGrad = mCtx.createRadialGradient(flareX, flareY, 5, flareX, flareY, c.width * 0.55);
+      flareGrad.addColorStop(0, 'rgba(255, 235, 170, 0.38)');
+      flareGrad.addColorStop(0.2, 'rgba(56, 189, 248, 0.22)');
+      flareGrad.addColorStop(0.5, 'rgba(14, 165, 233, 0.10)');
+      flareGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      
+      mCtx.save();
+      mCtx.fillStyle = flareGrad;
+      mCtx.fillRect(0, 0, c.width, c.height);
+
+      // Haz de luz diagonal simulando sol costero sobre la camisa
+      const beamGrad = mCtx.createLinearGradient(flareX - 120, flareY - 80, flareX + 120, flareY + 80);
+      beamGrad.addColorStop(0, 'rgba(255, 255, 255, 0)');
+      beamGrad.addColorStop(0.5, 'rgba(255, 245, 210, 0.25)');
+      beamGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+      mCtx.fillStyle = beamGrad;
+      mCtx.beginPath();
+      mCtx.ellipse(flareX, flareY, c.width * 0.42, 35, Math.PI / 6, 0, Math.PI * 2);
+      mCtx.fill();
+      mCtx.restore();
+
+      // 2. Partículas marinas / polvo luminoso al aire libre
+      for (const p of majaParticles) {
+        p.x += p.vx;
+        p.y += p.vy;
+        if (p.y < 0) { p.y = c.height; p.x = Math.random() * c.width; }
+        if (p.x > c.width) p.x = 0;
+        if (p.x < 0) p.x = c.width;
+
+        mCtx.beginPath();
+        mCtx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        mCtx.fillStyle = p.color;
+        mCtx.globalAlpha = p.alpha;
+        mCtx.shadowBlur = 8;
+        mCtx.shadowColor = p.color;
+        mCtx.fill();
+        mCtx.shadowBlur = 0;
+        mCtx.globalAlpha = 1;
+      }
+
+      majaAnimId = requestAnimationFrame(renderMajaEffects);
     }
 
     /* ================= EXPORTADOR DE VIDEO SPOT A ARCHIVO MP4/WEBM ================= */
