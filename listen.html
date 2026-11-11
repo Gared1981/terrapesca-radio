@@ -432,7 +432,7 @@ html,body{width:100%;height:100%;background:#05070c;color:#fff;font-family:'Inte
 
 <!-- Reproductor de YouTube oculto (mismo mecanismo que sucursal.html — YouTube
      bloquea reproducción en iframes 0x0/display:none, por eso 200x113 casi invisible) -->
-<div id="yt-holder" style="position:fixed;bottom:0;right:0;width:200px;height:113px;opacity:.01;pointer-events:none;z-index:-1"></div>
+<div id="yt-holder" style="position:fixed;bottom:0;right:0;width:200px;height:113px;opacity:.01;pointer-events:none;z-index:1"></div>
 
 <!-- Audio real del servidor (/radio/stream): SÍ reproduce en segundo plano en
      el celular (pantalla apagada, minimizado). Es la fuente primaria; si falla,
@@ -463,9 +463,9 @@ document.getElementById('streamPill').textContent = '🔗 Compartir radio';
    se reproduce el video de YouTube oculto, sincronizado por WebSocket. */
 let ytPlayer = null, ytReady = false, _pendingPlay = null, _lastYtId = null;
 let spotAudio = null;
-// Modo de audio: 'stream' = <audio> del servidor (suena en segundo plano);
-// 'yt' = reproductor de YouTube (respaldo si el stream falla).
-let _mode = 'stream', _streamOk = false, _streamWatchdog = null, _wantPlay = false;
+// Modo de audio: 'yt' = Reproductor de YouTube sincronizado en vivo (Directo y confiable)
+let _mode = 'yt', _streamOk = false, _streamWatchdog = null, _wantPlay = false;
+const SILENT_WAV = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
 const bgAudio = document.getElementById('bgAudio');
 function startStreamAudio() {
   _mode = 'stream'; _streamOk = false; _wantPlay = true;
@@ -512,7 +512,12 @@ function onYouTubeIframeAPIReady() {
     events: {
       onReady: () => {
         ytReady = true;
-        if (_pendingPlay && started) { const p = _pendingPlay; _pendingPlay = null; playRemote(p.track, p.pos); }
+        try { ytPlayer.unMute(); ytPlayer.setVolume(85); } catch (_) {}
+        if (started && (_pendingPlay || currentTrack)) {
+          const p = _pendingPlay || { track: currentTrack, pos: _liveNow() };
+          _pendingPlay = null;
+          playRemote(p.track, p.pos);
+        }
       },
       onStateChange: (e) => {
         if (e.data === YT.PlayerState.PLAYING) {
@@ -534,26 +539,32 @@ function playRemote(track, pos) {
   if (!track || !track.ytId) return;
   currentTrack = track;
   updateNowPlaying(track);
-  if (!started || !ytReady) { _pendingPlay = { track, pos: pos || 0 }; return; }
+  if (!started || !ytReady) {
+    _pendingPlay = { track, pos: pos || 0 };
+    return;
+  }
   stopSpot();
   try {
+    ytPlayer.unMute();
+    ytPlayer.setVolume(85);
+    const startSecs = (pos || 0) > 2 ? pos : 0;
     if (_lastYtId === track.ytId) {
-      // Mismo video ya cargado — solo sincronizar y reanudar (sin flash desde 0)
-      if ((pos || 0) > 2) try { ytPlayer.seekTo(pos, true); } catch (_) {}
+      if (startSecs > 2) try { ytPlayer.seekTo(startSecs, true); } catch (_) {}
       ytPlayer.playVideo();
     } else {
       _lastYtId = track.ytId;
-      ytPlayer.loadVideoById({ videoId: track.ytId, startSeconds: (pos || 0) > 2 ? pos : 0 });
+      ytPlayer.loadVideoById({ videoId: track.ytId, startSeconds: startSecs });
     }
-    // Si el navegador bloqueó el autoplay, pedir un toque
     setTimeout(() => {
       try {
-        if (ytPlayer.getPlayerState() !== YT.PlayerState.PLAYING) {
-          setStatus('Toca ▶ para escuchar', 'connecting'); setPlayUI(false);
+        if (ytPlayer.getPlayerState && ytPlayer.getPlayerState() !== YT.PlayerState.PLAYING) {
+          ytPlayer.playVideo();
         }
       } catch (_) {}
-    }, 2000);
-  } catch (_) { _pendingPlay = { track, pos: pos || 0 }; }
+    }, 1500);
+  } catch (_) {
+    _pendingPlay = { track, pos: pos || 0 };
+  }
 }
 
 /* Spots/DJ Rodo llegan como audio base64 — se reproducen sobre la música pausada */
@@ -625,31 +636,49 @@ function startListening() {
   setupMediaSessionBase();
   acquireWakeLock(); // mantener la pantalla encendida mientras se escucha
 
-  // Primario: stream de audio real del servidor (suena en segundo plano).
-  // Si falla, fallbackToYT() cambia al reproductor de YouTube.
-  startStreamAudio();
+  // Loop silencioso en segundo plano para iOS/Android para evitar suspensión
+  try {
+    bgAudio.src = SILENT_WAV;
+    bgAudio.loop = true;
+    bgAudio.play().catch(() => {});
+  } catch (_) {}
+
+  // Reproducción instantánea directa mediante YouTube Player con el gesto activo
+  _mode = 'yt';
+  if (ytPlayer && ytReady) {
+    try {
+      ytPlayer.unMute();
+      ytPlayer.setVolume(85);
+    } catch (_) {}
+  }
+
   const t = (_pendingPlay && _pendingPlay.track) || currentTrack;
-  if (t) updateNowPlaying(t);
-  else diagnose();
+  if (t && t.ytId) {
+    playRemote(t, _liveNow());
+  } else {
+    diagnose();
+  }
 }
 
 // ── Controls ──
 function togglePlay() {
   if (!started) { startListening(); return; }
-  if (_mode === 'stream') {
-    if (playing) { _wantPlay = false; try { bgAudio.pause(); } catch (_) {} setStatus('Pausado', ''); document.getElementById('liveLabel').style.display = 'none'; }
-    else { startStreamAudio(); } // reconecta al vivo
-    return;
-  }
-  // Respaldo (YouTube)
   if (playing) {
     try { if (ytReady) ytPlayer.pauseVideo(); } catch (_) {}
+    playing = false;
+    setPlayUI(false);
     setStatus('Pausado', '');
     document.getElementById('liveLabel').style.display = 'none';
-  } else if (currentTrack && currentTrack.ytId) {
-    playRemote(currentTrack, _liveNow());
   } else {
-    diagnose();
+    if (ytPlayer && ytReady) {
+      try { ytPlayer.unMute(); ytPlayer.setVolume(85); } catch (_) {}
+    }
+    const t = currentTrack || (_pendingPlay && _pendingPlay.track);
+    if (t && t.ytId) {
+      playRemote(t, _liveNow());
+    } else {
+      diagnose();
+    }
   }
 }
 function skipPrev() { sendWS({ type: 'PREV_TRACK' }); }
@@ -892,9 +921,13 @@ function connectWS() {
           if (st.queuePreview) renderUpNext(st.queuePreview);
           if (st.currentTrack) {
             _livePos = { pos: st.position || 0, at: st.lastUpdate || Date.now(), playing: !!st.isPlaying };
-            // En modo stream el audio lo lleva el servidor; solo mostramos qué suena.
-            if (_mode === 'yt' && st.currentTrack.ytId && st.isPlaying) playRemote(st.currentTrack, _liveNow());
-            else updateNowPlaying(st.currentTrack);
+            currentTrack = st.currentTrack;
+            updateNowPlaying(st.currentTrack);
+            if (started && st.currentTrack.ytId && st.isPlaying) {
+              playRemote(st.currentTrack, _liveNow());
+            } else if (!started) {
+              _pendingPlay = { track: st.currentTrack, pos: _liveNow() };
+            }
           }
           break;
         }
@@ -902,8 +935,12 @@ function connectWS() {
           if (m.track) {
             _livePos = { pos: m.position || 0, at: Date.now(), playing: true };
             currentTrack = m.track;
-            if (_mode === 'yt' && m.track.ytId) playRemote(m.track, m.position || 0);
-            else updateNowPlaying(m.track);
+            updateNowPlaying(m.track);
+            if (started && m.track.ytId) {
+              playRemote(m.track, m.position || 0);
+            } else if (!started) {
+              _pendingPlay = { track: m.track, pos: m.position || 0 };
+            }
           }
           break;
         case 'PAUSE':
