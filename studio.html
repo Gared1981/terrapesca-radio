@@ -980,8 +980,15 @@ function _renderAutopilotTrackInStudio(track, position, preview){
     artist: track.channelTitle || track.artist || 'Radio Terrapesca',
     duration: track.duration || 210
   };
-  decks[0].playing=true;
   decks[0].dur=track.duration || 210;
+
+  // En modo 24/7 ningún deck local debe sonar en cabina: la radio se emite desde el servidor
+  decks.forEach(d=>{
+    try{ if(d.player&&d.player.pauseVideo) d.player.pauseVideo(); }catch(_){}
+    try{ if(d.player&&d.player.setVolume) d.player.setVolume(0); }catch(_){}
+    d.playing=false;
+  });
+
   renderDeck(0);
 
   _apCurrentPos=position || 0;
@@ -993,6 +1000,7 @@ function _renderAutopilotTrackInStudio(track, position, preview){
     if(!_autopilotOn){ clearInterval(_apElapsedTimer); return; }
     _apCurrentPos=Math.min(_apCurrentDur, _apCurrentPos+1);
     updateDeckTime(0, _apCurrentPos, _apCurrentDur);
+    drawVU();
   }, 1000);
 
   if(preview && preview.length){
@@ -1014,6 +1022,8 @@ function _renderAutopilotPreviewInStudio(items){
   };
   decks[1].playing=false;
   decks[1].dur=nextTrack.duration || 210;
+  try{ if(decks[1].player&&decks[1].player.pauseVideo) decks[1].player.pauseVideo(); }catch(_){}
+  try{ if(decks[1].player&&decks[1].player.setVolume) decks[1].player.setVolume(0); }catch(_){}
   renderDeck(1);
   updateDeckTime(1, 0, decks[1].dur);
 }
@@ -1065,6 +1075,7 @@ function _onRemoteCmd(ev){
   else { const d=decks[activeDeck]; if(d&&d.item){ try{ d.player.seekTo(0,true); }catch(_){} toast('⏮ Pista reiniciada (pedido remoto)',''); } }
 }
 function _wsSendCurrentState(){
+  if(_autopilotOn) return;
   const d=decks[activeDeck];
   if(!d||!d.item) return;
   let pos=0; try{pos=d.player.getCurrentTime()||0;}catch(_){}
@@ -1175,6 +1186,19 @@ function _setAutopilotUI(on){
   if(btn){ btn.textContent=on?'📡 24/7 ●':'📡 24/7'; btn.style.color=on?'var(--grn)':''; }
   const banner=document.getElementById('r247Banner');
   if(banner) banner.style.display=on?'flex':'none';
+  if(on){
+    // Silenciar y pausar inmediatamente los decks locales en cabina
+    decks.forEach(d=>{
+      try{ if(d.player&&d.player.pauseVideo) d.player.pauseVideo(); }catch(_){}
+      try{ if(d.player&&d.player.setVolume) d.player.setVolume(0); }catch(_){}
+      d.playing=false;
+    });
+    setCrossfader(0);
+    setOnAir(true);
+  } else {
+    clearInterval(_apElapsedTimer);
+    setOnAir(false);
+  }
 }
 function _wsPlayTrack(item, positionSecs){
   if(!item||!item.ytId) return;
@@ -1564,6 +1588,14 @@ document.addEventListener('visibilitychange', () => {
 });
 
 function onDeckState(d,e){
+  if(_autopilotOn){
+    // En modo 24/7 ningún deck local debe sonar: silenciar y pausar si intentan reproducir
+    if(e.data===YT.PlayerState.PLAYING){
+      try{ d.player.pauseVideo(); d.player.setVolume(0); }catch(_){}
+      d.playing=false;
+    }
+    return;
+  }
   if(e.data===YT.PlayerState.PLAYING){
     clearTimeout(d._bufTimeout);
     // Si el deck NO es el activo y NO estamos en medio de un crossfade, JAMÁS debe sonar
@@ -1615,6 +1647,7 @@ function waitReady(cb){
 
 /* ================= TRANSPORT ================= */
 function startStation(){
+  if(_autopilotOn) return;
   if(!queue.length){toast('Agrega canciones a la cola','error');return;}
   waitReady(()=>{
     queuePos=0; activeDeck=0;
@@ -1632,6 +1665,7 @@ function startStation(){
   });
 }
 function loadDeck(id,item,play){
+  if(_autopilotOn) return;
   const d=decks[id]; if(!d.ready||!item) return;
   d.item=item; d.dur=0;
   if(play!==false) _trackPlayed(item.ytId);
@@ -1660,6 +1694,7 @@ function loadDeck(id,item,play){
   }
 }
 function cueDeck(id,item){
+  if(_autopilotOn) return;
   // Cue sin reproducir: volumen 0 y pausa obligatoria
   const d=decks[id]; if(!d.ready||!item) return;
   if(d.playing && d.id===activeDeck) return;
@@ -1670,6 +1705,7 @@ function cueDeck(id,item){
 let _prebufDone=false;
 let _prebufTimeout=null;
 function prebufferNext(item){
+  if(_autopilotOn) return;
   const other=activeDeck===0?1:0;
   const d=decks[other];
   if(!d.ready||d.playing||_prebufDone) return;
@@ -1691,6 +1727,10 @@ function prebufferNext(item){
   },6000);
 }
 function deckPlayPause(id){
+  if(_autopilotOn){
+    toast('Radio 24/7 activa en el servidor — pulsa "Detener" arriba para control manual','error');
+    return;
+  }
   const d=decks[id]; if(!d.ready) return;
   if(!d.item){deckCueFromQueue(id);return;}
   try{
@@ -1709,6 +1749,7 @@ function deckPlayPause(id){
   }catch(_){}
 }
 function deckCueFromQueue(id){
+  if(_autopilotOn) return;
   if(!queue.length){toast('Cola vacía','error');return;}
   const next=nextQueueIndex(queuePos);
   waitReady(()=>{ loadDeck(id,queue[next],true); queuePos=next; activeDeck=id; setCrossfader(id===0?0:100);
@@ -1718,8 +1759,9 @@ function deckCueFromQueue(id){
 }
 
 /* core: crossfade de 12 segundos active → other deck */
-function forceCrossfade(){ if(!_xfading) doCrossfade(); }
+function forceCrossfade(){ if(!_xfading && !_autopilotOn) doCrossfade(); }
 function doCrossfade(){
+  if(_autopilotOn) return;
   if(_xfading) return;
   const cur=decks[activeDeck];
   const nxt=decks[activeDeck===0?1:0];
@@ -1808,6 +1850,7 @@ function doCrossfade(){
   }, iv);
 }
 function advanceQueueInto(id){
+  if(_autopilotOn) return;
   const next=nextQueueIndex(queuePos);
   loadDeck(id,queue[next],true); queuePos=next; activeDeck=id;
   setCrossfader(id===0?0:100);
@@ -1816,6 +1859,7 @@ function advanceQueueInto(id){
   renderQueue();
 }
 function advanceNoXfade(){
+  if(_autopilotOn) return;
   if(!queue.length) return;
   const other=activeDeck===0?1:0;
   if(decks[other].item){ doCrossfade(); }
@@ -1824,6 +1868,7 @@ function advanceNoXfade(){
 
 /* AUTO-MIX watcher: crossfade de 10s al acercarse al final */
 setInterval(()=>{
+  if(_autopilotOn) return; // En 24/7 el servidor hace el crossfade y avance
   const d=decks[activeDeck];
   if(!d||!d.playing||_xfading||djActive) return;
   let ct=0,dur=0;
@@ -1851,6 +1896,7 @@ function _runIntervention(item){
 
 /* update inactive deck time display too */
 setInterval(()=>{
+  if(_autopilotOn) return;
   decks.forEach(d=>{ if(d.id!==activeDeck && d.playing){
     try{updateDeckTime(d.id,d.player.getCurrentTime()||0,d.player.getDuration()||0);}catch(_){}
   }});
@@ -2643,7 +2689,7 @@ function onMaster(v){master=v/100;document.getElementById('masterTxt').textConte
   const mx=document.getElementById('master'); if(mx&&+mx.value!==+v) mx.value=v;
 }
 function drawVU(){
-  const playing=decks.some(d=>d.playing)||djActive;
+  const playing=_autopilotOn || decks.some(d=>d.playing) || djActive;
   ['vuL','vuR'].forEach((id,ch)=>{
     const box=document.getElementById(id);
     if(box.children.length!==12){box.innerHTML='';for(let i=0;i<12;i++){const s=document.createElement('div');s.className='seg';box.appendChild(s);}}
@@ -2663,13 +2709,31 @@ function renderDeck(id){
   const TI=document.getElementById(id?'tiB':'tiA');
   const AR=document.getElementById(id?'arB':'arA');
   const ST=document.getElementById(id?'stB':'stA');
-  if(!it){TI.textContent='—';AR.textContent='';TH.style.backgroundImage='';ST.textContent='vacío';ST.className='deck-state';return;}
+  const plBtn=document.getElementById(id?'plB':'plA');
+  if(!it){
+    TI.textContent='—';AR.textContent='';TH.style.backgroundImage='';ST.textContent='vacío';ST.className='deck-state';
+    if(plBtn){ plBtn.textContent='▶'; plBtn.classList.remove('on'); }
+    return;
+  }
   TI.textContent=it.name||'YouTube';
   AR.textContent=it.artist||'';
   TH.style.backgroundImage=`url(https://img.youtube.com/vi/${it.ytId}/mqdefault.jpg)`;
   const active=(id===activeDeck);
+  if(_autopilotOn){
+    ST.textContent=active?'AL AIRE (24/7)':'SIGUIENTE';
+    ST.className='deck-state '+(active?'playing':'cued');
+    if(plBtn){
+      plBtn.textContent=active?'❚❚':'▶';
+      plBtn.classList.toggle('on',active);
+    }
+    return;
+  }
   ST.textContent=d.playing?(active?'AL AIRE':'sonando'):'cargado';
   ST.className='deck-state '+(d.playing?'playing':'cued');
+  if(plBtn){
+    plBtn.textContent=d.playing?'❚❚':'▶';
+    plBtn.classList.toggle('on',d.playing);
+  }
 }
 function updateDeckTime(id,ct,dur){
   document.getElementById(id?'elB':'elA').textContent=fmt(ct);
@@ -3162,6 +3226,10 @@ function plImportSpotifyPrompt(){
   else importSpotifyPlaylist(info.id, info.type);
 }
 function playFromQueue(i){
+  if(_autopilotOn){
+    toast('Radio 24/7 activa en el servidor — pulsa "Detener" arriba para control manual','error');
+    return;
+  }
   waitReady(()=>{
     const other=activeDeck===0?1:0;
     loadDeck(activeDeck,queue[i],true); queuePos=i;
@@ -3189,6 +3257,10 @@ function playSpotIdx(i){const sp=spots[i];if(!sp)return;const tmp=spots;spots=[s
 
 /* Load a specific queue song into a chosen deck (A=0 / B=1) */
 function loadToDeck(i,deckId){
+  if(_autopilotOn){
+    toast('Radio 24/7 activa en el servidor — pulsa "Detener" arriba para control manual','error');
+    return;
+  }
   const item=queue[i]; if(!item) return;
   waitReady(()=>{
     const other=deckId===0?1:0;
@@ -3208,6 +3280,11 @@ function loadToDeck(i,deckId){
 
 /* Skip / advance to the next song immediately (crossfade if a deck is preloaded) */
 function skipNext(){
+  if(_autopilotOn){
+    _wsSend({type:'NEXT_TRACK'});
+    toast('⏭ Saltando a la siguiente (Radio 24/7)...','ok');
+    return;
+  }
   if(!queue.length) return;
   if(djActive){toast('Espera a que termine Rodo','');return;}
   const other=activeDeck===0?1:0;
@@ -3221,6 +3298,7 @@ function skipNext(){
 }
 /* Seek a specific deck (or active if id omitted) forward/back */
 function seekDeck(secs,id){
+  if(_autopilotOn) return;
   const d=decks[id!=null?id:activeDeck]; if(!d||!d.ready) return;
   try{const ct=d.player.getCurrentTime()||0,dur=d.player.getDuration()||0;
     d.player.seekTo(Math.max(0,Math.min(dur-0.5,ct+secs)),true);}catch(_){}
@@ -4552,6 +4630,18 @@ function _syncNPBar(){
 }
 setInterval(()=>{
   const d=decks[activeDeck]; if(!d) return;
+  if(_autopilotOn){
+    if(d.item){
+      const shown=document.getElementById('npbTitle').textContent;
+      if(shown!==(d.item.name||'YouTube')) _syncNPBar();
+    }
+    document.getElementById('npbFill').style.width=(_apCurrentDur>0?Math.min(100,(_apCurrentPos/_apCurrentDur)*100):0)+'%';
+    document.getElementById('npbNow').textContent=fmt(_apCurrentPos);
+    document.getElementById('npbDur').textContent=fmt(_apCurrentDur);
+    document.getElementById('npbPlay').textContent='❚❚';
+    document.getElementById('npbEq').classList.add('play');
+    return;
+  }
   if(d.item){
     const shown=document.getElementById('npbTitle').textContent;
     if(shown!==(d.item.name||'YouTube')) _syncNPBar();
@@ -4564,8 +4654,16 @@ setInterval(()=>{
   document.getElementById('npbPlay').textContent=st===1?'❚❚':'▶';
   document.getElementById('npbEq').classList.toggle('play',st===1);
 },500);
-function npPrev(){const d=decks[activeDeck];if(d&&d.item){try{d.player.seekTo(0,true);}catch(_){}}}
+function npPrev(){
+  if(_autopilotOn){
+    _wsSend({type:'PREV_TRACK'});
+    toast('⏮ Pista anterior (Radio 24/7)...','ok');
+    return;
+  }
+  const d=decks[activeDeck];if(d&&d.item){try{d.player.seekTo(0,true);}catch(_){}}
+}
 function npSeek(ev){
+  if(_autopilotOn) return;
   const d=decks[activeDeck]; if(!d||!d.item) return;
   const r=ev.currentTarget.getBoundingClientRect();
   const p=Math.min(1,Math.max(0,(ev.clientX-r.left)/r.width));
