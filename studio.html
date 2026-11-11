@@ -1561,6 +1561,22 @@ function initStudioTicker(){
             }
           }catch(_){}
         }
+        // WATCHDOG ESTRICTO: el deck inactivo NUNCA debe reproducir fuera de crossfade
+        if(!_xfading){
+          const other = decks[activeDeck === 0 ? 1 : 0];
+          if(other && other.player && other.ready){
+            try{
+              const stOther = other.player.getPlayerState();
+              if(stOther === YT.PlayerState.PLAYING || stOther === YT.PlayerState.BUFFERING){
+                console.warn('[Watchdog] Deck inactivo ('+other.id+') detectado reproduciendo fuera de crossfade — silenciando y pausando');
+                other.player.pauseVideo();
+                other.player.setVolume(0);
+                other.playing = false;
+                renderDeck(other.id);
+              }
+            }catch(_){}
+          }
+        }
       }
     };
     _studioTicker.postMessage('start');
@@ -1667,22 +1683,37 @@ function startStation(){
 function loadDeck(id,item,play){
   if(_autopilotOn) return;
   const d=decks[id]; if(!d.ready||!item) return;
-  d.item=item; d.dur=0;
+  d.item=item; d.dur=item.duration||0;
   if(play!==false) _trackPlayed(item.ytId);
   try{
     if(play!==false){
       d.vol=1;
+      d.playing=true;
       d.player.loadVideoById(item.ytId);
       d.player.setVolume(dvol(d));
       setTimeout(()=>{try{d.player.playVideo();}catch(_){}} ,200);
+      // Si play es true y no estamos en crossfade, silenciar y pausar el otro deck inmediatamente
+      if(!_xfading){
+        const other=id===0?1:0;
+        try{
+          if(decks[other].player){
+            decks[other].player.pauseVideo();
+            decks[other].player.setVolume(0);
+          }
+          decks[other].playing=false;
+          decks[other].vol=0;
+        }catch(_){}
+      }
     } else {
       // Si play es false, CUE sin reproducir y con volumen 0
       d.vol=0;
+      d.playing=false;
       try{
         d.player.setVolume(0);
         d.player.cueVideoById(item.ytId);
         d.player.pauseVideo();
       }catch(_){}
+      updateDeckTime(id, 0, d.dur);
     }
   }catch(_){}
   renderDeck(id);
@@ -1698,8 +1729,16 @@ function cueDeck(id,item){
   // Cue sin reproducir: volumen 0 y pausa obligatoria
   const d=decks[id]; if(!d.ready||!item) return;
   if(d.playing && d.id===activeDeck) return;
-  d.item=item; d.dur=0; d.vol=0;
-  try{ d.player.setVolume(0); d.player.cueVideoById(item.ytId); d.player.pauseVideo(); }catch(_){}
+  d.item=item; d.dur=item.duration||0; d.vol=0;
+  d.playing=false;
+  try{
+    if(d.player){
+      d.player.setVolume(0);
+      d.player.cueVideoById(item.ytId);
+      d.player.pauseVideo();
+    }
+  }catch(_){}
+  updateDeckTime(id, 0, d.dur);
   renderDeck(id);
 }
 let _prebufDone=false;
@@ -1735,18 +1774,33 @@ function deckPlayPause(id){
   if(!d.item){deckCueFromQueue(id);return;}
   try{
     const st=d.player.getPlayerState();
-    if(st===YT.PlayerState.PLAYING){d.player.pauseVideo();}
-    else{
+    if(st===YT.PlayerState.PLAYING){
+      d.player.pauseVideo();
+      d.playing=false;
+      _studioUserPaused = true;
+    }else{
+      _studioUserPaused = false;
       // Al dar play a este deck, aseguramos que sea el activo y el otro se silencie/pause
       activeDeck=id;
       setCrossfader(id===0?0:100);
       d.vol=1;
+      d.playing=true;
       d.player.setVolume(dvol(d));
       d.player.playVideo();
       const other=id===0?1:0;
-      try{ decks[other].vol=0; decks[other].player.setVolume(0); decks[other].player.pauseVideo(); }catch(_){}
+      try{
+        decks[other].vol=0;
+        decks[other].playing=false;
+        if(decks[other].player){
+          decks[other].player.pauseVideo();
+          decks[other].player.setVolume(0);
+        }
+      }catch(_){}
     }
   }catch(_){}
+  renderDeck(id);
+  renderDeck(id===0?1:0);
+  updateOnAir();
 }
 function deckCueFromQueue(id){
   if(_autopilotOn) return;
@@ -1758,16 +1812,17 @@ function deckCueFromQueue(id){
   });
 }
 
-/* core: crossfade de 12 segundos active → other deck */
+/* core: crossfade active → other deck */
 function forceCrossfade(){ if(!_xfading && !_autopilotOn) doCrossfade(); }
-function doCrossfade(){
+function doCrossfade(overrideSecs){
   if(_autopilotOn) return;
   if(_xfading) return;
   const cur=decks[activeDeck];
   const nxt=decks[activeDeck===0?1:0];
   if(!nxt.item){ advanceQueueInto(nxt.id); return; }
   _xfading=true;
-  const durMs=CROSSFADE_SECS*1000; // 12 segundos
+  const secs = (typeof overrideSecs === 'number' && overrideSecs > 0) ? overrideSecs : CROSSFADE_SECS;
+  const durMs=secs*1000;
   const nxtItem=nxt.item;
   const startCur=cur.vol;
   const startX=Date.now();
@@ -1775,21 +1830,50 @@ function doCrossfade(){
   const _finalize=()=>{
     clearInterval(t); clearTimeout(_xfadeSafe); clearTimeout(_watchdog);
     try{
-      cur.playing=false; cur.vol=0;
-      try{cur.player.stopVideo();}catch(_){}
+      // 1. DETENER Y SILENCIAR ROTUNDAMENTE EL DECK SALIENTE (Deck A)
+      cur.playing=false;
+      cur.vol=0;
+      try{
+        if(cur.player){
+          cur.player.pauseVideo();
+          cur.player.setVolume(0);
+          cur.player.stopVideo();
+        }
+      }catch(_){}
+      updateDeckTime(cur.id, 0, cur.dur || 0);
+
+      // 2. ACTIVAR EL NUEVO DECK (Deck B)
       nxt.vol=1;
+      nxt.playing=true;
       activeDeck=nxt.id;
+      try{
+        if(nxt.player){
+          nxt.player.setVolume(dvol(nxt));
+          if(nxt.player.getPlayerState() !== YT.PlayerState.PLAYING){
+            nxt.player.playVideo();
+          }
+        }
+      }catch(_){}
+      setCrossfader(activeDeck===0?0:100);
+
+      // 3. PREPARAR EL DECK QUE SALIÓ CON LA PRÓXIMA CANCIÓN EN CUE
       const foundPos=queue.findIndex(q=>q.ytId===nxtItem.ytId);
       queuePos=foundPos>=0?foundPos:queuePos;
-      setCrossfader(activeDeck===0?0:100);
       const after=nextQueueIndex(queuePos);
-      if(queue.length>1 && queue[after]) cueDeck(cur.id,queue[after]);
+      if(queue.length>1 && queue[after]){
+        cueDeck(cur.id,queue[after]);
+      } else {
+        renderDeck(cur.id);
+      }
+
       _trackPlayed(nxtItem.ytId);
       _onTrackStarted(nxtItem,nxt.id);
       renderQueue();
       let _syncPos=0; try{_syncPos=nxt.player.getCurrentTime()||0;}catch(_){}
       _wsPlayTrack(nxtItem, _syncPos);
       updateOnAir();
+      renderDeck(cur.id);
+      renderDeck(nxt.id);
       console.log('[crossfade] completado → deck '+(activeDeck?'B':'A'));
       if(_pendingDJItem){ const _it=_pendingDJItem; _pendingDJItem=null; setTimeout(()=>_runIntervention(_it),700); }
     }catch(err){
@@ -1798,6 +1882,13 @@ function doCrossfade(){
       _xfading=false;
       _prebufDone=false;
       clearTimeout(_prebufTimeout);
+      // REASEGURO ABSOLUTO: cur DEBE quedar en pausa y volumen 0
+      try{
+        if(cur.player){
+          cur.player.pauseVideo();
+          cur.player.setVolume(0);
+        }
+      }catch(_){}
     }
   };
 
@@ -1806,9 +1897,9 @@ function doCrossfade(){
       console.warn('[crossfade] timeout de seguridad — finalizando');
       _finalize();
     }
-  }, 16000);
+  }, durMs + 4000);
 
-  console.log('[crossfade] arrancando 12s → "'+(nxt.item.name||nxt.item.ytId)+'"');
+  console.log(`[crossfade] arrancando ${secs}s → "${nxt.item.name||nxt.item.ytId}"`);
   try{
     nxt.vol=0;
     try{ nxt.player.setVolume(0); nxt.player.playVideo(); }catch(_){}
@@ -1817,7 +1908,7 @@ function doCrossfade(){
     _xfading=false; clearTimeout(_xfadeSafe); return;
   }
 
-  // Watchdog de 2.5s para evitar que navegadores en pestañas ocultas dejen el crossfade congelado
+  // Watchdog de 2.5s para evitar que el nuevo deck se quede dormido
   const _watchdog=setTimeout(()=>{
     if(_xfading){
       let isPlaying = false;
@@ -1832,12 +1923,13 @@ function doCrossfade(){
     }
   }, 2500);
 
-  const iv=200;
+  const iv=100;
   const t=setInterval(()=>{
     const elapsed=Date.now()-startX;
     const p=Math.min(1, elapsed/durMs);
-    cur.vol=Math.max(0, startCur*(1-p));
-    nxt.vol=Math.min(1, p);
+    // Curva equal-power: fade out rápido del saliente para que no compitan con fuerza
+    cur.vol=Math.max(0, startCur * Math.cos(p * Math.PI / 2));
+    nxt.vol=Math.min(1, Math.sin(p * Math.PI / 2));
     try{cur.player.setVolume(dvol(cur));}catch(_){}
     try{nxt.player.setVolume(dvol(nxt));}catch(_){}
     try{
@@ -1851,10 +1943,22 @@ function doCrossfade(){
 }
 function advanceQueueInto(id){
   if(_autopilotOn) return;
+  const other=id===0?1:0;
+  // Detener el deck saliente de inmediato
+  try{
+    if(decks[other].player){
+      decks[other].player.pauseVideo();
+      decks[other].player.setVolume(0);
+      decks[other].player.stopVideo();
+    }
+    decks[other].playing=false;
+    decks[other].vol=0;
+    updateDeckTime(other, 0, decks[other].dur || 0);
+  }catch(_){}
   const next=nextQueueIndex(queuePos);
   loadDeck(id,queue[next],true); queuePos=next; activeDeck=id;
   setCrossfader(id===0?0:100);
-  const other=id===0?1:0; const after=nextQueueIndex(next);
+  const after=nextQueueIndex(next);
   if(queue[after]) cueDeck(other,queue[after]);
   renderQueue();
 }
@@ -1862,7 +1966,7 @@ function advanceNoXfade(){
   if(_autopilotOn) return;
   if(!queue.length) return;
   const other=activeDeck===0?1:0;
-  if(decks[other].item){ doCrossfade(); }
+  if(decks[other].item){ doCrossfade(2); }
   else advanceQueueInto(other);
 }
 
@@ -2676,10 +2780,30 @@ async function testWeather(){const w=await getWeather();toast(`🌤 ${w.city}: $
 function setCrossfader(v){document.getElementById('xf').value=v;}
 function onCrossfader(v){
   const p=v/100; // 0 = full A, 100 = full B
-  decks[0].vol=Math.min(1,2*(1-p)); decks[1].vol=Math.min(1,2*p);
   if(p<0.5){decks[0].vol=1;decks[1].vol=p*2;} else {decks[1].vol=1;decks[0].vol=(1-p)*2;}
   decks.forEach(d=>{try{d.player.setVolume(dvol(d));}catch(_){}});
   activeDeck = p<0.5?0:1;
+  // Si el usuario desliza 100% a un deck, silenciar y pausar el deck opuesto para evitar cruce
+  if(p>=0.99){
+    try{
+      decks[0].vol=0;
+      decks[0].playing=false;
+      if(decks[0].player){
+        decks[0].player.pauseVideo();
+        decks[0].player.setVolume(0);
+      }
+    }catch(_){}
+  } else if(p<=0.01){
+    try{
+      decks[1].vol=0;
+      decks[1].playing=false;
+      if(decks[1].player){
+        decks[1].player.pauseVideo();
+        decks[1].player.setVolume(0);
+      }
+    }catch(_){}
+  }
+  updateOnAir();
 }
 function onMaster(v){master=v/100;document.getElementById('masterTxt').textContent=v+'%';
   decks.forEach(d=>{try{d.player.setVolume(dvol(d));}catch(_){}});
@@ -3293,7 +3417,7 @@ function skipNext(){
     const nxt=(queuePos+1)%queue.length;
     if(queue[nxt]&&!decks[other].playing) cueDeck(other,queue[nxt]);
   }
-  if(decks[other].item && !_xfading){ doCrossfade(); }
+  if(decks[other].item && !_xfading){ doCrossfade(3); }
   else { advanceQueueInto(other); }
 }
 /* Seek a specific deck (or active if id omitted) forward/back */
