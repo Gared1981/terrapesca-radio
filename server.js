@@ -1897,7 +1897,7 @@ function _apPlayInterventionThenAdvance() {
       { spot_id: 'spot_gorras_50', titulo: '¡EXPLOSIÓN 50% OFF! GORRAS TRUCKER TERRAPESCA', dur: 23 },
       { spot_id: 'spot_shadrap_40', titulo: '¡ADRENALINA PURA! SEÑUELOS DEL 20% AL 40% OFF', dur: 22 },
       { spot_id: 'spot_vanford_15', titulo: '¡PRECISIÓN JAPONESA! CARRETES SHIMANO (15% / 20% EN COMBO)', dur: 24 },
-      { spot_id: 'spot_kayak_tilapia', titulo: '¡EL MONSTRUO AZUL! COSTA KAYAK BIG MERO (10% + 6 MSI)', dur: 22 },
+      { spot_id: 'spot_kayak_tilapia', titulo: '¡EL MONSTRUO AZUL! COSTA KAYAK BIG MERO (10% + 6 MSI • PRECIO CONGELADO)', dur: 22 },
       { spot_id: 'spot_maja_30', titulo: 'ROPA TÉCNICA PESCA 20% Y MARCA MAJA 30% OFF (13 AL 17 NOV)', dur: 24 },
       { spot_id: 'spot_hieleras_15', titulo: '¡FRÍO EXTREMO 15% OFF! HIELERAS TERRAPESCA', dur: 20 }
     ];
