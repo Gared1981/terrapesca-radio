@@ -1514,25 +1514,25 @@ const MAX_JINGLE_B64 = 3 * 1024 * 1024; // ~2.2MB of audio
 // studio abierto. El audio sigue sonando en cada navegador oyente (YouTube).
 const AP_FILE = path.join(__dirname, '.autopilot.json');
 const DEFAULT_AUTOPILOT_PLAYLIST = [
-  { ytId: 'teprnzF6J1I', name: 'En el Muelle de San Blás', artist: 'Maná', duration: 352 },
-  { ytId: 'u1V8Yqmu51U', name: 'Have You Ever Seen The Rain', artist: 'Creedence Clearwater Revival', duration: 160 },
+  { ytId: 'teprNzF6J1I', name: 'En el Muelle de San Blás', artist: 'Maná', duration: 352 },
+  { ytId: 'u1V8YRJnr4Q', name: 'Have You Ever Seen The Rain', artist: 'Creedence Clearwater Revival', duration: 160 },
   { ytId: '09839DpTctU', name: 'Hotel California', artist: 'Eagles', duration: 390 },
   { ytId: '1vrEljMfXYo', name: 'Take Me Home, Country Roads', artist: 'John Denver', duration: 198 },
-  { ytId: 'wR9jZ_D-n_A', name: 'Rayando el Sol', artist: 'Maná', duration: 254 },
+  { ytId: '8lbsQyMhMT8', name: 'Rayando el Sol', artist: 'Maná', duration: 254 },
   { ytId: 'XfyEpmQM7bw', name: 'Proud Mary', artist: 'Creedence Clearwater Revival', duration: 187 },
   { ytId: '1w7OgIMMRc4', name: "Sweet Child O' Mine", artist: "Guns N' Roses", duration: 303 },
-  { ytId: 'L_XJ_s5IsQc', name: 'Oye Como Va', artist: 'Santana', duration: 258 },
+  { ytId: 'J7ATTjg7tpE', name: 'Oye Como Va', artist: 'Santana', duration: 258 },
   { ytId: 'tH2w6Oxx0kQ', name: 'Dust in the Wind', artist: 'Kansas', duration: 206 },
-  { ytId: 'jR14O_0xOQY', name: 'Ventura Highway', artist: 'America', duration: 212 },
-  { ytId: 'l5gq_a1P9fE', name: 'La Chona', artist: 'Los Tucanes de Tijuana', duration: 203 },
-  { ytId: '4W8cK5_s6rA', name: 'El Sinaloense', artist: 'Banda El Recodo', duration: 165 },
+  { ytId: 'dAUUy7NMnaY', name: 'Ventura Highway', artist: 'America', duration: 212 },
+  { ytId: '4gA5iaZ11lU', name: 'La Chona', artist: 'Los Tucanes de Tijuana', duration: 203 },
+  { ytId: 'xF8VuLSqfQ8', name: 'El Sinaloense', artist: 'Banda El Recodo', duration: 165 },
   { ytId: 'T_FkEw27XJ0', name: 'De Música Ligera', artist: 'Soda Stereo', duration: 213 },
-  { ytId: 'kRt2SZu939Y', name: 'La Camisa Negra', artist: 'Juanes', duration: 216 },
+  { ytId: 'kRt2sRyup6A', name: 'La Camisa Negra', artist: 'Juanes', duration: 216 },
   { ytId: 'fJ9rUzIMcZQ', name: 'Bohemian Rhapsody', artist: 'Queen', duration: 359 },
   { ytId: 'pAgnJDJN4VA', name: 'Back In Black', artist: 'AC/DC', duration: 255 },
   { ytId: 'btPJPFnesV4', name: 'Eye of the Tiger', artist: 'Survivor', duration: 245 },
-  { ytId: 'k4V3gVg7BXg', name: 'Don\'t Stop Believin\'', artist: 'Journey', duration: 251 },
-  { ytId: 'qQkBeOisNM0', name: 'Bailando', artist: 'Enrique Iglesias', duration: 243 },
+  { ytId: 'VcjzHMhBtf0', name: "Don't Stop Believin'", artist: 'Journey', duration: 251 },
+  { ytId: 'NUsoVlDFqZg', name: 'Bailando', artist: 'Enrique Iglesias', duration: 243 },
   { ytId: 'hT_nvWreIhg', name: 'Counting Stars', artist: 'OneRepublic', duration: 257 }
 ];
 let autopilot = { on: false, list: [], idx: 0, timer: null };

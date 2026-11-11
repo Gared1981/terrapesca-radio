@@ -5,501 +5,1200 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
-<meta name="theme-color" content="#000"/>
-<title>Radio Terrapesca</title>
-<link rel="manifest" href="/manifest.json"/>
+<meta name="theme-color" content="#040914"/>
+<title>Radio Terrapesca — Transmisión en Vivo & Promociones Buen Fin 2026</title>
 <link rel="icon" type="image/png" href="/buenfin/logo_terrapesca_marine.png"/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Cabinet+Grotesk:wght@700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet"/>
+
 <style>
-*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none}
-:root{--red:#e0241c;--red2:#ff4438;--redglow:rgba(224,36,28,.5)}
-html,body{width:100%;height:100%;background:#05070c;color:#fff;font-family:'Inter',sans-serif;overflow:hidden}
+  :root {
+    --bg: #040914;
+    --card-bg: rgba(10, 20, 36, 0.82);
+    --card-border: rgba(255, 190, 26, 0.32);
+    --gold: #ffbe1a;
+    --gold-glow: rgba(255, 190, 26, 0.55);
+    --red: #e0241c;
+    --red2: #ff3322;
+    --red-glow: rgba(224, 36, 28, 0.6);
+    --cyan: #00e5ff;
+    --txt: #ffffff;
+    --txt-dim: #94a3b8;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    width: 100vw;
+    min-height: 100vh;
+    background: var(--bg);
+    color: var(--txt);
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    overflow-x: hidden;
+    user-select: none;
+  }
 
-/* ── Background artwork (carátula difuminada) ── */
-#bgArt{
-  position:fixed;inset:-60px;z-index:0;
-  background-size:cover;background-position:center;
-  background-image:url('/buenfin/logo_terrapesca_marine.png');
-  transition:background-image .8s ease;
-  filter:blur(60px) saturate(1.5) brightness(.55);
-  transform:scale(1.1);
-}
-#bgArt::after{
-  content:'';position:absolute;inset:0;
-  background:
-    radial-gradient(120% 80% at 50% -10%, rgba(224,36,28,.28), transparent 55%),
-    linear-gradient(to bottom,rgba(5,7,12,.35) 0%,rgba(5,7,12,.25) 35%,rgba(5,7,12,.75) 68%,rgba(5,7,12,.98) 100%);
-}
+  /* Fondo dinámico difuminado de la portada actual */
+  #bgArt {
+    position: fixed; inset: -40px; z-index: 0;
+    background-size: cover; background-position: center;
+    background-image: url('/buenfin/logo_terrapesca_marine.png');
+    transition: background-image 0.9s ease;
+    filter: blur(55px) saturate(1.4) brightness(0.38);
+    transform: scale(1.08);
+    pointer-events: none;
+  }
+  #bgArt::after {
+    content: ''; position: absolute; inset: 0;
+    background: radial-gradient(circle at 50% 30%, rgba(224,36,28,0.18) 0%, rgba(4,9,20,0.85) 65%, #040914 100%),
+                linear-gradient(to bottom, rgba(4,9,20,0.6) 0%, rgba(4,9,20,0.92) 100%);
+  }
 
-/* ── Start overlay ── */
-#startOverlay{
-  position:fixed;inset:0;z-index:200;
-  background:radial-gradient(120% 90% at 50% 0%, rgba(224,36,28,.18), transparent 60%), rgba(5,7,12,.94);
-  backdrop-filter:blur(6px);
-  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:26px;
-  padding:40px 32px;
-  transition:opacity .35s;
-}
-#startOverlay.hidden{opacity:0;pointer-events:none}
-.so-logo img{width:96px;height:96px;border-radius:24px;object-fit:cover;
-  box-shadow:0 0 60px var(--redglow),0 16px 40px rgba(0,0,0,.6);
-  animation:floaty 4s ease-in-out infinite}
-@keyframes floaty{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
-.so-title{font-size:26px;font-weight:800;text-align:center;letter-spacing:-.5px}
-.so-sub{font-size:13px;color:rgba(255,255,255,.55);text-align:center}
-.btn-start{
-  display:flex;align-items:center;justify-content:center;gap:10px;
-  background:linear-gradient(135deg,var(--red2),var(--red));color:#fff;
-  border:none;border-radius:100px;
-  height:58px;padding:0 34px;width:100%;max-width:300px;
-  font-size:16px;font-weight:700;cursor:pointer;
-  box-shadow:0 6px 30px var(--redglow);
-  transition:transform .12s,filter .15s;
-}
-.btn-start:active{transform:scale(.96);filter:brightness(1.1)}
+  /* Canvas de partículas sutiles de fondo */
+  #bgCanvas {
+    position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+    z-index: 1; pointer-events: none;
+  }
 
-/* ── Full-screen player ── */
-#player{
-  position:fixed;top:0;bottom:0;left:50%;transform:translateX(-50%);
-  width:100%;max-width:440px;z-index:10;
-  display:flex;flex-direction:column;justify-content:flex-start;
-  overflow-y:auto;-webkit-overflow-scrolling:touch;
-  padding:
-    max(env(safe-area-inset-top),14px)
-    18px
-    max(env(safe-area-inset-bottom),16px);
-}
+  /* ── Start Overlay (Gesto de inicio para audio web) ── */
+  #startOverlay {
+    position: fixed; inset: 0; z-index: 999;
+    background: radial-gradient(circle at 50% 40%, rgba(224,36,28,0.22) 0%, rgba(4,9,20,0.96) 70%, #02050c 100%);
+    backdrop-filter: blur(12px);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 30px; text-align: center; gap: 24px;
+    transition: opacity 0.4s ease, visibility 0.4s;
+  }
+  #startOverlay.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
+  .so-logo-wrap {
+    position: relative;
+    padding: 12px;
+    background: rgba(255,255,255,0.04);
+    border: 1.5px solid rgba(255,190,26,0.3);
+    border-radius: 28px;
+    box-shadow: 0 0 50px rgba(224,36,28,0.35), inset 0 0 25px rgba(255,190,26,0.15);
+    animation: soPulse 4s infinite ease-in-out alternate;
+  }
+  @keyframes soPulse {
+    0% { transform: scale(1); box-shadow: 0 0 35px rgba(224,36,28,0.3); }
+    100% { transform: scale(1.03); box-shadow: 0 0 60px rgba(255,190,26,0.5); }
+  }
+  .so-logo-wrap img { width: 110px; height: 110px; object-fit: contain; }
+  .so-title {
+    font-family: 'Cabinet Grotesk', sans-serif;
+    font-size: clamp(26px, 4.5vw, 42px);
+    font-weight: 900;
+    letter-spacing: -0.5px;
+    color: #fff;
+    text-shadow: 0 4px 20px rgba(0,0,0,0.8);
+  }
+  .so-sub {
+    font-size: clamp(13px, 1.8vw, 16px);
+    color: var(--txt-dim);
+    max-width: 500px;
+    line-height: 1.5;
+  }
+  .btn-start {
+    display: inline-flex; align-items: center; justify-content: center; gap: 14px;
+    background: linear-gradient(135deg, var(--red2), var(--red));
+    color: #fff; font-family: 'Cabinet Grotesk', sans-serif;
+    font-size: 19px; font-weight: 900; letter-spacing: 0.5px;
+    border: none; border-radius: 100px;
+    padding: 16px 42px; cursor: pointer;
+    box-shadow: 0 8px 35px var(--red-glow), 0 0 20px rgba(255,190,26,0.3);
+    transition: transform 0.15s, filter 0.2s, box-shadow 0.2s;
+  }
+  .btn-start:hover { transform: scale(1.04); filter: brightness(1.1); box-shadow: 0 10px 45px var(--red-glow); }
+  .btn-start:active { transform: scale(0.97); }
 
-/* Marca superior: logo + RADIO TERRAPESCA */
-.brand-top{text-align:center;padding-bottom:2px}
-.brand-logo{width:66px;height:66px;object-fit:contain;border-radius:14px;display:inline-block}
-.brand-name{font-size:11px;letter-spacing:.22em;color:rgba(255,255,255,.7);font-weight:800;margin-top:6px}
+  /* ── Contenedor Pantalla Completa (Full Viewport Stage) ── */
+  .listen-stage {
+    position: relative;
+    z-index: 10;
+    width: 100vw;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    padding: 2.2vh 3.5vw 2.5vh;
+    gap: 2vh;
+  }
 
-/* Píldora EN VIVO arriba */
-.live-pill{
-  display:inline-flex;align-items:center;gap:7px;
-  background:rgba(224,36,28,.16);border:1px solid rgba(224,36,28,.4);
-  color:#ff8a80;border-radius:100px;padding:5px 13px;
-  font-size:10px;font-weight:700;letter-spacing:.14em;margin:10px auto 0;
-  opacity:0;transition:opacity .3s;
-}
-.live-pill.on{opacity:1}
-.live-pill .dot{width:7px;height:7px;border-radius:50%;background:var(--red2);box-shadow:0 0 8px var(--red2);animation:pulse 1.4s infinite}
-@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.8)}}
+  /* ── Barra Superior (Top Bar) ── */
+  .top-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    border-bottom: 1.5px solid rgba(255, 190, 26, 0.25);
+    padding-bottom: 1.5vh;
+    flex-wrap: wrap;
+  }
+  .brand-group {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .brand-logo-img {
+    height: 48px;
+    max-height: 6vh;
+    object-fit: contain;
+    filter: drop-shadow(0 0 10px rgba(224, 36, 28, 0.4));
+  }
+  .brand-text-block {
+    display: flex;
+    flex-direction: column;
+  }
+  .brand-title-main {
+    font-family: 'Cabinet Grotesk', sans-serif;
+    font-size: 20px;
+    font-weight: 900;
+    letter-spacing: 1px;
+    color: #fff;
+    line-height: 1.1;
+  }
+  .brand-slogan-sub {
+    font-size: 11px;
+    color: var(--txt-dim);
+    letter-spacing: 0.5px;
+    font-weight: 600;
+  }
 
-/* Artwork — más chico y equilibrado vs. los productos */
-.art-section{
-  display:flex;align-items:center;justify-content:center;
-  padding:8px 0 6px;
-}
-.art-thumb{
-  position:relative;
-  width:min(128px,34vw);height:min(128px,34vw);
-  border-radius:16px;overflow:hidden;
-  box-shadow:0 30px 90px rgba(0,0,0,.7), 0 0 0 1px rgba(255,255,255,.05);
-  background:#0d1017;
-  flex-shrink:0;
-  transition:transform .5s cubic-bezier(.22,.61,.36,1), box-shadow .5s;
-}
-.art-thumb.live{
-  box-shadow:0 30px 90px rgba(0,0,0,.7), 0 0 60px var(--redglow), 0 0 0 1px rgba(224,36,28,.3);
-}
-.art-thumb.paused{transform:scale(.9)}
-.art-thumb img{width:100%;height:100%;object-fit:cover;display:block;transition:opacity .4s}
+  .campaign-banner-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    background: linear-gradient(135deg, #ff1a1a, #ff6b00);
+    color: #fff;
+    font-family: 'Cabinet Grotesk', sans-serif;
+    font-weight: 900;
+    font-size: clamp(12px, 1.4vw, 15px);
+    letter-spacing: 1.2px;
+    padding: 7px 20px;
+    border-radius: 50px;
+    box-shadow: 0 0 25px var(--red-glow);
+    text-transform: uppercase;
+    animation: bannerGlow 2.5s infinite alternate;
+  }
+  @keyframes bannerGlow {
+    0% { box-shadow: 0 0 15px rgba(224,36,28,0.5); }
+    100% { box-shadow: 0 0 35px rgba(255,190,26,0.7); }
+  }
 
-/* Track info */
-.info-row{
-  display:flex;align-items:center;justify-content:space-between;gap:12px;
-  padding:0 4px;margin-bottom:10px;
-}
-.info-left{flex:1;min-width:0}
-.track-name{font-size:15px;font-weight:700;letter-spacing:-.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.track-artist{font-size:14px;color:rgba(255,255,255,.62);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.track-slogan{font-size:11px;color:rgba(255,255,255,.32);margin-top:3px;font-style:italic}
-.btn-heart{width:46px;height:46px;background:rgba(255,255,255,.08);border:none;border-radius:50%;
-  color:rgba(255,255,255,.7);font-size:22px;cursor:pointer;flex-shrink:0;
-  display:flex;align-items:center;justify-content:center;transition:transform .15s,background .15s,color .15s}
-.btn-heart:active{transform:scale(.88)}
-.btn-heart.on{color:var(--red2);background:rgba(224,36,28,.16)}
+  .top-status-group {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .live-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(0, 255, 102, 0.12);
+    border: 1px solid #00ff66;
+    color: #00ff66;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 5px 12px;
+    border-radius: 50px;
+    letter-spacing: 0.8px;
+  }
+  .live-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #00ff66; box-shadow: 0 0 8px #00ff66;
+    animation: blinkDot 1.2s infinite;
+  }
+  @keyframes blinkDot { 0%,100%{opacity:1;} 50%{opacity:0.3;} }
 
-/* Progress bar */
-.progress-wrap{padding:0 2px;margin-bottom:14px}
-.progress-track{
-  width:100%;height:5px;background:rgba(255,255,255,.16);
-  border-radius:3px;position:relative;overflow:hidden;
-}
-.progress-fill{height:100%;background:linear-gradient(90deg,var(--red2),var(--red));border-radius:3px;width:0%;
-  transition:width .5s linear;box-shadow:0 0 10px var(--redglow)}
-.progress-times{display:flex;justify-content:space-between;margin-top:7px}
-.progress-times span{font-size:11px;color:rgba(255,255,255,.45);font-variant-numeric:tabular-nums}
+  .viz-bars {
+    display: inline-flex;
+    align-items: flex-end;
+    gap: 3px;
+    height: 18px;
+  }
+  .vb {
+    width: 3.5px;
+    background: var(--gold);
+    border-radius: 2px;
+    animation: eqAnim 0.85s infinite ease-in-out alternate;
+  }
+  .vb:nth-child(1) { height: 6px; animation-delay: 0.1s; }
+  .vb:nth-child(2) { height: 16px; animation-delay: 0.25s; }
+  .vb:nth-child(3) { height: 10px; animation-delay: 0.15s; }
+  .vb:nth-child(4) { height: 18px; animation-delay: 0.35s; }
+  .vb:nth-child(5) { height: 8px; animation-delay: 0.2s; }
+  .viz-bars.paused .vb { animation: none; height: 3px !important; }
+  @keyframes eqAnim { 0% { height: 3px; } 100% { height: 18px; } }
 
-/* Transport */
-.transport{
-  display:flex;align-items:center;justify-content:center;gap:34px;
-  padding:0 4px;margin-bottom:22px;
-}
-.btn-t{background:none;border:none;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:opacity .15s,transform .12s;padding:4px}
-.btn-t:active{opacity:.6;transform:scale(.9)}
-.btn-sk svg,.btn-t svg{pointer-events:none}
-.btn-play-main{
-  width:74px;height:74px;border-radius:50%;
-  background:#fff;color:#000;border:none;
-  font-size:30px;cursor:pointer;
-  display:flex;align-items:center;justify-content:center;
-  box-shadow:0 8px 30px rgba(0,0,0,.5);
-  transition:transform .12s,background .2s,box-shadow .2s;flex-shrink:0;
-}
-.btn-play-main:active{transform:scale(.9)}
-.btn-play-main.live{background:linear-gradient(135deg,var(--red2),var(--red));color:#fff;box-shadow:0 8px 34px var(--redglow)}
+  .btn-top-action {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    color: #fff;
+    padding: 6px 14px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.1s;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .btn-top-action:hover { background: rgba(255, 255, 255, 0.15); }
+  .btn-top-action:active { transform: scale(0.96); }
 
-/* ── BUEN FIN 2026 CARD (Válido hasta el 17 de Noviembre) ── */
-.bf-card {
-  display: block;
-  text-decoration: none;
-  margin: 10px 0 14px;
-  background: linear-gradient(135deg, rgba(224, 36, 28, 0.22) 0%, rgba(15, 23, 42, 0.88) 100%);
-  border: 1.5px solid #ffbe1a;
-  border-radius: 20px;
-  padding: 13px 15px;
-  box-shadow: 0 10px 35px rgba(224, 36, 28, 0.35), 0 0 25px rgba(255, 190, 26, 0.22);
-  transition: transform .15s, box-shadow .2s;
-  position: relative;
-  overflow: hidden;
-}
-.bf-card::before {
-  content: '';
-  position: absolute;
-  top: 0; left: -100%;
-  width: 50%; height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.25), transparent);
-  animation: bfShimmer 3.5s infinite linear;
-}
-@keyframes bfShimmer {
-  0% { left: -100%; }
-  100% { left: 200%; }
-}
-.bf-card:active { transform: scale(0.98); }
-.bf-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 10px;
-}
-.bf-badge-title {
-  background: linear-gradient(135deg, #ff2a2a, #ff6b35);
-  color: #fff;
-  font-size: 10.5px;
-  font-weight: 900;
-  padding: 4px 10px;
-  border-radius: 6px;
-  letter-spacing: 1px;
-  box-shadow: 0 0 12px rgba(255, 42, 42, 0.6);
-}
-.bf-vigencia {
-  font-size: 10.5px;
-  color: #ffbe1a;
-  font-weight: 800;
-  letter-spacing: 0.5px;
-}
-.bf-content {
-  display: flex;
-  gap: 13px;
-  align-items: center;
-}
-.bf-thumb-box {
-  width: 95px;
-  height: 95px;
-  border-radius: 14px;
-  overflow: hidden;
-  background: #000;
-  flex-shrink: 0;
-  border: 1.5px solid rgba(255, 190, 26, 0.4);
-  box-shadow: 0 4px 18px rgba(0,0,0,0.6);
-}
-.bf-thumb-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  transition: opacity .3s;
-}
-.bf-details {
-  flex: 1;
-  min-width: 0;
-}
-.bf-item-title {
-  color: #ffffff;
-  font-weight: 800;
-  font-size: 14.5px;
-  line-height: 1.25;
-  white-space: normal;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-.bf-prices {
-  margin-top: 6px;
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-}
-.bf-price-deal {
-  color: #ffbe1a;
-  font-size: 18px;
-  font-weight: 900;
-}
-.bf-price-reg {
-  color: rgba(255, 255, 255, 0.45);
-  font-size: 12px;
-  text-decoration: line-through;
-}
-.bf-item-cta {
-  display: inline-block;
-  margin-top: 8px;
-  background: linear-gradient(135deg, #ffbe1a, #f59e0b);
-  color: #060e1c;
-  padding: 6px 15px;
-  border-radius: 20px;
-  font-size: 11.5px;
-  font-weight: 900;
-  letter-spacing: 0.5px;
-  box-shadow: 0 4px 14px rgba(255, 190, 26, 0.4);
-}
+  /* ── Área Principal en 2 Columnas (Widescreen Grid) ── */
+  .main-grid {
+    display: grid;
+    grid-template-columns: 1.25fr 0.75fr;
+    gap: 2.5vw;
+    flex: 1;
+    align-items: stretch;
+    min-height: 0;
+  }
 
-/* Carrusel de productos — protagonista, tipo hero para celular */
-.pcarousel{display:block;text-decoration:none;margin:8px 0;background:linear-gradient(160deg,rgba(224,36,28,.12),rgba(255,255,255,.03));backdrop-filter:blur(14px);border:1px solid rgba(224,36,28,.25);border-radius:20px;padding:13px;box-shadow:0 12px 44px rgba(0,0,0,.4);transition:transform .15s}
-.pcarousel:active{transform:scale(.98)}
-.pcar-title{font-size:11px;letter-spacing:.18em;color:var(--red2,#e0241c);margin-bottom:12px;font-weight:800}
-.pcar-body{display:flex;flex-direction:column;gap:12px}
-.pcar-img{width:100%;height:150px;border-radius:14px;object-fit:cover;background:rgba(255,255,255,.06);box-shadow:0 8px 26px rgba(0,0,0,.45);transition:opacity .45s}
-.pcar-meta{min-width:0}
-.pcar-name{color:#fff;font-weight:800;font-size:18px;line-height:1.25;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;transition:opacity .45s}
-.pcar-price{color:#fff;font-size:17px;margin-top:6px;font-weight:700}
-.pcar-cta{display:inline-block;margin-top:11px;color:#fff;background:linear-gradient(135deg,var(--red2,#e0241c),var(--red,#b0130c));padding:10px 18px;border-radius:999px;font-size:13px;font-weight:800;box-shadow:0 6px 20px var(--redglow,rgba(224,36,28,.4))}
-.pcar-fade{opacity:.12}
+  /* ══════════ COLUMNA IZQUIERDA: CARRUSEL BUEN FIN ══════════ */
+  .carousel-column {
+    background: var(--card-bg);
+    border: 1.5px solid var(--card-border);
+    border-radius: 24px;
+    padding: 2.2vh 2vw;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 1.6vh;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8), inset 0 0 35px rgba(255, 190, 26, 0.05);
+    backdrop-filter: blur(16px);
+    position: relative;
+    overflow: hidden;
+  }
+  .carousel-column::after {
+    content: '';
+    position: absolute;
+    top: -50%; left: -50%;
+    width: 200%; height: 200%;
+    background: linear-gradient(45deg, transparent 46%, rgba(255, 255, 255, 0.05) 50%, transparent 54%);
+    animation: carSheen 7s infinite ease-in-out;
+    pointer-events: none;
+  }
+  @keyframes carSheen {
+    0% { transform: translateY(-100%) rotate(25deg); }
+    30%, 100% { transform: translateY(100%) rotate(25deg); }
+  }
 
-/* Próximas canciones */
-.upnext{margin:2px 0 12px;background:rgba(255,255,255,.05);backdrop-filter:blur(12px);
-  border:1px solid rgba(255,255,255,.06);border-radius:16px;padding:12px 14px}
-.upnext-title{font-size:10px;letter-spacing:.16em;color:rgba(255,255,255,.5);margin-bottom:9px;font-weight:700}
-.un-row{display:flex;align-items:center;gap:11px;padding:5px 0}
-.un-thumb{width:38px;height:38px;border-radius:9px;object-fit:cover;flex-shrink:0;background:rgba(255,255,255,.06);box-shadow:0 3px 8px rgba(0,0,0,.4)}
-.un-meta{min-width:0;flex:1}
-.un-name{font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.un-artist{font-size:11px;color:rgba(255,255,255,.45);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.un-num{font-size:11px;color:rgba(255,255,255,.35);min-width:16px;text-align:center;font-variant-numeric:tabular-nums}
+  .car-header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    z-index: 2;
+  }
+  .car-category-pill {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--cyan);
+    background: rgba(0, 229, 255, 0.12);
+    border: 1px solid rgba(0, 229, 255, 0.35);
+    padding: 5px 14px;
+    border-radius: 6px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+  .car-isla-tag {
+    font-size: 13px;
+    color: #ffd27d;
+    background: rgba(255, 210, 125, 0.1);
+    border: 1px dashed rgba(255, 210, 125, 0.4);
+    padding: 5px 14px;
+    border-radius: 6px;
+    font-weight: 600;
+  }
+  .car-counter-tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--gold);
+    font-weight: 700;
+    margin-left: auto;
+  }
 
-/* Status */
-.status-wrap{display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:12px;min-height:20px}
-.status{font-size:11.5px;color:rgba(255,255,255,.45);letter-spacing:.04em}
-.status.live{color:#4ade80}
-.status.error{color:var(--red2)}
-.status.connecting{color:#f5a623}
+  /* Contenido del Spot Activo */
+  .car-body {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2vw;
+    align-items: center;
+    flex: 1;
+    z-index: 2;
+  }
 
-/* Bottom row */
-.bottom-row{display:flex;align-items:center;justify-content:center;padding:0 4px}
-.stream-pill{
-  font-size:10px;color:rgba(255,255,255,.4);
-  background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.06);
-  border-radius:20px;padding:6px 14px;cursor:pointer;
-  display:inline-flex;align-items:center;gap:6px;
-  max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-  transition:background .15s;
-}
-.stream-pill:active{background:rgba(255,255,255,.12)}
+  /* Imagen/Visual del Producto */
+  .car-visual-box {
+    position: relative;
+    background: #020611;
+    border: 1.5px solid rgba(255, 190, 26, 0.3);
+    border-radius: 18px;
+    height: 100%;
+    min-height: 280px;
+    max-height: 48vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    box-shadow: 0 15px 40px rgba(0, 0, 0, 0.7);
+  }
+  .car-ambient-glow {
+    position: absolute;
+    width: 75%; height: 75%;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255, 190, 26, 0.25) 0%, transparent 70%);
+    filter: blur(35px);
+    pointer-events: none;
+    z-index: 1;
+  }
+  .car-img {
+    position: relative;
+    z-index: 2;
+    max-width: 90%;
+    max-height: 90%;
+    object-fit: contain;
+    filter: drop-shadow(0 15px 30px rgba(0, 0, 0, 0.9));
+    transition: opacity 0.35s ease, transform 0.4s ease;
+  }
+  .car-discount-badge {
+    position: absolute;
+    top: 14px; left: 14px;
+    z-index: 5;
+    background: linear-gradient(135deg, #ff1a1a, #ff5500);
+    color: #fff;
+    font-family: 'Cabinet Grotesk', sans-serif;
+    font-size: clamp(16px, 2vw, 24px);
+    font-weight: 900;
+    padding: 6px 16px;
+    border-radius: 8px;
+    box-shadow: 0 4px 18px var(--red-glow);
+    letter-spacing: 0.5px;
+    animation: pulseBadge 2.5s infinite alternate;
+  }
+  @keyframes pulseBadge {
+    0% { transform: scale(1); }
+    100% { transform: scale(1.05); }
+  }
 
-/* Viz bars */
-.viz{display:inline-flex;align-items:flex-end;gap:2px;height:14px;vertical-align:middle}
-.vb{width:3px;background:var(--red2);border-radius:1px}
-.vb:nth-child(1){animation:bar .9s .00s ease-in-out infinite alternate}
-.vb:nth-child(2){animation:bar .9s .12s ease-in-out infinite alternate}
-.vb:nth-child(3){animation:bar .9s .22s ease-in-out infinite alternate}
-.vb:nth-child(4){animation:bar .9s .08s ease-in-out infinite alternate}
-.viz.paused .vb{animation:none;height:3px!important}
-@keyframes bar{from{height:2px}to{height:12px}}
+  /* Información de Oferta + QR */
+  .car-info-box {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 1.4vh;
+    z-index: 2;
+  }
+  .car-title {
+    font-family: 'Cabinet Grotesk', sans-serif;
+    font-size: clamp(20px, 2.4vw, 32px);
+    font-weight: 900;
+    line-height: 1.18;
+    color: #ffffff;
+    text-shadow: 0 4px 15px rgba(0, 0, 0, 0.7);
+    letter-spacing: -0.5px;
+  }
+  .car-desc {
+    font-size: clamp(13px, 1.2vw, 15px);
+    color: var(--txt-dim);
+    line-height: 1.4;
+    font-weight: 500;
+  }
+
+  .car-price-card {
+    background: linear-gradient(145deg, rgba(20, 10, 10, 0.9), rgba(30, 14, 14, 0.96));
+    border: 1.5px solid var(--red);
+    border-radius: 14px;
+    padding: 1.4vh 1.4vw;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6vh;
+    box-shadow: 0 0 25px rgba(224, 36, 28, 0.25);
+  }
+  .car-price-row {
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .car-price-regular {
+    font-size: clamp(14px, 1.4vw, 18px);
+    color: #94a3b8;
+    text-decoration: line-through;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 600;
+  }
+  .car-price-buenfin {
+    font-family: 'Cabinet Grotesk', sans-serif;
+    font-size: clamp(28px, 3.8vw, 48px);
+    font-weight: 900;
+    color: var(--gold);
+    text-shadow: 0 0 25px var(--gold-glow);
+    line-height: 1;
+  }
+  .car-savings-badge {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    color: #10b981;
+    background: rgba(16, 185, 129, 0.15);
+    border: 1px solid rgba(16, 185, 129, 0.35);
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-weight: 700;
+    align-self: flex-start;
+  }
+
+  /* Mini sección QR + CTA */
+  .car-qr-cta-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    background: rgba(15, 23, 42, 0.7);
+    border: 1px solid rgba(0, 229, 255, 0.25);
+    border-radius: 14px;
+    padding: 12px 14px;
+  }
+  .car-qr-box {
+    position: relative;
+    background: #ffffff;
+    padding: 6px;
+    border-radius: 10px;
+    width: 74px; height: 74px;
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 0 15px rgba(255, 255, 255, 0.3);
+  }
+  .car-qr-box img { width: 100%; height: 100%; object-fit: contain; }
+  .car-qr-laser {
+    position: absolute; top: 0; left: 0; width: 100%; height: 2.5px;
+    background: linear-gradient(90deg, transparent, #00ffaa, transparent);
+    box-shadow: 0 0 8px #00ffaa;
+    animation: carLaser 2s infinite ease-in-out;
+  }
+  @keyframes carLaser {
+    0% { top: 8%; opacity: 0; }
+    20% { opacity: 1; }
+    80% { opacity: 1; }
+    100% { top: 88%; opacity: 0; }
+  }
+  .car-cta-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex: 1;
+  }
+  .car-cta-hint {
+    font-size: 11.5px;
+    color: var(--txt-dim);
+    line-height: 1.3;
+  }
+  .btn-car-buy {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background: linear-gradient(135deg, var(--gold), #f59e0b);
+    color: #060e1c;
+    text-decoration: none;
+    font-family: 'Cabinet Grotesk', sans-serif;
+    font-weight: 900;
+    font-size: 14px;
+    letter-spacing: 0.5px;
+    padding: 8px 18px;
+    border-radius: 50px;
+    box-shadow: 0 4px 15px rgba(255, 190, 26, 0.4);
+    transition: transform 0.15s, filter 0.15s;
+    align-self: flex-start;
+  }
+  .btn-car-buy:hover { filter: brightness(1.1); transform: scale(1.02); }
+  .btn-car-buy:active { transform: scale(0.97); }
+
+  /* Barra de Control del Carrusel (Dots, Prev/Next, Timer) */
+  .car-footer-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    padding-top: 1.2vh;
+    z-index: 2;
+  }
+  .car-nav-btns {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .btn-car-step {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #fff;
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 14px;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.15s, transform 0.1s;
+  }
+  .btn-car-step:hover { background: rgba(255, 190, 26, 0.25); border-color: var(--gold); }
+  .btn-car-step:active { transform: scale(0.92); }
+
+  .car-dots {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .car-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: rgba(255, 255, 255, 0.25);
+    cursor: pointer;
+    transition: background 0.2s, transform 0.2s, width 0.2s;
+  }
+  .car-dot.active {
+    background: var(--gold);
+    width: 26px; border-radius: 6px;
+    box-shadow: 0 0 10px var(--gold-glow);
+  }
+
+  .car-timer-bar-wrap {
+    flex: 1; max-width: 140px; height: 5px;
+    background: rgba(255, 255, 255, 0.12);
+    border-radius: 4px; overflow: hidden;
+  }
+  .car-timer-bar-fill {
+    height: 100%; width: 0%;
+    background: linear-gradient(90deg, var(--red2), var(--gold));
+    transition: width 0.1s linear;
+  }
+
+  /* ══════════ COLUMNA DERECHA: REPRODUCTOR RADIO TERRAPESCA ══════════ */
+  .player-column {
+    background: var(--card-bg);
+    border: 1.5px solid rgba(224, 36, 28, 0.35);
+    border-radius: 24px;
+    padding: 2.2vh 2vw;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 1.8vh;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8), 0 0 35px rgba(224, 36, 28, 0.15);
+    backdrop-filter: blur(16px);
+  }
+
+  .radio-header-badge {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    padding-bottom: 1vh;
+  }
+  .radio-badge-title {
+    font-family: 'Cabinet Grotesk', sans-serif;
+    font-size: 14px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    color: #ff8a80;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .station-mode-tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--txt-dim);
+  }
+
+  /* Carátula / Artwork Grande */
+  .player-artwork-box {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1vh 0;
+  }
+  .player-art-frame {
+    position: relative;
+    width: clamp(140px, 20vw, 220px);
+    height: clamp(140px, 20vw, 220px);
+    border-radius: 22px;
+    overflow: hidden;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8), 0 0 0 1.5px rgba(255, 255, 255, 0.1);
+    background: #0d121f;
+    transition: transform 0.4s ease, box-shadow 0.4s ease;
+  }
+  .player-art-frame.live {
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8), 0 0 45px var(--red-glow), 0 0 0 2px var(--red2);
+    transform: scale(1.02);
+  }
+  .player-art-frame img {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    display: block;
+    transition: opacity 0.3s ease;
+  }
+  .player-eq-badge {
+    position: absolute;
+    bottom: 10px; right: 10px;
+    background: rgba(0, 0, 0, 0.7);
+    padding: 4px 8px;
+    border-radius: 8px;
+    display: flex; gap: 3px; align-items: flex-end;
+    height: 18px;
+  }
+
+  /* Info de la pista actual */
+  .player-track-info {
+    text-align: center;
+    padding: 0 4px;
+  }
+  .track-name {
+    font-family: 'Cabinet Grotesk', sans-serif;
+    font-size: clamp(18px, 1.8vw, 24px);
+    font-weight: 900;
+    letter-spacing: -0.3px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    color: #fff;
+  }
+  .track-artist {
+    font-size: clamp(13px, 1.2vw, 15px);
+    color: var(--txt-dim);
+    margin-top: 4px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    font-weight: 600;
+  }
+
+  /* Barra de progreso */
+  .player-prog-box {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .prog-track {
+    width: 100%; height: 6px;
+    background: rgba(255, 255, 255, 0.14);
+    border-radius: 4px; overflow: hidden; position: relative;
+  }
+  .prog-fill {
+    height: 100%; width: 0%;
+    background: linear-gradient(90deg, var(--red2), var(--red));
+    box-shadow: 0 0 12px var(--red-glow);
+    border-radius: 4px;
+    transition: width 0.3s linear;
+  }
+  .prog-meta-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11.5px;
+    color: var(--txt-dim);
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* Controles de Transporte */
+  .player-transport {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 22px;
+  }
+  .btn-t-sub {
+    background: rgba(255, 255, 255, 0.08);
+    border: none; border-radius: 50%;
+    color: #fff; width: 44px; height: 44px;
+    font-size: 18px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.15s, transform 0.1s, color 0.15s;
+  }
+  .btn-t-sub:hover { background: rgba(255, 255, 255, 0.15); }
+  .btn-t-sub:active { transform: scale(0.92); }
+  .btn-t-sub.liked { color: #ff3344; background: rgba(255, 51, 68, 0.2); }
+
+  .btn-play-hero {
+    width: 72px; height: 72px;
+    border-radius: 50%;
+    border: none; cursor: pointer;
+    background: linear-gradient(135deg, var(--red2), var(--red));
+    color: #fff; font-size: 28px;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 8px 30px var(--red-glow), 0 0 20px rgba(255,190,26,0.3);
+    transition: transform 0.15s, filter 0.15s, box-shadow 0.2s;
+  }
+  .btn-play-hero:hover { transform: scale(1.06); filter: brightness(1.1); box-shadow: 0 10px 40px var(--red-glow); }
+  .btn-play-hero:active { transform: scale(0.95); }
+
+  /* Control de Volumen y Estado */
+  .player-bottom-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    background: rgba(0, 0, 0, 0.4);
+    border-radius: 12px;
+    padding: 10px 14px;
+  }
+  .vol-control {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+  }
+  .vol-btn {
+    background: none; border: none; color: var(--txt-dim);
+    font-size: 16px; cursor: pointer;
+  }
+  .vol-slider {
+    flex: 1; -webkit-appearance: none; appearance: none;
+    height: 4px; border-radius: 2px;
+    background: rgba(255, 255, 255, 0.2);
+    outline: none;
+  }
+  .vol-slider::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 14px; height: 14px;
+    border-radius: 50%; background: var(--gold);
+    cursor: pointer; box-shadow: 0 0 8px var(--gold-glow);
+  }
+
+  .status-label {
+    font-size: 11.5px;
+    color: var(--txt-dim);
+    font-weight: 600;
+  }
+  .status-label.live { color: #4ade80; }
+  .status-label.connecting { color: var(--gold); }
+  .status-label.spot { color: #ff3b30; font-weight: 800; animation: blinkDot 1s infinite; }
+
+  /* ── Responsive Mobile (Smartphones / Pantallas Estrechas < 880px) ── */
+  @media (max-width: 880px) {
+    .listen-stage {
+      padding: 16px 14px 24px;
+      gap: 16px;
+    }
+    .top-bar {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 12px;
+    }
+    .campaign-banner-pill {
+      width: 100%;
+      justify-content: center;
+    }
+    .main-grid {
+      grid-template-columns: 1fr;
+      gap: 18px;
+    }
+    .carousel-column {
+      order: 2;
+      padding: 18px 16px;
+    }
+    .car-body {
+      grid-template-columns: 1fr;
+      gap: 16px;
+    }
+    .car-visual-box {
+      min-height: 220px;
+      max-height: 320px;
+    }
+    .player-column {
+      order: 1;
+      padding: 18px 16px;
+    }
+    .player-artwork-box {
+      padding: 6px 0;
+    }
+    .player-art-frame {
+      width: 130px; height: 130px;
+    }
+  }
 </style>
 </head>
 <body>
 
+<!-- Fondo dinámico difuminado -->
 <div id="bgArt"></div>
+<canvas id="bgCanvas"></canvas>
 
-<!-- ── Tap to start ── -->
+<!-- ── Pantalla de Inicio / Tap to Play (Gesto activo del navegador) ── -->
 <div id="startOverlay">
-  <div class="so-logo" style="text-align:center">
-    <img src="/buenfin/logo_terrapesca_marine.png" alt="Terrapesca"/>
+  <div class="so-logo-wrap">
+    <img src="/buenfin/logo_terrapesca_marine.png" alt="Terrapesca Marine & Outdoors"/>
   </div>
   <div>
-    <div class="so-title">Radio Terrapesca</div>
-    <div class="so-sub" style="margin-top:6px">Terrapesca, equipa tu aventura</div>
+    <h1 class="so-title">Radio Terrapesca</h1>
+    <p class="so-sub">Transmisión oficial en vivo 24/7 con las mejores promociones exclusivas del Gran Buen Fin 2026.</p>
   </div>
   <button class="btn-start" onclick="startListening()">
-    <span style="font-size:20px">▶</span>
+    <span>▶</span>
     <span>Escuchar en vivo</span>
   </button>
 </div>
 
-<!-- ── Player ── -->
-<div id="player">
+<!-- ── Escenario Principal Fullscreen (100vw) ── -->
+<main class="listen-stage">
 
-  <div class="brand-top">
-    <img class="brand-logo" src="/buenfin/logo_terrapesca_marine.png" alt="Terrapesca"/>
-    <div class="brand-name">RADIO TERRAPESCA</div>
-    <div style="margin-top:6px">
-      <span class="viz paused" id="viz"><span class="vb"></span><span class="vb"></span><span class="vb"></span><span class="vb"></span></span>
-    </div>
-    <span id="topPlaylist" style="display:none"></span>
-  </div>
-
-  <div style="text-align:center">
-    <span class="live-pill" id="livePill"><span class="dot"></span> EN VIVO</span>
-  </div>
-  <!-- liveLabel oculto: lo usa el JS existente para mostrar/ocultar estado en vivo -->
-  <span id="liveLabel" style="display:none"></span>
-
-  <div class="art-section">
-    <div class="art-thumb paused" id="artThumb">
-      <img id="artImg"
-        src="/buenfin/logo_terrapesca_marine.png"
-        alt="artwork"/>
-    </div>
-  </div>
-
-  <div class="info-row">
-    <div class="info-left">
-      <div class="track-name" id="trackName">Radio Terrapesca</div>
-      <div class="track-artist" id="trackArtist">Equipa tu aventura</div>
-    </div>
-    <button class="btn-heart" id="btnHeart" onclick="toggleHeart()" title="Me gusta">♡</button>
-  </div>
-
-  <div class="progress-wrap">
-    <div class="progress-track"><div class="progress-fill" id="progFill"></div></div>
-    <div class="progress-times">
-      <span id="tNow">EN VIVO</span>
-      <span id="statusText" class="status connecting">Cargando...</span>
-    </div>
-  </div>
-
-  <!-- Botón principal de reproducción -->
-  <div class="transport">
-    <button class="btn-play-main" id="btnPlay" onclick="togglePlay()" aria-label="Reproducir o pausar">▶</button>
-  </div>
-
-  <!-- BANNER EXCLUSIVO BUEN FIN 2026 (Activo sólo hasta el 17 de Noviembre) -->
-  <a class="bf-card" id="bfCard" href="#" target="_blank" rel="noopener" style="display:none">
-    <div class="bf-header">
-      <span class="bf-badge-title">🔥 BUEN FIN TERRAPESCA</span>
-      <span class="bf-vigencia">⚡ HASTA EL 17 DE NOV</span>
-    </div>
-    <div class="bf-content">
-      <div class="bf-thumb-box">
-        <img id="bfImg" class="bf-thumb-img" src="/buenfin/spot_gorras_50.jpg" alt="Buen Fin">
+  <!-- ── Barra Superior (Top Bar) ── -->
+  <header class="top-bar">
+    <div class="brand-group">
+      <img class="brand-logo-img" src="/buenfin/logo_terrapesca_marine.png" alt="Terrapesca Logo"/>
+      <div class="brand-text-block">
+        <span class="brand-title-main">RADIO TERRAPESCA</span>
+        <span class="brand-slogan-sub">EQUIPA TU AVENTURA · TRANSMISIÓN 24/7</span>
       </div>
-      <div class="bf-details">
-        <div class="bf-item-title" id="bfTitle">Gorras Terrapesca Trucker 50% OFF</div>
-        <div class="bf-prices">
-          <span class="bf-price-deal" id="bfPriceDeal">$225.00 MXN</span>
-          <span class="bf-price-reg" id="bfPriceReg">$450.00</span>
+    </div>
+
+    <!-- Píldora Campaña Buen Fin 2026 -->
+    <div class="campaign-banner-pill">
+      <span>🔥 GRAN BUEN FIN TERRAPESCA</span>
+      <span>•</span>
+      <span style="color:#ffbe1a">HASTA EL 17 DE NOV</span>
+    </div>
+
+    <div class="top-status-group">
+      <div class="live-badge" id="liveBadge">
+        <span class="live-dot"></span>
+        <span id="liveBadgeText">EN VIVO</span>
+      </div>
+      <div class="viz-bars paused" id="vizBars">
+        <span class="vb"></span><span class="vb"></span><span class="vb"></span><span class="vb"></span><span class="vb"></span>
+      </div>
+      <button class="btn-top-action" onclick="copyShareUrl()">🔗 Compartir</button>
+    </div>
+  </header>
+
+  <!-- ── Contenido Principal (Grid 2 Columnas) ── -->
+  <div class="main-grid">
+
+    <!-- ══════════ COLUMNA 1: CARRUSEL OFICIAL BUEN FIN ══════════ -->
+    <section class="carousel-column" id="carouselCard">
+      <!-- Encabezado del Slide -->
+      <div class="car-header-row">
+        <span class="car-category-pill" id="carCategory">GORRAS</span>
+        <span class="car-isla-tag" id="carIsla">Isla 1 — Entrada Principal</span>
+        <span class="car-counter-tag" id="carCounter">1 / 6</span>
+      </div>
+
+      <!-- Cuerpo del Slide -->
+      <div class="car-body">
+        <!-- Visual / Imagen con Efectos -->
+        <div class="car-visual-box">
+          <div class="car-ambient-glow"></div>
+          <span class="car-discount-badge" id="carDiscount">50% OFF</span>
+          <img class="car-img" id="carImg" src="/buenfin/spot_gorras_50.jpg" alt="Producto Buen Fin"/>
         </div>
-        <span class="bf-item-cta" id="bfCta">¡Apartar Oferta en Tienda! →</span>
+
+        <!-- Info del Producto + Precios + QR + CTA -->
+        <div class="car-info-box">
+          <h2 class="car-title" id="carTitle">¡EXPLOSIÓN 50% OFF! GORRAS TRUCKER</h2>
+          <p class="car-desc" id="carDesc">Gorra Terrapesca Edición Especial Trucker con logo bordado de alta calidad.</p>
+
+          <div class="car-price-card">
+            <div class="car-price-row">
+              <span class="car-price-buenfin" id="carPriceBuenFin">$225.00 MXN</span>
+              <span class="car-price-regular" id="carPriceReg">$450.00</span>
+            </div>
+            <div class="car-savings-badge" id="carSavings">AHORRAS: $225.00 MXN</div>
+          </div>
+
+          <!-- Escaneo QR y Botón Directo -->
+          <div class="car-qr-cta-row">
+            <div class="car-qr-box">
+              <div class="car-qr-laser"></div>
+              <img id="carQrImg" src="/buenfin/spot_gorras_50_qr.png" alt="Código QR de Compra"/>
+            </div>
+            <div class="car-cta-meta">
+              <span class="car-cta-hint">Apunta tu celular para apartar en tienda o comprar en línea</span>
+              <a class="btn-car-buy" id="carBuyBtn" href="https://buenfin.terrapescaapi.com/cliente?sucursal=buceo&sku=20270" target="_blank" rel="noopener">
+                <span>Ver oferta en línea</span>
+                <span>→</span>
+              </a>
+            </div>
+          </div>
+        </div>
       </div>
-    </div>
-  </a>
 
-  <!-- Carrusel de productos reales de Terrapesca: protagonista de la página -->
-  <a class="pcarousel" id="pcar" href="#" target="_blank" rel="noopener" style="display:none">
-    <div class="pcar-title">🛒 EN TERRAPESCA</div>
-    <div class="pcar-body">
-      <img id="pcarImg" class="pcar-img" alt=""/>
-      <div class="pcar-meta">
-        <div class="pcar-name" id="pcarName"></div>
-        <div class="pcar-price" id="pcarPrice"></div>
-        <div class="pcar-cta">Ver en la tienda →</div>
+      <!-- Pie de Navegación del Carrusel -->
+      <footer class="car-footer-bar">
+        <div class="car-nav-btns">
+          <button class="btn-car-step" onclick="prevPromo()" title="Oferta anterior">❮</button>
+          <button class="btn-car-step" onclick="nextPromo()" title="Siguiente oferta">❯</button>
+        </div>
+
+        <!-- Indicadores de puntos -->
+        <div class="car-dots" id="carDots"></div>
+
+        <!-- Barra de Progreso del Tiempo entre Slides -->
+        <div class="car-timer-bar-wrap">
+          <div class="car-timer-bar-fill" id="carTimerFill"></div>
+        </div>
+      </footer>
+    </section>
+
+    <!-- ══════════ COLUMNA 2: REPRODUCTOR RADIO TERRAPESCA ══════════ -->
+    <section class="player-column">
+      <div class="radio-header-badge">
+        <span class="radio-badge-title">📻 EN LA CABINA</span>
+        <span class="station-mode-tag" id="stationMode">24/7 SIN PAUSAS</span>
       </div>
-    </div>
-  </a>
 
-  <div class="bottom-row">
-    <div class="stream-pill" id="streamPill" onclick="copyUrl()">🔗 Compartir</div>
+      <!-- Carátula de la Canción con Brillo -->
+      <div class="player-artwork-box">
+        <div class="player-art-frame paused" id="artFrame">
+          <img id="trackCoverImg" src="/buenfin/logo_terrapesca_marine.png" alt="Carátula"/>
+          <div class="player-eq-badge">
+            <span class="vb"></span><span class="vb"></span><span class="vb"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Info de Canción y Artista -->
+      <div class="player-track-info">
+        <h3 class="track-name" id="trackName">Radio Terrapesca</h3>
+        <p class="track-artist" id="trackArtist">Equipa tu aventura</p>
+      </div>
+
+      <!-- Barra de Progreso en Vivo -->
+      <div class="player-prog-box">
+        <div class="prog-track">
+          <div class="prog-fill" id="progFill"></div>
+        </div>
+        <div class="prog-meta-row">
+          <span id="timeElapsed">0:00</span>
+          <span id="timeDuration">EN VIVO</span>
+        </div>
+      </div>
+
+      <!-- Botones de Control Principal -->
+      <div class="player-transport">
+        <button class="btn-t-sub" id="btnHeart" onclick="toggleHeart()" title="Favorito">♡</button>
+        <button class="btn-play-hero" id="btnPlay" onclick="togglePlay()" aria-label="Reproducir o Pausar">▶</button>
+        <button class="btn-t-sub" id="btnNext" onclick="skipNext()" title="Siguiente canción">⏭</button>
+      </div>
+
+      <!-- Volumen y Diagnóstico -->
+      <div class="player-bottom-bar">
+        <div class="vol-control">
+          <button class="vol-btn" id="volBtn" onclick="toggleMute()">🔊</button>
+          <input type="range" class="vol-slider" id="volSlider" min="0" max="100" value="85" oninput="setVolume(this.value)">
+        </div>
+        <span class="status-label live" id="statusLabel">● Listo</span>
+      </div>
+    </section>
+
   </div>
+</main>
 
-  <div style="text-align:center;font-size:9.5px;color:rgba(255,255,255,.35);margin-top:10px;line-height:1.5">
-    Clima oficial por CONAGUA · <a href="https://tidecheck.com" target="_blank" rel="noopener" style="color:rgba(255,255,255,.45)">Datos de mareas por TideCheck</a>
-  </div>
-
-</div><!-- #player -->
-
-<!-- Reproductor de YouTube oculto (mismo mecanismo que sucursal.html — YouTube
-     bloquea reproducción en iframes 0x0/display:none, por eso 200x113 casi invisible) -->
-<div id="yt-holder" style="position:fixed;bottom:0;right:0;width:200px;height:113px;opacity:.01;pointer-events:none;z-index:1"></div>
-
-<!-- Audio real del servidor (/radio/stream): SÍ reproduce en segundo plano en
-     el celular (pantalla apagada, minimizado). Es la fuente primaria; si falla,
-     se cae al reproductor de YouTube de arriba. -->
+<!-- Contenedor oculto del reproductor de YouTube sincronizado -->
+<div id="yt-holder" style="position:fixed;bottom:0;right:0;width:200px;height:113px;opacity:0.01;pointer-events:none;z-index:1"></div>
 <audio id="bgAudio" preload="none" playsinline></audio>
 
 <script src="https://www.youtube.com/iframe_api"></script>
 <script>
+// ================= DATOS OFICIALES BUEN FIN 2026 =================
+const BUEN_FIN_SPOTS_DEFAULT = [
+  {
+    spot_id: "spot_gorras_50",
+    categoria: "Gorras",
+    descuento_txt: "50% OFF",
+    titulo: "¡EXPLOSIÓN 50% OFF! GORRAS TRUCKER TERRAPESCA",
+    descripcion: "Gorra Terrapesca Edición Especial Trucker con logo bordado de alta calidad.",
+    precio_buenfin: 225,
+    precio_regular: 450,
+    ahorro: 225,
+    isla: "Isla 1 — Entrada Principal (50% Directo)",
+    foto_url: "/buenfin/spot_gorras_50.jpg",
+    qr_imagen_url: "/buenfin/spot_gorras_50_qr.png",
+    qr_compra_url: "https://buenfin.terrapescaapi.com/cliente?sucursal=buceo&sku=20270"
+  },
+  {
+    spot_id: "spot_shadrap_40",
+    categoria: "Señuelos",
+    descuento_txt: "20% a 40% OFF",
+    titulo: "¡ADRENALINA PURA! SEÑUELOS DEL 20% AL 40% OFF",
+    descripcion: "El legendario Shad Rap de Rapala para agua dulce y salada con acción inigualable.",
+    precio_buenfin: 141.84,
+    precio_regular: 236.4,
+    ahorro: 94.56,
+    isla: "Isla 4 — Muro de Liquidación y Ocasión 40%",
+    foto_url: "/buenfin/spot_shadrap_40.jpg",
+    qr_imagen_url: "/buenfin/spot_shadrap_40_qr.png",
+    qr_compra_url: "https://buenfin.terrapescaapi.com/cliente?sucursal=buceo&sku=18803"
+  },
+  {
+    spot_id: "spot_vanford_15",
+    categoria: "Carretes",
+    descuento_txt: "15% / 20% en Combo",
+    titulo: "¡PRECISIÓN JAPONESA! CARRETES SHIMANO",
+    descripcion: "Tecnología Ci4+, ligereza extrema y freno micrométrico de alta precisión Shimano.",
+    precio_buenfin: 5227.5,
+    precio_regular: 6150,
+    ahorro: 922.5,
+    isla: "Isla 3 — Vitrina de Carretes Shimano (20% en Combo)",
+    foto_url: "/buenfin/spot_vanford_15.jpg",
+    qr_imagen_url: "/buenfin/spot_vanford_15_qr.png",
+    qr_compra_url: "https://buenfin.terrapescaapi.com/cliente?sucursal=buceo&sku=39108"
+  },
+  {
+    spot_id: "spot_kayak_tilapia",
+    categoria: "Kayaks de Pedales",
+    descuento_txt: "10% + 6 MSI",
+    titulo: "¡EL MONSTRUO AZUL! COSTA KAYAK BIG MERO",
+    descripcion: "Kayak de pedales Costa Kayak Big Mero (Azul). Máxima estabilidad y manos libres para pesca deportiva.",
+    precio_buenfin: 29900.81,
+    precio_regular: 33223.12,
+    ahorro: 3322.31,
+    isla: "Bahía de Kayaks — Preventa Diciembre Garantizada",
+    foto_url: "/buenfin/spot_kayak_tilapia.jpg",
+    qr_imagen_url: "/buenfin/spot_kayak_tilapia_qr.png",
+    qr_compra_url: "https://www.terrapesca.com/collections/kayaks-y-accesorios/products/kayak-big-mero"
+  },
+  {
+    spot_id: "spot_maja_30",
+    categoria: "Ropa MAJA",
+    descuento_txt: "30% OFF",
+    titulo: "ROPA TÉCNICA MAJA SPORTSWEAR (30% OFF)",
+    descripcion: "Jerseys técnicos, camisas outdoor y ropa de pesca MAJA Sportswear con protección solar UPF 50+.",
+    precio_buenfin: 903,
+    precio_regular: 1290,
+    ahorro: 387,
+    isla: "Isla 5A — Boutique MAJA Sportswear",
+    foto_url: "/buenfin/spot_maja_30.jpg",
+    qr_imagen_url: "/buenfin/spot_maja_30_qr.png",
+    qr_compra_url: "https://buenfin.terrapescaapi.com/cliente?sucursal=buceo&sku=78921"
+  },
+  {
+    spot_id: "spot_hieleras_15",
+    categoria: "Hieleras",
+    descuento_txt: "15% OFF",
+    titulo: "¡FRÍO EXTREMO! HIELERAS Y COOLERS MARINOS",
+    descripcion: "Hieleras de alto impacto y retención de hielo para tus expediciones de pesca deportiva.",
+    precio_buenfin: 2456.5,
+    precio_regular: 2890,
+    ahorro: 433.5,
+    isla: "Isla 5B — Exhibición Central de Hieleras",
+    foto_url: "/buenfin/spot_hieleras_15.jpg",
+    qr_imagen_url: "/buenfin/spot_hieleras_15_qr.png",
+    qr_compra_url: "https://buenfin.terrapescaapi.com/cliente?sucursal=buceo&sku=15692"
+  }
+];
+
 const TP_LOGO = '/buenfin/logo_terrapesca_marine.png';
 const shareUrl = location.origin + '/listen';
 
+let BUEN_FIN_SPOTS = BUEN_FIN_SPOTS_DEFAULT;
+let curPromoIdx = 0;
+let promoTimer = null;
+let promoProgressTimer = null;
+let promoProgressMs = 0;
+const PROMO_INTERVAL_MS = 6000;
+
+// Cargar spots desde el servidor con fallback instantáneo
+async function loadServerSpots() {
+  try {
+    const res = await fetch('/buenfin/spots.json?v=' + Date.now());
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data.spots) && data.spots.length) {
+        BUEN_FIN_SPOTS = data.spots.map(s => ({
+          ...s,
+          descuento_txt: s.descuento_pct ? (s.descuento_pct + '% OFF') : (s.descuento_txt || 'OFERTA'),
+          foto_url: '/buenfin/' + s.spot_id + '.jpg',
+          qr_imagen_url: '/buenfin/' + s.spot_id + '_qr.png'
+        }));
+      }
+    }
+  } catch (_) {}
+  buildPromoDots();
+  renderPromo(curPromoIdx);
+  startPromoCarousel();
+}
+
+function buildPromoDots() {
+  const container = document.getElementById('carDots');
+  container.innerHTML = '';
+  BUEN_FIN_SPOTS.forEach((_, i) => {
+    const d = document.createElement('div');
+    d.className = 'car-dot' + (i === curPromoIdx ? ' active' : '');
+    d.onclick = () => { selectPromo(i); };
+    container.appendChild(d);
+  });
+}
+
+function renderPromo(idx) {
+  if (!BUEN_FIN_SPOTS.length) return;
+  curPromoIdx = (idx + BUEN_FIN_SPOTS.length) % BUEN_FIN_SPOTS.length;
+  const s = BUEN_FIN_SPOTS[curPromoIdx];
+
+  document.getElementById('carCategory').textContent = s.categoria || 'BUEN FIN';
+  document.getElementById('carIsla').textContent = s.isla || 'Sucursal Terrapesca';
+  document.getElementById('carCounter').textContent = (curPromoIdx + 1) + ' / ' + BUEN_FIN_SPOTS.length;
+
+  document.getElementById('carDiscount').textContent = s.descuento_txt || (s.descuento_pct ? s.descuento_pct + '% OFF' : 'OFERTA');
+  document.getElementById('carTitle').textContent = s.titulo || '';
+  document.getElementById('carDesc').textContent = s.descripcion || '';
+
+  const pb = Number(s.precio_buenfin || 0);
+  const pr = Number(s.precio_regular || 0);
+  const ah = Number(s.ahorro || (pr - pb));
+
+  document.getElementById('carPriceBuenFin').textContent = '$' + pb.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' MXN';
+  document.getElementById('carPriceReg').textContent = '$' + pr.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  document.getElementById('carSavings').textContent = 'AHORRAS: $' + ah.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' MXN';
+
+  const img = document.getElementById('carImg');
+  img.style.opacity = '0';
+  setTimeout(() => {
+    img.src = s.foto_url || ('/buenfin/' + s.spot_id + '.jpg');
+    img.onerror = () => { img.src = TP_LOGO; };
+    img.style.opacity = '1';
+  }, 150);
+
+  const qrImg = document.getElementById('carQrImg');
+  qrImg.src = s.qr_imagen_url || ('/buenfin/' + s.spot_id + '_qr.png');
+
+  const buyBtn = document.getElementById('carBuyBtn');
+  buyBtn.href = s.qr_compra_url || 'https://buenfin.terrapescaapi.com/cliente';
+
+  // Actualizar dots
+  const dots = document.querySelectorAll('.car-dot');
+  dots.forEach((d, i) => d.classList.toggle('active', i === curPromoIdx));
+
+  // Reiniciar barra de tiempo
+  promoProgressMs = 0;
+  document.getElementById('carTimerFill').style.width = '0%';
+}
+
+function nextPromo() { selectPromo(curPromoIdx + 1); }
+function prevPromo() { selectPromo(curPromoIdx - 1); }
+
+function selectPromo(idx) {
+  renderPromo(idx);
+  startPromoCarousel();
+}
+
+function startPromoCarousel() {
+  clearInterval(promoTimer);
+  clearInterval(promoProgressTimer);
+  promoProgressMs = 0;
+
+  promoProgressTimer = setInterval(() => {
+    promoProgressMs += 100;
+    const pct = Math.min(100, (promoProgressMs / PROMO_INTERVAL_MS) * 100);
+    document.getElementById('carTimerFill').style.width = pct + '%';
+  }, 100);
+
+  promoTimer = setInterval(() => {
+    renderPromo(curPromoIdx + 1);
+  }, PROMO_INTERVAL_MS);
+}
+
+// Pausa el carrusel cuando el usuario interactúa
+const carouselCard = document.getElementById('carouselCard');
+carouselCard.addEventListener('mouseenter', () => { clearInterval(promoTimer); clearInterval(promoProgressTimer); });
+carouselCard.addEventListener('mouseleave', () => { startPromoCarousel(); });
+
+// ================= MOTOR DE REPRODUCCIÓN RADIO TERRAPESCA =================
 let playing = false, started = false;
 let currentTrack = null, ws = null, wsTimer = null, wsOk = false;
-
-// Diagnóstico claro de por qué no hay sonido (listen es un RECEPTOR: necesita
-// que la cabina/studio esté transmitiendo música).
-function diagnose() {
-  if (playing) return;
-  if (!wsOk) { setStatus('Conectando con la estación…', 'connecting'); return; }
-  if (currentTrack && currentTrack.ytId) return; // hay pista; el player la tomará
-  setStatus('La cabina no está al aire — abre el Studio y reproduce música', 'connecting');
-}
-
-document.getElementById('streamPill').textContent = '🔗 Compartir radio';
-
-/* ── Reproductor YouTube sincronizado (mismo mecanismo que sucursal.html) ──
-   El audio ya no viene del stream del servidor (ytdl-core se rompe seguido);
-   se reproduce el video de YouTube oculto, sincronizado por WebSocket. */
 let ytPlayer = null, ytReady = false, _pendingPlay = null, _lastYtId = null;
 let spotAudio = null;
-// Modo de audio: 'yt' = Reproductor de YouTube sincronizado en vivo (Directo y confiable)
-let _mode = 'yt', _streamOk = false, _streamWatchdog = null, _wantPlay = false;
-const SILENT_WAV = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
-const bgAudio = document.getElementById('bgAudio');
-function startStreamAudio() {
-  _mode = 'stream'; _streamOk = false; _wantPlay = true;
-  try {
-    bgAudio.src = location.origin + '/radio/stream?t=' + Date.now();
-    bgAudio.load();
-    bgAudio.play().catch(() => {/* autoplay bloqueado: el tap de Escuchar lo arranca */});
-  } catch (_) { fallbackToYT('audio-throw'); return; }
-  clearTimeout(_streamWatchdog);
-  // Si en 15s no arranca (YouTube bloquea la extracción, etc.), cae a YouTube.
-  _streamWatchdog = setTimeout(() => { if (_mode === 'stream' && !_streamOk) fallbackToYT('timeout'); }, 15000);
-}
-function fallbackToYT(reason) {
-  if (_mode === 'yt') return;
-  console.warn('[listen] respaldo a YouTube:', reason);
-  clearTimeout(_streamWatchdog);
-  _mode = 'yt'; _streamOk = false;
-  try { bgAudio.pause(); bgAudio.removeAttribute('src'); bgAudio.load(); } catch (_) {}
-  const t = currentTrack || (_pendingPlay && _pendingPlay.track);
-  if (t && t.ytId) playRemote(t, _liveNow()); else diagnose();
-}
-if (bgAudio) {
-  bgAudio.addEventListener('playing', () => {
-    _streamOk = true; playing = true; setPlayUI(true); setStatus('● EN VIVO', 'live');
-    const ll = document.getElementById('liveLabel'); if (ll) ll.style.display = '';
-    document.getElementById('viz').classList.remove('paused');
-  });
-  bgAudio.addEventListener('pause', () => { if (_mode === 'stream') { playing = false; setPlayUI(false); document.getElementById('viz').classList.add('paused'); } });
-  bgAudio.addEventListener('error', () => { if (_mode === 'stream') fallbackToYT('audio-error'); });
-  // El stream no debería terminar; si se corta, reconectar (salvo que haya un spot sonando).
-  bgAudio.addEventListener('ended', () => { if (_mode === 'stream' && started && !spotAudio) startStreamAudio(); });
-}
-// Posición "en vivo": la última posición reportada + el tiempo transcurrido
 let _livePos = { pos: 0, at: 0, playing: false };
+
 function _liveNow() {
   if (!_livePos.at) return 0;
   return _livePos.pos + (_livePos.playing ? (Date.now() - _livePos.at) / 1000 : 0);
@@ -521,16 +1220,22 @@ function onYouTubeIframeAPIReady() {
       },
       onStateChange: (e) => {
         if (e.data === YT.PlayerState.PLAYING) {
-          playing = true; setPlayUI(true); setStatus('● EN VIVO', 'live');
-          document.getElementById('liveLabel').style.display = '';
-          document.getElementById('viz').classList.remove('paused');
-        }
-        if (e.data === YT.PlayerState.PAUSED || e.data === YT.PlayerState.ENDED) {
-          playing = false; setPlayUI(false);
-          document.getElementById('viz').classList.add('paused');
+          playing = true;
+          setPlayUI(true);
+          setStatus('● EN VIVO', 'live');
+        } else if (e.data === YT.PlayerState.PAUSED || e.data === YT.PlayerState.ENDED) {
+          playing = false;
+          setPlayUI(false);
         }
       },
-      onError: () => { setStatus('Video no disponible — esperando la siguiente…', 'connecting'); }
+      onError: (e) => {
+        console.warn('[YouTube Error]', e.data);
+        setStatus('Sintonizando siguiente…', 'connecting');
+        // Si el video actual tiene error (100, 101, 150), no detenerse: solicitar la siguiente canción inmediatamente
+        if (started) {
+          setTimeout(() => { skipNext(); }, 1200);
+        }
+      }
     }
   });
 }
@@ -538,15 +1243,20 @@ function onYouTubeIframeAPIReady() {
 function playRemote(track, pos) {
   if (!track || !track.ytId) return;
   currentTrack = track;
-  updateNowPlaying(track);
+  updateNowPlayingUI(track);
+
   if (!started || !ytReady) {
     _pendingPlay = { track, pos: pos || 0 };
     return;
   }
-  stopSpot();
+
+  stopSpotAudio();
+
   try {
     ytPlayer.unMute();
-    ytPlayer.setVolume(85);
+    const curVol = parseInt(document.getElementById('volSlider').value, 10) || 85;
+    ytPlayer.setVolume(curVol);
+
     const startSecs = (pos || 0) > 2 ? pos : 0;
     if (_lastYtId === track.ytId) {
       if (startSecs > 2) try { ytPlayer.seekTo(startSecs, true); } catch (_) {}
@@ -555,6 +1265,7 @@ function playRemote(track, pos) {
       _lastYtId = track.ytId;
       ytPlayer.loadVideoById({ videoId: track.ytId, startSeconds: startSecs });
     }
+
     setTimeout(() => {
       try {
         if (ytPlayer.getPlayerState && ytPlayer.getPlayerState() !== YT.PlayerState.PLAYING) {
@@ -567,30 +1278,34 @@ function playRemote(track, pos) {
   }
 }
 
-/* Spots/DJ Rodo llegan como audio base64 — se reproducen sobre la música pausada */
-function b64ToBlob(b64, type) {
-  const bin = atob(b64); const u8 = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
-  return new Blob([u8], { type });
-}
-function stopSpot() {
+function stopSpotAudio() {
   if (spotAudio) {
     try { spotAudio.pause(); } catch (_) {}
     if (spotAudio._u) URL.revokeObjectURL(spotAudio._u);
     spotAudio = null;
   }
 }
+
+// Spots periódicos de audio de Buen Fin / DJ Rodo
 function playSpotB64(track) {
   if (!started) return;
-  // Pausa la música (stream o YouTube) para que el spot no se encime.
-  if (_mode === 'stream') { try { bgAudio.pause(); } catch (_) {} }
-  else { try { if (ytReady) ytPlayer.pauseVideo(); } catch (_) {} }
-  stopSpot();
-  const url = URL.createObjectURL(b64ToBlob(track.b64, track.mime || 'audio/mpeg'));
-  spotAudio = new Audio(url); spotAudio._u = url; spotAudio.volume = 0.95;
+  try { if (ytReady) ytPlayer.pauseVideo(); } catch (_) {}
+  stopSpotAudio();
+
+  const bin = atob(track.b64);
+  const u8 = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+  const blob = new Blob([u8], { type: track.mime || 'audio/mpeg' });
+  const url = URL.createObjectURL(blob);
+
+  spotAudio = new Audio(url);
+  spotAudio._u = url;
+  spotAudio.volume = (parseInt(document.getElementById('volSlider').value, 10) || 85) / 100;
+
+  setStatus('📣 ' + (track.name || 'Spot al aire'), 'spot');
+
   const resume = () => {
-    stopSpot();
-    if (_mode === 'stream') { if (_wantPlay) startStreamAudio(); return; }
+    stopSpotAudio();
     try {
       if (ytReady && _lastYtId) {
         const p = _liveNow();
@@ -598,16 +1313,52 @@ function playSpotB64(track) {
         ytPlayer.playVideo();
       }
     } catch (_) {}
+    setStatus('● EN VIVO', 'live');
   };
-  spotAudio.onended = resume; spotAudio.onerror = resume;
-  spotAudio.play().catch(() => {});
-  setStatus('📣 ' + (track.name || 'Al aire'), 'live');
+
+  spotAudio.onended = resume;
+  spotAudio.onerror = resume;
+  spotAudio.play().catch(resume);
 }
 
-/* Progreso real de la canción (funciona tanto para YouTube como para Stream) */
+// Reproducción periódica autónoma de spots de Buen Fin (cada ~3.5 min)
+let bfAudioRotationTimer = null;
+function startBfSpotAudioLoop() {
+  clearInterval(bfAudioRotationTimer);
+  bfAudioRotationTimer = setInterval(() => {
+    if (started && playing && !spotAudio && BUEN_FIN_SPOTS.length) {
+      const s = BUEN_FIN_SPOTS[curPromoIdx];
+      if (!s) return;
+      try { if (ytReady) ytPlayer.pauseVideo(); } catch (_) {}
+      stopSpotAudio();
+
+      spotAudio = new Audio('/buenfin/' + s.spot_id + '.mp3?v=' + Date.now());
+      spotAudio.volume = (parseInt(document.getElementById('volSlider').value, 10) || 85) / 100;
+      setStatus('📣 ' + s.titulo.slice(0, 32), 'spot');
+
+      const resume = () => {
+        stopSpotAudio();
+        try {
+          if (ytReady && _lastYtId) {
+            const p = _liveNow();
+            if (p > 2) ytPlayer.seekTo(p, true);
+            ytPlayer.playVideo();
+          }
+        } catch (_) {}
+        setStatus('● EN VIVO', 'live');
+      };
+
+      spotAudio.onended = resume;
+      spotAudio.onerror = resume;
+      spotAudio.play().catch(resume);
+    }
+  }, 210000);
+}
+
+// Actualización en tiempo real de la barra de progreso
 setInterval(() => {
   let c = 0, d = (currentTrack && currentTrack.duration) || 0;
-  if (_mode === 'yt' && ytReady && _lastYtId) {
+  if (ytReady && _lastYtId) {
     try { c = ytPlayer.getCurrentTime() || 0; if (!d) d = ytPlayer.getDuration() || 0; } catch (_) {}
   } else if (playing) {
     c = _liveNow();
@@ -615,36 +1366,32 @@ setInterval(() => {
   if (d > 0) {
     c = Math.min(c, d);
     document.getElementById('progFill').style.width = Math.min(100, (c / d) * 100) + '%';
-    document.getElementById('tNow').textContent = fmtT(c) + ' / ' + fmtT(d);
+    document.getElementById('timeElapsed').textContent = fmtTime(c);
+    document.getElementById('timeDuration').textContent = fmtTime(d);
   } else {
     document.getElementById('progFill').style.width = playing ? '100%' : '0%';
-    document.getElementById('tNow').textContent = 'EN VIVO';
+    document.getElementById('timeElapsed').textContent = '0:00';
+    document.getElementById('timeDuration').textContent = 'EN VIVO';
   }
 }, 500);
-function fmtT(s) { s = Math.floor(s); return Math.floor(s / 60) + ':' + ('0' + (s % 60)).slice(-2); }
 
-// ── Start overlay tap ──
+function fmtTime(s) {
+  s = Math.floor(s || 0);
+  return Math.floor(s / 60) + ':' + ('0' + (s % 60)).slice(-2);
+}
+
+// ── Iniciar reproducción activa ──
 function startListening() {
   if (started) return;
   started = true;
   const ov = document.getElementById('startOverlay');
   ov.classList.add('hidden');
-  setTimeout(() => { ov.style.display = 'none'; }, 320);
 
   connectWS();
-  startSWPing();
-  setupMediaSessionBase();
-  acquireWakeLock(); // mantener la pantalla encendida mientras se escucha
+  acquireWakeLock();
+  setupMediaSession();
+  startBfSpotAudioLoop();
 
-  // Loop silencioso en segundo plano para iOS/Android para evitar suspensión
-  try {
-    bgAudio.src = SILENT_WAV;
-    bgAudio.loop = true;
-    bgAudio.play().catch(() => {});
-  } catch (_) {}
-
-  // Reproducción instantánea directa mediante YouTube Player con el gesto activo
-  _mode = 'yt';
   if (ytPlayer && ytReady) {
     try {
       ytPlayer.unMute();
@@ -656,11 +1403,10 @@ function startListening() {
   if (t && t.ytId) {
     playRemote(t, _liveNow());
   } else {
-    diagnose();
+    setStatus('Sintonizando estación…', 'connecting');
   }
 }
 
-// ── Controls ──
 function togglePlay() {
   if (!started) { startListening(); return; }
   if (playing) {
@@ -668,324 +1414,101 @@ function togglePlay() {
     playing = false;
     setPlayUI(false);
     setStatus('Pausado', '');
-    document.getElementById('liveLabel').style.display = 'none';
   } else {
     if (ytPlayer && ytReady) {
-      try { ytPlayer.unMute(); ytPlayer.setVolume(85); } catch (_) {}
+      try { ytPlayer.unMute(); ytPlayer.setVolume(parseInt(document.getElementById('volSlider').value, 10) || 85); } catch (_) {}
     }
     const t = currentTrack || (_pendingPlay && _pendingPlay.track);
     if (t && t.ytId) {
       playRemote(t, _liveNow());
     } else {
-      diagnose();
+      setStatus('Sintonizando estación…', 'connecting');
     }
   }
 }
-function skipPrev() { sendWS({ type: 'PREV_TRACK' }); }
-function skipNext() { sendWS({ type: 'NEXT_TRACK' }); }
+
+function skipNext() {
+  sendWS({ type: 'NEXT_TRACK' });
+}
 
 function setPlayUI(p) {
   const btn = document.getElementById('btnPlay');
-  if (btn) { btn.textContent = p ? '⏸' : '▶'; btn.classList.toggle('live', p); }
-  document.getElementById('artThumb').classList.toggle('live', p);
-  document.getElementById('artThumb').classList.toggle('paused', !p);
-  document.getElementById('livePill').classList.toggle('on', p);
-  document.getElementById('viz').classList.toggle('paused', !p);
+  if (btn) btn.textContent = p ? '⏸' : '▶';
+
+  document.getElementById('artFrame').classList.toggle('live', p);
+  document.getElementById('artFrame').classList.toggle('paused', !p);
+  document.getElementById('vizBars').classList.toggle('paused', !p);
+  document.getElementById('liveBadge').style.opacity = p ? '1' : '0.6';
 }
+
 function setStatus(msg, cls = '') {
-  const el = document.getElementById('statusText');
+  const el = document.getElementById('statusLabel');
   el.textContent = msg;
-  el.className = 'status ' + cls;
+  el.className = 'status-label ' + cls;
 }
-function copyUrl() {
+
+function setVolume(v) {
+  const val = parseInt(v, 10);
+  if (ytPlayer && ytReady) {
+    try { ytPlayer.setVolume(val); } catch (_) {}
+  }
+  if (spotAudio) spotAudio.volume = val / 100;
+  document.getElementById('volBtn').textContent = val === 0 ? '🔇' : (val < 50 ? '🔉' : '🔊');
+}
+
+function toggleMute() {
+  const slider = document.getElementById('volSlider');
+  if (parseInt(slider.value, 10) > 0) {
+    slider.dataset.oldVal = slider.value;
+    slider.value = 0;
+    setVolume(0);
+  } else {
+    const prev = slider.dataset.oldVal || 85;
+    slider.value = prev;
+    setVolume(prev);
+  }
+}
+
+function copyShareUrl() {
   navigator.clipboard?.writeText(shareUrl).then(() => {
-    document.getElementById('streamPill').textContent = '✅ Copiado';
-    setTimeout(() => { document.getElementById('streamPill').textContent = '🔗 Compartir radio'; }, 2000);
+    setStatus('✅ Enlace copiado', 'live');
+    setTimeout(() => { setStatus('● EN VIVO', 'live'); }, 2000);
   }).catch(() => {});
 }
 
-// ── MediaSession ──
-function setupMediaSessionBase() {
-  if (!('mediaSession' in navigator)) return;
-  navigator.mediaSession.metadata = new MediaMetadata({
-    title: 'Radio Terrapesca', artist: 'Terrapesca, equipa tu aventura',
-    album: 'Radio Terrapesca',
-    artwork: [{ src: TP_LOGO, sizes: '512x512', type: 'image/png' }]
-  });
-  navigator.mediaSession.setActionHandler('play', () => { if (_mode === 'stream') startStreamAudio(); else if (currentTrack?.ytId) playRemote(currentTrack, _liveNow()); });
-  navigator.mediaSession.setActionHandler('pause', () => { if (_mode === 'stream') { _wantPlay = false; try { bgAudio.pause(); } catch(_) {} } else { try { if (ytReady) ytPlayer.pauseVideo(); } catch(_) {} } });
-  navigator.mediaSession.setActionHandler('stop', () => { if (_mode === 'stream') { _wantPlay = false; try { bgAudio.pause(); } catch(_) {} } else { try { if (ytReady) ytPlayer.pauseVideo(); } catch(_) {} } });
-  // Sin next/prev: los oyentes no deben mover la estación (afecta a toda la red).
-  try { navigator.mediaSession.setActionHandler('nexttrack', null); } catch(_) {}
-  try { navigator.mediaSession.setActionHandler('previoustrack', null); } catch(_) {}
-}
-
-// ── Carrusel de productos reales de Terrapesca (feed público, sin token) ──
-let _pcarItems = [], _pcarIdx = 0, _pcarTimer = null;
-async function loadProductCarousel() {
-  try {
-    const r = await fetch('/api/shop-feed'); const d = await r.json();
-    _pcarItems = (d.products || []).filter(p => p.image && p.title);
-    if (!_pcarItems.length) return;
-    for (let i = _pcarItems.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const t = _pcarItems[i]; _pcarItems[i] = _pcarItems[j]; _pcarItems[j] = t; }
-    document.getElementById('pcar').style.display = 'block';
-    _pcarShow(0);
-    clearInterval(_pcarTimer);
-    _pcarTimer = setInterval(() => { _pcarIdx = (_pcarIdx + 1) % _pcarItems.length; _pcarShow(_pcarIdx); }, 6000);
-  } catch (_) {}
-}
-function _pcarShow(i) {
-  const p = _pcarItems[i]; if (!p) return;
-  const img = document.getElementById('pcarImg'), name = document.getElementById('pcarName'),
-        price = document.getElementById('pcarPrice'), a = document.getElementById('pcar');
-  img.classList.add('pcar-fade'); name.classList.add('pcar-fade');
-  setTimeout(() => {
-    img.src = p.image; img.alt = p.title; name.textContent = p.title;
-    img.onerror = () => { img.src = TP_LOGO; };
-    price.textContent = p.price ? ('$' + Math.round(parseFloat(p.price)).toLocaleString('es-MX') + ' MXN') : '';
-    a.href = p.url || '#';
-    img.classList.remove('pcar-fade'); name.classList.remove('pcar-fade');
-  }, 250);
-}
-loadProductCarousel();
-
-// ── MÓDULO EXCLUSIVO BUEN FIN 2026 (ACTIVO SÓLO HASTA EL 17 DE NOVIEMBRE) ──
-// Fecha de vencimiento exacta: 17 de Noviembre de 2026 a las 23:59:59 (GMT-7)
-const BUEN_FIN_EXPIRY = new Date('2026-11-17T23:59:59-07:00').getTime();
-
-function isBuenFinActive() {
-  return Date.now() <= BUEN_FIN_EXPIRY;
-}
-
-let bfSpots = [];
-let bfIdx = 0;
-let bfVisualTimer = null;
-let bfAudioTimer = null;
-let bfAudioSpot = null;
-let isBfSpotPlaying = false;
-
-async function initBuenFinListen() {
-  if (!isBuenFinActive()) {
-    console.log('[BuenFin] Campaña concluida el 17 de Noviembre. Módulo inactivo.');
-    const el = document.getElementById('bfCard');
-    if (el) el.style.display = 'none';
-    return;
-  }
-
-  try {
-    const res = await fetch('/buenfin/spots.json?v=' + Date.now());
-    const data = await res.json();
-    bfSpots = data.spots || [];
-    if (!bfSpots.length) return;
-
-    const bfCard = document.getElementById('bfCard');
-    if (bfCard) bfCard.style.display = 'block';
-
-    showBfVisualSpot(0);
-    clearInterval(bfVisualTimer);
-    bfVisualTimer = setInterval(() => {
-      bfIdx = (bfIdx + 1) % bfSpots.length;
-      showBfVisualSpot(bfIdx);
-    }, 5500);
-
-    // Iniciar rotación de audio spots cada ~3.5 min
-    startBfAudioRotation();
-  } catch (err) {
-    console.warn('[BuenFin] Error cargando spots:', err);
-  }
-}
-
-function showBfVisualSpot(idx) {
-  const s = bfSpots[idx];
-  if (!s) return;
-  const img = document.getElementById('bfImg');
-  const title = document.getElementById('bfTitle');
-  const priceDeal = document.getElementById('bfPriceDeal');
-  const priceReg = document.getElementById('bfPriceReg');
-  const a = document.getElementById('bfCard');
-
-  if (img) img.src = '/buenfin/' + s.spot_id + '.jpg';
-  if (title) title.textContent = s.titulo;
-  if (priceDeal) priceDeal.textContent = '$' + Number(s.precio_buenfin).toFixed(2) + ' MXN';
-  if (priceReg) priceReg.textContent = '$' + Number(s.precio_regular).toFixed(2);
-  if (a) a.href = s.qr_compra_url || 'https://buenfin.terrapescaapi.com/cliente';
-}
-
-function startBfAudioRotation() {
-  clearInterval(bfAudioTimer);
-  // Cada 3.5 minutos (210 segundos), reproduce un spot de audio de Buen Fin mientras suena la radio
-  bfAudioTimer = setInterval(() => {
-    if (!isBuenFinActive()) {
-      clearInterval(bfAudioTimer);
-      return;
-    }
-    if (started && playing && !isBfSpotPlaying && !spotAudio) {
-      playNextBfAudioSpot();
-    }
-  }, 210000);
-}
-
-function playNextBfAudioSpot() {
-  if (!bfSpots.length || !isBuenFinActive()) return;
-  const s = bfSpots[bfIdx];
-  if (!s) return;
-
-  console.log('[BuenFin] Reproduciendo spot promocional de audio:', s.titulo);
-  isBfSpotPlaying = true;
-
-  // Pausar música
-  if (_mode === 'stream') { try { bgAudio.pause(); } catch (_) {} }
-  else { try { if (ytReady) ytPlayer.pauseVideo(); } catch (_) {} }
-
-  if (bfAudioSpot) {
-    try { bfAudioSpot.pause(); } catch (_) {}
-    bfAudioSpot = null;
-  }
-
-  showBfVisualSpot(bfIdx);
-  setStatus('🔥 BUEN FIN: ' + s.titulo.slice(0, 30), 'live');
-
-  bfAudioSpot = new Audio('/buenfin/' + s.spot_id + '.mp3?v=' + Date.now());
-  bfAudioSpot.volume = 0.95;
-
-  const onEnd = () => {
-    isBfSpotPlaying = false;
-    if (bfAudioSpot) {
-      try { bfAudioSpot.pause(); } catch (_) {}
-      bfAudioSpot = null;
-    }
-    // Reanudar música
-    if (_mode === 'stream') {
-      if (_wantPlay) startStreamAudio();
-    } else {
-      try {
-        if (ytReady && _lastYtId) {
-          const p = _liveNow();
-          if (p > 2) ytPlayer.seekTo(p, true);
-          ytPlayer.playVideo();
-        }
-      } catch (_) {}
-    }
-    setStatus('● EN VIVO', 'live');
-  };
-
-  bfAudioSpot.addEventListener('ended', onEnd);
-  bfAudioSpot.addEventListener('error', onEnd);
-  bfAudioSpot.play().catch(onEnd);
-}
-
-// Iniciar módulo de Buen Fin al cargar
-initBuenFinListen();
-
-function updateNowPlaying(track) {
+// ── Actualizar portada y metadatos de la canción ──
+function updateNowPlayingUI(track) {
   currentTrack = track;
   const name = track?.name || track?.title || 'Radio Terrapesca';
-  const artist = track?.channelTitle || track?.sub || 'Radio Terrapesca';
+  const artist = track?.channelTitle || track?.artist || 'Equipa tu aventura';
+
   document.getElementById('trackName').textContent = name;
   document.getElementById('trackArtist').textContent = artist;
-  document.getElementById('topPlaylist').textContent = name;
 
   const artSrc = track?.cover || track?.thumb || (track?.ytId ? `https://img.youtube.com/vi/${track.ytId}/hqdefault.jpg` : TP_LOGO);
-  document.getElementById('artImg').src = artSrc;
-  document.getElementById('artImg').onerror = () => { document.getElementById('artImg').src = TP_LOGO; };
+  const img = document.getElementById('trackCoverImg');
+  img.src = artSrc;
+  img.onerror = () => { img.src = TP_LOGO; };
 
-  // Update blurred background
+  // Actualizar fondo difuminado
   document.getElementById('bgArt').style.backgroundImage = `url('${artSrc}')`;
+
   syncHeart();
 
   if ('mediaSession' in navigator) {
-    const type = (track?.thumb || track?.ytId) ? 'image/jpeg' : 'image/png';
     navigator.mediaSession.metadata = new MediaMetadata({
-      title: name, artist, album: 'Radio Terrapesca',
-      artwork: [{ src: artSrc, sizes: '480x360', type }]
+      title: name,
+      artist: artist,
+      album: 'Radio Terrapesca 24/7',
+      artwork: [{ src: artSrc, sizes: '480x360', type: 'image/jpeg' }]
     });
     navigator.mediaSession.playbackState = playing ? 'playing' : 'paused';
   }
 }
 
-// ── WebSocket ──
-function connectWS() {
-  clearTimeout(wsTimer);
-  if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
-  const url = location.origin.replace('https://', 'wss://').replace('http://', 'ws://');
-  try { ws = new WebSocket(url); } catch(e) { wsTimer = setTimeout(connectWS, 4000); return; }
-  ws.onopen = () => { wsOk = true; try { ws.send(JSON.stringify({ type: 'HELLO', role: 'listener' })); } catch(_) {} if (started && !playing) diagnose(); };
-  ws.onclose = () => { wsOk = false; if (started && !playing) setStatus('Reconectando con la estación…', 'connecting'); wsTimer = setTimeout(connectWS, 4000); };
-  ws.onerror = () => {};
-  ws.onmessage = (e) => {
-    try {
-      const m = JSON.parse(e.data);
-      switch (m.type) {
-        case 'SYNC': {
-          const st = m.state || {};
-          if (st.queuePreview) renderUpNext(st.queuePreview);
-          if (st.currentTrack) {
-            _livePos = { pos: st.position || 0, at: st.lastUpdate || Date.now(), playing: !!st.isPlaying };
-            currentTrack = st.currentTrack;
-            updateNowPlaying(st.currentTrack);
-            if (started && st.currentTrack.ytId && st.isPlaying) {
-              playRemote(st.currentTrack, _liveNow());
-            } else if (!started) {
-              _pendingPlay = { track: st.currentTrack, pos: _liveNow() };
-            }
-          }
-          break;
-        }
-        case 'PLAY':
-          if (m.track) {
-            _livePos = { pos: m.position || 0, at: Date.now(), playing: true };
-            currentTrack = m.track;
-            updateNowPlaying(m.track);
-            if (started && m.track.ytId) {
-              playRemote(m.track, m.position || 0);
-            } else if (!started) {
-              _pendingPlay = { track: m.track, pos: m.position || 0 };
-            }
-          }
-          break;
-        case 'PAUSE':
-          _livePos = { pos: m.position || 0, at: Date.now(), playing: false };
-          if (_mode === 'yt') { try { if (ytReady) ytPlayer.pauseVideo(); } catch (_) {} }
-          break;
-        case 'RESUME':
-          _livePos = { pos: m.position || 0, at: Date.now(), playing: true };
-          if (_mode === 'yt' && started && currentTrack && currentTrack.ytId) playRemote(currentTrack, m.position || 0);
-          break;
-        case 'SPOT':
-          if (m.track) {
-            document.getElementById('topPlaylist').textContent = '🎙 ' + (m.track.name || 'Al aire');
-            if (m.track.b64) playSpotB64(m.track);
-          }
-          break;
-        case 'QUEUE_PREVIEW':
-          renderUpNext(m.items);
-          break;
-      }
-    } catch(_) {}
-  };
-}
-function sendWS(d) { if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(d)); }
-
-// ── Próximas canciones (Fase 4) ──
-function renderUpNext(items) {
-  const box = document.getElementById('upnext'), list = document.getElementById('upnextList');
-  if (!box || !list) return; // sección removida — ya no se muestra
-  if (!Array.isArray(items) || !items.length) { box.style.display = 'none'; return; }
-  box.style.display = 'block';
-  list.innerHTML = items.slice(0, 5).map((t, i) => `
-    <div class="un-row">
-      <span class="un-num">${i + 1}</span>
-      <img class="un-thumb" src="${t.cover || ('https://img.youtube.com/vi/' + t.ytId + '/default.jpg')}" alt=""
-           onerror="this.style.visibility='hidden'">
-      <div class="un-meta"><div class="un-name">${escHtml(t.name || 'YouTube')}</div>
-        <div class="un-artist">${escHtml(t.artist || '')}</div></div>
-    </div>`).join('');
-}
-function escHtml(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-
-// ── Favoritos locales del oyente (Fase 4) ──
+// ── Likes / Favoritos ──
 let _likes = new Set();
-try { _likes = new Set(JSON.parse(localStorage.getItem('tp_listen_likes') || '[]')); } catch(_) {}
+try { _likes = new Set(JSON.parse(localStorage.getItem('tp_listen_likes') || '[]')); } catch (_) {}
 function toggleHeart() {
   const id = currentTrack?.ytId;
   if (!id) return;
@@ -998,23 +1521,77 @@ function syncHeart() {
   if (!b) return;
   const on = !!(currentTrack?.ytId && _likes.has(currentTrack.ytId));
   b.textContent = on ? '♥' : '♡';
-  b.style.color = on ? '#ef4444' : '';
+  b.classList.toggle('liked', on);
 }
 
-// ── Service Worker ──
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
-let swPing;
-function startSWPing() {
-  clearInterval(swPing);
-  swPing = setInterval(() => {
-    navigator.serviceWorker?.ready.then(r => {
-      if (r.active) { const { port1, port2 } = new MessageChannel(); r.active.postMessage('ping', [port2]); }
-    }).catch(() => {});
-  }, 20000);
+// ── WebSocket Live Sync ──
+function connectWS() {
+  clearTimeout(wsTimer);
+  if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
+  const url = location.origin.replace('https://', 'wss://').replace('http://', 'ws://');
+  try { ws = new WebSocket(url); } catch (e) { wsTimer = setTimeout(connectWS, 3500); return; }
+
+  ws.onopen = () => {
+    wsOk = true;
+    try { ws.send(JSON.stringify({ type: 'HELLO', role: 'listener' })); } catch (_) {}
+    if (started && !playing) setStatus('● Conectado a la estación', 'live');
+  };
+  ws.onclose = () => {
+    wsOk = false;
+    if (started && !playing) setStatus('Reconectando con la estación…', 'connecting');
+    wsTimer = setTimeout(connectWS, 3500);
+  };
+  ws.onerror = () => {};
+  ws.onmessage = (e) => {
+    try {
+      const m = JSON.parse(e.data);
+      switch (m.type) {
+        case 'SYNC': {
+          const st = m.state || {};
+          if (st.currentTrack) {
+            _livePos = { pos: st.position || 0, at: st.lastUpdate || Date.now(), playing: !!st.isPlaying };
+            currentTrack = st.currentTrack;
+            updateNowPlayingUI(st.currentTrack);
+            if (started && st.currentTrack.ytId && st.isPlaying) {
+              playRemote(st.currentTrack, _liveNow());
+            } else if (!started) {
+              _pendingPlay = { track: st.currentTrack, pos: _liveNow() };
+            }
+          }
+          break;
+        }
+        case 'PLAY':
+          if (m.track) {
+            _livePos = { pos: m.position || 0, at: Date.now(), playing: true };
+            currentTrack = m.track;
+            updateNowPlayingUI(m.track);
+            if (started && m.track.ytId) {
+              playRemote(m.track, m.position || 0);
+            } else if (!started) {
+              _pendingPlay = { track: m.track, pos: m.position || 0 };
+            }
+          }
+          break;
+        case 'PAUSE':
+          _livePos = { pos: m.position || 0, at: Date.now(), playing: false };
+          if (ytReady) { try { ytPlayer.pauseVideo(); } catch (_) {} }
+          break;
+        case 'RESUME':
+          _livePos = { pos: m.position || 0, at: Date.now(), playing: true };
+          if (started && currentTrack && currentTrack.ytId) playRemote(currentTrack, m.position || 0);
+          break;
+        case 'SPOT':
+          if (m.track && m.track.b64) playSpotB64(m.track);
+          break;
+      }
+    } catch (_) {}
+  };
 }
-// ── Mantener la música viva ──
-// Wake Lock: evita que la pantalla se apague sola mientras se escucha (ideal
-// para una pantalla de tienda), así la música no se corta.
+function sendWS(d) {
+  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(d));
+}
+
+// ── Wake Lock & MediaSession ──
 let _wakeLock = null;
 async function acquireWakeLock() {
   try {
@@ -1024,25 +1601,57 @@ async function acquireWakeLock() {
     }
   } catch (_) {}
 }
-// Al volver a ver la página (pantalla encendida de nuevo o regresar de otra
-// pestaña, p.ej. tras abrir un producto): el reproductor de YouTube se pausa al
-// ocultarse en móvil, así que nos RE-SINCRONIZAMOS a la posición en vivo.
+
+function setupMediaSession() {
+  if (!('mediaSession' in navigator)) return;
+  navigator.mediaSession.setActionHandler('play', () => { togglePlay(); });
+  navigator.mediaSession.setActionHandler('pause', () => { togglePlay(); });
+  navigator.mediaSession.setActionHandler('stop', () => { togglePlay(); });
+}
+
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) return;
   acquireWakeLock();
-  if (navigator.mediaSession) navigator.mediaSession.playbackState = 'playing';
-  if (_mode === 'stream') {
-    // El <audio> sigue sonando en segundo plano; si el SO lo pausó al volver, reanuda al vivo.
-    if (started && _wantPlay && bgAudio && bgAudio.paused && !spotAudio) startStreamAudio();
-    return;
-  }
   if (started && currentTrack && currentTrack.ytId) {
-    setTimeout(() => { try { playRemote(currentTrack, _liveNow()); } catch (_) {} }, 500);
+    setTimeout(() => { try { playRemote(currentTrack, _liveNow()); } catch (_) {} }, 400);
   }
 });
 
-// Conectar metadata desde el load (Fase 4): el oyente ve qué suena y las
-// próximas canciones antes de pulsar "Escuchar". El audio sigue requiriendo el tap.
+// Canvas de Partículas Sutiles
+(function() {
+  const canvas = document.getElementById('bgCanvas');
+  const ctx = canvas.getContext('2d');
+  let w = canvas.width = window.innerWidth;
+  let h = canvas.height = window.innerHeight;
+  window.addEventListener('resize', () => { w = canvas.width = window.innerWidth; h = canvas.height = window.innerHeight; });
+
+  const particles = Array.from({ length: 45 }, () => ({
+    x: Math.random() * w,
+    y: Math.random() * h,
+    r: Math.random() * 2 + 0.8,
+    vx: (Math.random() - 0.5) * 0.35,
+    vy: (Math.random() - 0.5) * 0.35,
+    alpha: Math.random() * 0.45 + 0.15
+  }));
+
+  function loop() {
+    ctx.clearRect(0, 0, w, h);
+    particles.forEach(p => {
+      p.x += p.vx; p.y += p.vy;
+      if (p.x < 0) p.x = w; if (p.x > w) p.x = 0;
+      if (p.y < 0) p.y = h; if (p.y > h) p.y = 0;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(255, 190, 26, ${p.alpha})`;
+      ctx.fill();
+    });
+    requestAnimationFrame(loop);
+  }
+  loop();
+})();
+
+// Iniciar componentes al cargar la página
+loadServerSpots();
 connectWS();
 </script>
 </body>
