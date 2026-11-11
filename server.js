@@ -1607,7 +1607,7 @@ function autopilotAdvance(dir) {
 
 // ---- OYENTES: ubicación aproximada por IP (solo ciudad, nunca dirección) ----
 const _geoCache = new Map(); // ip -> {city,region,country,lat,lon}
-const LISTENER_ROLES = ['listener', 'sucursal', 'tienda'];
+const LISTENER_ROLES = ['listener', 'sucursal', 'tienda', 'tv'];
 const CONTROLLER_ROLES = ['studio', 'panel'];
 function _clientIP(req) {
   const xf = (req.headers['x-forwarded-for'] || '').split(',')[0].trim();
@@ -1724,6 +1724,9 @@ wss.on('connection', (ws, req) => {
         case 'MIC_ONAIR':
           radioState.micOnAir = msg.active || false;
           broadcast({ type: 'MIC_ONAIR', active: radioState.micOnAir }, ws);
+          break;
+        case 'MIC_SPOT':
+          broadcast({ type: 'MIC_SPOT', b64: msg.b64, nombre: msg.nombre }, ws);
           break;
         case 'NEXT_TRACK':
         case 'PREV_TRACK':

@@ -8,7 +8,7 @@
 <meta name="theme-color" content="#000"/>
 <title>Radio Terrapesca</title>
 <link rel="manifest" href="/manifest.json"/>
-<link rel="icon" type="image/png" href="https://cdn.shopify.com/s/files/1/0205/5752/9188/files/Logo-Terrapesca-01_205270e5-d546-4e33-a8d1-db0a91f1e554.png?v=1700262873"/>
+<link rel="icon" type="image/png" href="/buenfin/logo_terrapesca_marine.png"/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
 <style>
@@ -20,7 +20,7 @@ html,body{width:100%;height:100%;background:#05070c;color:#fff;font-family:'Inte
 #bgArt{
   position:fixed;inset:-60px;z-index:0;
   background-size:cover;background-position:center;
-  background-image:url('https://cdn.shopify.com/s/files/1/0205/5752/9188/files/Logo-Terrapesca-01_205270e5-d546-4e33-a8d1-db0a91f1e554.png?v=1700262873');
+  background-image:url('/buenfin/logo_terrapesca_marine.png');
   transition:background-image .8s ease;
   filter:blur(60px) saturate(1.5) brightness(.55);
   transform:scale(1.1);
@@ -153,6 +153,120 @@ html,body{width:100%;height:100%;background:#05070c;color:#fff;font-family:'Inte
 .btn-play-main:active{transform:scale(.9)}
 .btn-play-main.live{background:linear-gradient(135deg,var(--red2),var(--red));color:#fff;box-shadow:0 8px 34px var(--redglow)}
 
+/* ── BUEN FIN 2026 CARD (Válido hasta el 17 de Noviembre) ── */
+.bf-card {
+  display: block;
+  text-decoration: none;
+  margin: 10px 0 14px;
+  background: linear-gradient(135deg, rgba(224, 36, 28, 0.22) 0%, rgba(15, 23, 42, 0.88) 100%);
+  border: 1.5px solid #ffbe1a;
+  border-radius: 20px;
+  padding: 13px 15px;
+  box-shadow: 0 10px 35px rgba(224, 36, 28, 0.35), 0 0 25px rgba(255, 190, 26, 0.22);
+  transition: transform .15s, box-shadow .2s;
+  position: relative;
+  overflow: hidden;
+}
+.bf-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: -100%;
+  width: 50%; height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.25), transparent);
+  animation: bfShimmer 3.5s infinite linear;
+}
+@keyframes bfShimmer {
+  0% { left: -100%; }
+  100% { left: 200%; }
+}
+.bf-card:active { transform: scale(0.98); }
+.bf-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.bf-badge-title {
+  background: linear-gradient(135deg, #ff2a2a, #ff6b35);
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 900;
+  padding: 4px 10px;
+  border-radius: 6px;
+  letter-spacing: 1px;
+  box-shadow: 0 0 12px rgba(255, 42, 42, 0.6);
+}
+.bf-vigencia {
+  font-size: 10.5px;
+  color: #ffbe1a;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+}
+.bf-content {
+  display: flex;
+  gap: 13px;
+  align-items: center;
+}
+.bf-thumb-box {
+  width: 95px;
+  height: 95px;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #000;
+  flex-shrink: 0;
+  border: 1.5px solid rgba(255, 190, 26, 0.4);
+  box-shadow: 0 4px 18px rgba(0,0,0,0.6);
+}
+.bf-thumb-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: opacity .3s;
+}
+.bf-details {
+  flex: 1;
+  min-width: 0;
+}
+.bf-item-title {
+  color: #ffffff;
+  font-weight: 800;
+  font-size: 14.5px;
+  line-height: 1.25;
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.bf-prices {
+  margin-top: 6px;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.bf-price-deal {
+  color: #ffbe1a;
+  font-size: 18px;
+  font-weight: 900;
+}
+.bf-price-reg {
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 12px;
+  text-decoration: line-through;
+}
+.bf-item-cta {
+  display: inline-block;
+  margin-top: 8px;
+  background: linear-gradient(135deg, #ffbe1a, #f59e0b);
+  color: #060e1c;
+  padding: 6px 15px;
+  border-radius: 20px;
+  font-size: 11.5px;
+  font-weight: 900;
+  letter-spacing: 0.5px;
+  box-shadow: 0 4px 14px rgba(255, 190, 26, 0.4);
+}
+
 /* Carrusel de productos — protagonista, tipo hero para celular */
 .pcarousel{display:block;text-decoration:none;margin:8px 0;background:linear-gradient(160deg,rgba(224,36,28,.12),rgba(255,255,255,.03));backdrop-filter:blur(14px);border:1px solid rgba(224,36,28,.25);border-radius:20px;padding:13px;box-shadow:0 12px 44px rgba(0,0,0,.4);transition:transform .15s}
 .pcarousel:active{transform:scale(.98)}
@@ -213,7 +327,7 @@ html,body{width:100%;height:100%;background:#05070c;color:#fff;font-family:'Inte
 <!-- ── Tap to start ── -->
 <div id="startOverlay">
   <div class="so-logo" style="text-align:center">
-    <img src="https://cdn.shopify.com/s/files/1/0205/5752/9188/files/Logo-Terrapesca-01_205270e5-d546-4e33-a8d1-db0a91f1e554.png?v=1700262873" alt="Terrapesca"/>
+    <img src="/buenfin/logo_terrapesca_marine.png" alt="Terrapesca"/>
   </div>
   <div>
     <div class="so-title">Radio Terrapesca</div>
@@ -229,7 +343,7 @@ html,body{width:100%;height:100%;background:#05070c;color:#fff;font-family:'Inte
 <div id="player">
 
   <div class="brand-top">
-    <img class="brand-logo" src="https://cdn.shopify.com/s/files/1/0205/5752/9188/files/Logo-Terrapesca-01_205270e5-d546-4e33-a8d1-db0a91f1e554.png?v=1700262873" alt="Terrapesca"/>
+    <img class="brand-logo" src="/buenfin/logo_terrapesca_marine.png" alt="Terrapesca"/>
     <div class="brand-name">RADIO TERRAPESCA</div>
     <div style="margin-top:6px">
       <span class="viz paused" id="viz"><span class="vb"></span><span class="vb"></span><span class="vb"></span><span class="vb"></span></span>
@@ -246,7 +360,7 @@ html,body{width:100%;height:100%;background:#05070c;color:#fff;font-family:'Inte
   <div class="art-section">
     <div class="art-thumb paused" id="artThumb">
       <img id="artImg"
-        src="https://cdn.shopify.com/s/files/1/0205/5752/9188/files/Logo-Terrapesca-01_205270e5-d546-4e33-a8d1-db0a91f1e554.png?v=1700262873"
+        src="/buenfin/logo_terrapesca_marine.png"
         alt="artwork"/>
     </div>
   </div>
@@ -271,6 +385,27 @@ html,body{width:100%;height:100%;background:#05070c;color:#fff;font-family:'Inte
   <div class="transport">
     <button class="btn-play-main" id="btnPlay" onclick="togglePlay()" aria-label="Reproducir o pausar">▶</button>
   </div>
+
+  <!-- BANNER EXCLUSIVO BUEN FIN 2026 (Activo sólo hasta el 17 de Noviembre) -->
+  <a class="bf-card" id="bfCard" href="#" target="_blank" rel="noopener" style="display:none">
+    <div class="bf-header">
+      <span class="bf-badge-title">🔥 BUEN FIN TERRAPESCA</span>
+      <span class="bf-vigencia">⚡ HASTA EL 17 DE NOV</span>
+    </div>
+    <div class="bf-content">
+      <div class="bf-thumb-box">
+        <img id="bfImg" class="bf-thumb-img" src="/buenfin/spot_gorras_50.jpg" alt="Buen Fin">
+      </div>
+      <div class="bf-details">
+        <div class="bf-item-title" id="bfTitle">Gorras Terrapesca Trucker 50% OFF</div>
+        <div class="bf-prices">
+          <span class="bf-price-deal" id="bfPriceDeal">$225.00 MXN</span>
+          <span class="bf-price-reg" id="bfPriceReg">$450.00</span>
+        </div>
+        <span class="bf-item-cta" id="bfCta">¡Apartar Oferta en Tienda! →</span>
+      </div>
+    </div>
+  </a>
 
   <!-- Carrusel de productos reales de Terrapesca: protagonista de la página -->
   <a class="pcarousel" id="pcar" href="#" target="_blank" rel="noopener" style="display:none">
@@ -306,7 +441,7 @@ html,body{width:100%;height:100%;background:#05070c;color:#fff;font-family:'Inte
 
 <script src="https://www.youtube.com/iframe_api"></script>
 <script>
-const TP_LOGO = 'https://cdn.shopify.com/s/files/1/0205/5752/9188/files/Logo-Terrapesca-01_205270e5-d546-4e33-a8d1-db0a91f1e554.png?v=1700262873';
+const TP_LOGO = '/buenfin/logo_terrapesca_marine.png';
 const shareUrl = location.origin + '/listen';
 
 let playing = false, started = false;
@@ -584,6 +719,134 @@ function _pcarShow(i) {
   }, 250);
 }
 loadProductCarousel();
+
+// ── MÓDULO EXCLUSIVO BUEN FIN 2026 (ACTIVO SÓLO HASTA EL 17 DE NOVIEMBRE) ──
+// Fecha de vencimiento exacta: 17 de Noviembre de 2026 a las 23:59:59 (GMT-7)
+const BUEN_FIN_EXPIRY = new Date('2026-11-17T23:59:59-07:00').getTime();
+
+function isBuenFinActive() {
+  return Date.now() <= BUEN_FIN_EXPIRY;
+}
+
+let bfSpots = [];
+let bfIdx = 0;
+let bfVisualTimer = null;
+let bfAudioTimer = null;
+let bfAudioSpot = null;
+let isBfSpotPlaying = false;
+
+async function initBuenFinListen() {
+  if (!isBuenFinActive()) {
+    console.log('[BuenFin] Campaña concluida el 17 de Noviembre. Módulo inactivo.');
+    const el = document.getElementById('bfCard');
+    if (el) el.style.display = 'none';
+    return;
+  }
+
+  try {
+    const res = await fetch('/buenfin/spots.json?v=' + Date.now());
+    const data = await res.json();
+    bfSpots = data.spots || [];
+    if (!bfSpots.length) return;
+
+    const bfCard = document.getElementById('bfCard');
+    if (bfCard) bfCard.style.display = 'block';
+
+    showBfVisualSpot(0);
+    clearInterval(bfVisualTimer);
+    bfVisualTimer = setInterval(() => {
+      bfIdx = (bfIdx + 1) % bfSpots.length;
+      showBfVisualSpot(bfIdx);
+    }, 5500);
+
+    // Iniciar rotación de audio spots cada ~3.5 min
+    startBfAudioRotation();
+  } catch (err) {
+    console.warn('[BuenFin] Error cargando spots:', err);
+  }
+}
+
+function showBfVisualSpot(idx) {
+  const s = bfSpots[idx];
+  if (!s) return;
+  const img = document.getElementById('bfImg');
+  const title = document.getElementById('bfTitle');
+  const priceDeal = document.getElementById('bfPriceDeal');
+  const priceReg = document.getElementById('bfPriceReg');
+  const a = document.getElementById('bfCard');
+
+  if (img) img.src = '/buenfin/' + s.spot_id + '.jpg';
+  if (title) title.textContent = s.titulo;
+  if (priceDeal) priceDeal.textContent = '$' + Number(s.precio_buenfin).toFixed(2) + ' MXN';
+  if (priceReg) priceReg.textContent = '$' + Number(s.precio_regular).toFixed(2);
+  if (a) a.href = s.qr_compra_url || 'https://buenfin.terrapescaapi.com/cliente';
+}
+
+function startBfAudioRotation() {
+  clearInterval(bfAudioTimer);
+  // Cada 3.5 minutos (210 segundos), reproduce un spot de audio de Buen Fin mientras suena la radio
+  bfAudioTimer = setInterval(() => {
+    if (!isBuenFinActive()) {
+      clearInterval(bfAudioTimer);
+      return;
+    }
+    if (started && playing && !isBfSpotPlaying && !spotAudio) {
+      playNextBfAudioSpot();
+    }
+  }, 210000);
+}
+
+function playNextBfAudioSpot() {
+  if (!bfSpots.length || !isBuenFinActive()) return;
+  const s = bfSpots[bfIdx];
+  if (!s) return;
+
+  console.log('[BuenFin] Reproduciendo spot promocional de audio:', s.titulo);
+  isBfSpotPlaying = true;
+
+  // Pausar música
+  if (_mode === 'stream') { try { bgAudio.pause(); } catch (_) {} }
+  else { try { if (ytReady) ytPlayer.pauseVideo(); } catch (_) {} }
+
+  if (bfAudioSpot) {
+    try { bfAudioSpot.pause(); } catch (_) {}
+    bfAudioSpot = null;
+  }
+
+  showBfVisualSpot(bfIdx);
+  setStatus('🔥 BUEN FIN: ' + s.titulo.slice(0, 30), 'live');
+
+  bfAudioSpot = new Audio('/buenfin/' + s.spot_id + '.mp3?v=' + Date.now());
+  bfAudioSpot.volume = 0.95;
+
+  const onEnd = () => {
+    isBfSpotPlaying = false;
+    if (bfAudioSpot) {
+      try { bfAudioSpot.pause(); } catch (_) {}
+      bfAudioSpot = null;
+    }
+    // Reanudar música
+    if (_mode === 'stream') {
+      if (_wantPlay) startStreamAudio();
+    } else {
+      try {
+        if (ytReady && _lastYtId) {
+          const p = _liveNow();
+          if (p > 2) ytPlayer.seekTo(p, true);
+          ytPlayer.playVideo();
+        }
+      } catch (_) {}
+    }
+    setStatus('● EN VIVO', 'live');
+  };
+
+  bfAudioSpot.addEventListener('ended', onEnd);
+  bfAudioSpot.addEventListener('error', onEnd);
+  bfAudioSpot.play().catch(onEnd);
+}
+
+// Iniciar módulo de Buen Fin al cargar
+initBuenFinListen();
 
 function updateNowPlaying(track) {
   currentTrack = track;

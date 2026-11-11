@@ -135,8 +135,19 @@ const TIENDA_TTS_INSTR='Eres Rodo, locutor de Radio Terrapesca en una tienda de 
 let _rodoTimer=null;
 let _audio=null;
 let _lastPromo=-1;
+let _tws=null;
 const MIN_INTERVAL=3*60*1000; // 3 min entre intervenciones
 const MAX_INTERVAL=5*60*1000; // 5 min
+
+function initTiendaWS(){
+  try{
+    const url=(location.protocol==='https:'?'wss://':'ws://')+location.host;
+    _tws=new WebSocket(url);
+    _tws.onopen=()=>{ try{ _tws.send(JSON.stringify({type:'HELLO',role:'tienda'})); }catch(_){} };
+    _tws.onclose=()=>setTimeout(initTiendaWS, 5000);
+  }catch(_){}
+}
+initTiendaWS();
 
 function cfg(){return{oai:localStorage.getItem('tp_oai')||'',ant:localStorage.getItem('tp_ant')||'',
   engine:localStorage.getItem('tp_engine')||'openai',vkKey:localStorage.getItem('tp_vk_key')||'',
@@ -262,6 +273,21 @@ async function genAndPlay(){
         if(!ar.ok){ let m=''; try{m=(await ar.json()).error?.message||'';}catch(_){} throw new Error('OpenAI '+ar.status+(m?': '+m:'')); }
       }
       ab=await ar.arrayBuffer();
+    }
+    // Retransmitir a Radio Terrapesca (sucursales y pantallas TV)
+    if(_tws && _tws.readyState===WebSocket.OPEN){
+      try{
+        const u8=new Uint8Array(ab);
+        let b=''; for(let i=0;i<u8.length;i++) b+=String.fromCharCode(u8[i]);
+        _tws.send(JSON.stringify({
+          type:'SPOT',
+          track:{
+            b64:btoa(b),
+            name:`🎙️ DJ Rodo — ${tipo}`,
+            mime:'audio/mpeg'
+          }
+        }));
+      }catch(err){ console.warn('Error retransmitiendo spot a radio:',err); }
     }
     if(_audio){try{_audio.pause();_audio.src='';}catch(_){}_audio=null;}
     const a=new Audio(URL.createObjectURL(new Blob([ab],{type:'audio/mpeg'})));

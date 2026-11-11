@@ -1185,6 +1185,169 @@
     let currentYtPos = 0;
     let _lastLoadedYtId = null;
 
+    // Reproducción de spots de audio remotos y locución de DJ Rodo
+    let jingleB64 = null;
+    let jingleAudio = null;
+    let remoteSpotAudio = null;
+    let _isRemoteSpotPlaying = false;
+    let _pendingPlayAfterRemoteSpot = null;
+
+    function b64ToBlob(b64, mime = 'audio/mpeg') {
+      const bin = atob(b64);
+      const len = bin.length;
+      const u8 = new Uint8Array(len);
+      for (let i = 0; i < len; i++) u8[i] = bin.charCodeAt(i);
+      return new Blob([u8], { type: mime });
+    }
+
+    function revokeAudio(a) {
+      if (!a) return;
+      try {
+        a.pause();
+        if (a._objUrl) {
+          URL.revokeObjectURL(a._objUrl);
+          a._objUrl = null;
+        }
+      } catch (e) {}
+    }
+
+    function playJingle(onComplete) {
+      if (!jingleB64) {
+        if (onComplete) onComplete();
+        return;
+      }
+      stopJingle();
+      try {
+        const blob = b64ToBlob(jingleB64, 'audio/mpeg');
+        const url = URL.createObjectURL(blob);
+        jingleAudio = new Audio(url);
+        jingleAudio._objUrl = url;
+        jingleAudio.volume = 0.85;
+        let ended = false;
+        const done = () => {
+          if (ended) return;
+          ended = true;
+          stopJingle();
+          if (onComplete) onComplete();
+        };
+        jingleAudio.addEventListener('ended', done);
+        jingleAudio.addEventListener('error', done);
+        jingleAudio.play().catch(done);
+      } catch (e) {
+        if (onComplete) onComplete();
+      }
+    }
+
+    function stopJingle() {
+      if (jingleAudio) {
+        revokeAudio(jingleAudio);
+        jingleAudio = null;
+      }
+    }
+
+    function stopRemoteSpotAudio() {
+      if (remoteSpotAudio) {
+        revokeAudio(remoteSpotAudio);
+        remoteSpotAudio = null;
+      }
+      _isRemoteSpotPlaying = false;
+    }
+
+    // Reproduce spot de solo audio o intervención de DJ Rodo / locutor en la TV
+    function playRemoteAudioSpot(track) {
+      if (!track || !track.b64) return;
+      console.log('[TV] Reproduciendo spot de audio / locutor:', track.name);
+
+      _isRemoteSpotPlaying = true;
+
+      // Si hay un video spot corriendo, lo pausamos momentáneamente
+      if (isInSpot) {
+        pauseSpot();
+      }
+
+      // Pausar radio de fondo
+      pauseRadioPlayback();
+
+      // Si estamos en Standby, actualizamos la carátula y el título al aire
+      const playerCard = document.getElementById('stPlayerCard');
+      const badgeTextEl = document.getElementById('stBadgeText');
+      if (standbyScreen && standbyScreen.style.display !== 'none') {
+        const titleEl = document.getElementById('stTrackTitle');
+        const artistEl = document.getElementById('stTrackArtist');
+        if (titleEl) titleEl.textContent = track.name || '🎙️ Intervención Especial';
+        if (artistEl) artistEl.textContent = 'Locución en Vivo / Radio Terrapesca';
+        if (badgeTextEl) badgeTextEl.textContent = '🎙️ EN VIVO • LOCUCIÓN AL AIRE';
+        if (playerCard) {
+          playerCard.style.borderColor = '#ffbe1a';
+          playerCard.style.boxShadow = '0 0 50px rgba(255, 190, 26, 0.7)';
+        }
+      }
+
+      // Si el track incluye jingle propio o tenemos jingle global, reproducirlo
+      if (track.jingleB64) {
+        jingleB64 = track.jingleB64;
+      }
+
+      playJingle(() => {
+        executeAudioSpotPlay(track);
+      });
+    }
+
+    function executeAudioSpotPlay(track) {
+      try {
+        stopRemoteSpotAudio();
+        _isRemoteSpotPlaying = true;
+
+        const blob = b64ToBlob(track.b64, track.mime || 'audio/mpeg');
+        const url = URL.createObjectURL(blob);
+        remoteSpotAudio = new Audio(url);
+        remoteSpotAudio._objUrl = url;
+        remoteSpotAudio.volume = 0.95;
+
+        const onEnd = () => {
+          console.log('[TV] Spot de audio / DJ Rodo finalizado');
+          stopRemoteSpotAudio();
+
+          // Restaurar visuales de la tarjeta
+          const playerCard = document.getElementById('stPlayerCard');
+          const badgeTextEl = document.getElementById('stBadgeText');
+          if (playerCard) {
+            playerCard.style.borderColor = 'rgba(56, 189, 248, 0.4)';
+            playerCard.style.boxShadow = '0 25px 60px rgba(0, 0, 0, 0.8), 0 0 35px rgba(56, 189, 248, 0.2)';
+          }
+          if (badgeTextEl) badgeTextEl.textContent = '🔴 EN VIVO • RADIO TERRAPESCA 24/7';
+
+          if (currentYtTrack) updateStandbyCard(currentYtTrack);
+
+          if (isInSpot) {
+            isInSpot = false;
+          }
+
+          // Si llegó un PLAY durante el spot de audio, aplicarlo
+          if (_pendingPlayAfterRemoteSpot) {
+            const p = _pendingPlayAfterRemoteSpot;
+            _pendingPlayAfterRemoteSpot = null;
+            syncYtTrack(p.track, p.position);
+          } else {
+            resumeRadioPlayback();
+          }
+        };
+
+        remoteSpotAudio.addEventListener('ended', onEnd);
+        remoteSpotAudio.addEventListener('error', onEnd);
+
+        remoteSpotAudio.play().catch(err => {
+          console.warn('[TV] Error reproduciendo spot de audio:', err);
+          showTapOverlay();
+          onEnd();
+        });
+      } catch (e) {
+        console.error('[TV] Error decodificando audio:', e);
+        stopRemoteSpotAudio();
+        resumeRadioPlayback();
+      }
+    }
+
     // Frecuencia e intervalos para spots
     const INTERVALS = [150, 180, 300, 0, 120]; // 2.5m, 3m, 5m, cada canción, 2m
     let intervalIdx = 0;
@@ -1335,7 +1498,8 @@
 
     function initWS() {
       try {
-        ws = new WebSocket(AUTO_WS);
+        const wsUrl = AUTO_WS + (AUTO_WS.includes('?') ? '&' : '?') + 'role=tv';
+        ws = new WebSocket(wsUrl);
         ws.onopen = () => {
           console.log('[TV WS] Conectado a Radio Terrapesca');
           try { ws.send(JSON.stringify({ type: 'HELLO', role: 'tv' })); } catch (_) {}
@@ -1359,20 +1523,55 @@
     function handleWsMsg(msg) {
       switch (msg.type) {
         case 'SYNC':
-          if (msg.state && msg.state.currentTrack) {
-            syncYtTrack(msg.state.currentTrack, msg.state.position || 0);
+          if (msg.state) {
+            if (msg.state.jingleB64) jingleB64 = msg.state.jingleB64;
+            if (msg.state.currentTrack) {
+              if (msg.state.currentTrack.b64) {
+                playRemoteAudioSpot(msg.state.currentTrack);
+              } else if (msg.state.currentTrack.type === 'yt') {
+                syncYtTrack(msg.state.currentTrack, msg.state.position || 0);
+              }
+            }
           }
           break;
         case 'PLAY':
           if (msg.track) {
-            syncYtTrack(msg.track, msg.position || 0);
+            if (_isRemoteSpotPlaying) {
+              console.log('[TV] PLAY diferido por spot de audio/Rodo activo');
+              _pendingPlayAfterRemoteSpot = { track: msg.track, position: msg.position || 0 };
+            } else {
+              syncYtTrack(msg.track, msg.position || 0);
+            }
+          }
+          break;
+        case 'SPOT':
+          console.log('[TV] Recibido SPOT de audio/DJ Rodo:', msg.track && msg.track.name);
+          playRemoteAudioSpot(msg.track);
+          break;
+        case 'MIC_SPOT':
+          console.log('[TV] Recibido MIC_SPOT de locutor:', msg.nombre);
+          playRemoteAudioSpot({ b64: msg.b64, name: msg.nombre || '🎙️ Locutor en vivo', mime: 'audio/webm' });
+          break;
+        case 'JINGLE_SET':
+          console.log('[TV] Jingle actualizado');
+          jingleB64 = msg.b64;
+          break;
+        case 'MIC_ONAIR':
+          if (msg.active) {
+            pauseRadioPlayback();
+            const badgeTextEl = document.getElementById('stBadgeText');
+            if (badgeTextEl) badgeTextEl.textContent = '🎙️ MICRÓFONO AL AIRE EN VIVO';
+          } else {
+            const badgeTextEl = document.getElementById('stBadgeText');
+            if (badgeTextEl) badgeTextEl.textContent = '🔴 EN VIVO • RADIO TERRAPESCA 24/7';
+            if (!_isRemoteSpotPlaying) resumeRadioPlayback();
           }
           break;
         case 'PAUSE':
-          if (!isInSpot) pauseRadioPlayback();
+          if (!isInSpot && !_isRemoteSpotPlaying) pauseRadioPlayback();
           break;
         case 'RESUME':
-          if (!isInSpot) resumeRadioPlayback();
+          if (!isInSpot && !_isRemoteSpotPlaying) resumeRadioPlayback();
           break;
         case 'BUENFIN_TRIGGER':
         case 'SPOT_TRIGGER':
@@ -1404,7 +1603,7 @@
       updateNextSpotNotice(formatTimeRemaining(secondsUntilNextSpot));
 
       spotCountdownTimer = setInterval(() => {
-        if (isInSpot) return;
+        if (isInSpot || _isRemoteSpotPlaying) return;
         secondsUntilNextSpot--;
         if (secondsUntilNextSpot <= 0) {
           clearInterval(spotCountdownTimer);
@@ -1589,6 +1788,58 @@
         if (majaCanvas) majaCanvas.style.display = 'none';
         if (cardEl) cardEl.classList.remove('maja-card-glow');
         if (majaAnimId) cancelAnimationFrame(majaAnimId);
+      }
+
+      // Efectos Temáticos Eufóricos: Hieleras (Hielo extremo), Rapala (Agua y olas), Shimano (Tech & chispas)
+      const isHieleras = s.spot_id === 'spot_hieleras_15';
+      const isRapala = s.spot_id === 'spot_shadrap_40';
+      const isVanford = s.spot_id === 'spot_vanford_15';
+
+      const iceEl = document.getElementById('iceCanvas');
+      const waterEl = document.getElementById('waterCanvas');
+      const techEl = document.getElementById('techCanvas');
+
+      if (isHieleras) {
+        if (iceEl) iceEl.style.display = 'block';
+        if (cardEl) cardEl.classList.add('ice-card-glow');
+        initIceEffects(cardEl);
+      } else {
+        if (iceEl) iceEl.style.display = 'none';
+        if (cardEl) cardEl.classList.remove('ice-card-glow');
+        if (iceAnimId) cancelAnimationFrame(iceAnimId);
+      }
+
+      if (isRapala) {
+        if (waterEl) waterEl.style.display = 'block';
+        if (cardEl) cardEl.classList.add('water-card-glow');
+        initWaterEffects(cardEl);
+      } else {
+        if (waterEl) waterEl.style.display = 'none';
+        if (cardEl) cardEl.classList.remove('water-card-glow');
+        if (waterAnimId) cancelAnimationFrame(waterAnimId);
+      }
+
+      if (isVanford) {
+        if (techEl) techEl.style.display = 'block';
+        if (cardEl) cardEl.classList.add('tech-card-glow');
+        initTechEffects(cardEl);
+      } else {
+        if (techEl) techEl.style.display = 'none';
+        if (cardEl) cardEl.classList.remove('tech-card-glow');
+        if (techAnimId) cancelAnimationFrame(techAnimId);
+      }
+
+      // Detonar explosión eufórica de entrada en cada spot
+      triggerEuphoricExplosion(cardEl);
+
+      // Actualizar cintilla inferior con logo y datos eufóricos del spot
+      const cintillaTicker = document.getElementById('cintillaTickerText');
+      const cintillaBadge = document.getElementById('cintillaBadge');
+      if (cintillaTicker) {
+        cintillaTicker.textContent = '⚡ ¡' + s.titulo.toUpperCase() + '! • DESCUENTO EXCLUSIVO: ' + s.descuento_pct + '% • PRECIO BUEN FIN: $' + Number(s.precio_buenfin).toFixed(2) + ' MXN • VÁLIDO HASTA EL 17 DE NOVIEMBRE • ¡TERRAPESCA MARINE & OUTDOORS!';
+      }
+      if (cintillaBadge) {
+        cintillaBadge.textContent = isHieleras ? '❄️ FRÍO EXTREMO' : (isRapala ? '🌊 ACCIÓN PESCA' : (isVanford ? '⚡ PODER SHIMANO' : '🔥 OFERTA BUEN FIN'));
       }
 
       // Actualizar dots
@@ -1905,6 +2156,295 @@
         sCtx.globalAlpha = 1;
       }
       snowAnimId = requestAnimationFrame(renderSnow);
+    }
+
+    /* ================= EFECTOS DE HIELO Y FRÍO EXTREMO (HIELERAS) ================= */
+    let iceAnimId = null;
+    let iceParticles = [];
+    let iceFrostPhase = 0;
+
+    function initIceEffects(containerEl) {
+      const c = document.getElementById('iceCanvas');
+      if (!c) return;
+      c.width = containerEl ? containerEl.clientWidth : 800;
+      c.height = containerEl ? containerEl.clientHeight : 500;
+      iceParticles = [];
+      const count = 45;
+      for (let i = 0; i < count; i++) {
+        iceParticles.push({
+          x: Math.random() * c.width,
+          y: Math.random() * c.height,
+          size: Math.random() * 3.5 + 1.5,
+          vx: (Math.random() - 0.5) * 0.8,
+          vy: Math.random() * 1.2 + 0.5,
+          rotation: Math.random() * Math.PI * 2,
+          vRot: (Math.random() - 0.5) * 0.05,
+          alpha: Math.random() * 0.7 + 0.3,
+          isCrystal: Math.random() > 0.4
+        });
+      }
+      if (iceAnimId) cancelAnimationFrame(iceAnimId);
+      renderIceEffects();
+    }
+
+    function renderIceEffects() {
+      const c = document.getElementById('iceCanvas');
+      if (!c || c.style.display === 'none') return;
+      const ctx = c.getContext('2d');
+      ctx.clearRect(0, 0, c.width, c.height);
+
+      iceFrostPhase += 0.02;
+
+      // Vapor helado de fondo (niebla ártica)
+      const grad = ctx.createLinearGradient(0, c.height, 0, c.height * 0.4);
+      grad.addColorStop(0, 'rgba(186, 230, 253, ' + (0.28 + Math.sin(iceFrostPhase) * 0.08) + ')');
+      grad.addColorStop(1, 'rgba(186, 230, 253, 0)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, c.width, c.height);
+
+      // Cristales de hielo y escarcha flotante
+      for (const p of iceParticles) {
+        p.x += p.vx;
+        p.y += p.vy;
+        p.rotation += p.vRot;
+        if (p.y > c.height) { p.y = -10; p.x = Math.random() * c.width; }
+        if (p.x < 0) p.x = c.width;
+        if (p.x > c.width) p.x = 0;
+
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.rotation);
+        ctx.globalAlpha = p.alpha;
+
+        if (p.isCrystal) {
+          ctx.beginPath();
+          ctx.moveTo(0, -p.size * 2);
+          ctx.lineTo(p.size, 0);
+          ctx.moveTo(0, p.size * 2);
+          ctx.lineTo(-p.size, 0);
+          ctx.closePath();
+          ctx.fillStyle = '#e0f2fe';
+          ctx.shadowBlur = 10;
+          ctx.shadowColor = '#38bdf8';
+          ctx.fill();
+        } else {
+          ctx.beginPath();
+          ctx.arc(0, 0, p.size, 0, Math.PI * 2);
+          ctx.fillStyle = '#ffffff';
+          ctx.shadowBlur = 6;
+          ctx.shadowColor = '#bae6fd';
+          ctx.fill();
+        }
+        ctx.restore();
+      }
+
+      iceAnimId = requestAnimationFrame(renderIceEffects);
+    }
+
+    /* ================= EFECTOS ACUÁTICOS Y OLAS (RAPALA SHAD RAP) ================= */
+    let waterAnimId = null;
+    let waterBubbles = [];
+    let waterWavePhase = 0;
+
+    function initWaterEffects(containerEl) {
+      const c = document.getElementById('waterCanvas');
+      if (!c) return;
+      c.width = containerEl ? containerEl.clientWidth : 800;
+      c.height = containerEl ? containerEl.clientHeight : 500;
+      waterBubbles = [];
+      const count = 50;
+      for (let i = 0; i < count; i++) {
+        waterBubbles.push({
+          x: Math.random() * c.width,
+          y: Math.random() * c.height,
+          r: Math.random() * 4 + 1.5,
+          vx: (Math.random() - 0.5) * 1.2,
+          vy: -(Math.random() * 2.2 + 1.2),
+          wobbleSpeed: Math.random() * 0.08 + 0.03,
+          wobbleAmp: Math.random() * 2 + 1,
+          phase: Math.random() * Math.PI * 2,
+          alpha: Math.random() * 0.6 + 0.25
+        });
+      }
+      if (waterAnimId) cancelAnimationFrame(waterAnimId);
+      renderWaterEffects();
+    }
+
+    function renderWaterEffects() {
+      const c = document.getElementById('waterCanvas');
+      if (!c || c.style.display === 'none') return;
+      const ctx = c.getContext('2d');
+      ctx.clearRect(0, 0, c.width, c.height);
+
+      waterWavePhase += 0.03;
+
+      const grad = ctx.createLinearGradient(0, 0, c.width, c.height);
+      grad.addColorStop(0, 'rgba(14, 165, 233, ' + (0.12 + Math.sin(waterWavePhase) * 0.05) + ')');
+      grad.addColorStop(0.5, 'rgba(2, 132, 199, 0.05)');
+      grad.addColorStop(1, 'rgba(6, 182, 212, 0.15)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, c.width, c.height);
+
+      for (const b of waterBubbles) {
+        b.y += b.vy;
+        b.phase += b.wobbleSpeed;
+        b.x += Math.sin(b.phase) * b.wobbleAmp;
+
+        if (b.y < -10) {
+          b.y = c.height + 10;
+          b.x = Math.random() * c.width;
+        }
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255, 255, 255, ' + b.alpha + ')';
+        ctx.strokeStyle = 'rgba(56, 189, 248, 0.8)';
+        ctx.lineWidth = 1.2;
+        ctx.shadowBlur = 8;
+        ctx.shadowColor = '#0284c7';
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.arc(b.x - b.r * 0.35, b.y - b.r * 0.35, b.r * 0.3, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+        ctx.fill();
+        ctx.restore();
+      }
+
+      waterAnimId = requestAnimationFrame(renderWaterEffects);
+    }
+
+    /* ================= EFECTOS TECNOLÓGICOS Y CHISPAS (SHIMANO VANFORD) ================= */
+    let techAnimId = null;
+    let techSparks = [];
+
+    function initTechEffects(containerEl) {
+      const c = document.getElementById('techCanvas');
+      if (!c) return;
+      c.width = containerEl ? containerEl.clientWidth : 800;
+      c.height = containerEl ? containerEl.clientHeight : 500;
+      techSparks = [];
+      const count = 40;
+      for (let i = 0; i < count; i++) {
+        techSparks.push({
+          x: Math.random() * c.width,
+          y: Math.random() * c.height,
+          len: Math.random() * 12 + 6,
+          speed: Math.random() * 3 + 2,
+          angle: Math.random() * Math.PI * 2,
+          color: Math.random() > 0.4 ? '#facc15' : '#38bdf8',
+          alpha: Math.random() * 0.8 + 0.2
+        });
+      }
+      if (techAnimId) cancelAnimationFrame(techAnimId);
+      renderTechEffects();
+    }
+
+    function renderTechEffects() {
+      const c = document.getElementById('techCanvas');
+      if (!c || c.style.display === 'none') return;
+      const ctx = c.getContext('2d');
+      ctx.clearRect(0, 0, c.width, c.height);
+
+      for (const s of techSparks) {
+        s.x += Math.cos(s.angle) * s.speed;
+        s.y += Math.sin(s.angle) * s.speed;
+
+        if (s.x < 0 || s.x > c.width || s.y < 0 || s.y > c.height) {
+          s.x = c.width * 0.5 + (Math.random() - 0.5) * 120;
+          s.y = c.height * 0.5 + (Math.random() - 0.5) * 120;
+          s.angle = Math.random() * Math.PI * 2;
+        }
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(s.x, s.y);
+        ctx.lineTo(s.x - Math.cos(s.angle) * s.len, s.y - Math.sin(s.angle) * s.len);
+        ctx.strokeStyle = s.color;
+        ctx.lineWidth = 1.8;
+        ctx.globalAlpha = s.alpha;
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = s.color;
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      techAnimId = requestAnimationFrame(renderTechEffects);
+    }
+
+    /* ================= EXPLOSIÓN EUFÓRICA EN ENTRADA DE SPOTS ================= */
+    let euphoriaParticles = [];
+    let euphoriaAnimId = null;
+
+    function triggerEuphoricExplosion(containerEl) {
+      const c = document.getElementById('euphoriaCanvas');
+      if (!c) return;
+      c.width = containerEl ? containerEl.clientWidth : 800;
+      c.height = containerEl ? containerEl.clientHeight : 500;
+      c.style.display = 'block';
+
+      euphoriaParticles = [];
+      const colors = ['#ff2a2a', '#ffbe1a', '#38bdf8', '#ffffff', '#22c55e', '#a855f7'];
+      const cx = c.width * 0.5;
+      const cy = c.height * 0.5;
+
+      for (let i = 0; i < 90; i++) {
+        const speed = Math.random() * 9 + 3;
+        const angle = Math.random() * Math.PI * 2;
+        euphoriaParticles.push({
+          x: cx,
+          y: cy,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed,
+          gravity: 0.18,
+          size: Math.random() * 6 + 3,
+          color: colors[Math.floor(Math.random() * colors.length)],
+          alpha: 1,
+          rot: Math.random() * Math.PI * 2,
+          vRot: (Math.random() - 0.5) * 0.25
+        });
+      }
+
+      if (euphoriaAnimId) cancelAnimationFrame(euphoriaAnimId);
+      renderEuphoriaExplosion();
+    }
+
+    function renderEuphoriaExplosion() {
+      const c = document.getElementById('euphoriaCanvas');
+      if (!c) return;
+      const ctx = c.getContext('2d');
+      ctx.clearRect(0, 0, c.width, c.height);
+
+      let alive = 0;
+      for (const p of euphoriaParticles) {
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vy += p.gravity;
+        p.vx *= 0.98;
+        p.rot += p.vRot;
+        p.alpha -= 0.018;
+
+        if (p.alpha > 0) {
+          alive++;
+          ctx.save();
+          ctx.translate(p.x, p.y);
+          ctx.rotate(p.rot);
+          ctx.globalAlpha = Math.max(0, p.alpha);
+          ctx.fillStyle = p.color;
+          ctx.shadowBlur = 8;
+          ctx.shadowColor = p.color;
+          ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.6);
+          ctx.restore();
+        }
+      }
+
+      if (alive > 0) {
+        euphoriaAnimId = requestAnimationFrame(renderEuphoriaExplosion);
+      } else {
+        c.style.display = 'none';
+      }
     }
 
     /* ================= EFECTOS SOLARES Y ATMOSFÉRICOS MAJA ================= */
