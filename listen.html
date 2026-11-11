@@ -987,11 +987,10 @@
         </div>
       </div>
 
-      <!-- Botones de Control Principal -->
+      <!-- Botones de Control Principal (Sin botón de salto para que los oyentes no manipulen la estación) -->
       <div class="player-transport">
-        <button class="btn-t-sub" id="btnHeart" onclick="toggleHeart()" title="Favorito">♡</button>
+        <button class="btn-t-sub" id="btnHeart" onclick="toggleHeart()" title="Me gusta">♡</button>
         <button class="btn-play-hero" id="btnPlay" onclick="togglePlay()" aria-label="Reproducir o Pausar">▶</button>
-        <button class="btn-t-sub" id="btnNext" onclick="skipNext()" title="Siguiente canción">⏭</button>
       </div>
 
       <!-- Volumen y Diagnóstico -->
@@ -1279,17 +1278,22 @@ function onYouTubeIframeAPIReady() {
       onReady: () => {
         ytReady = true;
         try { ytPlayer.unMute(); ytPlayer.setVolume(85); } catch (_) {}
-        if (started && (_pendingPlay || currentTrack)) {
-          const p = _pendingPlay || { track: currentTrack, pos: _liveNow() };
-          _pendingPlay = null;
-          playRemote(p.track, p.pos);
-        }
+        // Intento de autoplay directo e inmediato al estar listo el reproductor
+        startListening(true);
       },
       onStateChange: (e) => {
         if (e.data === YT.PlayerState.PLAYING) {
           playing = true;
           setPlayUI(true);
           setStatus('● EN VIVO', 'live');
+          window.removeEventListener('click', onFirstGesture);
+          window.removeEventListener('touchstart', onFirstGesture);
+          // Al confirmarse la reproducción activa, ocultar el overlay inmediatamente
+          const ov = document.getElementById('startOverlay');
+          if (ov && !ov.classList.contains('hidden')) {
+            ov.classList.add('hidden');
+            setTimeout(() => { ov.style.display = 'none'; }, 300);
+          }
         } else if (e.data === YT.PlayerState.PAUSED || e.data === YT.PlayerState.ENDED) {
           playing = false;
           setPlayUI(false);
@@ -1298,10 +1302,6 @@ function onYouTubeIframeAPIReady() {
       onError: (e) => {
         console.warn('[YouTube Error]', e.data);
         setStatus('Sintonizando siguiente…', 'connecting');
-        // Si el video actual tiene error (100, 101, 150), no detenerse: solicitar la siguiente canción inmediatamente
-        if (started) {
-          setTimeout(() => { skipNext(); }, 1200);
-        }
       }
     }
   });
@@ -1326,8 +1326,14 @@ function playRemote(track, pos) {
 
     const startSecs = (pos || 0) > 2 ? pos : 0;
     if (_lastYtId === track.ytId) {
-      if (startSecs > 2) try { ytPlayer.seekTo(startSecs, true); } catch (_) {}
-      ytPlayer.playVideo();
+      try {
+        const curTime = (ytPlayer.getCurrentTime && ytPlayer.getCurrentTime()) || 0;
+        if (Math.abs(curTime - startSecs) > 4 && startSecs > 2) {
+          ytPlayer.seekTo(startSecs, true);
+        }
+        ytPlayer.unMute();
+        ytPlayer.playVideo();
+      } catch (_) {}
     } else {
       _lastYtId = track.ytId;
       ytPlayer.loadVideoById({ videoId: track.ytId, startSeconds: startSecs });
@@ -1444,15 +1450,24 @@ function fadeOutAudio(audioEl, durationMs = 600, onComplete) {
 }
 
 // Spots periódicos de audio de Buen Fin / DJ Rodo con Crossfade Profesional
-function playSpotB64(track) {
-  if (!started) return;
+function playSpotTrack(track) {
+  if (!track || !started) return;
   stopSpotAudio();
 
-  const bin = atob(track.b64);
-  const u8 = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
-  const blob = new Blob([u8], { type: track.mime || 'audio/mpeg' });
-  const url = URL.createObjectURL(blob);
+  let url = '';
+  if (track.b64) {
+    try {
+      const bin = atob(track.b64);
+      const u8 = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+      const blob = new Blob([u8], { type: track.mime || 'audio/mpeg' });
+      url = URL.createObjectURL(blob);
+    } catch (_) {}
+  }
+  if (!url && (track.url || track.spot_id)) {
+    url = track.url || ('/buenfin/' + track.spot_id + '.mp3');
+  }
+  if (!url) return;
 
   spotAudio = new Audio(url);
   spotAudio._u = url;
@@ -1460,6 +1475,12 @@ function playSpotB64(track) {
   const userVol = curVol / 100;
 
   setStatus('📣 ' + (track.name || 'Spot al aire'), 'spot');
+
+  // Si coincide con alguna promoción oficial del carrusel, sincronizarla visualmente
+  if (track.spot_id) {
+    const idx = BUEN_FIN_SPOTS.findIndex(s => s.spot_id === track.spot_id);
+    if (idx >= 0 && idx !== curPromoIdx) showPromo(idx, true);
+  }
 
   // Crossfade: la música baja suavemente mientras la voz / spot entra gradualmente
   fadeOutYT(750, 0);
@@ -1484,7 +1505,11 @@ function playSpotB64(track) {
   spotAudio.onerror = resume;
 }
 
-// Reproducción periódica autónoma de spots de Buen Fin (cada ~3.5 min) con Crossfade
+function playSpotB64(track) {
+  playSpotTrack(track);
+}
+
+// Reproducción periódica autónoma de spots de Buen Fin (cada ~2.5 min) con Crossfade
 let bfAudioRotationTimer = null;
 function startBfSpotAudioLoop() {
   clearInterval(bfAudioRotationTimer);
@@ -1492,36 +1517,9 @@ function startBfSpotAudioLoop() {
     if (started && playing && !spotAudio && BUEN_FIN_SPOTS.length) {
       const s = BUEN_FIN_SPOTS[curPromoIdx];
       if (!s) return;
-      stopSpotAudio();
-
-      spotAudio = new Audio('/buenfin/' + s.spot_id + '.mp3?v=' + Date.now());
-      const curVol = (parseInt(document.getElementById('volSlider').value, 10) || 85);
-      const userVol = curVol / 100;
-      setStatus('📣 ' + s.titulo.slice(0, 32), 'spot');
-
-      // Crossfade de entrada suave
-      fadeOutYT(750, 0);
-      fadeInAudio(spotAudio, 450, userVol);
-
-      const resume = () => {
-        fadeOutAudio(spotAudio, 400, () => {
-          stopSpotAudio();
-        });
-        try {
-          if (ytReady && _lastYtId) {
-            const p = _liveNow();
-            if (p > 2) ytPlayer.seekTo(p, true);
-          }
-        } catch (_) {}
-        // Crossfade de salida: música regresa gradualmente
-        fadeInYT(1200, curVol);
-        setStatus('● EN VIVO', 'live');
-      };
-
-      spotAudio.onended = resume;
-      spotAudio.onerror = resume;
+      playSpotTrack({ spot_id: s.spot_id, name: s.titulo, url: '/buenfin/' + s.spot_id + '.mp3' });
     }
-  }, 210000);
+  }, 150000);
 }
 
 // Actualización en tiempo real de la barra de progreso
@@ -1549,12 +1547,21 @@ function fmtTime(s) {
   return Math.floor(s / 60) + ':' + ('0' + (s % 60)).slice(-2);
 }
 
-// ── Iniciar reproducción activa ──
-function startListening() {
-  if (started) return;
+// ── Iniciar reproducción activa o Autoplay ──
+function startListening(isAuto = false) {
+  if (playing && !isAuto) {
+    const ov = document.getElementById('startOverlay');
+    if (ov) {
+      ov.classList.add('hidden');
+      setTimeout(() => { ov.style.display = 'none'; }, 300);
+    }
+    return;
+  }
   started = true;
-  const ov = document.getElementById('startOverlay');
-  ov.classList.add('hidden');
+  if (!isAuto) {
+    window.removeEventListener('click', onFirstGesture);
+    window.removeEventListener('touchstart', onFirstGesture);
+  }
 
   connectWS();
   acquireWakeLock();
@@ -1564,15 +1571,24 @@ function startListening() {
   if (ytPlayer && ytReady) {
     try {
       ytPlayer.unMute();
-      ytPlayer.setVolume(85);
+      ytPlayer.setVolume(parseInt(document.getElementById('volSlider').value, 10) || 85);
+      ytPlayer.playVideo();
     } catch (_) {}
   }
 
-  const t = (_pendingPlay && _pendingPlay.track) || currentTrack;
+  const t = currentTrack || (_pendingPlay && _pendingPlay.track);
   if (t && t.ytId) {
     playRemote(t, _liveNow());
   } else {
     setStatus('Sintonizando estación…', 'connecting');
+  }
+
+  if (!isAuto) {
+    const ov = document.getElementById('startOverlay');
+    if (ov) {
+      ov.classList.add('hidden');
+      setTimeout(() => { ov.style.display = 'none'; }, 300);
+    }
   }
 }
 
@@ -1594,10 +1610,6 @@ function togglePlay() {
       setStatus('Sintonizando estación…', 'connecting');
     }
   }
-}
-
-function skipNext() {
-  sendWS({ type: 'NEXT_TRACK' });
 }
 
 function setPlayUI(p) {
@@ -1750,7 +1762,7 @@ function connectWS() {
           if (started && currentTrack && currentTrack.ytId) playRemote(currentTrack, m.position || 0);
           break;
         case 'SPOT':
-          if (m.track && m.track.b64) playSpotB64(m.track);
+          if (m.track) playSpotTrack(m.track);
           break;
       }
     } catch (_) {}
@@ -1819,9 +1831,18 @@ document.addEventListener('visibilitychange', () => {
   loop();
 })();
 
-// Iniciar componentes al cargar la página
+// Iniciar componentes al cargar la página e intentar autoplay inmediato
 loadServerSpots();
 connectWS();
+
+// Gesto universal: el primer clic o toque en cualquier parte desbloquea y sintoniza la radio
+function onFirstGesture() {
+  window.removeEventListener('click', onFirstGesture);
+  window.removeEventListener('touchstart', onFirstGesture);
+  if (!playing) startListening();
+}
+window.addEventListener('click', onFirstGesture, { passive: true });
+window.addEventListener('touchstart', onFirstGesture, { passive: true });
 </script>
 </body>
 </html>

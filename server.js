@@ -959,6 +959,66 @@ function searchYouTubeNoKey(q) {
     return;
   }
 
+  // ── API Playlist Compartida de Cabina (GET / POST) ──
+  // Sincroniza la playlist de Cabina con la Radio 24/7 y los oyentes
+  if (urlPath === '/api/playlist') {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
+
+    const plFile = path.join(__dirname, '.playlist.json');
+    if (req.method === 'GET') {
+      try {
+        if (fs.existsSync(plFile)) {
+          const content = fs.readFileSync(plFile, 'utf8');
+          res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+          res.end(content);
+          return;
+        }
+      } catch (_) {}
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ playlist: (radioState.playlist && radioState.playlist.length) ? radioState.playlist : autopilot.list }));
+      return;
+    }
+
+    if (req.method === 'POST') {
+      readLimitedBody(req, res, (body) => {
+        try {
+          const data = JSON.parse(body);
+          const list = Array.isArray(data) ? data : (data.playlist || []);
+          if (Array.isArray(list) && list.length) {
+            radioState.playlist = list;
+            try { fs.writeFileSync(plFile, JSON.stringify(list)); } catch (_) {}
+            
+            const valid = list.filter(x => x && x.ytId).map(x => ({
+              ytId: x.ytId,
+              name: x.name || x.title || '',
+              artist: x.artist || x.channelTitle || '',
+              duration: +x.duration || 210
+            }));
+            if (valid.length) {
+              autopilot.list = valid;
+              if (autopilot.idx >= valid.length) autopilot.idx = 0;
+              _apSave();
+              console.log(`[API] Playlist de cabina sincronizada (${valid.length} canciones)`);
+            }
+            broadcast({ type: 'PLAYLIST_UPDATE', playlist: list });
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ ok: true, count: list.length }));
+            return;
+          }
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Playlist inválida o vacía' }));
+        } catch (e) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: e.message }));
+        }
+      });
+      return;
+    }
+  }
+
   // ── Feed público de productos (para el carrusel de /listen) ──
   // Shopify expone /products.json público (sin token). No requiere credenciales.
   if (req.url.startsWith('/api/shop-feed') && req.method === 'GET') {
@@ -1513,8 +1573,10 @@ const MAX_JINGLE_B64 = 3 * 1024 * 1024; // ~2.2MB of audio
 // clientes, igual que lo haría la cabina — pero sin necesidad de tener el
 // studio abierto. El audio sigue sonando en cada navegador oyente (YouTube).
 const AP_FILE = path.join(__dirname, '.autopilot.json');
+const PL_FILE = path.join(__dirname, '.playlist.json');
+
 const DEFAULT_AUTOPILOT_PLAYLIST = [
-  { ytId: 'teprNzF6J1I', name: 'En el Muelle de San Blás', artist: 'Maná', duration: 352 },
+  { ytId: 'YEhRTovQwm4', name: 'Guitarras Blancas (Official Audio)', artist: 'Los Enanitos Verdes', duration: 203 },
   { ytId: 'u1V8YRJnr4Q', name: 'Have You Ever Seen The Rain', artist: 'Creedence Clearwater Revival', duration: 160 },
   { ytId: '09839DpTctU', name: 'Hotel California', artist: 'Eagles', duration: 390 },
   { ytId: '1vrEljMfXYo', name: 'Take Me Home, Country Roads', artist: 'John Denver', duration: 198 },
@@ -1533,9 +1595,12 @@ const DEFAULT_AUTOPILOT_PLAYLIST = [
   { ytId: 'btPJPFnesV4', name: 'Eye of the Tiger', artist: 'Survivor', duration: 245 },
   { ytId: 'VcjzHMhBtf0', name: "Don't Stop Believin'", artist: 'Journey', duration: 251 },
   { ytId: 'NUsoVlDFqZg', name: 'Bailando', artist: 'Enrique Iglesias', duration: 243 },
-  { ytId: 'hT_nvWreIhg', name: 'Counting Stars', artist: 'OneRepublic', duration: 257 }
+  { ytId: 'hT_nvWreIhg', name: 'Counting Stars', artist: 'OneRepublic', duration: 257 },
+  { ytId: 'teprNzF6J1I', name: 'En el Muelle de San Blás', artist: 'Maná', duration: 352 }
 ];
 let autopilot = { on: false, list: [], idx: 0, timer: null };
+let _songsSinceSpot = 0;
+let _apSpotIdx = 0;
 
 function _apSave() {
   try { fs.writeFileSync(AP_FILE, JSON.stringify({ on: autopilot.on, list: autopilot.list, idx: autopilot.idx })); } catch (_) {}
@@ -1563,21 +1628,79 @@ function _apBroadcast() {
   broadcast({ type: 'QUEUE_PREVIEW', items: preview });
 
   // Programar el avance a la siguiente pista (+1s de colchón entre canciones).
-  // Si no se conoce la duración, usar 210s como estimación segura.
   const secs = (t.duration && t.duration > 0) ? t.duration : 210;
   clearTimeout(autopilot.timer);
   autopilot.timer = setTimeout(() => {
-    autopilot.idx = autopilot.idx + 1;
-    // Al completar una vuelta, rebaraja para no repetir SIEMPRE el mismo orden.
-    if (autopilot.idx >= autopilot.list.length) {
-      autopilot.idx = 0;
-      for (let i = autopilot.list.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const tmp = autopilot.list[i]; autopilot.list[i] = autopilot.list[j]; autopilot.list[j] = tmp; }
+    _songsSinceSpot++;
+    // Cada 2 canciones, emitir un spot oficial del Buen Fin sincronizado
+    if (_songsSinceSpot >= 2) {
+      _songsSinceSpot = 0;
+      _apPlaySpotThenAdvance();
+    } else {
+      _apAdvanceNext();
     }
-    _apSave();
-    _apBroadcast();
   }, (secs + 1) * 1000);
   _apSave();
   console.log('[24/7] ▶', t.name || t.ytId, '(' + secs + 's) [' + (autopilot.idx + 1) + '/' + autopilot.list.length + ']');
+}
+
+function _apAdvanceNext() {
+  autopilot.idx = autopilot.idx + 1;
+  // Al completar una vuelta, rebaraja para no repetir siempre en el mismo orden.
+  if (autopilot.idx >= autopilot.list.length) {
+    autopilot.idx = 0;
+    for (let i = autopilot.list.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const tmp = autopilot.list[i]; autopilot.list[i] = autopilot.list[j]; autopilot.list[j] = tmp;
+    }
+  }
+  _apSave();
+  _apBroadcast();
+}
+
+function _apPlaySpotThenAdvance() {
+  const BF_SPOTS = [
+    { spot_id: 'spot_gorras_50', titulo: '¡EXPLOSIÓN 50% OFF! GORRAS TRUCKER TERRAPESCA' },
+    { spot_id: 'spot_shadrap_40', titulo: '¡ADRENALINA PURA! SEÑUELOS DEL 20% AL 40% OFF' },
+    { spot_id: 'spot_vanford_15', titulo: '¡PRECISIÓN JAPONESA! CARRETES SHIMANO (15% / 20% EN COMBO)' },
+    { spot_id: 'spot_kayak_tilapia', titulo: '¡EL MONSTRUO AZUL! COSTA KAYAK BIG MERO (10% + 6 MSI)' },
+    { spot_id: 'spot_maja_30', titulo: 'ROPA TÉCNICA MAJA SPORTSWEAR (30% OFF)' },
+    { spot_id: 'spot_hieleras_15', titulo: '¡FRÍO EXTREMO 15% OFF! HIELERAS TERRAPESCA' }
+  ];
+
+  const sp = BF_SPOTS[_apSpotIdx % BF_SPOTS.length];
+  _apSpotIdx++;
+
+  let b64 = '';
+  try {
+    const p = path.join(__dirname, 'public', 'buenfin', `${sp.spot_id}.mp3`);
+    if (fs.existsSync(p)) {
+      b64 = fs.readFileSync(p).toString('base64');
+    }
+  } catch (_) {}
+
+  const spotTrack = {
+    type: 'spot',
+    name: sp.titulo,
+    spot_id: sp.spot_id,
+    url: `/buenfin/${sp.spot_id}.mp3`,
+    b64: b64,
+    mime: 'audio/mpeg'
+  };
+
+  radioState.currentTrack = spotTrack;
+  radioState.isPlaying = true;
+  radioState.position = 0;
+  radioState.lastUpdate = Date.now();
+
+  console.log('[24/7] 📣 SPOT AL AIRE:', sp.titulo);
+  broadcast({ type: 'SPOT', track: spotTrack });
+
+  // Duración estimada del spot (~28 segundos) antes de arrancar la siguiente canción
+  clearTimeout(autopilot.timer);
+  autopilot.timer = setTimeout(() => {
+    _apAdvanceNext();
+  }, 28000);
 }
 
 function startAutopilot(list, startIdx) {
@@ -1585,8 +1708,8 @@ function startAutopilot(list, startIdx) {
   autopilot.on = true;
   radioState.autopilotOn = true;
   autopilot.list = list.filter(x => x && x.ytId).map(x => ({ ytId: x.ytId, name: x.name || '', artist: x.artist || '', duration: +x.duration || 0 }));
-  autopilot.idx = (startIdx && startIdx < autopilot.list.length) ? startIdx : 0;
-  console.log('[24/7] iniciando con', autopilot.list.length, 'canciones');
+  autopilot.idx = (typeof startIdx === 'number' && startIdx >= 0 && startIdx < autopilot.list.length) ? startIdx : 0;
+  console.log('[24/7] iniciando con', autopilot.list.length, 'canciones en pista #' + (autopilot.idx + 1));
   broadcast({ type: 'AUTOPILOT', on: true });
   _apBroadcast();
 }
@@ -1702,10 +1825,27 @@ wss.on('connection', (ws, req) => {
           radioState.volume = msg.volume;
           broadcast({ type: 'VOLUME', volume: msg.volume }, ws);
           break;
-        case 'PLAYLIST_UPDATE':
-          radioState.playlist = msg.playlist;
-          broadcast({ type: 'PLAYLIST_UPDATE', playlist: msg.playlist }, ws);
+        case 'PLAYLIST_UPDATE': {
+          const list = Array.isArray(msg.playlist) ? msg.playlist : [];
+          if (list.length) {
+            radioState.playlist = list;
+            try { fs.writeFileSync(PL_FILE, JSON.stringify(list)); } catch (_) {}
+            const valid = list.filter(x => x && x.ytId).map(x => ({
+              ytId: x.ytId,
+              name: x.name || x.title || '',
+              artist: x.artist || x.channelTitle || '',
+              duration: +x.duration || 210
+            }));
+            if (valid.length) {
+              autopilot.list = valid;
+              if (autopilot.idx >= valid.length) autopilot.idx = 0;
+              _apSave();
+              console.log(`[WS] Playlist de cabina recibida y sincronizada (${valid.length} canciones)`);
+            }
+            broadcast({ type: 'PLAYLIST_UPDATE', playlist: list }, ws);
+          }
           break;
+        }
         case 'SPOT':
           radioState.currentTrack = msg.track;
           radioState.isPlaying = true;
@@ -1785,18 +1925,42 @@ server.listen(PORT, () => {
   console.log(`Terrapesca Radio corriendo en puerto ${PORT}`);
   console.log(`Stream disponible en /radio/stream`);
   console.log(`ytdl-core: ${ytdl ? 'disponible' : 'no disponible'}`);
-  // Reanudar Radio 24/7 si estaba activa antes de reiniciar, o arrancar con playlist por defecto
+
+  // Cargar playlist guardada de cabina si existe en disco
+  let loadedPl = null;
+  try {
+    if (fs.existsSync(PL_FILE)) {
+      const plData = JSON.parse(fs.readFileSync(PL_FILE, 'utf8'));
+      if (Array.isArray(plData) && plData.length) {
+        loadedPl = plData.filter(x => x && x.ytId).map(x => ({
+          ytId: x.ytId,
+          name: x.name || x.title || '',
+          artist: x.artist || x.channelTitle || '',
+          duration: +x.duration || 210
+        }));
+        radioState.playlist = plData;
+        console.log(`[24/7] Playlist guardada de cabina cargada (${loadedPl.length} canciones)`);
+      }
+    }
+  } catch (_) {}
+
+  // Reanudar Radio 24/7 si estaba activa antes de reiniciar, o arrancar con playlist disponible
   let resumed = false;
   try {
     const saved = JSON.parse(fs.readFileSync(AP_FILE, 'utf8'));
     if (saved && saved.on && Array.isArray(saved.list) && saved.list.length) {
       console.log('[24/7] reanudando desde el disco…');
-      startAutopilot(saved.list, saved.idx || 0);
+      const startList = (loadedPl && loadedPl.length) ? loadedPl : saved.list;
+      const startIdx = (typeof saved.idx === 'number' && saved.idx >= 0 && saved.idx < startList.length) ? saved.idx : Math.floor(Math.random() * startList.length);
+      startAutopilot(startList, startIdx);
       resumed = true;
     }
   } catch (_) {}
+
   if (!resumed) {
-    console.log('[24/7] arrancando autopilot autónomo con playlist por defecto...');
-    startAutopilot(DEFAULT_AUTOPILOT_PLAYLIST, 0);
+    console.log('[24/7] arrancando autopilot autónomo con rotación dinámica...');
+    const startList = (loadedPl && loadedPl.length) ? loadedPl : DEFAULT_AUTOPILOT_PLAYLIST;
+    const startIdx = Math.floor(Math.random() * startList.length);
+    startAutopilot(startList, startIdx);
   }
 });

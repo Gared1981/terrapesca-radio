@@ -955,6 +955,7 @@ function _connectServerWS(){
       try{ _sws.send(JSON.stringify({type:'HELLO',role:'studio'})); }catch(_){}
       // Send current playing track so sucursales that just connected get the signal
       setTimeout(_wsSendCurrentState, 800);
+      setTimeout(()=>{ if(queue.length) _wsSend({ type:'PLAYLIST_UPDATE', playlist:queue }); }, 1200);
     };
     _sws.onclose=()=>{ _swsOk=false; setTimeout(_connectServerWS,5000); };
     _sws.onerror=()=>{ _swsOk=false; };
@@ -3532,8 +3533,19 @@ async function loadShared(){
   try{
     const db=await openDB();
     const pl=await idbGet(db,'playlist','main');
-    if(pl&&pl.items){
+    if(pl&&pl.items&&pl.items.length){
       queue=pl.items.filter(t=>t.type==='yt'&&t.ytId).map(t=>({ytId:t.ytId,name:t.name||t.title||'YouTube',artist:t.channelTitle||t.sub||''}));
+    } else {
+      // Si la cola local está vacía, consultar la playlist compartida en el servidor
+      try {
+        const r = await fetch('/api/playlist');
+        const d = await r.json();
+        const list = Array.isArray(d) ? d : (d.playlist || []);
+        if (list.length) {
+          queue = list.map(t => ({ ytId: t.ytId, name: t.name || t.title || 'YouTube', artist: t.artist || t.channelTitle || '' }));
+          console.log('[studio] Cargada playlist remota compartida con', queue.length, 'canciones');
+        }
+      } catch (_) {}
     }
     const sp=await idbGet(db,'session','spotsLibrary');
     if(sp&&sp.items){ spots=sp.items.filter(s=>s.b64).map(s=>({name:s.name,b64:s.b64,bed:s.bed||'terrapesca',mime:s.mime||'audio/mpeg'})); }
@@ -3561,6 +3573,9 @@ function saveQueue(){
       const items=queue.map(q=>({type:'yt',ytId:q.ytId,name:q.name||'YouTube',channelTitle:q.artist||''}));
       db.transaction('playlist','readwrite').objectStore('playlist').put({key:'main',items});
       console.log('[playlist] guardada ('+items.length+' canciones)');
+      // Sincronizar automáticamente con el servidor y la Radio 24/7
+      _wsSend({ type:'PLAYLIST_UPDATE', playlist:queue });
+      fetch('/api/playlist', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({playlist:queue}) }).catch(()=>{});
     }catch(e){console.warn('[playlist] error al guardar',e);}
   },600);
 }
