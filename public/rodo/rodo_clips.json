@@ -1,0 +1,42 @@
+[
+  {
+    "name": "rodo_hora_costakayaks.mp3",
+    "script": "Costa Kayaks te da la hora en Radio Terrapesca. La pasión por el mar y la aventura no se detiene. ¡Ánimo mi gente, seguimos con más música!",
+    "title": "🎙️ DJ Rodo — Costa Kayaks te da la hora"
+  },
+  {
+    "name": "rodo_tip_senuelos.mp3",
+    "script": "¡Qué tal amigos, aquí DJ Rodo! Consejo rápido de los expertos en Terrapesca: en agua turbia por corriente o marea, utiliza señuelos con contraste y sonaja. Si el agua aclara, vete por tonos naturales. ¡Buena pesca y seguimos con buena música!",
+    "title": "🎙️ DJ Rodo — Tip de Selección de Señuelos"
+  },
+  {
+    "name": "rodo_tip_lineas.mp3",
+    "script": "¡Radio Terrapesca en vivo 24 horas! Consejo para tu próxima salida: antes de cada jornada, revisa tus primeros tres metros de línea trenzada y renueva el nudo del líder. ¡Que no se te vaya el trofeo del día! Vámonos con la siguiente rola.",
+    "title": "🎙️ DJ Rodo — Consejo de Líneas y Nudos"
+  },
+  {
+    "name": "rodo_tip_kayak.mp3",
+    "script": "¡Atención amigos kayakistas de Costa Kayaks! Siempre planifica tu ruta calculando el viento y las mareas para tu regreso, y el chaleco salvavidas siempre puesto. ¡Disfruta el mar con seguridad en Radio Terrapesca!",
+    "title": "🎙️ DJ Rodo — Seguridad en Kayak"
+  },
+  {
+    "name": "rodo_id_estacion_1.mp3",
+    "script": "Estás escuchando Radio Terrapesca, 24 horas continúas con la mejor música y la vibra del mar. Transmitiendo desde Sinaloa para todos los amantes de la pesca y la naturaleza.",
+    "title": "🎙️ DJ Rodo — Identificación de Estación"
+  },
+  {
+    "name": "rodo_id_estacion_2.mp3",
+    "script": "Transmitiendo para Los Mochis, Mazatlán, Culiacán y todo México, esto es Radio Terrapesca, el punto de encuentro de los apasionados de la pesca. ¡Suban el volumen!",
+    "title": "🎙️ DJ Rodo — Radio Terrapesca 24/7"
+  },
+  {
+    "name": "rodo_consejo_mar.mp3",
+    "script": "Consejo marino de hoy: mantén tus equipos protegidos contra la corrosión marina. Un rociado de protector marino y agua dulce a baja presión al terminar te ahorrarán dolores de cabeza. ¡Aquí Rodo, seguimos navegando!",
+    "title": "🎙️ DJ Rodo — Mantenimiento Marino"
+  },
+  {
+    "name": "rodo_buenfin_anuncio.mp3",
+    "script": "¡Atención pescadores y aventureros! El Buen Fin 2026 ya está aquí en Terrapesca con los descuentos más grandes del año en cañas, carretes, ropa técnica y kayaks. ¡Aprovechen las ofertas en sucursal y en línea!",
+    "title": "🎙️ DJ Rodo — Promoción Buen Fin 2026"
+  }
+]

@@ -956,6 +956,7 @@ function _connectServerWS(){
       // Send current playing track so sucursales that just connected get the signal
       setTimeout(_wsSendCurrentState, 800);
       setTimeout(()=>{ if(queue.length) _wsSend({ type:'PLAYLIST_UPDATE', playlist:queue }); }, 1200);
+      setTimeout(()=>{ if(spots.length) syncSpotsToServer(); }, 1600);
     };
     _sws.onclose=()=>{ _swsOk=false; setTimeout(_connectServerWS,5000); };
     _sws.onerror=()=>{ _swsOk=false; };
@@ -1343,8 +1344,8 @@ function cycleRepeat(){
 }
 let spots=[];
 let history=[];
-const CROSSFADE_SECS=10;
-const PREBUFFER_AHEAD=13; // start buffering next deck 3s before the crossfade window
+const CROSSFADE_SECS=12;
+const PREBUFFER_AHEAD=15; // start buffering next deck 3s before the crossfade window
                           // (minimal intro loss; _resumeActiveDeckIfStalled handles post-spot resume)
 let master=0.85;
 let flags={auto:true,duck:true,dj:true,aiSelect:true};
@@ -1548,7 +1549,7 @@ function deckCueFromQueue(id){
   });
 }
 
-/* core: crossfade de 10 segundos active → other deck */
+/* core: crossfade de 12 segundos active → other deck */
 function forceCrossfade(){ if(!_xfading) doCrossfade(); }
 function doCrossfade(){
   if(_xfading) return;
@@ -1556,8 +1557,8 @@ function doCrossfade(){
   const nxt=decks[activeDeck===0?1:0];
   if(!nxt.item){ advanceQueueInto(nxt.id); return; }
   _xfading=true;
-  const _xfadeSafe=setTimeout(()=>{ if(_xfading){ console.warn('[crossfade] timeout 14s'); _xfading=false; _prebufDone=false; } },14000);
-  console.log('[crossfade] arrancando 10s → "'+(nxt.item.name||nxt.item.ytId)+'"');
+  const _xfadeSafe=setTimeout(()=>{ if(_xfading){ console.warn('[crossfade] timeout 16s'); _xfading=false; _prebufDone=false; } },16000);
+  console.log('[crossfade] arrancando 12s → "'+(nxt.item.name||nxt.item.ytId)+'"');
   try{
     nxt.vol=0;
     try{ nxt.player.setVolume(0); nxt.player.playVideo(); }catch(_){}
@@ -1565,8 +1566,8 @@ function doCrossfade(){
     console.error('[crossfade] start error:',err&&err.message);
     _xfading=false; clearTimeout(_xfadeSafe); return;
   }
-  const durMs=CROSSFADE_SECS*1000; // 10 segundos
-  const steps=50, iv=durMs/steps; let s=0;
+  const durMs=CROSSFADE_SECS*1000; // 12 segundos
+  const steps=60, iv=durMs/steps; let s=0;
   const startCur=cur.vol;
   const nxtItem=nxt.item;
   const t=setInterval(()=>{
@@ -2533,7 +2534,7 @@ async function deleteSpot(i){
         // Remove by matching name+b64 so we don't accidentally wipe unrelated entries
         const updated=all.filter(s=>!(s.name===removed.name && s.b64===removed.b64));
         const put=store.put({key:'spotsLibrary',items:updated});
-        put.onsuccess=()=>res(); put.onerror=()=>rej(put.error);
+        put.onsuccess=()=>{ syncSpotsToServer(); res(); }; put.onerror=()=>rej(put.error);
       };
       req.onerror=()=>rej(req.error);
     });
@@ -3369,10 +3370,25 @@ async function _saveSpotToIDB(name,b64,bed,mime){
       store.put({key:'spotsLibrary',items});
       spots=items.filter(s=>s.b64).map(s=>({name:s.name,b64:s.b64,bed:s.bed||'terrapesca',mime:s.mime||'audio/mpeg'}));
       renderSpots();
+      syncSpotsToServer();
       res();
     };
     req.onerror=rej;
   });
+}
+
+let _syncSpotsTimer=null;
+function syncSpotsToServer(){
+  clearTimeout(_syncSpotsTimer);
+  _syncSpotsTimer=setTimeout(async()=>{
+    try{
+      const list=spots.map(s=>({name:s.name,b64:s.b64,bed:s.bed||'none',mime:s.mime||'audio/mpeg'}));
+      if(!list.length) return;
+      await fetch('/api/spots', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({spots:list}) });
+      _wsSend({ type:'SPOTS_UPDATE', spots:list });
+      console.log('[spots] sincronizados con la Radio 24/7 ('+list.length+' spots)');
+    }catch(e){ console.warn('[spots] sync error',e); }
+  },600);
 }
 // Sube uno o varios MP3 ya hechos y los agrega a la lista de spots.
 function uploadSpotMp3(input){
@@ -3549,6 +3565,26 @@ async function loadShared(){
     }
     const sp=await idbGet(db,'session','spotsLibrary');
     if(sp&&sp.items){ spots=sp.items.filter(s=>s.b64).map(s=>({name:s.name,b64:s.b64,bed:s.bed||'terrapesca',mime:s.mime||'audio/mpeg'})); }
+    // Sincronizar spots remotos compartidos del servidor
+    try {
+      const rsp = await fetch('/api/spots');
+      const srvSpots = await rsp.json();
+      if (Array.isArray(srvSpots) && srvSpots.length) {
+        let added = false;
+        for (const s of srvSpots) {
+          if (!spots.some(x => x.name === s.name)) {
+            spots.push(s);
+            added = true;
+          }
+        }
+        if (added) {
+          const tx = db.transaction('session', 'readwrite');
+          tx.objectStore('session').put({ key: 'spotsLibrary', items: spots });
+        }
+      } else if (spots.length) {
+        syncSpotsToServer();
+      }
+    } catch (_) {}
     // Fase 1: sembrar biblioteca desde la cola (idempotente) y crear la playlist
     // por defecto la primera vez que existe el store `playlists`.
     queue.forEach(q=>libUpsert(q));
