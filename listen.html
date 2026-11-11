@@ -470,38 +470,83 @@
     align-self: flex-start;
   }
 
-  /* Mini sección QR + CTA */
-  .car-qr-cta-row {
+  /* Mini sección Oficial Buen Fin 2026 + CTA */
+  .car-bf-badge-row {
     display: flex;
     align-items: center;
     gap: 16px;
-    background: rgba(15, 23, 42, 0.7);
-    border: 1px solid rgba(0, 229, 255, 0.25);
-    border-radius: 14px;
-    padding: 12px 14px;
+    background: linear-gradient(135deg, rgba(20, 8, 8, 0.85), rgba(12, 18, 30, 0.9));
+    border: 1.5px solid rgba(224, 36, 28, 0.45);
+    border-radius: 16px;
+    padding: 10px 16px;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6), 0 0 25px rgba(224, 36, 28, 0.18);
   }
-  .car-qr-box {
+  .car-bf-badge-row::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255, 190, 26, 0.6), transparent);
+  }
+  .car-bf-logo-card {
     position: relative;
     background: #ffffff;
     padding: 6px;
-    border-radius: 10px;
-    width: 74px; height: 74px;
+    border-radius: 12px;
+    width: 82px;
+    height: 82px;
     flex-shrink: 0;
-    display: flex; align-items: center; justify-content: center;
-    box-shadow: 0 0 15px rgba(255, 255, 255, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 20px rgba(224, 36, 28, 0.45), 0 0 15px rgba(255, 190, 26, 0.3);
+    animation: bfLogoPulse 3s infinite ease-in-out alternate;
+    overflow: hidden;
   }
-  .car-qr-box img { width: 100%; height: 100%; object-fit: contain; }
-  .car-qr-laser {
-    position: absolute; top: 0; left: 0; width: 100%; height: 2.5px;
-    background: linear-gradient(90deg, transparent, #00ffaa, transparent);
-    box-shadow: 0 0 8px #00ffaa;
-    animation: carLaser 2s infinite ease-in-out;
+  .car-bf-logo-card img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    filter: drop-shadow(0 2px 5px rgba(0,0,0,0.25));
+    transition: transform 0.3s ease;
   }
-  @keyframes carLaser {
-    0% { top: 8%; opacity: 0; }
+  .car-bf-logo-card:hover img {
+    transform: scale(1.08);
+  }
+  .car-bf-sheen {
+    position: absolute;
+    top: -60%; left: -60%;
+    width: 220%; height: 220%;
+    background: linear-gradient(60deg, transparent 40%, rgba(255,255,255,0.75) 50%, transparent 60%);
+    animation: bfSheenSweep 3.2s infinite ease-in-out;
+    pointer-events: none;
+  }
+  @keyframes bfSheenSweep {
+    0% { transform: translateY(-100%) rotate(25deg); opacity: 0; }
     20% { opacity: 1; }
-    80% { opacity: 1; }
-    100% { top: 88%; opacity: 0; }
+    40%, 100% { transform: translateY(100%) rotate(25deg); opacity: 0; }
+  }
+  @keyframes bfLogoPulse {
+    0% { transform: scale(1); box-shadow: 0 0 15px rgba(224, 36, 28, 0.4); }
+    100% { transform: scale(1.04); box-shadow: 0 0 32px rgba(224, 36, 28, 0.8), 0 0 25px rgba(255, 190, 26, 0.45); }
+  }
+  .car-bf-slogan-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 11px;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+    color: #ffb4a2;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+  }
+  .car-bf-slogan-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: #ff2233;
+    box-shadow: 0 0 8px #ff2233;
+    animation: blinkDot 1.4s infinite;
   }
   .car-cta-meta {
     display: flex;
@@ -818,6 +863,14 @@
     .car-video {
       max-height: 320px;
     }
+    .car-bf-badge-row {
+      padding: 10px 12px;
+      gap: 12px;
+    }
+    .car-bf-logo-card {
+      width: 72px;
+      height: 72px;
+    }
     .player-column {
       order: 1;
       padding: 18px 16px;
@@ -919,16 +972,19 @@
             <div class="car-savings-badge" id="carSavings">AHORRAS: $225.00 MXN</div>
           </div>
 
-          <!-- Escaneo QR y Botón Directo -->
-          <div class="car-qr-cta-row">
-            <div class="car-qr-box">
-              <div class="car-qr-laser"></div>
-              <img id="carQrImg" src="/buenfin/spot_gorras_50_qr.png" alt="Código QR de Compra"/>
+          <!-- Logo Oficial Buen Fin 2026 con Efecto Neón y Brillo + Botón de Oferta Directo -->
+          <div class="car-bf-badge-row">
+            <div class="car-bf-logo-card" title="El Buen Fin 2026 Oficial en Terrapesca">
+              <div class="car-bf-sheen"></div>
+              <img src="/buenfin/logo_buen_fin.png" alt="Logo El Buen Fin 2026"/>
             </div>
             <div class="car-cta-meta">
-              <span class="car-cta-hint">Apunta tu celular para apartar en tienda o comprar en línea</span>
+              <div class="car-bf-slogan-pill">
+                <span class="car-bf-slogan-dot"></span>
+                <span>EL FIN DE SEMANA MÁS BARATO DEL AÑO</span>
+              </div>
               <a class="btn-car-buy" id="carBuyBtn" href="https://buenfin.terrapescaapi.com/cliente?sucursal=buceo&sku=20270" target="_blank" rel="noopener">
-                <span>Ver oferta en línea</span>
+                <span>Comprar / Ver oferta</span>
                 <span>→</span>
               </a>
             </div>
@@ -1197,7 +1253,7 @@ function renderPromo(idx, immediate = false) {
     }
 
     const qrImg = document.getElementById('carQrImg');
-    qrImg.src = s.qr_imagen_url || ('/buenfin/' + s.spot_id + '_qr.png');
+    if (qrImg) qrImg.src = s.qr_imagen_url || ('/buenfin/' + s.spot_id + '_qr.png');
 
     const buyBtn = document.getElementById('carBuyBtn');
     buyBtn.href = s.qr_compra_url || 'https://buenfin.terrapescaapi.com/cliente';
