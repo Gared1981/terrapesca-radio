@@ -1431,10 +1431,14 @@ function searchYouTubeNoKey(q) {
     }
   }
 
-  if (req.url === '/sw.js') {
+  if (urlPath === '/sw.js') {
     const swPath = path.join(__dirname, 'sw.js');
     if (fs.existsSync(swPath)) {
-      res.writeHead(200, { 'Content-Type': 'application/javascript', 'Service-Worker-Allowed': '/' });
+      res.writeHead(200, {
+        'Content-Type': 'application/javascript',
+        'Service-Worker-Allowed': '/',
+        'Cache-Control': 'no-cache, no-store, must-revalidate'
+      });
       fs.createReadStream(swPath).pipe(res);
     } else {
       res.writeHead(404); res.end();
