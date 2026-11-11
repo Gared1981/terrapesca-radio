@@ -404,6 +404,18 @@ function startStreamTrack(track) {
     streamAudioBuffer(buf, gen)
       .then(() => { if (gen === streamGen) streamBusy = false; })
       .catch(() => { if (gen === streamGen) streamBusy = false; });
+  } else if (track.url && typeof track.url === 'string' && track.url.startsWith('/')) {
+    try {
+      const p = path.join(__dirname, 'public', track.url);
+      if (fs.existsSync(p)) {
+        streamBusy = true;
+        console.log('[stream] start local audio (gen', gen + ')', track.url);
+        const buf = fs.readFileSync(p);
+        streamAudioBuffer(buf, gen)
+          .then(() => { if (gen === streamGen) streamBusy = false; })
+          .catch(() => { if (gen === streamGen) streamBusy = false; });
+      }
+    } catch (_) {}
   }
 }
 
@@ -1700,7 +1712,7 @@ const DEFAULT_AUTOPILOT_PLAYLIST = [
   { ytId: 'teprNzF6J1I', name: 'En el Muelle de San Blás', artist: 'Maná', duration: 352 }
 ];
 let autopilot = { on: false, list: [], idx: 0, timer: null };
-let _songsSinceIntervention = 0;
+let _songsSinceIntervention = 1; // Arranca en 1 para que tras la 1ra canción tras deploy suene intervención inmediata
 let _interventionTurn = 0;
 let _apHistory = []; // Registro de canciones recientes para evitar repeticiones
 let customSpots = [];
@@ -1813,25 +1825,43 @@ function _apPlayInterventionThenAdvance() {
       let curHour = 12;
       for (const x of p) if (x.type === 'hour') curHour = +x.value;
 
-      // Buscar clip de la hora si existe
-      const hourClip = _rodoManifest.find(m => m.file === `rodo_hora_h${curHour}.mp3`);
-      if (hourClip && Math.random() < 0.6) {
+      // Buscar clip de la hora si existe en el rango grabado (12 a 20)
+      let hourClip = _rodoManifest.find(m => m.file === `rodo_hora_h${curHour}.mp3`);
+      if (!hourClip && Math.random() < 0.6) {
+        hourClip = _rodoManifest.find(m => m.file === 'rodo_hora_costakayaks.mp3');
+      }
+
+      if (hourClip && Math.random() < 0.65) {
+        let b64 = '';
+        try {
+          const pFile = path.join(__dirname, 'public', 'rodo', hourClip.file);
+          if (fs.existsSync(pFile)) b64 = fs.readFileSync(pFile).toString('base64');
+        } catch (_) {}
         trackToPlay = {
           type: 'spot',
           name: hourClip.title,
           url: hourClip.url,
-          mime: 'audio/mpeg'
+          b64: b64,
+          mime: 'audio/mpeg',
+          duration: 16
         };
       } else {
         // Consejos, tips y saludos variados de Rodo
         const tips = _rodoManifest.filter(m => m.type !== 'hora');
         const clip = tips.length ? tips[Math.floor(Math.random() * tips.length)] : null;
         if (clip) {
+          let b64 = '';
+          try {
+            const pFile = path.join(__dirname, 'public', 'rodo', clip.file);
+            if (fs.existsSync(pFile)) b64 = fs.readFileSync(pFile).toString('base64');
+          } catch (_) {}
           trackToPlay = {
             type: 'spot',
             name: clip.title,
             url: clip.url,
-            mime: 'audio/mpeg'
+            b64: b64,
+            mime: 'audio/mpeg',
+            duration: 22
           };
         }
       }
@@ -1843,12 +1873,20 @@ function _apPlayInterventionThenAdvance() {
     if (customSpots && customSpots.length > 0) {
       const spIdx = Math.floor(Math.random() * customSpots.length);
       const cs = customSpots[spIdx];
+      let b64 = cs.b64 || '';
+      if (!b64 && cs.url && cs.url.startsWith('/')) {
+        try {
+          const pFile = path.join(__dirname, 'public', cs.url);
+          if (fs.existsSync(pFile)) b64 = fs.readFileSync(pFile).toString('base64');
+        } catch (_) {}
+      }
       trackToPlay = {
         type: 'spot',
         name: '📢 ' + (cs.name || 'Spot Personalizado'),
         url: cs.url || '',
-        b64: cs.b64 || '',
-        mime: cs.mime || 'audio/mpeg'
+        b64: b64,
+        mime: cs.mime || 'audio/mpeg',
+        duration: cs.duration || 18
       };
     }
   }
@@ -1856,12 +1894,12 @@ function _apPlayInterventionThenAdvance() {
   // 3. TURNO DE SPOT OFICIAL DEL BUEN FIN (o fallback si no hubo personalizado)
   if (!trackToPlay) {
     const BF_SPOTS = [
-      { spot_id: 'spot_gorras_50', titulo: '¡EXPLOSIÓN 50% OFF! GORRAS TRUCKER TERRAPESCA' },
-      { spot_id: 'spot_shadrap_40', titulo: '¡ADRENALINA PURA! SEÑUELOS DEL 20% AL 40% OFF' },
-      { spot_id: 'spot_vanford_15', titulo: '¡PRECISIÓN JAPONESA! CARRETES SHIMANO (15% / 20% EN COMBO)' },
-      { spot_id: 'spot_kayak_tilapia', titulo: '¡EL MONSTRUO AZUL! COSTA KAYAK BIG MERO (10% + 6 MSI)' },
-      { spot_id: 'spot_maja_30', titulo: 'ROPA TÉCNICA PESCA 20% Y MARCA MAJA 30% OFF (13 AL 17 NOV)' },
-      { spot_id: 'spot_hieleras_15', titulo: '¡FRÍO EXTREMO 15% OFF! HIELERAS TERRAPESCA' }
+      { spot_id: 'spot_gorras_50', titulo: '¡EXPLOSIÓN 50% OFF! GORRAS TRUCKER TERRAPESCA', dur: 23 },
+      { spot_id: 'spot_shadrap_40', titulo: '¡ADRENALINA PURA! SEÑUELOS DEL 20% AL 40% OFF', dur: 22 },
+      { spot_id: 'spot_vanford_15', titulo: '¡PRECISIÓN JAPONESA! CARRETES SHIMANO (15% / 20% EN COMBO)', dur: 24 },
+      { spot_id: 'spot_kayak_tilapia', titulo: '¡EL MONSTRUO AZUL! COSTA KAYAK BIG MERO (10% + 6 MSI)', dur: 22 },
+      { spot_id: 'spot_maja_30', titulo: 'ROPA TÉCNICA PESCA 20% Y MARCA MAJA 30% OFF (13 AL 17 NOV)', dur: 24 },
+      { spot_id: 'spot_hieleras_15', titulo: '¡FRÍO EXTREMO 15% OFF! HIELERAS TERRAPESCA', dur: 20 }
     ];
     const bfIdx = Math.floor(Math.random() * BF_SPOTS.length);
     const sp = BF_SPOTS[bfIdx];
@@ -1876,7 +1914,8 @@ function _apPlayInterventionThenAdvance() {
       spot_id: sp.spot_id,
       url: `/buenfin/${sp.spot_id}.mp3`,
       b64: b64,
-      mime: 'audio/mpeg'
+      mime: 'audio/mpeg',
+      duration: sp.dur || 22
     };
   }
 
@@ -1885,14 +1924,16 @@ function _apPlayInterventionThenAdvance() {
   radioState.position = 0;
   radioState.lastUpdate = Date.now();
 
-  console.log('[24/7 Intervención] 🎙️ AL AIRE:', trackToPlay.name);
+  const clipSecs = trackToPlay.duration || 22;
+  console.log('[24/7 Intervención] 🎙️ AL AIRE:', trackToPlay.name, '(' + clipSecs + 's)');
   broadcast({ type: 'SPOT', track: trackToPlay });
+  if (streamClients.size > 0) startStreamTrack(trackToPlay);
 
-  // Duración estimada (~25 segundos) antes de arrancar la siguiente canción en modo aleatorio
+  // Programar avance a la siguiente canción tras finalizar el clip
   clearTimeout(autopilot.timer);
   autopilot.timer = setTimeout(() => {
     _apAdvanceNextTrack();
-  }, 25000);
+  }, (clipSecs + 2) * 1000);
 }
 
 function startAutopilot(list, startIdx) {

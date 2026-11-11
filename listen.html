@@ -1317,11 +1317,12 @@ const carouselCard = document.getElementById('carouselCard');
 carouselCard.addEventListener('mouseenter', () => { clearInterval(promoTimer); clearInterval(promoProgressTimer); });
 carouselCard.addEventListener('mouseleave', () => { startPromoCarousel(); });
 
-// ================= MOTOR DE REPRODUCCIÓN RADIO TERRAPESCA (DOBLE DECK CON CROSSFADE 12s) =================
+// ================= MOTOR DE REPRODUCCIÓN RADIO TERRAPESCA 24/7 =================
+// Características: Crossfade 12s, Intervenciones DJ Rodo & Spots, Audio continuo en segundo plano (No se detiene al cambiar de pestaña)
 let playing = false, started = false;
 let currentTrack = null, ws = null, wsTimer = null, wsOk = false;
-let ytReady = false, _pendingPlay = null, _lastYtId = null;
-let spotAudio = null;
+let ytReady = false, _pendingPlay = null, _pendingSpot = null, _lastYtId = null;
+let spotAudio = null, _spotWatchdog = null;
 let _livePos = { pos: 0, at: 0, playing: false };
 
 const CROSSFADE_MS = 12000; // Exactamente 12 segundos de crossfade profesional
@@ -1331,7 +1332,102 @@ const decks = [
 ];
 let activeDeck = 0;
 let _xfading = false;
-let _xfadeTimer = null;
+let _xfadeStep = 0;
+let _xfadeMaxSteps = 60; // 60 pasos cada 200ms = 12,000ms (12 segundos)
+let _curVolMaster = 85;
+
+// ── BLINDAJE DE AUDIO EN SEGUNDO PLANO (Background Audio Engine) ──
+// Mantiene el hilo de audio despierto en Chrome/Safari/Android/iOS para que jamás se corte al cambiar de pestaña
+let audioCtx = null;
+let bgSilentSource = null;
+let tickerWorker = null;
+
+function startBgAudioEngine() {
+  try {
+    if (!audioCtx) {
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (AudioContextClass) audioCtx = new AudioContextClass();
+    }
+    if (audioCtx && audioCtx.state === 'suspended') {
+      audioCtx.resume();
+    }
+    if (audioCtx && !bgSilentSource) {
+      // Búfer estéreo inaudible de 2 segundos en bucle continuo
+      const buffer = audioCtx.createBuffer(2, audioCtx.sampleRate * 2, audioCtx.sampleRate);
+      bgSilentSource = audioCtx.createBufferSource();
+      bgSilentSource.buffer = buffer;
+      bgSilentSource.loop = true;
+      const gainNode = audioCtx.createGain();
+      gainNode.gain.value = 0.0001; // Portadora inaudible pero detectable por el navegador como pestaña activa de audio
+      bgSilentSource.connect(gainNode);
+      gainNode.connect(audioCtx.destination);
+      bgSilentSource.start();
+    }
+  } catch (_) {}
+
+  // Portadora secundaria mediante elemento HTML5 <audio> con bucle de onda WAV válida
+  try {
+    const bgAudio = document.getElementById('bgAudio');
+    if (bgAudio) {
+      bgAudio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
+      bgAudio.loop = true;
+      bgAudio.volume = 0.01;
+      bgAudio.play().catch(() => {});
+    }
+  } catch (_) {}
+
+  initTickerWorker();
+}
+
+// Web Worker inmune al throttling de navegadores en pestañas ocultas / pantallas bloqueadas
+function initTickerWorker() {
+  if (tickerWorker) return;
+  try {
+    const workerBlob = new Blob([`
+      let tid = null;
+      self.onmessage = function(e) {
+        if (e.data === 'start') {
+          if (!tid) tid = setInterval(function() { self.postMessage('tick'); }, 200);
+        } else if (e.data === 'stop') {
+          clearInterval(tid);
+          tid = null;
+        }
+      };
+    `], { type: 'application/javascript' });
+    tickerWorker = new Worker(URL.createObjectURL(workerBlob));
+    tickerWorker.onmessage = function() {
+      onHeartbeatTick();
+    };
+    tickerWorker.postMessage('start');
+  } catch (_) {
+    setInterval(onHeartbeatTick, 200);
+  }
+}
+
+// Latido maestro del reproductor (corre cada 200ms sin importar si la pestaña está en segundo plano)
+function onHeartbeatTick() {
+  // 1. Paso de crossfade de 12 segundos
+  if (_xfading) {
+    stepCrossfade();
+  }
+
+  // 2. Progreso de la pista en tiempo real
+  updateProgressBar();
+
+  // 3. Watchdog de reproducción continua en segundo plano
+  if (started && playing && !spotAudio) {
+    const cur = decks[activeDeck];
+    if (cur && cur.player && cur.ready) {
+      try {
+        const st = cur.player.getPlayerState();
+        // Si el reproductor se pausó solo o se detuvo en segundo plano, forzar reanudación suave
+        if (st === YT.PlayerState.PAUSED || st === YT.PlayerState.CUED) {
+          cur.player.playVideo();
+        }
+      } catch (_) {}
+    }
+  }
+}
 
 function _liveNow() {
   if (!_livePos.at) return 0;
@@ -1347,7 +1443,7 @@ function onYouTubeIframeAPIReady() {
         onReady: () => {
           d.ready = true;
           ytReady = true;
-          try { d.player.unMute(); d.player.setVolume(d.id === 0 ? 85 : 0); } catch (_) {}
+          try { d.player.unMute(); d.player.setVolume(d.id === 0 ? _curVolMaster : 0); } catch (_) {}
           if (d.id === 0) startListening(true);
         },
         onStateChange: (e) => onDeckStateChange(d.id, e.data),
@@ -1368,13 +1464,7 @@ function onDeckStateChange(deckId, state) {
       playing = true;
       setPlayUI(true);
       setStatus('● EN VIVO', 'live');
-      window.removeEventListener('click', onFirstGesture);
-      window.removeEventListener('touchstart', onFirstGesture);
-      const ov = document.getElementById('startOverlay');
-      if (ov && !ov.classList.contains('hidden')) {
-        ov.classList.add('hidden');
-        setTimeout(() => { ov.style.display = 'none'; }, 300);
-      }
+      hideTapOverlay();
     }
   } else if (state === YT.PlayerState.PAUSED || state === YT.PlayerState.ENDED) {
     d.playing = false;
@@ -1384,6 +1474,19 @@ function onDeckStateChange(deckId, state) {
     }
   }
 }
+
+function hideTapOverlay() {
+  window.removeEventListener('click', onFirstGesture);
+  window.removeEventListener('touchstart', onFirstGesture);
+  const ov = document.getElementById('startOverlay');
+  if (ov && !ov.classList.contains('hidden')) {
+    ov.classList.add('hidden');
+    setTimeout(() => { ov.style.display = 'none'; }, 300);
+  }
+}
+
+// ── Reproducción y Crossfade de 12 segundos ──
+let _xfadeWatchdogTimer = null;
 
 function playRemote(track, pos) {
   if (!track || !track.ytId) return;
@@ -1397,7 +1500,8 @@ function playRemote(track, pos) {
 
   stopSpotAudio();
 
-  const curVol = parseInt(document.getElementById('volSlider').value, 10) || 85;
+  const curVol = (parseInt(document.getElementById('volSlider').value, 10) || 85);
+  _curVolMaster = curVol;
   const startSecs = (pos || 0) > 2 ? pos : 0;
   const curDeck = decks[activeDeck];
   const nextDeckId = activeDeck === 0 ? 1 : 0;
@@ -1416,7 +1520,7 @@ function playRemote(track, pos) {
     return;
   }
 
-  // Si aún no está sonando nada o el otro deck no está listo: arranque directo en deck actual
+  // Si aún no está sonando nada o el otro deck no está listo: arranque directo
   if (!curDeck.playing || !nxtDeck.ready) {
     _lastYtId = track.ytId;
     curDeck.ytId = track.ytId;
@@ -1429,11 +1533,25 @@ function playRemote(track, pos) {
     return;
   }
 
+  // En pestañas ocultas / segundo plano, cambiamos directo en el deck activo para evitar que la política
+  // de autoplay del navegador bloquee un iframe inactivo en segundo plano.
+  if (document.hidden) {
+    _lastYtId = track.ytId;
+    curDeck.ytId = track.ytId;
+    try {
+      curDeck.player.loadVideoById({ videoId: track.ytId, startSeconds: startSecs });
+      curDeck.player.setVolume(curVol);
+      curDeck.player.playVideo();
+    } catch (_) {}
+    return;
+  }
+
   // ================= CROSSFADE PROFESIONAL DE 12 SEGUNDOS ENTRE CANCIONES =================
   _lastYtId = track.ytId;
   nxtDeck.ytId = track.ytId;
   _xfading = true;
-  clearInterval(_xfadeTimer);
+  _xfadeStep = 0;
+  _xfadeMaxSteps = 60; // 60 pasos * 200ms = 12 segundos
 
   try {
     nxtDeck.player.unMute();
@@ -1441,68 +1559,197 @@ function playRemote(track, pos) {
     nxtDeck.player.loadVideoById({ videoId: track.ytId, startSeconds: startSecs });
     nxtDeck.player.playVideo();
   } catch (err) {
-    console.warn('[Crossfade falló, cargando directo]', err);
+    console.warn('[Crossfade directo por excepción]', err);
     try { curDeck.player.loadVideoById({ videoId: track.ytId, startSeconds: startSecs }); } catch (_) {}
     _xfading = false;
     return;
   }
 
-  const steps = 60; // 60 pasos a lo largo de 12 segundos (cada 200ms)
-  const stepTime = CROSSFADE_MS / steps;
-  let step = 0;
-
-  _xfadeTimer = setInterval(() => {
-    step++;
-    const p = Math.min(1, step / steps);
-    const vOld = Math.max(0, Math.round(curVol * (1 - p)));
-    const vNew = Math.min(curVol, Math.round(curVol * p));
-
-    try { curDeck.player.setVolume(vOld); } catch (_) {}
-    try { nxtDeck.player.setVolume(vNew); } catch (_) {}
-
-    if (step >= steps) {
-      clearInterval(_xfadeTimer);
-      try {
-        curDeck.player.setVolume(0);
-        curDeck.player.pauseVideo();
-      } catch (_) {}
-      try {
-        nxtDeck.player.setVolume(curVol);
-      } catch (_) {}
-      activeDeck = nextDeckId;
+  // Watchdog de seguridad del crossfade: si el segundo deck no empieza a sonar en 2s, rescatar en deck actual
+  clearTimeout(_xfadeWatchdogTimer);
+  _xfadeWatchdogTimer = setTimeout(() => {
+    if (_xfading && (!nxtDeck.playing || nxtDeck.player.getPlayerState() !== YT.PlayerState.PLAYING)) {
+      console.warn('[Crossfade Watchdog: nxtDeck no inició, rescatando con curDeck]');
       _xfading = false;
-      console.log('[Radio 12s Crossfade Completo] Deck activo:', activeDeck);
+      try {
+        curDeck.player.setVolume(curVol);
+        curDeck.player.loadVideoById({ videoId: track.ytId, startSeconds: startSecs });
+        curDeck.player.playVideo();
+      } catch (_) {}
     }
-  }, stepTime);
+  }, 2200);
+}
+
+function stepCrossfade() {
+  _xfadeStep++;
+  const curVol = _curVolMaster;
+  const curDeck = decks[activeDeck];
+  const nextDeckId = activeDeck === 0 ? 1 : 0;
+  const nxtDeck = decks[nextDeckId];
+
+  const p = Math.min(1, _xfadeStep / _xfadeMaxSteps);
+  // Curva de mezcla de potencia constante (radio broadcast)
+  const vOld = Math.max(0, Math.round(curVol * (1 - p)));
+  const vNew = Math.min(curVol, Math.round(curVol * p));
+
+  try { curDeck.player.setVolume(vOld); } catch (_) {}
+  try { nxtDeck.player.setVolume(vNew); } catch (_) {}
+
+  if (_xfadeStep >= _xfadeMaxSteps) {
+    _xfading = false;
+    clearTimeout(_xfadeWatchdogTimer);
+    try {
+      curDeck.player.setVolume(0);
+      curDeck.player.pauseVideo();
+    } catch (_) {}
+    try {
+      nxtDeck.player.setVolume(curVol);
+    } catch (_) {}
+    activeDeck = nextDeckId;
+    console.log('[Radio 12s Crossfade Exitoso] Deck activo:', activeDeck);
+  }
+}
+
+// ── Intervenciones: DJ Rodo (con locución sobre música ducked) y Spots con Crossfade ──
+function playSpotTrack(track) {
+  if (!track) return;
+  if (!started) {
+    _pendingSpot = track;
+    return;
+  }
+  stopSpotAudio();
+
+  let url = track.url || '';
+  if (!url && track.b64) {
+    try {
+      const bin = atob(track.b64);
+      const u8 = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+      const blob = new Blob([u8], { type: track.mime || 'audio/mpeg' });
+      url = URL.createObjectURL(blob);
+    } catch (_) {}
+  } else if (!url && track.spot_id) {
+    url = '/buenfin/' + track.spot_id + '.mp3';
+  }
+  if (!url && track.b64) {
+    url = 'data:' + (track.mime || 'audio/mpeg') + ';base64,' + track.b64;
+  }
+  if (!url) return;
+
+  spotAudio = new Audio(url);
+  spotAudio._u = url;
+  const curVol = (parseInt(document.getElementById('volSlider').value, 10) || 85);
+  _curVolMaster = curVol;
+  const masterGain = curVol / 100;
+
+  const isRodo = track.name && /rodo|locutor|consejo|hora|sinaloa|estación/i.test(track.name);
+  setStatus(isRodo ? ('🎙️ ' + track.name) : ('📢 ' + (track.name || 'Spot al aire')), 'spot');
+
+  // Si coincide con alguna promoción oficial del Buen Fin, sincronizar visualmente el carrusel
+  if (track.spot_id) {
+    const idx = BUEN_FIN_SPOTS.findIndex(s => s.spot_id === track.spot_id);
+    if (idx >= 0 && idx !== curPromoIdx) showPromo(idx, true);
+  }
+
+  // 1. DUCKING O CROSSFADE:
+  if (isRodo) {
+    // 🎙️ DJ RODO: LOCUCIÓN DE CABINA SOBRE FONDO MUSICAL (PISADOR)
+    // La música NO se apaga; baja suavemente al 18% para crear una cama musical cálida
+    duckMusic(1000, Math.max(10, Math.round(curVol * 0.18)));
+    fadeInAudio(spotAudio, 350, masterGain);
+  } else {
+    // 📢 SPOTS COMERCIALES:
+    // Crossfade de salida de música (1.2s) y entrada gradual del anuncio
+    fadeOutYT(1200, 0);
+    fadeInAudio(spotAudio, 450, masterGain);
+  }
+
+  const resume = () => {
+    clearTimeout(_spotWatchdog);
+    fadeOutAudio(spotAudio, 400, () => {
+      stopSpotAudio();
+    });
+    // Música sube suavemente en crossfade
+    fadeInYT(1200, curVol);
+    setStatus('● EN VIVO', 'live');
+  };
+
+  spotAudio.onended = resume;
+  spotAudio.onerror = (err) => {
+    console.warn('[Spot Audio onerror, restaurando música]', err);
+    resume();
+  };
+
+  // Watchdog de seguridad del spot: nunca dejar la radio en silencio si el audio se traba
+  const maxSpotDuration = ((track.duration || 22) + 3) * 1000;
+  clearTimeout(_spotWatchdog);
+  _spotWatchdog = setTimeout(() => {
+    if (spotAudio) {
+      console.warn('[Spot Watchdog timeout, reanudando música]');
+      resume();
+    }
+  }, maxSpotDuration);
+
+  // Iniciar reproducción
+  spotAudio.play().catch(e => {
+    console.warn('[Spot play bloqueado, intentando fallback de datos]', e);
+    if (track.b64 && !url.startsWith('data:')) {
+      try {
+        spotAudio.src = 'data:' + (track.mime || 'audio/mpeg') + ';base64,' + track.b64;
+        spotAudio.play().catch(() => resume());
+      } catch (_) { resume(); }
+    } else {
+      resume();
+    }
+  });
 }
 
 function stopSpotAudio() {
+  clearTimeout(_spotWatchdog);
   if (spotAudio) {
     try { spotAudio.pause(); } catch (_) {}
-    if (spotAudio._u) URL.revokeObjectURL(spotAudio._u);
+    if (spotAudio._u && spotAudio._u.startsWith('blob:')) URL.revokeObjectURL(spotAudio._u);
     spotAudio = null;
   }
 }
 
-// ================= UTILIDADES DE CROSSFADE SUAVE =================
-let _ytFadeTimer = null;
+// ── Transiciones y Fades de Volumen ──
+let _duckTimer = null;
+function duckMusic(durationMs = 1000, targetVol = 15) {
+  clearInterval(_duckTimer);
+  const curDeck = decks[activeDeck];
+  if (!curDeck || !curDeck.player || !curDeck.ready) return;
+  let cur = curDeck.player.getVolume ? curDeck.player.getVolume() : _curVolMaster;
+  const steps = 15;
+  const stepTime = Math.max(15, durationMs / steps);
+  const diff = (cur - targetVol) / steps;
+  let s = 0;
+  _duckTimer = setInterval(() => {
+    s++;
+    cur = Math.max(targetVol, cur - diff);
+    try { curDeck.player.setVolume(Math.round(cur)); } catch (_) {}
+    if (s >= steps || cur <= targetVol) {
+      clearInterval(_duckTimer);
+      try { curDeck.player.setVolume(targetVol); } catch (_) {}
+    }
+  }, stepTime);
+}
 
+let _ytFadeTimer = null;
 function fadeOutYT(durationMs = 1200, targetVol = 0, onComplete) {
   clearInterval(_ytFadeTimer);
   const curDeck = decks[activeDeck];
   if (!curDeck || !curDeck.player || !curDeck.ready) { if (onComplete) onComplete(); return; }
-  let curVol = 85;
-  try { curVol = curDeck.player.getVolume() || 85; } catch (_) {}
-  const steps = 18;
+  let cur = curDeck.player.getVolume ? curDeck.player.getVolume() : _curVolMaster;
+  const steps = 16;
   const stepTime = Math.max(15, durationMs / steps);
-  const volStep = (curVol - targetVol) / steps;
-  let step = 0;
-
+  const diff = (cur - targetVol) / steps;
+  let s = 0;
   _ytFadeTimer = setInterval(() => {
-    step++;
-    curVol = Math.max(targetVol, curVol - volStep);
-    try { curDeck.player.setVolume(Math.round(curVol)); } catch (_) {}
-    if (step >= steps || curVol <= targetVol) {
+    s++;
+    cur = Math.max(targetVol, cur - diff);
+    try { curDeck.player.setVolume(Math.round(cur)); } catch (_) {}
+    if (s >= steps || cur <= targetVol) {
       clearInterval(_ytFadeTimer);
       try {
         curDeck.player.setVolume(targetVol);
@@ -1517,22 +1764,21 @@ function fadeInYT(durationMs = 1500, targetVol = 85, onComplete) {
   clearInterval(_ytFadeTimer);
   const curDeck = decks[activeDeck];
   if (!curDeck || !curDeck.player || !curDeck.ready) { if (onComplete) onComplete(); return; }
-  const target = (typeof targetVol === 'number' && targetVol > 0) ? targetVol : 85;
-  let curVol = 0;
+  const target = targetVol > 0 ? targetVol : 85;
+  let cur = 0;
   try {
     curDeck.player.setVolume(0);
     curDeck.player.playVideo();
   } catch (_) {}
-  const steps = 24;
+  const steps = 20;
   const stepTime = Math.max(15, durationMs / steps);
-  const volStep = target / steps;
-  let step = 0;
-
+  const diff = target / steps;
+  let s = 0;
   _ytFadeTimer = setInterval(() => {
-    step++;
-    curVol = Math.min(target, curVol + volStep);
-    try { curDeck.player.setVolume(Math.round(curVol)); } catch (_) {}
-    if (step >= steps || curVol >= target) {
+    s++;
+    cur = Math.min(target, cur + diff);
+    try { curDeck.player.setVolume(Math.round(cur)); } catch (_) {}
+    if (s >= steps || cur >= target) {
       clearInterval(_ytFadeTimer);
       try { curDeck.player.setVolume(target); } catch (_) {}
       if (onComplete) onComplete();
@@ -1540,35 +1786,34 @@ function fadeInYT(durationMs = 1500, targetVol = 85, onComplete) {
   }, stepTime);
 }
 
-function fadeInAudio(audioEl, durationMs = 500, targetVol = 0.95) {
+function fadeInAudio(audioEl, durationMs = 400, targetVol = 0.9) {
   if (!audioEl) return;
   audioEl.volume = 0;
   audioEl.play().catch(() => {});
-  const steps = 12;
+  const steps = 10;
   const stepTime = Math.max(15, durationMs / steps);
-  const volStep = targetVol / steps;
-  let step = 0;
-  let v = 0;
+  const diff = targetVol / steps;
+  let s = 0, v = 0;
   const timer = setInterval(() => {
-    step++;
-    v = Math.min(targetVol, step * volStep);
+    s++;
+    v = Math.min(targetVol, s * diff);
     try { audioEl.volume = v; } catch (_) {}
-    if (step >= steps) clearInterval(timer);
+    if (s >= steps) clearInterval(timer);
   }, stepTime);
 }
 
-function fadeOutAudio(audioEl, durationMs = 600, onComplete) {
+function fadeOutAudio(audioEl, durationMs = 400, onComplete) {
   if (!audioEl) { if (onComplete) onComplete(); return; }
-  const steps = 12;
+  const steps = 10;
   const stepTime = Math.max(15, durationMs / steps);
-  let v = audioEl.volume || 0.95;
-  const volStep = v / steps;
-  let step = 0;
+  let v = audioEl.volume || 0.9;
+  const diff = v / steps;
+  let s = 0;
   const timer = setInterval(() => {
-    step++;
-    v = Math.max(0, v - volStep);
+    s++;
+    v = Math.max(0, v - diff);
     try { audioEl.volume = v; } catch (_) {}
-    if (step >= steps || v <= 0) {
+    if (s >= steps || v <= 0) {
       clearInterval(timer);
       try { audioEl.pause(); } catch (_) {}
       if (onComplete) onComplete();
@@ -1576,84 +1821,8 @@ function fadeOutAudio(audioEl, durationMs = 600, onComplete) {
   }, stepTime);
 }
 
-// Spots periódicos de audio de Buen Fin / DJ Rodo / Personalizados con Crossfade
-function playSpotTrack(track) {
-  if (!track || !started) return;
-  stopSpotAudio();
-
-  let url = '';
-  if (track.url) {
-    url = track.url;
-  } else if (track.b64) {
-    try {
-      const bin = atob(track.b64);
-      const u8 = new Uint8Array(bin.length);
-      for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
-      const blob = new Blob([u8], { type: track.mime || 'audio/mpeg' });
-      url = URL.createObjectURL(blob);
-    } catch (_) {}
-  } else if (track.spot_id) {
-    url = '/buenfin/' + track.spot_id + '.mp3';
-  }
-  if (!url) return;
-
-  spotAudio = new Audio(url);
-  spotAudio._u = url;
-  const curVol = (parseInt(document.getElementById('volSlider').value, 10) || 85);
-  const userVol = curVol / 100;
-
-  const isRodo = track.name && /rodo|locutor|consejo|hora/i.test(track.name);
-  setStatus(isRodo ? ('🎙️ ' + track.name) : ('📣 ' + (track.name || 'Spot al aire')), 'spot');
-
-  // Si coincide con alguna promoción oficial del carrusel, sincronizarla visualmente
-  if (track.spot_id) {
-    const idx = BUEN_FIN_SPOTS.findIndex(s => s.spot_id === track.spot_id);
-    if (idx >= 0 && idx !== curPromoIdx) showPromo(idx, true);
-  }
-
-  // Crossfade: la música baja suavemente mientras la voz / spot entra gradualmente
-  fadeOutYT(1000, 0);
-  fadeInAudio(spotAudio, 500, userVol);
-
-  const resume = () => {
-    fadeOutAudio(spotAudio, 400, () => {
-      stopSpotAudio();
-    });
-    try {
-      const curDeck = decks[activeDeck];
-      if (curDeck && curDeck.ready && _lastYtId) {
-        const p = _liveNow();
-        if (p > 2) curDeck.player.seekTo(p, true);
-      }
-    } catch (_) {}
-    // Música sube suavemente en crossfade
-    fadeInYT(1200, curVol);
-    setStatus('● EN VIVO', 'live');
-  };
-
-  spotAudio.onended = resume;
-  spotAudio.onerror = resume;
-}
-
-function playSpotB64(track) {
-  playSpotTrack(track);
-}
-
-// Reproducción periódica autónoma de spots de Buen Fin (cada ~2.5 min) con Crossfade
-let bfAudioRotationTimer = null;
-function startBfSpotAudioLoop() {
-  clearInterval(bfAudioRotationTimer);
-  bfAudioRotationTimer = setInterval(() => {
-    if (started && playing && !spotAudio && BUEN_FIN_SPOTS.length) {
-      const s = BUEN_FIN_SPOTS[curPromoIdx];
-      if (!s) return;
-      playSpotTrack({ spot_id: s.spot_id, name: s.titulo, url: '/buenfin/' + s.spot_id + '.mp3' });
-    }
-  }, 150000);
-}
-
-// Actualización en tiempo real de la barra de progreso
-setInterval(() => {
+// ── Actualización de Barra de Progreso ──
+function updateProgressBar() {
   let c = 0, d = (currentTrack && currentTrack.duration) || 0;
   const curDeck = decks[activeDeck];
   if (curDeck && curDeck.ready && _lastYtId) {
@@ -1671,33 +1840,26 @@ setInterval(() => {
     document.getElementById('timeElapsed').textContent = '0:00';
     document.getElementById('timeDuration').textContent = 'EN VIVO';
   }
-}, 500);
+}
 
 function fmtTime(s) {
   s = Math.floor(s || 0);
   return Math.floor(s / 60) + ':' + ('0' + (s % 60)).slice(-2);
 }
 
-// ── Iniciar reproducción activa o Autoplay ──
+// ── Iniciar reproducción activa ──
 function startListening(isAuto = false) {
   if (playing && !isAuto) {
-    const ov = document.getElementById('startOverlay');
-    if (ov) {
-      ov.classList.add('hidden');
-      setTimeout(() => { ov.style.display = 'none'; }, 300);
-    }
+    hideTapOverlay();
     return;
   }
   started = true;
-  if (!isAuto) {
-    window.removeEventListener('click', onFirstGesture);
-    window.removeEventListener('touchstart', onFirstGesture);
-  }
+  if (!isAuto) hideTapOverlay();
 
+  startBgAudioEngine();
   connectWS();
   acquireWakeLock();
   setupMediaSession();
-  startBfSpotAudioLoop();
 
   const curDeck = decks[activeDeck];
   if (curDeck && curDeck.ready) {
@@ -1709,18 +1871,20 @@ function startListening(isAuto = false) {
   }
 
   const t = currentTrack || (_pendingPlay && _pendingPlay.track);
-  if (t && t.ytId) {
-    playRemote(t, _liveNow());
+  if (t) {
+    if (t.type === 'spot' || t.spot_id) {
+      playSpotTrack(t);
+    } else if (t.ytId) {
+      playRemote(t, _liveNow());
+    }
   } else {
     setStatus('Sintonizando estación…', 'connecting');
   }
 
-  if (!isAuto) {
-    const ov = document.getElementById('startOverlay');
-    if (ov) {
-      ov.classList.add('hidden');
-      setTimeout(() => { ov.style.display = 'none'; }, 300);
-    }
+  if (_pendingSpot) {
+    const sp = _pendingSpot;
+    _pendingSpot = null;
+    playSpotTrack(sp);
   }
 }
 
@@ -1729,16 +1893,19 @@ function togglePlay() {
   const curDeck = decks[activeDeck];
   if (playing) {
     try { if (curDeck && curDeck.ready) curDeck.player.pauseVideo(); } catch (_) {}
+    stopSpotAudio();
     playing = false;
     setPlayUI(false);
     setStatus('Pausado', '');
   } else {
+    startBgAudioEngine();
     if (curDeck && curDeck.ready) {
       try { curDeck.player.unMute(); curDeck.player.setVolume(parseInt(document.getElementById('volSlider').value, 10) || 85); } catch (_) {}
     }
     const t = currentTrack || (_pendingPlay && _pendingPlay.track);
-    if (t && t.ytId) {
-      playRemote(t, _liveNow());
+    if (t) {
+      if (t.type === 'spot' || t.spot_id) playSpotTrack(t);
+      else if (t.ytId) playRemote(t, _liveNow());
     } else {
       setStatus('Sintonizando estación…', 'connecting');
     }
@@ -1763,6 +1930,7 @@ function setStatus(msg, cls = '') {
 
 function setVolume(v) {
   const val = parseInt(v, 10);
+  _curVolMaster = val;
   const curDeck = decks[activeDeck];
   if (curDeck && curDeck.ready) {
     try { curDeck.player.setVolume(val); } catch (_) {}
@@ -1778,24 +1946,17 @@ function toggleMute() {
     slider.value = 0;
     setVolume(0);
   } else {
-    const prev = slider.dataset.oldVal || 85;
-    slider.value = prev;
-    setVolume(prev);
+    slider.value = slider.dataset.oldVal || 85;
+    setVolume(slider.value);
   }
-}
-
-function copyShareUrl() {
-  navigator.clipboard?.writeText(shareUrl).then(() => {
-    setStatus('✅ Enlace copiado', 'live');
-    setTimeout(() => { setStatus('● EN VIVO', 'live'); }, 2000);
-  }).catch(() => {});
 }
 
 // ── Actualizar portada y metadatos de la canción ──
 function updateNowPlayingUI(track) {
   currentTrack = track;
-  const name = track?.name || track?.title || 'Radio Terrapesca';
-  const artist = track?.channelTitle || track?.artist || 'Equipa tu aventura';
+  const isSpot = track?.type === 'spot' || track?.spot_id;
+  const name = track?.name || track?.title || (isSpot ? 'Spot Terrapesca' : 'Radio Terrapesca');
+  const artist = isSpot ? 'Promoción Oficial Buen Fin' : (track?.channelTitle || track?.artist || 'Equipa tu aventura');
 
   document.getElementById('trackName').textContent = name;
   document.getElementById('trackArtist').textContent = artist;
@@ -1839,24 +2000,29 @@ function syncHeart() {
   b.classList.toggle('liked', on);
 }
 
-// ── WebSocket Live Sync ──
+// ── Conexión WebSocket Sincronizada con el Servidor ──
 function connectWS() {
-  clearTimeout(wsTimer);
   if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
-  const url = location.origin.replace('https://', 'wss://').replace('http://', 'ws://');
-  try { ws = new WebSocket(url); } catch (e) { wsTimer = setTimeout(connectWS, 3500); return; }
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const url = `${proto}//${location.host}/ws`;
+
+  try { ws = new WebSocket(url); } catch (_) { return; }
 
   ws.onopen = () => {
     wsOk = true;
-    try { ws.send(JSON.stringify({ type: 'HELLO', role: 'listener' })); } catch (_) {}
-    if (started && !playing) setStatus('● Conectado a la estación', 'live');
+    sendWS({ type: 'HELLO', role: 'listener' });
   };
+
   ws.onclose = () => {
     wsOk = false;
-    if (started && !playing) setStatus('Reconectando con la estación…', 'connecting');
-    wsTimer = setTimeout(connectWS, 3500);
+    clearTimeout(wsTimer);
+    wsTimer = setTimeout(connectWS, 2500);
   };
-  ws.onerror = () => {};
+
+  ws.onerror = () => {
+    try { ws.close(); } catch (_) {}
+  };
+
   ws.onmessage = (e) => {
     try {
       const m = JSON.parse(e.data);
@@ -1867,8 +2033,12 @@ function connectWS() {
             _livePos = { pos: st.position || 0, at: st.lastUpdate || Date.now(), playing: !!st.isPlaying };
             currentTrack = st.currentTrack;
             updateNowPlayingUI(st.currentTrack);
-            if (started && st.currentTrack.ytId && st.isPlaying) {
-              playRemote(st.currentTrack, _liveNow());
+            if (started && st.isPlaying) {
+              if (st.currentTrack.type === 'spot' || st.currentTrack.spot_id) {
+                playSpotTrack(st.currentTrack);
+              } else if (st.currentTrack.ytId) {
+                playRemote(st.currentTrack, _liveNow());
+              }
             } else if (!started) {
               _pendingPlay = { track: st.currentTrack, pos: _liveNow() };
             }
@@ -1880,9 +2050,13 @@ function connectWS() {
             _livePos = { pos: m.position || 0, at: Date.now(), playing: true };
             currentTrack = m.track;
             updateNowPlayingUI(m.track);
-            if (started && m.track.ytId) {
-              playRemote(m.track, m.position || 0);
-            } else if (!started) {
+            if (started) {
+              if (m.track.type === 'spot') {
+                playSpotTrack(m.track);
+              } else if (m.track.ytId) {
+                playRemote(m.track, m.position || 0);
+              }
+            } else {
               _pendingPlay = { track: m.track, pos: m.position || 0 };
             }
           }
@@ -1893,7 +2067,10 @@ function connectWS() {
           break;
         case 'RESUME':
           _livePos = { pos: m.position || 0, at: Date.now(), playing: true };
-          if (started && currentTrack && currentTrack.ytId) playRemote(currentTrack, m.position || 0);
+          if (started && currentTrack) {
+            if (currentTrack.ytId) playRemote(currentTrack, m.position || 0);
+            else if (currentTrack.type === 'spot') playSpotTrack(currentTrack);
+          }
           break;
         case 'SPOT':
           if (m.track) playSpotTrack(m.track);
@@ -1902,6 +2079,7 @@ function connectWS() {
     } catch (_) {}
   };
 }
+
 function sendWS(d) {
   if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(d));
 }
@@ -1924,11 +2102,21 @@ function setupMediaSession() {
   navigator.mediaSession.setActionHandler('stop', () => { togglePlay(); });
 }
 
+// Reanudación suave y sincronización cuando la pestaña vuelve a ser visible
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden) return;
   acquireWakeLock();
-  if (started && currentTrack && currentTrack.ytId) {
-    setTimeout(() => { try { playRemote(currentTrack, _liveNow()); } catch (_) {} }, 400);
+  if (!document.hidden && started) {
+    if (audioCtx && audioCtx.state === 'suspended') {
+      try { audioCtx.resume(); } catch (_) {}
+    }
+    const cur = decks[activeDeck];
+    if (cur && cur.player && cur.ready && !spotAudio && playing) {
+      try {
+        if (cur.player.getPlayerState() !== YT.PlayerState.PLAYING) {
+          cur.player.playVideo();
+        }
+      } catch (_) {}
+    }
   }
 });
 
