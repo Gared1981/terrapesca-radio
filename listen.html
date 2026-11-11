@@ -320,7 +320,7 @@
     margin-left: auto;
   }
 
-  /* Contenido del Spot Activo */
+  /* Contenido del Spot Activo con Transición Suave */
   .car-body {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -328,6 +328,13 @@
     align-items: center;
     flex: 1;
     z-index: 2;
+    opacity: 1;
+    transform: translateY(0);
+    transition: opacity 0.35s cubic-bezier(0.25, 1, 0.5, 1), transform 0.35s cubic-bezier(0.25, 1, 0.5, 1);
+  }
+  .car-body.fade-out {
+    opacity: 0;
+    transform: translateY(8px) scale(0.99);
   }
 
   /* Imagen/Visual del Producto */
@@ -889,8 +896,8 @@
         <span class="car-counter-tag" id="carCounter">1 / 6</span>
       </div>
 
-      <!-- Cuerpo del Slide -->
-      <div class="car-body">
+      <!-- Cuerpo del Slide con Transición Suave -->
+      <div class="car-body" id="carBody">
         <!-- Visual / Video con Efectos (Sin audio para no interferir con la radio) -->
         <div class="car-visual-box">
           <div class="car-ambient-glow"></div>
@@ -1108,7 +1115,8 @@ let curPromoIdx = 0;
 let promoTimer = null;
 let promoProgressTimer = null;
 let promoProgressMs = 0;
-const PROMO_INTERVAL_MS = 6000;
+const PROMO_INTERVAL_MS = 14000; // 14 segundos para apreciar los videos y detalles
+let isTransitioning = false;
 
 // Cargar spots desde el servidor con fallback instantáneo
 async function loadServerSpots() {
@@ -1128,7 +1136,7 @@ async function loadServerSpots() {
     }
   } catch (_) {}
   buildPromoDots();
-  renderPromo(curPromoIdx);
+  renderPromo(curPromoIdx, true);
   startPromoCarousel();
 }
 
@@ -1143,86 +1151,89 @@ function buildPromoDots() {
   });
 }
 
-function renderPromo(idx) {
+function renderPromo(idx, immediate = false) {
   if (!BUEN_FIN_SPOTS.length) return;
   curPromoIdx = (idx + BUEN_FIN_SPOTS.length) % BUEN_FIN_SPOTS.length;
   const s = BUEN_FIN_SPOTS[curPromoIdx];
+  const body = document.getElementById('carBody');
 
-  document.getElementById('carCategory').textContent = s.categoria || 'BUEN FIN';
-  document.getElementById('carIsla').textContent = s.isla || 'Sucursal Terrapesca';
-  document.getElementById('carCounter').textContent = (curPromoIdx + 1) + ' / ' + BUEN_FIN_SPOTS.length;
+  const applyData = () => {
+    document.getElementById('carCategory').textContent = s.categoria || 'BUEN FIN';
+    document.getElementById('carIsla').textContent = s.isla || 'Sucursal Terrapesca';
+    document.getElementById('carCounter').textContent = (curPromoIdx + 1) + ' / ' + BUEN_FIN_SPOTS.length;
 
-  document.getElementById('carDiscount').textContent = s.descuento_txt || (s.descuento_pct ? s.descuento_pct + '% OFF' : 'OFERTA');
-  document.getElementById('carTitle').textContent = s.titulo || '';
-  document.getElementById('carDesc').textContent = s.descripcion || '';
+    document.getElementById('carDiscount').textContent = s.descuento_txt || (s.descuento_pct ? s.descuento_pct + '% OFF' : 'OFERTA');
+    document.getElementById('carTitle').textContent = s.titulo || '';
+    document.getElementById('carDesc').textContent = s.descripcion || '';
 
-  const pb = Number(s.precio_buenfin || 0);
-  const pr = Number(s.precio_regular || 0);
-  const ah = Number(s.ahorro || (pr - pb));
+    const pb = Number(s.precio_buenfin || 0);
+    const pr = Number(s.precio_regular || 0);
+    const ah = Number(s.ahorro || (pr - pb));
 
-  document.getElementById('carPriceBuenFin').textContent = '$' + pb.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' MXN';
-  document.getElementById('carPriceReg').textContent = '$' + pr.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  document.getElementById('carSavings').textContent = 'AHORRAS: $' + ah.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' MXN';
+    document.getElementById('carPriceBuenFin').textContent = '$' + pb.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' MXN';
+    document.getElementById('carPriceReg').textContent = '$' + pr.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    document.getElementById('carSavings').textContent = 'AHORRAS: $' + ah.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' MXN';
 
-  const vid = document.getElementById('carVideo');
-  const img = document.getElementById('carImg');
-  const videoUrl = s.video_url || ('/buenfin/' + s.spot_id + '.mp4');
-  const photoUrl = s.foto_url || ('/buenfin/' + s.spot_id + '.jpg');
+    const vid = document.getElementById('carVideo');
+    const img = document.getElementById('carImg');
+    const videoUrl = s.video_url || ('/buenfin/' + s.spot_id + '.mp4');
+    const photoUrl = s.foto_url || ('/buenfin/' + s.spot_id + '.jpg');
 
-  if (vid) {
-    // Estrictamente SILENCIOSO (sin audio) para no chocar jamás con la radio
-    vid.muted = true;
-    vid.volume = 0;
-    vid.playsInline = true;
-    vid.loop = true;
-    vid.style.opacity = '0';
-    vid.style.display = 'block';
-    if (img) img.style.display = 'none';
+    if (vid) {
+      // Estrictamente SILENCIOSO (sin audio) para no chocar jamás con la radio
+      vid.muted = true;
+      vid.volume = 0;
+      vid.playsInline = true;
+      vid.loop = true;
+      vid.style.display = 'block';
+      if (img) img.style.display = 'none';
 
-    vid.src = videoUrl;
-    vid.currentTime = 0;
-    vid.oncanplay = () => {
-      vid.style.opacity = '1';
+      vid.src = videoUrl;
+      vid.currentTime = 0;
       vid.play().catch(() => {});
-    };
-    vid.onerror = () => {
-      // Fallback a imagen estática si el video fallara
-      vid.style.display = 'none';
-      if (img) {
-        img.style.display = 'block';
-        img.src = photoUrl;
-        img.style.opacity = '1';
-      }
-    };
-    vid.play().catch(() => {});
-  } else if (img) {
-    img.style.opacity = '0';
-    setTimeout(() => {
+    } else if (img) {
+      img.style.display = 'block';
       img.src = photoUrl;
       img.onerror = () => { img.src = TP_LOGO; };
-      img.style.opacity = '1';
-    }, 150);
+    }
+
+    const qrImg = document.getElementById('carQrImg');
+    qrImg.src = s.qr_imagen_url || ('/buenfin/' + s.spot_id + '_qr.png');
+
+    const buyBtn = document.getElementById('carBuyBtn');
+    buyBtn.href = s.qr_compra_url || 'https://buenfin.terrapescaapi.com/cliente';
+
+    // Actualizar dots
+    const dots = document.querySelectorAll('.car-dot');
+    dots.forEach((d, i) => d.classList.toggle('active', i === curPromoIdx));
+
+    // Reiniciar barra de tiempo
+    promoProgressMs = 0;
+    document.getElementById('carTimerFill').style.width = '0%';
+
+    // Reaparecer con fade-in suave
+    if (body) {
+      setTimeout(() => {
+        body.classList.remove('fade-out');
+        isTransitioning = false;
+      }, 40);
+    }
+  };
+
+  if (immediate || !body) {
+    applyData();
+  } else {
+    isTransitioning = true;
+    body.classList.add('fade-out');
+    setTimeout(applyData, 280);
   }
-
-  const qrImg = document.getElementById('carQrImg');
-  qrImg.src = s.qr_imagen_url || ('/buenfin/' + s.spot_id + '_qr.png');
-
-  const buyBtn = document.getElementById('carBuyBtn');
-  buyBtn.href = s.qr_compra_url || 'https://buenfin.terrapescaapi.com/cliente';
-
-  // Actualizar dots
-  const dots = document.querySelectorAll('.car-dot');
-  dots.forEach((d, i) => d.classList.toggle('active', i === curPromoIdx));
-
-  // Reiniciar barra de tiempo
-  promoProgressMs = 0;
-  document.getElementById('carTimerFill').style.width = '0%';
 }
 
 function nextPromo() { selectPromo(curPromoIdx + 1); }
 function prevPromo() { selectPromo(curPromoIdx - 1); }
 
 function selectPromo(idx) {
+  if (isTransitioning) return;
   renderPromo(idx);
   startPromoCarousel();
 }
