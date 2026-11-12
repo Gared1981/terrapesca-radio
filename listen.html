@@ -1817,9 +1817,14 @@ function playSpotTrack(track) {
     fadeOutAudio(spotAudio, 400, () => {
       stopSpotAudio();
     });
-    // Música sube suavemente en crossfade
-    fadeInYT(1200, curVol);
-    setStatus('● EN VIVO', 'live');
+    // Solo reanudar YouTube si la transmisión sigue activa (24/7 o Cabina al aire)
+    if (_isRadioPlaying && currentTrack && currentTrack.ytId) {
+      fadeInYT(1200, curVol);
+      setStatus('● EN VIVO', 'live');
+    } else {
+      if (ytReady) { try { decks[activeDeck].player.pauseVideo(); } catch (_) {} }
+      setStatus('● FUERA DE AIRE', 'offair');
+    }
   };
 
   spotAudio.onended = resume;
@@ -2185,9 +2190,12 @@ function connectWS() {
   ws.onmessage = (e) => {
     try {
       const m = JSON.parse(e.data);
+      if (m.serverVer) _checkServerVersion(m.serverVer);
       switch (m.type) {
         case 'SYNC': {
           const st = m.state || {};
+          _isRadioPlaying = !!st.isPlaying;
+          if (typeof st.autopilotOn === 'boolean') _serverAutopilot = st.autopilotOn;
           if (st.currentTrack) {
             _livePos = { pos: st.position || 0, at: st.lastUpdate || Date.now(), playing: !!st.isPlaying };
             currentTrack = st.currentTrack;
@@ -2198,14 +2206,23 @@ function connectWS() {
               } else if (st.currentTrack.ytId) {
                 playRemote(st.currentTrack, _liveNow());
               }
+            } else if (started && !st.isPlaying) {
+              if (ytReady) { try { decks[activeDeck].player.pauseVideo(); } catch (_) {} }
+              stopSpotAudio();
+              setStatus('● FUERA DE AIRE', 'offair');
             } else if (!started) {
               _pendingPlay = { track: st.currentTrack, pos: _liveNow() };
             }
+          } else if (started && !st.isPlaying) {
+            if (ytReady) { try { decks[activeDeck].player.pauseVideo(); } catch (_) {} }
+            stopSpotAudio();
+            setStatus('● FUERA DE AIRE', 'offair');
           }
           break;
         }
         case 'PLAY':
           if (m.track) {
+            _isRadioPlaying = true;
             _livePos = { pos: m.position || 0, at: Date.now(), playing: true };
             currentTrack = m.track;
             updateNowPlayingUI(m.track);
@@ -2221,10 +2238,14 @@ function connectWS() {
           }
           break;
         case 'PAUSE':
+          _isRadioPlaying = false;
           _livePos = { pos: m.position || 0, at: Date.now(), playing: false };
           if (ytReady) { try { decks[activeDeck].player.pauseVideo(); } catch (_) {} }
+          stopSpotAudio();
+          setStatus('● FUERA DE AIRE', 'offair');
           break;
         case 'RESUME':
+          _isRadioPlaying = true;
           _livePos = { pos: m.position || 0, at: Date.now(), playing: true };
           if (started && currentTrack) {
             if (currentTrack.ytId) playRemote(currentTrack, m.position || 0);
@@ -2234,10 +2255,42 @@ function connectWS() {
         case 'SPOT':
           if (m.track) playSpotTrack(m.track);
           break;
+        case 'AUTOPILOT':
+          _serverAutopilot = !!m.on;
+          if (!m.on && !_isRadioPlaying) {
+            if (ytReady) { try { decks[activeDeck].player.pauseVideo(); } catch (_) {} }
+            stopSpotAudio();
+            setStatus('● FUERA DE AIRE', 'offair');
+          }
+          break;
       }
     } catch (_) {}
   };
 }
+
+let _currentServerVersion = null;
+let _isRadioPlaying = false;
+let _serverAutopilot = false;
+function _checkServerVersion(ver) {
+  if (!ver) return;
+  if (!_currentServerVersion) {
+    _currentServerVersion = ver;
+    return;
+  }
+  if (_currentServerVersion !== ver) {
+    console.log('[Listen] Nueva versión detectada en el servidor (' + ver + '). Recargando automáticamente…');
+    _currentServerVersion = ver;
+    setTimeout(() => { location.reload(true); }, 1200);
+  }
+}
+
+// Sondeo periódico cada 20s para capturar cualquier despliegue nuevo
+setInterval(() => {
+  fetch('/api/version')
+    .then(r => r.json())
+    .then(d => { if (d && d.version) _checkServerVersion(d.version); })
+    .catch(() => {});
+}, 20000);
 
 function sendWS(d) {
   if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(d));
@@ -2324,9 +2377,28 @@ function closeIosInstall() {
 
 // Registrar Service Worker para PWA y audio en segundo plano
 if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener('message', (e) => {
+    if (e.data && e.data.type === 'SW_UPDATED') {
+      console.log('[PWA] Service Worker actualizado con nueva versión del sistema');
+      setTimeout(() => { location.reload(true); }, 800);
+    }
+  });
+
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js', { scope: '/' }).then(reg => {
       console.log('[PWA] ServiceWorker registrado:', reg.scope);
+      if (reg.update) reg.update();
+      reg.onupdatefound = () => {
+        const inst = reg.installing;
+        if (inst) {
+          inst.onstatechange = () => {
+            if (inst.state === 'installed' && navigator.serviceWorker.controller) {
+              console.log('[PWA] Nueva versión lista en cache, recargando...');
+              setTimeout(() => { location.reload(true); }, 500);
+            }
+          };
+        }
+      };
     }).catch(err => {
       console.warn('[PWA] ServiceWorker registro:', err);
     });

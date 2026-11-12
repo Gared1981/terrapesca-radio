@@ -1,7 +1,7 @@
 // Radio Terrapesca Service Worker - PWA & Background Audio Engine
 // Mantiene activos los recursos en segundo plano y caché inteligente
 
-const CACHE = 'terrapesca-radio-v6';
+const CACHE = 'terrapesca-radio-v7';
 const STATIC = [
   '/',
   '/index.html',
@@ -28,7 +28,11 @@ self.addEventListener('activate', e => {
       Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
     )
   );
-  self.clients.claim();
+  self.clients.claim().then(() => {
+    self.clients.matchAll({ type: 'window' }).then(clients => {
+      clients.forEach(c => c.postMessage({ type: 'SW_UPDATED' }));
+    });
+  });
 });
 
 self.addEventListener('fetch', e => {

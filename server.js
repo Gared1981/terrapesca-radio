@@ -28,6 +28,10 @@ _checkBin('ffmpeg', ['-version'], ok => { ffmpegReady = ok; console.log('[audio]
 process.on('uncaughtException', (e) => { console.error('[uncaughtException]', e && e.stack || e); });
 process.on('unhandledRejection', (e) => { console.error('[unhandledRejection]', e && e.stack || e); });
 
+// ---- CONTROL DE VERSIONES Y ACTUALIZACIÓN EN VIVO ----
+const SERVER_BOOT_TIME = Date.now();
+const SERVER_VERSION = process.env.RAILWAY_DEPLOYMENT_ID || process.env.COMMIT_SHA || `ver-${SERVER_BOOT_TIME}`;
+
 // ---- LOGIN / GATE ----
 // Todas las páginas (Cabina, Sucursal, Tienda, Panel, Inicio) requieren login.
 // EXCEPCIÓN: /listen es pública (la radio para el público).
@@ -968,6 +972,23 @@ function searchYouTubeNoKey(q) {
         'xi-api-key': apiKey
       }, body, res);
     });
+    return;
+  }
+
+  // ── API Versión y Estado del Servidor (para auto-recarga de oyentes y cabina) ──
+  if (urlPath === '/api/version') {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.writeHead(200, {
+      'Content-Type': 'application/json',
+      'Cache-Control': 'no-cache, no-store, must-revalidate'
+    });
+    res.end(JSON.stringify({
+      ok: true,
+      version: SERVER_VERSION,
+      bootTime: SERVER_BOOT_TIME,
+      autopilotOn: !!radioState.autopilotOn,
+      isPlaying: !!radioState.isPlaying
+    }));
     return;
   }
 
@@ -1991,7 +2012,12 @@ function stopAutopilot() {
   radioState.autopilotOn = false;
   clearTimeout(autopilot.timer); autopilot.timer = null;
   _apSave();
-  broadcast({ type: 'AUTOPILOT', on: false });
+  radioState.isPlaying = false;
+  radioState.position = 0;
+  if (currentStreamDestroy) { currentStreamDestroy(); currentStreamDestroy = null; }
+  broadcast({ type: 'AUTOPILOT', on: false, serverVer: SERVER_VERSION });
+  broadcast({ type: 'PAUSE', position: 0 });
+  broadcast({ type: 'SYNC', state: radioState, serverVer: SERVER_VERSION });
   console.log('[24/7] detenido');
 }
 function autopilotAdvance(dir) {
@@ -2052,7 +2078,7 @@ wss.on('connection', (ws, req) => {
   ws._ip = _clientIP(req);
   ws._isAuthed = isAuthed(req);
   ws.on('pong', () => { ws.isAlive = true; });
-  ws.send(JSON.stringify({ type: 'SYNC', state: radioState }));
+  ws.send(JSON.stringify({ type: 'SYNC', state: radioState, serverVer: SERVER_VERSION }));
   if (radioState.jingleB64) ws.send(JSON.stringify({ type: 'JINGLE_SET', b64: radioState.jingleB64 }));
 
   ws.on('message', (raw) => {
@@ -2141,6 +2167,7 @@ wss.on('connection', (ws, req) => {
           radioState.position = 0;
           radioState.lastUpdate = Date.now();
           broadcast({ type: 'SPOT', track: msg.track }, ws);
+          if (streamClients.size > 0 && msg.track) startStreamTrack(msg.track);
           break;
         case 'JINGLE_SET':
           if (typeof msg.b64 === 'string' && msg.b64.length > MAX_JINGLE_B64) {

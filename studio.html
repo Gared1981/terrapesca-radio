@@ -990,6 +990,7 @@ function _renderAutopilotTrackInStudio(track, position, preview){
   });
 
   renderDeck(0);
+  renderDeck(1);
 
   _apCurrentPos=position || 0;
   _apCurrentDur=decks[0].dur;
@@ -1038,6 +1039,7 @@ function _renderAutopilotSpotInStudio(spot){
 
 function _onRemoteCmd(ev){
   let msg=null; try{ msg=JSON.parse(ev.data); }catch(_){ return; }
+  if(msg.serverVer) _checkServerVersion(msg.serverVer);
   // Oyentes en vivo (conteo + ubicación) que reporta el servidor
   if(msg.type==='LISTENERS'){ renderListeners(msg); return; }
   // Reflejar el estado de la Radio 24/7 que reporta el servidor
@@ -1077,10 +1079,41 @@ function _onRemoteCmd(ev){
 function _wsSendCurrentState(){
   if(_autopilotOn) return;
   const d=decks[activeDeck];
-  if(!d||!d.item) return;
+  if(!d||!d.item){
+    _wsSend({ type:'PAUSE', position:0 });
+    return;
+  }
   let pos=0; try{pos=d.player.getCurrentTime()||0;}catch(_){}
-  _wsPlayTrack(d.item, pos);
+  if(d.playing){
+    _wsPlayTrack(d.item, pos);
+  } else {
+    _wsSend({ type:'PAUSE', position:Math.round(pos) });
+  }
 }
+
+let _currentStudioVersion = null;
+function _checkServerVersion(ver){
+  if(!ver) return;
+  if(!_currentStudioVersion){
+    _currentStudioVersion = ver;
+    return;
+  }
+  if(_currentStudioVersion !== ver){
+    console.log('[Studio] Nueva versión del servidor ('+ver+').');
+    _currentStudioVersion = ver;
+    const isLiveManual = !_autopilotOn && decks.some(d => d.playing);
+    if(!isLiveManual){
+      toast('Actualizando cabina a la última versión…', 'ok');
+      setTimeout(()=>{ location.reload(true); }, 1200);
+    }
+  }
+}
+setInterval(()=>{
+  fetch('/api/version')
+    .then(r => r.json())
+    .then(d => { if(d && d.version) _checkServerVersion(d.version); })
+    .catch(()=>{});
+}, 25000);
 // Sync pulse every 60s — enough for sucursales re-joining; skips if crossfading to avoid hitch.
 // En modo 24/7 el servidor es la fuente: el studio no transmite para no competir.
 setInterval(()=>{ if(_swsOk && !_xfading && !djActive && !_autopilotOn) _wsSendCurrentState(); }, 60000);
@@ -1167,6 +1200,7 @@ async function _buildAutopilotList(){
 async function toggleRadio247(){
   if(_autopilotOn){
     _wsSend({type:'AUTOPILOT_STOP'});
+    _setAutopilotUI(false);
     toast('Radio 24/7 detenida — vuelves a control manual','ok');
     return;
   }
@@ -1193,11 +1227,21 @@ function _setAutopilotUI(on){
       try{ if(d.player&&d.player.setVolume) d.player.setVolume(0); }catch(_){}
       d.playing=false;
     });
+    activeDeck=0;
     setCrossfader(0);
     setOnAir(true);
+    renderDeck(0);
+    renderDeck(1);
   } else {
     clearInterval(_apElapsedTimer);
+    decks.forEach(d=>{
+      try{ if(d.player&&d.player.pauseVideo) d.player.pauseVideo(); }catch(_){}
+      try{ if(d.player&&d.player.setVolume) d.player.setVolume(0); }catch(_){}
+      d.playing=false;
+    });
     setOnAir(false);
+    renderDeck(0);
+    renderDeck(1);
   }
 }
 function _wsPlayTrack(item, positionSecs){
@@ -2293,6 +2337,7 @@ async function playSpot(){
   if(!spots.length) return;
   const sp=spots[Math.floor(Math.random()*spots.length)];
   if(!sp||!sp.b64) return;
+  const wasStationLive = _autopilotOn || decks.some(d => d.playing);
   djActive=true; _endedDuringDJ=false; setDJState('spot'); setOnAir(true);
   try{
     const bin=atob(sp.b64),arr=new Uint8Array(bin.length);
@@ -2302,27 +2347,28 @@ async function playSpot(){
     document.getElementById('djNow').textContent='📢 '+(sp.name||'Spot Terrapesca');
     pushHistory({name:sp.name||'Spot',artist:'Spot publicitario',spot:true});
     _wsSpotAudio(arr.buffer, sp.name||'Spot Terrapesca', mime);
-    // Spot: la canción baja suavemente y se pausa
-    if(flags.duck) fadeOutAndPause(600);
+    // Spot: la canción baja suavemente y se pausa (solo si estaba al aire)
+    if(wasStationLive && flags.duck) fadeOutAndPause(600);
     if(!baked && sp.bed && sp.bed!=='none') playSpotBed(sp.bed); // spots viejos: fondo en vivo
-    // Radio moderna: 2.8s antes de que termine el spot, reanuda la canción y sube gradualmente
+    // Radio moderna: 2.8s antes de que termine el spot, reanuda la canción y sube gradualmente (solo si estaba al aire)
     await playClip(URL.createObjectURL(new Blob([arr],{type:mime})), ()=>{
       console.log('[Radio] Rampa musical gradual antes de que finalice el spot…');
-      if(flags.duck) fadeInAndResume(2800);
+      if(wasStationLive && flags.duck) fadeInAndResume(2800);
     });
   }catch(e){
     console.warn('[Spot] Error reproduciendo spot:',e);
   }
   finally{
     console.log('[Rodo] spot ended — restoring music');
-    if(flags.duck && decks[activeDeck] && decks[activeDeck].vol < 0.95){
+    if(wasStationLive && flags.duck && decks[activeDeck] && decks[activeDeck].vol < 0.95){
       fadeInAndResume(800);
     }
     stopSpotBed();
     djActive=false; setDJState('standby');
     if(_endedDuringDJ && !_xfading){ console.log('[Rodo] song ended during spot — advancing'); advanceNoXfade(); }
-    else { _resumeActiveDeckIfStalled(); }
+    else if(wasStationLive) { _resumeActiveDeckIfStalled(); }
     refreshDJStatus();
+    updateOnAir();
     // Notify sucursales so they reconnect without waiting for the 60s sync interval.
     // Skip during a crossfade: activeDeck still points at the OLD deck mid-fade, so
     // sending state now would push the wrong track; doCrossfade emits its own PLAY.
