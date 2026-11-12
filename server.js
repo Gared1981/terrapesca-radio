@@ -141,11 +141,232 @@ function _ytsSaveSoon() {
     try { fs.writeFileSync(YTS_FILE, JSON.stringify(_ytsCache)); } catch (_) {}
   }, 4000); // agrupa escrituras durante una importación
 }
-function _ytsKey(q) { return String(q || '').toLowerCase().replace(/\s+/g, ' ').trim(); }
+function _ytsKey(q) { return 'v3:' + String(q || '').toLowerCase().replace(/\s+/g, ' ').trim(); }
 function _ytsGet(q) {
   const e = _ytsCache[_ytsKey(q)];
-  if (e && (Date.now() - e.ts) < YTS_TTL_MS && Array.isArray(e.items)) return e.items;
+  if (e && (Date.now() - e.ts) < YTS_TTL_MS && Array.isArray(e.items) && e.items.length) return e.items;
   return null;
+}
+
+// ---- VERIFICADOR REAL DE EMBED YOUTUBE (evita Error 101 / 150 "El video no se puede reproducir") ----
+let _ytEmbedParams = null, _ytEmbedParamsTs = 0;
+const _embedVerifyCache = new Map(); // ytId -> { ok, duration, title, author, ts }
+
+function _httpsReqText(urlStr, opts = {}) {
+  return new Promise((resolve, reject) => {
+    let u;
+    try { u = new URL(urlStr); } catch (e) { return reject(e); }
+    const req = https.request({
+      hostname: u.hostname,
+      path: u.pathname + u.search,
+      method: opts.method || 'GET',
+      headers: Object.assign({
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+        'Accept-Language': 'es-MX,es;q=0.9,en;q=0.8'
+      }, opts.headers || {})
+    }, (res) => {
+      let raw = '';
+      res.on('data', c => { if (raw.length < 3 * 1024 * 1024) raw += c; });
+      res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, body: raw }));
+      res.on('error', reject);
+    });
+    req.on('error', reject);
+    req.setTimeout(opts.timeout || 7000, () => { req.destroy(); reject(new Error('timeout')); });
+    if (opts.body) req.write(opts.body);
+    req.end();
+  });
+}
+
+async function _getYtEmbedParams() {
+  if (_ytEmbedParams && (Date.now() - _ytEmbedParamsTs) < 6 * 3600 * 1000) return _ytEmbedParams;
+  try {
+    const r = await _httpsReqText('https://www.youtube.com/embed/dQw4w9WgXcQ', { timeout: 6000 });
+    const ver = (r.body.match(/"INNERTUBE_CLIENT_VERSION":"([^"]+)"/) || [])[1];
+    const jsUrl = (r.body.match(/"jsUrl":"([^"]+)"/) || [])[1];
+    if (!ver || !jsUrl) return null;
+    const jr = await _httpsReqText('https://www.youtube.com' + jsUrl, { timeout: 8000 });
+    const sts = parseInt((jr.body.match(/signatureTimestamp:(\d+)/) || [])[1], 10);
+    if (!sts) return null;
+    _ytEmbedParams = { ver, sts };
+    _ytEmbedParamsTs = Date.now();
+    return _ytEmbedParams;
+  } catch (_) {
+    return _ytEmbedParams;
+  }
+}
+
+async function verifyEmbedPlayable(ytId) {
+  if (!ytId || !/^[\w-]{11}$/.test(ytId)) return { ok: false, duration: 0 };
+  const cached = _embedVerifyCache.get(ytId);
+  if (cached && (Date.now() - cached.ts) < 12 * 3600 * 1000) return cached;
+
+  try {
+    const params = await _getYtEmbedParams();
+    if (!params) return { ok: true, duration: 0, fallback: true };
+
+    const er = await _httpsReqText('https://www.youtube.com/embed/' + ytId + '?origin=https://radio.terrapescaapi.com', {
+      headers: { 'Referer': 'https://radio.terrapescaapi.com/listen' },
+      timeout: 5500
+    });
+    const ep = (er.body.match(/"encryptedHostFlags":"([^"]+)"/) || [])[1];
+    const vd = (er.body.match(/"visitorData":"([^"]+)"/) || [])[1];
+
+    const pr = await _httpsReqText('https://www.youtube.com/youtubei/v1/player?prettyPrint=false', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Origin': 'https://www.youtube.com',
+        'Referer': 'https://www.youtube.com/embed/' + ytId
+      },
+      timeout: 5500,
+      body: JSON.stringify({
+        videoId: ytId,
+        playbackContext: {
+          contentPlaybackContext: {
+            signatureTimestamp: params.sts,
+            encryptedHostFlags: ep
+          }
+        },
+        context: {
+          client: { clientName: 'WEB_EMBEDDED_PLAYER', clientVersion: params.ver, visitorData: vd, hl: 'es-419', gl: 'MX' },
+          thirdParty: { embedUrl: 'https://radio.terrapescaapi.com/' }
+        }
+      })
+    });
+    const j = JSON.parse(pr.body);
+    const st = j.playabilityStatus && j.playabilityStatus.status;
+    const ok = (st === 'OK');
+    const out = {
+      ok,
+      status: st || 'UNKNOWN',
+      duration: parseInt((j.videoDetails && j.videoDetails.lengthSeconds) || '0', 10) || 0,
+      title: (j.videoDetails && j.videoDetails.title) || '',
+      author: (j.videoDetails && j.videoDetails.author) || '',
+      ts: Date.now()
+    };
+    if (_embedVerifyCache.size >= 5000) {
+      const firstKey = _embedVerifyCache.keys().next().value;
+      if (firstKey) _embedVerifyCache.delete(firstKey);
+    }
+    _embedVerifyCache.set(ytId, out);
+    return out;
+  } catch (_) {
+    return { ok: true, duration: 0, fallback: true };
+  }
+}
+
+function searchYouTubeRawNoKey(queryStr) {
+  return new Promise((resolve) => {
+    const url = 'https://www.youtube.com/results?search_query=' + encodeURIComponent(queryStr);
+    const sReq = https.get(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+        'Accept-Language': 'es-MX,es;q=0.9,en;q=0.8'
+      },
+      timeout: 10000
+    }, res => {
+      let html = '';
+      res.on('data', chunk => { if (html.length < 2.5 * 1024 * 1024) html += chunk; });
+      res.on('end', () => {
+        try {
+          const match = html.match(/var ytInitialData = ({.*?});<\/script>/s) || html.match(/ytInitialData\s*=\s*({.+?});/);
+          if (!match) return resolve([]);
+          const data = JSON.parse(match[1]);
+          const sections = data?.contents?.twoColumnSearchResultsRenderer?.primaryContents?.sectionListRenderer?.contents || [];
+          const results = [];
+          for (const sec of sections) {
+            const contents = sec?.itemSectionRenderer?.contents || [];
+            for (const item of contents) {
+              const vr = item.videoRenderer;
+              if (vr && vr.videoId) {
+                const title = vr.title?.runs?.map(r => r.text).join('') || '';
+                const channel = vr.ownerText?.runs?.[0]?.text || '';
+                const durText = vr.lengthText?.simpleText || '';
+                if (!durText) continue; // ignorar lives activos sin duración
+                let duration = 0;
+                const parts = durText.split(':').map(Number);
+                if (parts.length === 2) duration = parts[0] * 60 + parts[1];
+                else if (parts.length === 3) duration = parts[0] * 3600 + parts[1] * 60 + parts[2];
+                if (duration > 0 && (duration < 45 || duration > 900)) continue; // descartar shorts (<45s) y compilados (>15m)
+                const tl = title.toLowerCase();
+                const cl = channel.toLowerCase();
+                let score = 0;
+                if (/\baudio\b|official audio|audio oficial|\bletra\b|\blyrics\b/i.test(tl)) score += 4;
+                if (/- topic$/i.test(cl)) score += 3;
+                if (/official video|video oficial|videoclip/i.test(tl)) score -= 2;
+                if (/vevo$/i.test(cl)) score -= 1;
+                if (/\bkaraoke\b|\binstrumental\b|reacci[oó]n|reaction|tutorial/i.test(tl) && !/karaoke|instrumental/i.test(queryStr)) score -= 6;
+                results.push({
+                  ytId: vr.videoId,
+                  title,
+                  channel,
+                  duration: duration || 210,
+                  thumb: `https://img.youtube.com/vi/${vr.videoId}/mqdefault.jpg`,
+                  _score: score
+                });
+                if (results.length >= 12) break;
+              }
+            }
+            if (results.length >= 12) break;
+          }
+          results.sort((a, b) => b._score - a._score);
+          resolve(results);
+        } catch (_) { resolve([]); }
+      });
+    });
+    sReq.on('error', () => resolve([]));
+    sReq.on('timeout', () => { sReq.destroy(); resolve([]); });
+  });
+}
+
+async function filterVerifiedEmbedItems(candidates, excludeSet, maxVerify = 5) {
+  const filtered = (candidates || []).filter(c => c && c.ytId && !(excludeSet && excludeSet.has(c.ytId)));
+  if (!filtered.length) return [];
+  const head = filtered.slice(0, maxVerify);
+  const tail = filtered.slice(maxVerify);
+  const checks = await Promise.all(head.map(c => verifyEmbedPlayable(c.ytId).then(v => ({ c, v }))));
+  const verified = [];
+  for (const { c, v } of checks) {
+    if (v.ok) {
+      const clean = {
+        ytId: c.ytId,
+        title: c.title || v.title || 'YouTube',
+        channel: c.channel || v.author || '',
+        duration: c.duration || v.duration || 210,
+        thumb: c.thumb || `https://img.youtube.com/vi/${c.ytId}/mqdefault.jpg`
+      };
+      verified.push(clean);
+    }
+  }
+  // Si todos los primeros fallaron embed, probar el resto uno por uno hasta hallar al menos uno reproducible
+  if (!verified.length && tail.length) {
+    for (const c of tail) {
+      const v = await verifyEmbedPlayable(c.ytId);
+      if (v.ok) {
+        verified.push({
+          ytId: c.ytId,
+          title: c.title || v.title || 'YouTube',
+          channel: c.channel || v.author || '',
+          duration: c.duration || v.duration || 210,
+          thumb: c.thumb || `https://img.youtube.com/vi/${c.ytId}/mqdefault.jpg`
+        });
+        break;
+      }
+    }
+  }
+  return verified;
+}
+
+async function searchEmbeddableYouTube(q, excludeSet = null) {
+  const hasAudioWord = /\baudio\b|\bletra\b|\blyrics\b/i.test(q);
+  const q1 = hasAudioWord ? q : (q + ' audio');
+  let raw = await searchYouTubeRawNoKey(q1);
+  let verified = await filterVerifiedEmbedItems(raw, excludeSet, 5);
+  if (!verified.length) {
+    raw = await searchYouTubeRawNoKey(q + ' letra lyrics');
+    verified = await filterVerifiedEmbedItems(raw, excludeSet, 5);
+  }
+  return verified;
 }
 function _ytsPut(q, items) {
   if (!Array.isArray(items) || !items.length) return; // no cachear vacíos (reintenta luego)
@@ -539,14 +760,26 @@ function aiHoursAllowed() {
 // luego resolver cada canción en YouTube. Es best-effort: si Spotify cambia el
 // formato del embed, el recorrido recursivo intenta hallar la lista igualmente.
 function parseSpotifyEmbed(html) {
+  let data = null;
   const m = html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
-  if (!m) throw new Error('formato de Spotify no reconocido');
-  const data = JSON.parse(m[1]);
+  if (m) {
+    try { data = JSON.parse(m[1]); } catch (_) {}
+  }
+  if (!data) {
+    const mInit = html.match(/<script id="initial-state"[^>]*>([\s\S]*?)<\/script>/);
+    if (mInit) {
+      try { data = JSON.parse(Buffer.from(mInit[1].trim(), 'base64').toString('utf8')); } catch (_) {}
+    }
+  }
+  if (!data) throw new Error('formato de Spotify no reconocido');
+
   let name = 'Playlist de Spotify';
-  try { name = data.props.pageProps.state.data.entity.name || name; } catch (_) {}
+  const entity = data?.props?.pageProps?.state?.data?.entity || data?.entities?.items?.[Object.keys(data?.entities?.items || {})[0]] || null;
+  try { name = entity?.name || entity?.title || name; } catch (_) {}
+
   let list = null;
   try {
-    const tl = data.props.pageProps.state.data.entity.trackList;
+    const tl = entity?.trackList || entity?.tracks?.items;
     if (Array.isArray(tl) && tl.length) list = tl;
   } catch (_) {}
   if (!list) {
@@ -556,7 +789,7 @@ function parseSpotifyEmbed(html) {
       if (!o || typeof o !== 'object' || found.length) return;
       if (Array.isArray(o)) {
         if (o.length && o.every(x => x && typeof x === 'object' &&
-            typeof x.title === 'string' && typeof x.subtitle === 'string')) {
+            (typeof x.title === 'string' || typeof x.name === 'string'))) {
           found.push(o); return;
         }
         for (const it of o) walk(it);
@@ -566,11 +799,21 @@ function parseSpotifyEmbed(html) {
     })(data);
     if (found.length) list = found[0];
   }
+  if (!list && entity && (entity.name || entity.title) && entity.type === 'track') {
+    const artist = (entity.artists && entity.artists.map(a => a.name).join(', ')) || entity.subtitle || '';
+    return { name: entity.name || entity.title, count: 1, tracks: [{ title: String(entity.name || entity.title).trim(), artist: String(artist).trim() }] };
+  }
   if (!list) throw new Error('la playlist no trae canciones (¿privada o vacía?)');
   const tracks = list
-    .map(t => ({ title: String(t.title || '').trim(), artist: String(t.subtitle || '').trim() }))
+    .map(raw => {
+      const t = raw.track || raw.item || raw;
+      const title = String(t.title || t.name || '').trim();
+      const artist = String(t.subtitle || (Array.isArray(t.artists) ? t.artists.map(a => a.name || a).join(', ') : '') || '').replace(/\u00a0/g, ' ').trim();
+      return { title, artist };
+    })
     .filter(t => t.title)
-    .slice(0, 200);
+    .slice(0, 300);
+  if (!tracks.length) throw new Error('la playlist no trae canciones válidas');
   return { name, count: tracks.length, tracks };
 }
 
@@ -791,79 +1034,29 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // ── Proxy YouTube search (Fase 2 plan Spotify) ──
-function searchYouTubeNoKey(q) {
-  return new Promise((resolve) => {
-    const url = 'https://www.youtube.com/results?search_query=' + encodeURIComponent(q + ' audio');
-    const sReq = https.get(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept-Language': 'es-MX,es;q=0.9,en;q=0.8'
-      },
-      timeout: 10000
-    }, res => {
-      let html = '';
-      res.on('data', chunk => { if (html.length < 2 * 1024 * 1024) html += chunk; });
-      res.on('end', () => {
-        try {
-          const match = html.match(/var ytInitialData = ({.*?});<\/script>/s) || html.match(/ytInitialData\s*=\s*({.+?});/);
-          if (!match) return resolve([]);
-          const data = JSON.parse(match[1]);
-          const contents = data?.contents?.twoColumnSearchResultsRenderer?.primaryContents?.sectionListRenderer?.contents?.[0]?.itemSectionRenderer?.contents || [];
-          const results = [];
-          for (const item of contents) {
-            const vr = item.videoRenderer;
-            if (vr && vr.videoId) {
-              const title = vr.title?.runs?.[0]?.text || '';
-              const channel = vr.ownerText?.runs?.[0]?.text || '';
-              const durText = vr.lengthText?.simpleText || '';
-              let duration = 0;
-              if (durText) {
-                const parts = durText.split(':').map(Number);
-                if (parts.length === 2) duration = parts[0] * 60 + parts[1];
-                else if (parts.length === 3) duration = parts[0] * 3600 + parts[1] * 60 + parts[2];
-              }
-              results.push({
-                ytId: vr.videoId,
-                title,
-                channel,
-                duration: duration || 210,
-                thumb: `https://img.youtube.com/vi/${vr.videoId}/mqdefault.jpg`
-              });
-              if (results.length >= 8) break;
-            }
-          }
-          resolve(results);
-        } catch (_) { resolve([]); }
-      });
-    });
-    sReq.on('error', () => resolve([]));
-    sReq.on('timeout', () => { sReq.destroy(); resolve([]); });
-  });
-}
-
-  // GET /api/ytsearch?q=...&key=... → busca videos de música y devuelve
-  // items:[{ytId,title,channel,thumb,duration}] con duración en segundos
-  // (search.list + videos.list o búsqueda directa sin key cuando no hay cuota).
+  // ── Proxy YouTube search (Fase 2 plan Spotify — con verificación real de embed) ──
+  // GET /api/ytsearch?q=...&key=...&exclude=...&heal=1 → busca videos de música reproducibles en iframe
   if (req.url.startsWith('/api/ytsearch') && req.method === 'GET') {
     const u = new URL(req.url, 'http://localhost');
-    const q      = u.searchParams.get('q')   || '';
-    const apiKey = u.searchParams.get('key') || '';
+    const q       = u.searchParams.get('q')       || '';
+    const apiKey  = u.searchParams.get('key')     || '';
+    const heal    = u.searchParams.get('heal') === '1';
+    const exclude = new Set((u.searchParams.get('exclude') || '').split(',').map(s => s.trim()).filter(Boolean));
     if (!q) {
       res.writeHead(400, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'q required' }));
       return;
     }
-    // Caché: si ya resolvimos esta búsqueda antes, la devolvemos sin gastar
-    // cuota de YouTube (reimportar una playlist cuesta ~0).
-    const cached = _ytsGet(q);
-    if (cached) {
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ items: cached, cached: true }));
-      return;
+    if (!heal && exclude.size === 0) {
+      const cached = _ytsGet(q);
+      if (cached) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ items: cached, cached: true }));
+        return;
+      }
     }
-    const getJson = (path) => new Promise((resolve, reject) => {
-      const r = https.request({ hostname: 'www.googleapis.com', path, method: 'GET', headers: { 'Accept': 'application/json' } }, (apiRes) => {
+    const getJson = (apiPath) => new Promise((resolve, reject) => {
+      const r = https.request({ hostname: 'www.googleapis.com', path: apiPath, method: 'GET', headers: { 'Accept': 'application/json' } }, (apiRes) => {
         let raw = '';
         apiRes.on('data', c => raw += c);
         apiRes.on('end', () => {
@@ -885,39 +1078,43 @@ function searchYouTubeNoKey(q) {
       let items = [];
       if (apiKey) {
         try {
-          const sr = await getJson(`/youtube/v3/search?part=snippet&type=video&videoCategoryId=10&maxResults=8&q=${encodeURIComponent(q)}&key=${encodeURIComponent(apiKey)}`);
+          const sr = await getJson(`/youtube/v3/search?part=snippet&type=video&videoCategoryId=10&videoEmbeddable=true&videoSyndicated=true&maxResults=8&q=${encodeURIComponent(q)}&key=${encodeURIComponent(apiKey)}`);
           if (sr.status === 200) {
-            items = (sr.json.items || []).filter(it => it.id && it.id.videoId).map(it => ({
+            let apiItems = (sr.json.items || []).filter(it => it.id && it.id.videoId && !exclude.has(it.id.videoId)).map(it => ({
               ytId: it.id.videoId,
               title: it.snippet?.title || 'YouTube',
               channel: it.snippet?.channelTitle || '',
               thumb: it.snippet?.thumbnails?.medium?.url || `https://img.youtube.com/vi/${it.id.videoId}/mqdefault.jpg`,
               duration: 0,
             }));
-            if (items.length) {
+            if (apiItems.length) {
               try {
-                const vr = await getJson(`/youtube/v3/videos?part=contentDetails&id=${items.map(i => i.ytId).join(',')}&key=${encodeURIComponent(apiKey)}`);
-                const durs = {};
-                (vr.json.items || []).forEach(v => { durs[v.id] = iso8601ToSecs(v.contentDetails?.duration); });
-                items.forEach(i => { i.duration = durs[i.ytId] || 0; });
+                const vr = await getJson(`/youtube/v3/videos?part=contentDetails,status&id=${apiItems.map(i => i.ytId).join(',')}&key=${encodeURIComponent(apiKey)}`);
+                const durs = {}, embedOk = {};
+                (vr.json.items || []).forEach(v => {
+                  durs[v.id] = iso8601ToSecs(v.contentDetails?.duration);
+                  embedOk[v.id] = (v.status?.embeddable !== false);
+                });
+                apiItems = apiItems.filter(i => embedOk[i.ytId] !== false);
+                apiItems.forEach(i => { i.duration = durs[i.ytId] || 0; });
               } catch (_) {}
+              items = await filterVerifiedEmbedItems(apiItems, exclude, 4);
             }
           }
         } catch (_) {}
       }
 
-      // Si no hay key o falló la API oficial (cuota o error), usar búsqueda directa sin key
       if (!items || !items.length) {
-        items = await searchYouTubeNoKey(q);
+        items = await searchEmbeddableYouTube(q, exclude);
       }
 
-      if (items && items.length) {
+      if (items && items.length && exclude.size === 0) {
         _ytsPut(q, items);
       }
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ items: items || [] }));
-    })().catch(e => {
-      searchYouTubeNoKey(q).then(items => {
+    })().catch(() => {
+      searchEmbeddableYouTube(q, exclude).then(items => {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ items: items || [] }));
       }).catch(() => {
@@ -1203,6 +1400,51 @@ function searchYouTubeNoKey(q) {
     return;
   }
 
+  // ── Resolver enlaces cortos de Spotify (spotify.link / spoti.fi) ──
+  if (req.url.startsWith('/api/spotify/resolve') && req.method === 'GET') {
+    let rawUrl = '';
+    try { rawUrl = (new URL(req.url, 'http://x').searchParams.get('url') || '').trim(); } catch (_) {}
+    if (!rawUrl || !/^https?:\/\/(spotify\.link|spoti\.fi|open\.spotify\.com)\//i.test(rawUrl)) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: 'Enlace de Spotify no válido' }));
+    }
+    const follow = (uStr, hops) => {
+      if (hops > 4) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ resolvedUrl: uStr }));
+      }
+      let uObj;
+      try { uObj = new URL(uStr); } catch (_) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'URL inválida' }));
+      }
+      const r = https.request({
+        hostname: uObj.hostname,
+        path: uObj.pathname + uObj.search,
+        method: 'GET',
+        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36' },
+        timeout: 8000
+      }, (sRes) => {
+        sRes.resume();
+        if (sRes.statusCode >= 300 && sRes.statusCode < 400 && sRes.headers.location) {
+          const next = new URL(sRes.headers.location, uStr).toString();
+          if (/open\.spotify\.com/i.test(next)) {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ resolvedUrl: next }));
+          }
+          return follow(next, hops + 1);
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ resolvedUrl: uStr }));
+      });
+      r.on('error', (e) => { res.writeHead(502, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: e.message })); });
+      r.setTimeout(8000, () => { r.destroy(); });
+      r.end();
+    };
+    follow(rawUrl, 0);
+    return;
+  }
+
   // ── Importar playlist o album público de Spotify (título+artista) ──
   // Lee SOLO metadatos de la página embed pública; el cliente resuelve cada
   // canción en YouTube (que sí se puede transmitir a las sucursales).
@@ -1216,11 +1458,11 @@ function searchYouTubeNoKey(q) {
       path: `/${isAlbum ? 'embed/album' : 'embed/playlist'}/${id}`,
       method: 'GET',
       headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; TerrapescaRadio/1.0)',
-        'Accept': 'text/html,application/xhtml+xml',
-        'Accept-Language': 'es-MX,es;q=0.9'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'es-MX,es;q=0.9,en;q=0.8'
       },
-      timeout: 12000
+      timeout: 15000
     }, (sRes) => {
       let raw = '', size = 0, aborted = false;
       sRes.on('error', () => { try { sRes.destroy(); } catch (_) {} });
@@ -1243,7 +1485,7 @@ function searchYouTubeNoKey(q) {
       });
     });
     sReq.on('error', (e) => { res.writeHead(502, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: e.message })); });
-    sReq.setTimeout(12000, () => { sReq.destroy(); });
+    sReq.setTimeout(15000, () => { sReq.destroy(); });
     sReq.end();
     return;
   }
@@ -1258,14 +1500,14 @@ function searchYouTubeNoKey(q) {
       path: `/embed/track/${id}`,
       method: 'GET',
       headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; TerrapescaRadio/1.0)',
-        'Accept': 'text/html,application/xhtml+xml',
-        'Accept-Language': 'es-MX,es;q=0.9'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'es-MX,es;q=0.9,en;q=0.8'
       },
-      timeout: 10000
+      timeout: 12000
     }, (sRes) => {
       let raw = '';
-      sRes.on('data', c => { if (raw.length < 500000) raw += c; });
+      sRes.on('data', c => { if (raw.length < 1500000) raw += c; });
       sRes.on('end', () => {
         res.setHeader('Access-Control-Allow-Origin', '*');
         try {
@@ -1274,8 +1516,8 @@ function searchYouTubeNoKey(q) {
             const data = JSON.parse(m[1]);
             const entity = data.props?.pageProps?.state?.data?.entity;
             if (entity) {
-              const title = entity.name || '';
-              const artist = (entity.artists && entity.artists[0]?.name) || '';
+              const title = entity.name || entity.title || '';
+              const artist = (entity.artists && entity.artists.map(a => a.name).join(', ')) || entity.subtitle || '';
               res.writeHead(200, { 'Content-Type': 'application/json' });
               return res.end(JSON.stringify({ title, artist }));
             }
@@ -1900,6 +2142,7 @@ function _apPlayInterventionThenAdvance() {
         } catch (_) {}
         trackToPlay = {
           type: 'spot',
+          isRodo: true,
           name: hourClip.title,
           url: hourClip.url,
           b64: b64,
@@ -1918,6 +2161,7 @@ function _apPlayInterventionThenAdvance() {
           } catch (_) {}
           trackToPlay = {
             type: 'spot',
+            isRodo: true,
             name: clip.title,
             url: clip.url,
             b64: b64,
@@ -1998,10 +2242,23 @@ function _apPlayInterventionThenAdvance() {
 }
 
 function startAutopilot(list, startIdx) {
-  if (!Array.isArray(list) || !list.length) return;
+  const srcList = (Array.isArray(list) && list.length)
+    ? list
+    : (Array.isArray(autopilot.list) && autopilot.list.length)
+      ? autopilot.list
+      : (Array.isArray(radioState.playlist) && radioState.playlist.length)
+        ? radioState.playlist
+        : DEFAULT_AUTOPILOT_PLAYLIST;
+  const cleaned = srcList.filter(x => x && x.ytId).map(x => ({
+    ytId: x.ytId,
+    name: x.name || x.title || '',
+    artist: x.artist || x.channelTitle || '',
+    duration: +x.duration || 210
+  }));
+  if (!cleaned.length) return;
   autopilot.on = true;
   radioState.autopilotOn = true;
-  autopilot.list = list.filter(x => x && x.ytId).map(x => ({ ytId: x.ytId, name: x.name || '', artist: x.artist || '', duration: +x.duration || 0 }));
+  autopilot.list = cleaned;
   autopilot.idx = (typeof startIdx === 'number' && startIdx >= 0 && startIdx < autopilot.list.length) ? startIdx : 0;
   console.log('[24/7 Aleatorio] iniciando con', autopilot.list.length, 'canciones');
   broadcast({ type: 'AUTOPILOT', on: true });
@@ -2091,6 +2348,7 @@ wss.on('connection', (ws, req) => {
           if (CONTROLLER_ROLES.includes(reqRole) && !ws._isAuthed) {
             console.warn(`[ws] Rol '${reqRole}' rechazado (requiere login) para IP ${ws._ip}`);
             ws._role = 'listener';
+            try { ws.send(JSON.stringify({ type: 'AUTH_REQUIRED' })); } catch (_) {}
           } else {
             ws._role = reqRole || 'listener';
           }
@@ -2190,17 +2448,28 @@ wss.on('connection', (ws, req) => {
           if (autopilot.on) autopilotAdvance(msg.type === 'PREV_TRACK' ? 'prev' : 'next');
           else broadcast({ type: msg.type }, ws);
           break;
+        case 'VIDEO_ERROR': {
+          const badId = String(msg.ytId || '').trim();
+          if (badId) _handleReportedVideoError(badId, msg.name || '', msg.artist || '');
+          break;
+        }
         case 'AUTOPILOT_START':
-          if (!ws._isAuthed && CONTROLLER_ROLES.includes(ws._role)) {
+          if (!ws._isAuthed) {
             console.warn(`[ws] AUTOPILOT_START no autorizado desde ${ws._ip}`);
+            try { ws.send(JSON.stringify({ type: 'AUTH_REQUIRED' })); } catch (_) {}
             break;
           }
           // La cabina entrega su playlist (con duraciones) y el servidor toma el control 24/7.
+          if (Array.isArray(msg.playlist) && msg.playlist.length) {
+            radioState.playlist = msg.playlist;
+            try { fs.writeFileSync(PL_FILE, JSON.stringify(msg.playlist)); } catch (_) {}
+          }
           startAutopilot(msg.playlist, msg.startIdx);
           break;
         case 'AUTOPILOT_STOP':
-          if (!ws._isAuthed && CONTROLLER_ROLES.includes(ws._role)) {
+          if (!ws._isAuthed) {
             console.warn(`[ws] AUTOPILOT_STOP no autorizado desde ${ws._ip}`);
+            try { ws.send(JSON.stringify({ type: 'AUTH_REQUIRED' })); } catch (_) {}
             break;
           }
           stopAutopilot();
@@ -2225,6 +2494,117 @@ wss.on('connection', (ws, req) => {
     if (LISTENER_ROLES.includes(ws._role)) broadcastListeners();
   });
 });
+
+// ---- AUTO-CURACIÓN DE CANCIONES NO REPRODUCIBLES (Error 101 / 150 / Video borrado) ----
+const _videoErrorCooldown = new Map(); // ytId -> ts
+async function _healSingleTrackInLists(badId, fallbackName, fallbackArtist) {
+  const existing = (autopilot.list || []).find(t => t.ytId === badId)
+    || (radioState.playlist || []).find(t => t.ytId === badId);
+  const name = (existing && (existing.name || existing.title)) || fallbackName || '';
+  const artist = (existing && (existing.artist || existing.channelTitle)) || fallbackArtist || '';
+  let replacement = null;
+  if (name) {
+    try {
+      const items = await searchEmbeddableYouTube(`${name} ${artist}`.trim(), new Set([badId]));
+      if (items && items[0]) {
+        replacement = {
+          ytId: items[0].ytId,
+          name: name,
+          artist: artist || items[0].channel || '',
+          duration: items[0].duration || 210
+        };
+      }
+    } catch (_) {}
+  }
+
+  let changed = false;
+  if (Array.isArray(autopilot.list) && autopilot.list.length) {
+    if (replacement) {
+      autopilot.list = autopilot.list.map(t => {
+        if (t.ytId === badId) { changed = true; return replacement; }
+        return t;
+      });
+    } else if (autopilot.list.length > 1) {
+      const before = autopilot.list.length;
+      autopilot.list = autopilot.list.filter(t => t.ytId !== badId);
+      if (autopilot.list.length !== before) changed = true;
+    }
+    if (autopilot.idx >= autopilot.list.length) autopilot.idx = 0;
+  }
+
+  if (Array.isArray(radioState.playlist) && radioState.playlist.length) {
+    if (replacement) {
+      radioState.playlist = radioState.playlist.map(t => (t && t.ytId === badId) ? Object.assign({}, t, replacement) : t);
+    } else if (radioState.playlist.length > 1) {
+      radioState.playlist = radioState.playlist.filter(t => t && t.ytId !== badId);
+    }
+    try { fs.writeFileSync(PL_FILE, JSON.stringify(radioState.playlist)); } catch (_) {}
+  }
+
+  if (changed) {
+    _apSave();
+    console.log(replacement
+      ? `[AutoHeal] Reemplazado video bloqueado ${badId} → ${replacement.ytId} (${name})`
+      : `[AutoHeal] Retirado video no disponible ${badId} (${name})`);
+  }
+  return replacement;
+}
+
+async function _handleReportedVideoError(badId, name, artist) {
+  const now = Date.now();
+  const last = _videoErrorCooldown.get(badId) || 0;
+  if (now - last < 8000) return;
+  _videoErrorCooldown.set(badId, now);
+
+  const isCurrent = !!(radioState.currentTrack && radioState.currentTrack.ytId === badId);
+  const replacement = await _healSingleTrackInLists(badId, name, artist);
+
+  if (autopilot.on && isCurrent) {
+    if (replacement) {
+      const idx = autopilot.list.findIndex(t => t.ytId === replacement.ytId);
+      if (idx >= 0) autopilot.idx = idx;
+      _apBroadcast();
+    } else {
+      _apAdvanceNextTrack();
+    }
+  } else if (replacement) {
+    broadcast({ type: 'TRACK_HEALED', oldYtId: badId, track: replacement });
+  }
+}
+
+async function _sanitizePlaylistInBackground() {
+  try {
+    const listSnapshot = Array.isArray(autopilot.list) ? autopilot.list.slice() : [];
+    if (!listSnapshot.length) return;
+    let healedCount = 0;
+    for (let i = 0; i < listSnapshot.length; i += 10) {
+      const batch = listSnapshot.slice(i, i + 10);
+      const checks = await Promise.all(batch.map(t => verifyEmbedPlayable(t.ytId).then(v => ({ t, v }))));
+      for (const { t, v } of checks) {
+        if (!v.ok) {
+          await _healSingleTrackInLists(t.ytId, t.name, t.artist);
+          healedCount++;
+        } else if (v.duration > 30 && (!t.duration || t.duration === 210)) {
+          // Aprovechar duración exacta obtenida sin gastar cuota API
+          const target = autopilot.list.find(x => x.ytId === t.ytId);
+          if (target) target.duration = v.duration;
+        }
+      }
+    }
+    if (healedCount > 0) {
+      _apSave();
+      if (Array.isArray(radioState.playlist) && radioState.playlist.length) {
+        broadcast({ type: 'PLAYLIST_UPDATE', playlist: radioState.playlist });
+      }
+      console.log(`[AutoHeal Startup] Auditoría completada: ${healedCount} canciones reparadas automáticamente.`);
+    } else {
+      _apSave();
+      console.log(`[AutoHeal Startup] Auditoría completada: ${listSnapshot.length} canciones 100% verificadas para web embed.`);
+    }
+  } catch (e) {
+    console.warn('[AutoHeal Startup] Error no crítico:', e && e.message);
+  }
+}
 
 // Heartbeat: every 30s ping all clients; any that didn't answer the previous
 // ping (dead/zombie sockets) get terminated so wss.clients can't grow forever.
@@ -2279,4 +2659,7 @@ server.listen(PORT, () => {
     const startIdx = Math.floor(Math.random() * startList.length);
     startAutopilot(startList, startIdx);
   }
+
+  // Verificar y curar en segundo plano cualquier video con bloqueo de inserción web (Error 101/150)
+  setTimeout(_sanitizePlaylistInBackground, 2500);
 });

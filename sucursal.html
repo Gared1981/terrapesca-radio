@@ -672,20 +672,43 @@ function initWS(){
   }catch(e){setStatus('error','URL inválida')}
 }
 
+let _sucServerVer=null;
+function _checkSucVersion(ver){
+  if(!ver) return;
+  if(!_sucServerVer){ _sucServerVer=ver; return; }
+  if(_sucServerVer!==ver){
+    _sucServerVer=ver;
+    setTimeout(()=>{ location.reload(true); }, 1500);
+  }
+}
+setInterval(()=>{
+  fetch('/api/version').then(r=>r.json()).then(d=>{ if(d&&d.version) _checkSucVersion(d.version); }).catch(()=>{});
+}, 30000);
+
 function handleMsg(msg){
+  if(msg.serverVer) _checkSucVersion(msg.serverVer);
   switch(msg.type){
     case 'SYNC':
       // SYNC fires on connect — play immediately if something is live
-      if(msg.state&&msg.state.currentTrack&&msg.state.isPlaying)
-        playRemote(msg.state.currentTrack, msg.state.position||0);
-      else if(msg.state&&msg.state.currentTrack)
+      if(msg.state&&msg.state.currentTrack&&msg.state.isPlaying){
+        if(msg.state.currentTrack.type==='spot'||msg.state.currentTrack.spot_id||msg.state.currentTrack.url)
+          playSpot(msg.state.currentTrack);
+        else
+          playRemote(msg.state.currentTrack, msg.state.position||0);
+      } else if(msg.state&&!msg.state.isPlaying){
+        pauseLocal();
+        if(msg.state.currentTrack) updateNP(msg.state.currentTrack, false);
+      } else if(msg.state&&msg.state.currentTrack){
         updateNP(msg.state.currentTrack, false);
+      }
       break;
     case 'PLAY':
       console.log('[youtube-radio] play recibido');
       cancelResumeFallback();
       _clearPostSpotWatchdog();
-      if(_spotActive){
+      if(msg.track&&msg.track.type==='spot'){
+        playSpot(msg.track);
+      } else if(_spotActive){
         // Don't interrupt the spot — save the state and apply it when the spot ends
         console.log('[youtube-radio] play diferido por spot');
         _pendingPlayAfterSpot={track:msg.track, position:msg.position||0};
@@ -698,6 +721,10 @@ function handleMsg(msg){
     case 'SPOT': playSpot(msg.track); break;
     case 'MIC_SPOT': playMicSpot(msg.b64, msg.nombre); break;
     case 'JINGLE_SET': jingleB64=msg.b64; break;
+    case 'TRACK_HEALED':
+      if(_lastRemoteTrack && _lastRemoteTrack.ytId===msg.oldYtId) _lastRemoteTrack.ytId=msg.newYtId;
+      break;
+    case 'AUTOPILOT': break;
     case 'CLIENT_COUNT': break;
   }
 }
@@ -716,7 +743,19 @@ function onYouTubeIframeAPIReady(){
         if(e.data===YT.PlayerState.PAUSED)setPlayUI(false);
         if(e.data===YT.PlayerState.ENDED)setPlayUI(false);
       },
-      onError:()=>{ /* video unavailable — stay silent */ }
+      onError:(e)=>{
+        if(_lastLoadedYtId && ws && ws.readyState===WebSocket.OPEN){
+          try{
+            ws.send(JSON.stringify({
+              type:'VIDEO_ERROR',
+              ytId:_lastLoadedYtId,
+              code:e&&e.data,
+              name:(_lastRemoteTrack&&_lastRemoteTrack.name)||'',
+              artist:(_lastRemoteTrack&&(_lastRemoteTrack.artist||_lastRemoteTrack.channelTitle))||''
+            }));
+          }catch(_){}
+        }
+      }
     }
   });
 }
@@ -783,6 +822,7 @@ function pauseMainForSpot(){
   stopJingle();
 }
 function playSpot(track){
+  if(!track) return;
   // Cancel any pending post-spot resume so it can't fire during this new spot
   cancelResumeFallback();
   _pendingPlayAfterSpot=null;
@@ -791,18 +831,29 @@ function playSpot(track){
   pauseMainForSpot();
   _spotActive=true;
   console.log('[youtube-radio] spot activo');
-  if(track.b64){
+  const directUrl = track.url || (track.spot_id ? ('/buenfin/' + track.spot_id + '.mp3') : '');
+  if(track.b64 || directUrl){
     // actualizar jingle si viene en el mensaje
     if(track.jingleB64)jingleB64=track.jingleB64;
-    // arrancar jingle de fondo SOLO si el spot no trae ya el fondo horneado
-    // (mime distinto de mp3 = WAV mezclado con su fondo) — evita doblar la música.
-    if((track.mime||'audio/mpeg')==='audio/mpeg') playJingle();
+    // arrancar jingle de fondo SOLO si el spot viene en b64 mp3 crudo sin cama horneada ni es un MP3 ya producido (/rodo/ o /buenfin/)
+    if(track.b64 && !directUrl && (track.mime||'audio/mpeg')==='audio/mpeg') playJingle();
+    else if(track.isRodo || (directUrl && directUrl.startsWith('/rodo/'))) {
+      // Cama suave de fábrica debajo de la locución de DJ Rodo en sucursales
+      if(!jingleAudio){
+        try{ jingleAudio=new Audio('/jingle-terrapesca.mp3'); jingleAudio.loop=true; jingleAudio.volume=0.18; jingleAudio.play().catch(()=>{}); }catch(_){}
+      }
+    }
     // M1: revoke previous spot ObjectURL if a consecutive spot arrives before the first ended
     if(audioEl){ try{audioEl.pause();}catch(_){} revokeAudio(audioEl); audioEl.src=''; audioEl=null; }
-    const blob=b64ToBlob(track.b64,track.mime||'audio/mpeg');
-    const url=URL.createObjectURL(blob);
+    let url = directUrl;
+    let isBlob = false;
+    if(!url && track.b64){
+      const blob=b64ToBlob(track.b64,track.mime||'audio/mpeg');
+      url=URL.createObjectURL(blob);
+      isBlob=true;
+    }
     audioEl=new Audio(url);
-    audioEl._objUrl=url;
+    if(isBlob) audioEl._objUrl=url;
     audioEl.volume=parseInt(document.getElementById('volS').value)/100;
     // A1: safety cap — if spot stalls and never fires ended/error, _spotActive resets after 180s
     if(_spotSafety){ clearTimeout(_spotSafety); _spotSafety=null; }

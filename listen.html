@@ -1550,16 +1550,22 @@ function onHeartbeatTick() {
   updateProgressBar();
 
   // 3. Watchdog de reproducción continua en segundo plano / pantalla apagada
-  if (started && !userPaused && !spotAudio) {
+  if (started && !userPaused && _isRadioPlaying && !spotAudio) {
     const cur = decks[activeDeck];
-    if (cur && cur.player && cur.ready) {
+    if (cur && cur.player && cur.ready && cur.ytId) {
       try {
         const st = cur.player.getPlayerState();
-        // Si el reproductor se pausó solo o se detuvo en segundo plano, forzar reanudación suave
-        if (st === YT.PlayerState.PAUSED || st === YT.PlayerState.CUED || st === -1) {
+        // Si el reproductor activo se pausó solo en segundo plano, forzar reanudación suave
+        if (st === YT.PlayerState.PAUSED || st === YT.PlayerState.CUED) {
           cur.player.playVideo();
         }
       } catch (_) {}
+    }
+    if (!_xfading) {
+      const inactive = decks[activeDeck === 0 ? 1 : 0];
+      if (inactive && inactive.playing && inactive.player && inactive.ready) {
+        try { inactive.player.setVolume(0); inactive.player.pauseVideo(); inactive.playing = false; } catch (_) {}
+      }
     }
   }
 }
@@ -1569,6 +1575,7 @@ function _liveNow() {
   return _livePos.pos + (_livePos.playing ? (Date.now() - _livePos.at) / 1000 : 0);
 }
 
+let _lastReportedErrYtId = '';
 function onYouTubeIframeAPIReady() {
   decks.forEach(d => {
     d.player = new YT.Player(d.el, {
@@ -1583,8 +1590,32 @@ function onYouTubeIframeAPIReady() {
         },
         onStateChange: (e) => onDeckStateChange(d.id, e.data),
         onError: (e) => {
-          console.warn('[YT Deck ' + d.id + ' Error]', e.data);
-          setStatus('Sintonizando siguiente…', 'connecting');
+          console.warn('[YT Deck ' + d.id + ' Error]', e.data, d.ytId);
+          const isRelevant = (d.id === activeDeck) || (_xfading && d.id !== activeDeck);
+          if (!isRelevant || !d.ytId) return;
+          setStatus('Sintonizando versión compatible…', 'connecting');
+          if (_lastReportedErrYtId !== d.ytId) {
+            _lastReportedErrYtId = d.ytId;
+            sendWS({
+              type: 'VIDEO_ERROR',
+              ytId: d.ytId,
+              code: e.data,
+              name: (currentTrack && (currentTrack.name || currentTrack.title)) || '',
+              artist: (currentTrack && (currentTrack.artist || currentTrack.channelTitle)) || ''
+            });
+            // Si la radio NO está en piloto automático 24/7 del servidor, buscar respaldo local inmediato
+            if (!_serverAutopilot && currentTrack && (currentTrack.name || currentTrack.title)) {
+              const q = `${currentTrack.name || currentTrack.title} ${currentTrack.artist || currentTrack.channelTitle || ''}`.trim();
+              fetch(`/api/ytsearch?q=${encodeURIComponent(q)}&exclude=${encodeURIComponent(d.ytId)}&heal=1`)
+                .then(r => r.json())
+                .then(res => {
+                  const hit = (res && res.items && res.items[0]) || null;
+                  if (hit && hit.ytId && currentTrack && currentTrack.ytId === d.ytId) {
+                    playRemote({ ...currentTrack, ytId: hit.ytId }, 0);
+                  }
+                }).catch(() => {});
+            }
+          }
         }
       }
     });
@@ -1594,29 +1625,39 @@ function onYouTubeIframeAPIReady() {
 function onDeckStateChange(deckId, state) {
   const d = decks[deckId];
   if (state === YT.PlayerState.PLAYING) {
-    d.playing = true;
-    if (deckId === activeDeck || _xfading) {
-      playing = true;
-      setPlayUI(true);
-      setStatus('● EN VIVO', 'live');
-      hideTapOverlay();
+    // Si este deck NO es el activo y NO estamos haciendo crossfade, silenciarlo y pausarlo de inmediato
+    if (deckId !== activeDeck && !_xfading) {
+      d.playing = false;
+      try { d.player.setVolume(0); d.player.pauseVideo(); } catch (_) {}
+      return;
     }
+    // Si la radio está fuera del aire o el usuario pausó, no permitir reproducción fantasma
+    if (userPaused || !_isRadioPlaying) {
+      d.playing = false;
+      try { d.player.pauseVideo(); } catch (_) {}
+      return;
+    }
+    d.playing = true;
+    playing = true;
+    setPlayUI(true);
+    setStatus('● EN VIVO', 'live');
+    hideTapOverlay();
   } else if (state === YT.PlayerState.PAUSED) {
     d.playing = false;
-    // Si la pausa no fue provocada por el usuario (ej: pantalla bloqueada o cambio de pestaña en móvil/PC),
-    // rescatar la reproducción de inmediato sin apagar la UI
-    if (!userPaused && started) {
+    // Solo rescatar pausa involuntaria (segundo plano/bloqueo) si es el deck ACTIVO,
+    // la radio está EN VIVO (_isRadioPlaying) y NO está sonando un spot comercial
+    if (deckId === activeDeck && !userPaused && started && _isRadioPlaying && !spotAudio) {
       console.warn('[YT Deck ' + deckId + '] Pausa detectada en segundo plano — reanudando');
       try { d.player.playVideo(); } catch (_) {}
       return;
     }
-    if (deckId === activeDeck && !_xfading) {
+    if (deckId === activeDeck && !_xfading && !spotAudio) {
       playing = false;
       setPlayUI(false);
     }
   } else if (state === YT.PlayerState.ENDED) {
     d.playing = false;
-    if (deckId === activeDeck && !_xfading) {
+    if (deckId === activeDeck && !_xfading && !spotAudio) {
       playing = false;
       setPlayUI(false);
     }
@@ -1713,12 +1754,14 @@ function playRemote(track, pos) {
     return;
   }
 
-  // Watchdog de seguridad del crossfade: si el segundo deck no empieza a sonar en 2s, rescatar en deck actual
+  // Watchdog de seguridad del crossfade: si el segundo deck no empieza a sonar en 2.2s, rescatar en deck actual
   clearTimeout(_xfadeWatchdogTimer);
   _xfadeWatchdogTimer = setTimeout(() => {
     if (_xfading && (!nxtDeck.playing || nxtDeck.player.getPlayerState() !== YT.PlayerState.PLAYING)) {
       console.warn('[Crossfade Watchdog: nxtDeck no inició, rescatando con curDeck]');
       _xfading = false;
+      curDeck.ytId = track.ytId;
+      try { nxtDeck.player.setVolume(0); nxtDeck.player.pauseVideo(); nxtDeck.playing = false; } catch (_) {}
       try {
         curDeck.player.setVolume(curVol);
         curDeck.player.loadVideoById({ videoId: track.ytId, startSeconds: startSecs });
@@ -1746,6 +1789,8 @@ function stepCrossfade() {
   if (_xfadeStep >= _xfadeMaxSteps) {
     _xfading = false;
     clearTimeout(_xfadeWatchdogTimer);
+    activeDeck = nextDeckId;
+    curDeck.playing = false;
     try {
       curDeck.player.setVolume(0);
       curDeck.player.pauseVideo();
@@ -1753,7 +1798,6 @@ function stepCrossfade() {
     try {
       nxtDeck.player.setVolume(curVol);
     } catch (_) {}
-    activeDeck = nextDeckId;
     console.log('[Radio 12s Crossfade Exitoso] Deck activo:', activeDeck);
   }
 }
@@ -2207,15 +2251,23 @@ function connectWS() {
                 playRemote(st.currentTrack, _liveNow());
               }
             } else if (started && !st.isPlaying) {
-              if (ytReady) { try { decks[activeDeck].player.pauseVideo(); } catch (_) {} }
+              _xfading = false;
+              clearTimeout(_xfadeWatchdogTimer);
+              if (ytReady) { decks.forEach(dk => { try { dk.player.pauseVideo(); dk.playing = false; } catch (_) {} }); }
               stopSpotAudio();
+              playing = false;
+              setPlayUI(false);
               setStatus('● FUERA DE AIRE', 'offair');
             } else if (!started) {
               _pendingPlay = { track: st.currentTrack, pos: _liveNow() };
             }
           } else if (started && !st.isPlaying) {
-            if (ytReady) { try { decks[activeDeck].player.pauseVideo(); } catch (_) {} }
+            _xfading = false;
+            clearTimeout(_xfadeWatchdogTimer);
+            if (ytReady) { decks.forEach(dk => { try { dk.player.pauseVideo(); dk.playing = false; } catch (_) {} }); }
             stopSpotAudio();
+            playing = false;
+            setPlayUI(false);
             setStatus('● FUERA DE AIRE', 'offair');
           }
           break;
@@ -2239,9 +2291,13 @@ function connectWS() {
           break;
         case 'PAUSE':
           _isRadioPlaying = false;
+          _xfading = false;
+          clearTimeout(_xfadeWatchdogTimer);
           _livePos = { pos: m.position || 0, at: Date.now(), playing: false };
-          if (ytReady) { try { decks[activeDeck].player.pauseVideo(); } catch (_) {} }
+          if (ytReady) { decks.forEach(dk => { try { dk.player.pauseVideo(); dk.playing = false; } catch (_) {} }); }
           stopSpotAudio();
+          playing = false;
+          setPlayUI(false);
           setStatus('● FUERA DE AIRE', 'offair');
           break;
         case 'RESUME':
@@ -2255,11 +2311,20 @@ function connectWS() {
         case 'SPOT':
           if (m.track) playSpotTrack(m.track);
           break;
+        case 'TRACK_HEALED':
+          if (m.oldYtId && m.newYtId && currentTrack && currentTrack.ytId === m.oldYtId) {
+            currentTrack.ytId = m.newYtId;
+          }
+          break;
         case 'AUTOPILOT':
           _serverAutopilot = !!m.on;
           if (!m.on && !_isRadioPlaying) {
-            if (ytReady) { try { decks[activeDeck].player.pauseVideo(); } catch (_) {} }
+            _xfading = false;
+            clearTimeout(_xfadeWatchdogTimer);
+            if (ytReady) { decks.forEach(dk => { try { dk.player.pauseVideo(); dk.playing = false; } catch (_) {} }); }
             stopSpotAudio();
+            playing = false;
+            setPlayUI(false);
             setStatus('● FUERA DE AIRE', 'offair');
           }
           break;
@@ -2322,9 +2387,9 @@ document.addEventListener('visibilitychange', () => {
   if (audioCtx && audioCtx.state === 'suspended') {
     try { audioCtx.resume(); } catch (_) {}
   }
-  if (started && !userPaused) {
+  if (started && !userPaused && _isRadioPlaying) {
     const cur = decks[activeDeck];
-    if (cur && cur.player && cur.ready && !spotAudio) {
+    if (cur && cur.player && cur.ready && cur.ytId && !spotAudio) {
       try {
         if (cur.player.getPlayerState() !== YT.PlayerState.PLAYING) {
           cur.player.playVideo();

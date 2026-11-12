@@ -1,13 +1,9 @@
 // Radio Terrapesca Service Worker - PWA & Background Audio Engine
 // Mantiene activos los recursos en segundo plano y caché inteligente
 
-const CACHE = 'terrapesca-radio-v7';
+const CACHE = 'terrapesca-radio-v8';
 const STATIC = [
-  '/',
-  '/index.html',
   '/listen.html',
-  '/studio.html',
-  '/sucursal.html',
   '/manifest.json',
   '/buenfin/logo_terrapesca_marine.png',
   '/buenfin/logo_buen_fin.png',
@@ -38,14 +34,18 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
 
-  // Never intercept audio streams or real-time APIs — let them stream natively
+  // Never intercept audio streams, studio/auth routes, or real-time APIs — let them hit the server directly
   if (url.pathname.startsWith('/radio/stream') ||
       url.pathname.startsWith('/live.mp3') ||
       url.pathname.startsWith('/stream.mp3') ||
+      url.pathname.startsWith('/studio') ||
+      url.pathname.startsWith('/login') ||
       url.pathname.startsWith('/api/') ||
       url.pathname.startsWith('/ws') ||
       url.pathname.startsWith('/rodo/') ||
-      url.pathname.startsWith('/spots/')) {
+      url.pathname.startsWith('/spots/') ||
+      url.pathname.endsWith('.mp3') ||
+      url.pathname.endsWith('.wav')) {
     e.respondWith(fetch(e.request));
     return;
   }
