@@ -1696,15 +1696,19 @@ function playRemote(track, pos) {
   const nextDeckId = activeDeck === 0 ? 1 : 0;
   const nxtDeck = decks[nextDeckId];
 
-  // Si es la misma canción ya sonando en el deck activo, sincronizar si hay desvío
-  if (_lastYtId === track.ytId && curDeck.playing) {
+  // Si es la misma canción ya cargada en el deck activo, sincronizar o reanudar con fade-in sin recargar desde cero
+  if (_lastYtId === track.ytId && curDeck.ytId === track.ytId) {
     try {
       const curTime = (curDeck.player.getCurrentTime && curDeck.player.getCurrentTime()) || 0;
-      if (Math.abs(curTime - startSecs) > 4 && startSecs > 2) {
+      if (Math.abs(curTime - startSecs) > 6 && startSecs > 2) {
         curDeck.player.seekTo(startSecs, true);
       }
       curDeck.player.unMute();
-      curDeck.player.playVideo();
+      if (!curDeck.playing) {
+        fadeInYT(1000, curVol);
+      } else {
+        curDeck.player.playVideo();
+      }
     } catch (_) {}
     return;
   }
@@ -1834,40 +1838,66 @@ function playSpotTrack(track) {
   _curVolMaster = curVol;
   const masterGain = curVol / 100;
 
-  const isRodo = track.name && /rodo|locutor|consejo|hora|sinaloa|estación/i.test(track.name);
-  setStatus(isRodo ? ('🎙️ ' + track.name) : ('📢 ' + (track.name || 'Spot al aire')), 'spot');
+  const isRodo = !!(track.isRodo || (track.url && track.url.startsWith('/rodo/')) || (track.name && /rodo|locutor|consejo|hora|sinaloa|estaci[oó]n/i.test(track.name)));
+  _isSpotRodo = isRodo;
+  setStatus(isRodo ? ('🎙️ ' + (track.name || 'DJ Rodo').replace(/^🎙️\s*/, '')) : ('📢 ' + (track.name || 'Spot al aire').replace(/^📢\s*/, '')), 'spot');
 
   // Si coincide con alguna promoción oficial del Buen Fin, sincronizar visualmente el carrusel
   if (track.spot_id) {
     const idx = BUEN_FIN_SPOTS.findIndex(s => s.spot_id === track.spot_id);
-    if (idx >= 0 && idx !== curPromoIdx) showPromo(idx, true);
+    if (idx >= 0 && idx !== curPromoIdx) selectPromo(idx);
   }
 
-  // 1. DUCKING O CROSSFADE:
+  // 1. DUCKING O CROSSFADE SUAVE:
   if (isRodo) {
-    // 🎙️ DJ RODO: LOCUCIÓN DE CABINA SOBRE FONDO MUSICAL (PISADOR)
-    // La música NO se apaga; baja suavemente al 18% para crear una cama musical cálida
-    duckMusic(1000, Math.max(10, Math.round(curVol * 0.18)));
-    fadeInAudio(spotAudio, 350, masterGain);
+    // 🎙️ DJ RODO: LOCUCIÓN SOBRE FONDO MUSICAL (La canción actual NUNCA se pausa ni brinca)
+    duckMusic(750, Math.max(12, Math.round(curVol * 0.18)));
+    fadeInAudio(spotAudio, 320, masterGain);
   } else {
-    // 📢 SPOTS COMERCIALES:
-    // Crossfade de salida de música (1.2s) y entrada gradual del anuncio
-    fadeOutYT(1200, 0);
-    fadeInAudio(spotAudio, 450, masterGain);
+    // 📢 SPOTS COMERCIALES: Salida suave de 750ms estilo /tv y pausa limpia en la misma posición
+    fadeOutYT(750, 0);
+    setTimeout(() => {
+      if (spotAudio) fadeInAudio(spotAudio, 350, masterGain);
+    }, 280);
   }
 
+  let _resumedOnce = false;
   const resume = () => {
+    if (_resumedOnce) return;
+    _resumedOnce = true;
     clearTimeout(_spotWatchdog);
-    fadeOutAudio(spotAudio, 400, () => {
-      stopSpotAudio();
-    });
-    // Solo reanudar YouTube si la transmisión sigue activa (24/7 o Cabina al aire)
-    if (_isRadioPlaying && currentTrack && currentTrack.ytId) {
-      fadeInYT(1200, curVol);
-      setStatus('● EN VIVO', 'live');
-    } else {
+    const wasRodo = _isSpotRodo;
+    const shouldAdvance = !!track.advanceAfter;
+    stopSpotAudio();
+
+    if (!_isRadioPlaying) {
       if (ytReady) { try { decks[activeDeck].player.pauseVideo(); } catch (_) {} }
       setStatus('● FUERA DE AIRE', 'offair');
+      return;
+    }
+
+    if (wasRodo) {
+      // Sube suavemente desde el volumen ducked (~18%) a curVol SIN bajar a 0 ni reiniciar pista
+      if (_pendingPlayAfterSpot) {
+        const p = _pendingPlayAfterSpot;
+        _pendingPlayAfterSpot = null;
+        playRemote(p.track, p.pos);
+      } else {
+        unduckMusic(1200, curVol);
+      }
+      setStatus('● EN VIVO', 'live');
+    } else {
+      // Pausa estética suave (700ms) antes de reanudar la MISMA canción donde se pausó
+      setTimeout(() => {
+        if (_pendingPlayAfterSpot) {
+          const p = _pendingPlayAfterSpot;
+          _pendingPlayAfterSpot = null;
+          playRemote(p.track, p.pos);
+        } else if (!shouldAdvance && currentTrack && currentTrack.ytId) {
+          fadeInYT(1200, curVol);
+        }
+        setStatus('● EN VIVO', 'live');
+      }, 700);
     }
   };
 
@@ -1903,6 +1933,7 @@ function playSpotTrack(track) {
 
 function stopSpotAudio() {
   clearTimeout(_spotWatchdog);
+  _isSpotRodo = false;
   if (spotAudio) {
     try { spotAudio.pause(); } catch (_) {}
     if (spotAudio._u && spotAudio._u.startsWith('blob:')) URL.revokeObjectURL(spotAudio._u);
@@ -1912,7 +1943,9 @@ function stopSpotAudio() {
 
 // ── Transiciones y Fades de Volumen ──
 let _duckTimer = null;
-function duckMusic(durationMs = 1000, targetVol = 15) {
+let _isSpotRodo = false;
+let _pendingPlayAfterSpot = null;
+function duckMusic(durationMs = 750, targetVol = 15) {
   clearInterval(_duckTimer);
   const curDeck = decks[activeDeck];
   if (!curDeck || !curDeck.player || !curDeck.ready) return;
@@ -1926,6 +1959,26 @@ function duckMusic(durationMs = 1000, targetVol = 15) {
     cur = Math.max(targetVol, cur - diff);
     try { curDeck.player.setVolume(Math.round(cur)); } catch (_) {}
     if (s >= steps || cur <= targetVol) {
+      clearInterval(_duckTimer);
+      try { curDeck.player.setVolume(targetVol); } catch (_) {}
+    }
+  }, stepTime);
+}
+
+function unduckMusic(durationMs = 1200, targetVol = 85) {
+  clearInterval(_duckTimer);
+  const curDeck = decks[activeDeck];
+  if (!curDeck || !curDeck.player || !curDeck.ready) return;
+  let cur = curDeck.player.getVolume ? curDeck.player.getVolume() : 15;
+  const steps = 20;
+  const stepTime = Math.max(15, durationMs / steps);
+  const diff = (targetVol - cur) / steps;
+  let s = 0;
+  _duckTimer = setInterval(() => {
+    s++;
+    cur = Math.min(targetVol, cur + diff);
+    try { curDeck.player.setVolume(Math.round(cur)); } catch (_) {}
+    if (s >= steps || cur >= targetVol) {
       clearInterval(_duckTimer);
       try { curDeck.player.setVolume(targetVol); } catch (_) {}
     }
@@ -2279,7 +2332,10 @@ function connectWS() {
             currentTrack = m.track;
             updateNowPlayingUI(m.track);
             if (started) {
-              if (m.track.type === 'spot') {
+              if (spotAudio && !_isSpotRodo && m.track.ytId) {
+                // Diferir arranque de la nueva canción hasta terminar el spot comercial actual
+                _pendingPlayAfterSpot = { track: m.track, pos: m.position || 0 };
+              } else if (m.track.type === 'spot') {
                 playSpotTrack(m.track);
               } else if (m.track.ytId) {
                 playRemote(m.track, m.position || 0);

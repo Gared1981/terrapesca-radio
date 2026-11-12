@@ -1336,12 +1336,22 @@ function _wsQueuePreview(){
   }
   _wsSend({type:'QUEUE_PREVIEW',items});
 }
-function _wsSpotAudio(ab, name, mime){
-  // Convert ArrayBuffer → base64 and relay as SPOT to all sucursal listeners
+function _wsSpotAudio(ab, name, mime, extraMeta){
+  // Convert ArrayBuffer → base64 and relay as SPOT to all sucursal / TV / listen clients
   try{
     const u8=new Uint8Array(ab);
     let b=''; for(let i=0;i<u8.length;i++) b+=String.fromCharCode(u8[i]);
-    _wsSend({ type:'SPOT', track:{b64:btoa(b), name:name||'DJ Rodo — Terrapesca', mime:mime||'audio/mpeg'} });
+    const estDur=Math.max(8, Math.min(55, Math.round(u8.length/16000)));
+    _wsSend({
+      type:'SPOT',
+      track:Object.assign({
+        type:'spot',
+        b64:btoa(b),
+        name:name||'DJ Rodo — Terrapesca',
+        mime:mime||'audio/mpeg',
+        duration:estDur
+      }, extraMeta||{})
+    });
   }catch(e){ console.warn('[Studio→WS] spot encode error',e); }
 }
 // Voces de OpenAI (gpt-4o-mini-tts). Se mantienen alias de las claves antiguas
@@ -1740,6 +1750,7 @@ window.onYouTubeIframeAPIReady=buildPlayers;
 let _studioAudioCtx = null, _studioOsc = null;
 let _studioTicker = null;
 let _studioUserPaused = false;
+let _pausedForSpot = false;
 
 function startStudioBgAudio(){
   try{
@@ -1780,7 +1791,7 @@ function initStudioTicker(){
     `], { type: 'application/javascript' });
     _studioTicker = new Worker(URL.createObjectURL(blob));
     _studioTicker.onmessage = function(){
-      if(!_studioUserPaused && !_autopilotOn){
+      if(!_studioUserPaused && !_autopilotOn && !_pausedForSpot){
         const cur = decks[activeDeck];
         if(cur && cur.player && cur.ready && cur.playing){
           try{
@@ -1857,7 +1868,7 @@ function onDeckState(d,e){
     updateOnAir();
   }
   else if(e.data===YT.PlayerState.PAUSED){
-    if(d.id===activeDeck && document.hidden && !_studioUserPaused){
+    if(d.id===activeDeck && document.hidden && !_studioUserPaused && !_pausedForSpot){
       console.warn('[Studio Deck '+d.id+'] Pausa en segundo plano detectada — intentando reactivar');
       try{ d.player.playVideo(); }catch(_){}
       return;
@@ -2153,7 +2164,7 @@ function doCrossfade(overrideSecs){
       renderDeck(cur.id);
       renderDeck(nxt.id);
       console.log('[crossfade] completado → deck '+(activeDeck?'B':'A'));
-      if(_pendingDJItem){ const _it=_pendingDJItem; _pendingDJItem=null; setTimeout(()=>_runIntervention(_it),700); }
+      if(_pendingDJItem){ const _it=_pendingDJItem; _pendingDJItem=null; setTimeout(()=>_runIntervention(_it),3200); }
     }catch(err){
       console.error('[crossfade] finalize error:',err&&err.message);
     }finally{
@@ -2275,11 +2286,27 @@ setInterval(()=>{
     if(next) prebufferNext(next);
   }
   if(rem<=CROSSFADE_SECS && rem>0){
-    if(flags.dj && djShouldFire()) _pendingDJItem=nextDJItem();
+    if(flags.dj && djShouldFire()){
+      const nxtInt=nextDJItem();
+      if(nxtInt && nxtInt.kind==='spot'){
+        // Para un Spot comercial al terminar canción: cierra suavemente la canción saliente, suena el spot completo y luego entra la nueva desde 0:00 (cero cortes ni brincos torpes)
+        _autoSpotThenNextTrack();
+        return;
+      }
+      _pendingDJItem=nxtInt;
+    }
     doCrossfade();
   }
 },250);
-// Ejecuta la intervención pendiente (spot/DJ) sobre la canción NUEVA, ya ducked.
+async function _autoSpotThenNextTrack(){
+  if(djActive||_xfading||_autopilotOn) return;
+  await playSpot(null, { betweenSongs:true });
+  if(!_autopilotOn && !_xfading){
+    const other=activeDeck===0?1:0;
+    advanceQueueInto(other);
+  }
+}
+// Ejecuta la intervención pendiente (DJ Rodo) sobre la intro de la canción NUEVA, con ducking suave.
 function _runIntervention(item){
   if(djActive||_xfading||!item) return;
   if(item.kind==='spot') playSpot(); else playDJ(item.type);
@@ -2501,18 +2528,18 @@ function djInterveneNow(){
 }
 async function playDJ(type){
   if(djActive) return;
+  const is247=_autopilotOn;
   djActive=true; _endedDuringDJ=false; setDJState('generando…'); setOnAir(true);
   try{
     const {script,cmd}=await genDJScript(type);
     document.getElementById('djNow').textContent=script||'…';
     _pushRecentDJ(script);
 
-    // Execute AI command: preload chosen song before speaking
-    if(cmd && cmd.action==='load_song' && flags.aiSelect && queue[cmd.idx]){
+    // Execute AI command: preload chosen song before speaking (only in manual Cabina mode)
+    if(!is247 && cmd && cmd.action==='load_song' && flags.aiSelect && queue[cmd.idx]){
       _djNextSong=cmd.idx;
       const other=activeDeck===0?1:0;
       const chosen=queue[cmd.idx];
-      // If not already loaded, cue it silently on the inactive deck
       if(!decks[other].item || decks[other].item.ytId!==chosen.ytId){
         cueDeck(other,chosen);
       }
@@ -2522,27 +2549,24 @@ async function playDJ(type){
     const _miss=_voiceCredsMissing(); if(_miss){toast(_miss,'error');throw new Error('no key');}
     const ab=await synthTTS(script||'',{voice:djVoice()});
     setDJState('al aire');
-    _wsSpotAudio(ab, `🎙️ DJ Rodo — ${type}`); // relay voice to sucursales
-    if(flags.duck) duckTo(0.12, 350);
-    // Play stinger before Rodo speaks
+    const horaLbl=type==='TIME_CHECK'?(` (${horaRadio()||'en vivo'})`):'';
+    _wsSpotAudio(ab, `🎙️ DJ Rodo — ${type==='TIME_CHECK'?'La Hora Exacta'+horaLbl:type}`, 'audio/mpeg', { isRodo:true });
+    if(!is247 && flags.duck) duckTo(0.16, 650);
     await playStinger();
     await playClip(URL.createObjectURL(new Blob([ab],{type:'audio/mpeg'})), ()=>{
-      // Rampa gradual de música 2.4s antes del final de la voz
-      if(flags.duck) duckTo(1.0, 2400);
+      if(!is247 && flags.duck) duckTo(1.0, 1400);
     });
   }catch(e){ if(e&&e.message&&e.message!=='no key') toast('No se generó la voz: '+e.message,'error'); }
   finally{
     console.log('[Rodo] DJ ended — restoring music');
-    if(flags.duck) duckTo(1.0, 450);
+    if(!is247 && flags.duck) duckTo(1.0, 500);
     djActive=false; setDJState('standby');
-    if(_endedDuringDJ && !_xfading){ console.log('[Rodo] song ended during DJ — advancing'); advanceNoXfade(); }
-    else { _resumeActiveDeckIfStalled(); }
-    if(!decks[0].playing&&!decks[1].playing&&!_endedDuringDJ) setOnAir(false);
+    if(!is247){
+      if(_endedDuringDJ && !_xfading){ console.log('[Rodo] song ended during DJ — advancing'); advanceNoXfade(); }
+      else { _resumeActiveDeckIfStalled(); }
+      if(!decks[0].playing&&!decks[1].playing&&!_endedDuringDJ) setOnAir(false);
+    }
     refreshDJStatus();
-    // Notify sucursales after DJ so they reconnect without waiting for sync interval.
-    // Skip if a crossfade is in progress: activeDeck still points at the OLD deck mid-fade,
-    // so sending state now would push the wrong (old) track; doCrossfade emits its own PLAY.
-    setTimeout(()=>{ if(!_xfading) _wsSendCurrentState(); }, 300);
   }
 }
 function playClip(url, onNearEnd){
@@ -2559,9 +2583,9 @@ function playClip(url, onNearEnd){
         try{ onNearEnd(); }catch(e){ console.warn('[playClip] onNearEnd err:',e); }
       }
     };
-    // Radio moderna: 2.8s antes de terminar el spot/clip, se dispara la rampa musical
+    // Radio moderna: 1.4s antes de terminar el spot/clip, se dispara la rampa musical suave
     a.ontimeupdate=()=>{
-      if(!nearEndFired && a.duration && (a.duration - a.currentTime <= 2.8)){
+      if(!nearEndFired && a.duration && (a.duration - a.currentTime <= 1.4)){
         triggerNearEnd();
       }
     };
@@ -2569,53 +2593,96 @@ function playClip(url, onNearEnd){
       if(done)return;
       done=true;
       triggerNearEnd();
-      try{URL.revokeObjectURL(url);}catch(_){}_djAudio=null;
+      try{if(url&&url.startsWith('blob:'))URL.revokeObjectURL(url);}catch(_){}_djAudio=null;
       res();
     };
     a.onended=fin; a.onerror=fin; a.play().catch(fin);
     setTimeout(fin,55000);
   });
 }
-async function playSpot(){
-  if(!spots.length) return;
-  const sp=spots[Math.floor(Math.random()*spots.length)];
-  if(!sp||!sp.b64) return;
-  const wasStationLive = _autopilotOn || decks.some(d => d.playing);
+async function playSpot(forcedSpot, opts){
+  const options=opts||{};
+  const sp=forcedSpot || (spots.length ? spots[Math.floor(Math.random()*spots.length)] : null);
+  if(!sp||(!sp.b64&&!sp.url)) return;
+  const is247=_autopilotOn;
+  const wasManualDeckPlaying=!is247 && decks.some(d => d.playing);
+  const betweenSongs=!!options.betweenSongs;
   djActive=true; _endedDuringDJ=false; setDJState('spot'); setOnAir(true);
+  if(wasManualDeckPlaying) _pausedForSpot=true;
   try{
-    const bin=atob(sp.b64),arr=new Uint8Array(bin.length);
-    for(let i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);
     const mime=sp.mime||'audio/mpeg';
     const baked=(mime!=='audio/mpeg'); // WAV = ya trae el fondo horneado
     document.getElementById('djNow').textContent='📢 '+(sp.name||'Spot Terrapesca');
     pushHistory({name:sp.name||'Spot',artist:'Spot publicitario',spot:true});
-    _wsSpotAudio(arr.buffer, sp.name||'Spot Terrapesca', mime);
-    // Spot: la canción baja suavemente y se pausa (solo si estaba al aire)
-    if(wasStationLive && flags.duck) fadeOutAndPause(600);
-    if(!baked && sp.bed && sp.bed!=='none') playSpotBed(sp.bed); // spots viejos: fondo en vivo
-    // Radio moderna: 2.8s antes de que termine el spot, reanuda la canción y sube gradualmente (solo si estaba al aire)
-    await playClip(URL.createObjectURL(new Blob([arr],{type:mime})), ()=>{
-      console.log('[Radio] Rampa musical gradual antes de que finalice el spot…');
-      if(wasStationLive && flags.duck) fadeInAndResume(2800);
-    });
+
+    let localPlayUrl='';
+    if(sp.b64){
+      const bin=atob(sp.b64),arr=new Uint8Array(bin.length);
+      for(let i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);
+      _wsSpotAudio(arr.buffer, sp.name||'Spot Terrapesca', mime, {
+        isRodo:false,
+        bed:sp.bed||'none',
+        spot_id:sp.spot_id||'',
+        url:sp.url||'',
+        advanceAfter:betweenSongs
+      });
+      localPlayUrl=URL.createObjectURL(new Blob([arr],{type:mime}));
+    } else if(sp.url){
+      _wsSend({
+        type:'SPOT',
+        track:{
+          type:'spot',
+          isRodo:false,
+          bed:sp.bed||'none',
+          spot_id:sp.spot_id||'',
+          url:sp.url,
+          name:sp.name||'Spot Terrapesca',
+          mime,
+          duration:sp.duration||22,
+          advanceAfter:betweenSongs
+        }
+      });
+      localPlayUrl=sp.url;
+    }
+
+    // Entrada suave (750ms) estilo /tv: baja y pausa la canción actual en su posición exacta (solo si estamos en Cabina manual)
+    if(wasManualDeckPlaying && flags.duck){
+      fadeOutAndPause(750);
+      await new Promise(r=>setTimeout(r,320));
+    }
+    if(!is247 && !baked && sp.bed && sp.bed!=='none') playSpotBed(sp.bed);
+    if(is247 && master<=0.02){
+      // En 24/7 con master en silencio, el spot ya salió hacia /tv, /listen y sucursales
+      await new Promise(r=>setTimeout(r, Math.min(25000, ((sp.duration||18)*1000))));
+    } else {
+      await playClip(localPlayUrl, ()=>{
+        if(wasManualDeckPlaying && !betweenSongs && flags.duck){
+          _pausedForSpot=false;
+          fadeInAndResume(1200);
+        }
+      });
+    }
   }catch(e){
     console.warn('[Spot] Error reproduciendo spot:',e);
   }
   finally{
-    console.log('[Rodo] spot ended — restoring music');
-    if(wasStationLive && flags.duck && decks[activeDeck] && decks[activeDeck].vol < 0.95){
-      fadeInAndResume(800);
-    }
+    _pausedForSpot=false;
     stopSpotBed();
     djActive=false; setDJState('standby');
-    if(_endedDuringDJ && !_xfading){ console.log('[Rodo] song ended during spot — advancing'); advanceNoXfade(); }
-    else if(wasStationLive) { _resumeActiveDeckIfStalled(); }
+    if(!is247){
+      if(betweenSongs){
+        // _autoSpotThenNextTrack arrancará la nueva canción desde 0:00
+      } else if(wasManualDeckPlaying){
+        // Reanudar EXACTAMENTE la misma canción donde quedó pausada, sin brincar de canción
+        if(flags.duck && decks[activeDeck] && decks[activeDeck].vol < 0.95){
+          fadeInAndResume(1200);
+        } else {
+          _resumeActiveDeckIfStalled();
+        }
+      }
+      updateOnAir();
+    }
     refreshDJStatus();
-    updateOnAir();
-    // Notify sucursales so they reconnect without waiting for the 60s sync interval.
-    // Skip during a crossfade: activeDeck still points at the OLD deck mid-fade, so
-    // sending state now would push the wrong track; doCrossfade emits its own PLAY.
-    setTimeout(()=>{ if(!_xfading) _wsSendCurrentState(); }, 300);
   }
 }
 
@@ -2653,10 +2720,11 @@ async function genDJScript(type){
 const HORA_H=['','una','dos','tres','cuatro','cinco','seis','siete','ocho','nueve','diez','once','doce'];
 function horaRadio(){
   try{const p=new Intl.DateTimeFormat('en-US',{timeZone:'America/Mazatlan',hour:'numeric',minute:'2-digit',hour12:false}).formatToParts(new Date());
-    let h=0,m=0;for(const x of p){if(x.type==='hour')h=+x.value;if(x.type==='minute')m=+x.value;}
+    let h=0,m=0;for(const x of p){if(x.type==='hour')h=(+x.value)%24;if(x.type==='minute')m=+x.value;}
     let per=h>=5&&h<=11?'de la mañana':h===12?'del mediodía':h>=13&&h<=18?'de la tarde':h>=19?'de la noche':'de la madrugada';
     let h12=h%12||12;const art=h12===1?'la':'las';
-    return `${art} ${HORA_H[h12]}${m?' con '+m:' en punto'} ${per}`;
+    const minTxt=m===0?' en punto':m===1?' con un minuto':(' con '+numEnLetras(m));
+    return `${art} ${HORA_H[h12]}${minTxt} ${per}`;
   }catch(e){return null;}
 }
 const WCITIES=(window.TPWeather&&TPWeather.CITIES)||{culiacan:{n:'Culiacán',lat:24.8092,lng:-107.3938},mazatlan:{n:'Mazatlán',lat:23.2494,lng:-106.4111},los_mochis:{n:'Los Mochis',lat:25.7919,lng:-109.0200}};
@@ -2852,7 +2920,7 @@ Entrega EXCLUSIVAMENTE las palabras que Rodo debe pronunciar, en un solo párraf
     STATION_ID:
       `${systemPrompt}\n\nSon ${hora}. Identifica brevemente la estación: Radio Terrapesca. Menciona que están acompañando a pescadores y clientes de Sinaloa. Frase natural de radio. 5 a 10 segundos.`,
     TIME_CHECK:
-      `${systemPrompt}\n\nSon ${hora}. ABRE con una variante natural de este patrocinio de sección (dilo al inicio): "${selloHora}". Luego di la hora (${hora}) de forma natural como locutor de radio y añade algo breve y útil: recomendación de pesca, equipo, seguridad o clima. Varía las palabras cada vez. 6 a 12 segundos.`,
+      `${systemPrompt}\n\nSon exactamente ${hora}. ABRE con una variante natural de este patrocinio de sección (dilo al inicio): "${selloHora}". OBLIGATORIO: di la HORA EXACTA CON SUS MINUTOS tal cual (${hora}), JAMÁS redondees a la hora cerrada. Añade algo breve y útil: recomendación de pesca, equipo, seguridad o clima. Varía las palabras cada vez. 6 a 12 segundos.`,
     GEAR_TIP:
       `${systemPrompt}\n\nSon ${hora}. Da un tip CONCRETO sobre equipo de pesca. Si arriba hay un producto real del catálogo, gíralo alrededor de ese producto (para qué sirve, qué necesidad resuelve) y menciónalo por su nombre; si no, elige un tipo específico (una línea, un carrete, un señuelo, un chaleco…). Nada genérico. Menciona Terrapesca con naturalidad si encaja, sin presionar. De 10 a 15 segundos.`,
     SAFETY_TIP:
@@ -2902,7 +2970,10 @@ function numEnLetras(n){
     'veintiuno','veintidós','veintitrés','veinticuatro','veinticinco','veintiséis','veintisiete','veintiocho','veintinueve',
     'treinta','treinta y uno','treinta y dos','treinta y tres','treinta y cuatro','treinta y cinco',
     'treinta y seis','treinta y siete','treinta y ocho','treinta y nueve','cuarenta','cuarenta y uno',
-    'cuarenta y dos','cuarenta y tres','cuarenta y cuatro','cuarenta y cinco'];
+    'cuarenta y dos','cuarenta y tres','cuarenta y cuatro','cuarenta y cinco',
+    'cuarenta y seis','cuarenta y siete','cuarenta y ocho','cuarenta y nueve',
+    'cincuenta','cincuenta y uno','cincuenta y dos','cincuenta y tres','cincuenta y cuatro','cincuenta y cinco',
+    'cincuenta y seis','cincuenta y siete','cincuenta y ocho','cincuenta y nueve'];
   return (n>=0&&n<u.length)?u[n]:String(n);
 }
 
@@ -3689,7 +3760,7 @@ function qDrop(e,i){
   _dragIdx=null;renderQueue();saveQueue();
 }
 function delQ(i){queue.splice(i,1);if(queuePos>=i)queuePos=Math.max(0,queuePos-1);renderQueue();saveQueue();}
-function playSpotIdx(i){const sp=spots[i];if(!sp)return;const tmp=spots;spots=[sp];playSpot().finally(()=>spots=tmp);}
+function playSpotIdx(i){const sp=spots[i];if(!sp)return;playSpot(sp);}
 
 /* Load a specific queue song into a chosen deck (A=0 / B=1) */
 function loadToDeck(i,deckId){

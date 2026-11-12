@@ -967,7 +967,12 @@
   <div class="controls-overlay">
     <button class="ctrl-btn" id="btnPlayPause" onclick="togglePlay()">▶ Reproducir</button>
     <button class="ctrl-btn active" id="btnMode" onclick="toggleMode()">📻 Modo: Radio + Video Spots</button>
-    <button class="ctrl-btn" id="btnInterval" onclick="toggleInterval()">⏱ Frecuencia: 2.5 Min</button>
+    <button class="ctrl-btn" id="btnInterval" onclick="toggleInterval()">⏱ Frecuencia: Sincronizado Radio</button>
+    <div class="ctrl-btn" style="display:inline-flex;align-items:center;gap:8px;padding:6px 12px;">
+      <span id="tvVolIcon" onclick="toggleTvMute()" style="cursor:pointer;">🔊</span>
+      <input id="tvVolSlider" type="range" min="0" max="100" value="85" oninput="setTvVolume(this.value)" style="width:78px;accent-color:#ffbe1a;cursor:pointer;">
+      <span id="tvVolLabel" style="font-size:12px;min-width:32px;">85%</span>
+    </div>
     <button class="ctrl-btn" id="btnFit" onclick="toggleVideoFit()" title="Alternar entre ver video completo 100% o llenar el marco">🔲 Video Completo</button>
     <button class="ctrl-btn" onclick="exportVideoSpot()" style="color:#00ffaa;border-color:#00ffaa">🎬 Descargar Video MP4</button>
     <button class="ctrl-btn" onclick="toggleFullscreen()">⛶ Pantalla Completa</button>
@@ -982,7 +987,7 @@
       <img class="standby-logo" src="https://cdn.shopify.com/s/files/1/0205/5752/9188/files/Logo-Terrapesca-01_205270e5-d546-4e33-a8d1-db0a91f1e554.png?v=1700262873" alt="Terrapesca">
       
       <!-- Tarjeta del Reproductor de Radio en Vivo -->
-      <div class="standby-player-card">
+      <div class="standby-player-card" id="stPlayerCard" style="transition:border-color 0.4s ease, box-shadow 0.4s ease;">
         <div class="standby-cover-box">
           <img id="stTrackCover" class="standby-cover-img" src="https://img.youtube.com/vi/teprNzF6J1I/mqdefault.jpg" alt="Carátula">
           <div class="standby-eq-wave">
@@ -996,12 +1001,15 @@
         <div class="standby-track-info">
           <div class="standby-badge">
             <div class="live-dot"></div>
-            <span>🔴 EN VIVO • RADIO TERRAPESCA 24/7</span>
+            <span id="stBadgeText">🔴 EN VIVO • RADIO TERRAPESCA 24/7</span>
+          </div>
+          <div id="stInterventionBanner" style="display:none;margin:6px 0 8px;padding:8px 16px;border-radius:12px;background:linear-gradient(90deg,rgba(255,190,26,0.24),rgba(249,115,22,0.18));border:1px solid rgba(255,190,26,0.75);color:#fde047;font-weight:800;font-size:clamp(14px,1.4vw,20px);letter-spacing:0.4px;box-shadow:0 0 24px rgba(255,190,26,0.28);">
+            🎙️ DJ RODO AL AIRE
           </div>
           <h1 class="standby-now-title" id="stTrackTitle">En el Muelle de San Blás</h1>
           <p class="standby-now-artist" id="stTrackArtist">por Maná</p>
           <div class="standby-next-pill" id="stNextSpotNotice">
-            ⏱ Próximo Spot Buen Fin: <strong>Gorras al 50%</strong> (en breve)
+            📡 Sincronizado en vivo: <strong>Música + Videos Buen Fin + Spots Cabina + DJ Rodo</strong>
           </div>
         </div>
       </div>
@@ -1168,29 +1176,117 @@
 
   <script>
     let SPOTS = [];
+    let CUSTOM_SPOTS = [];
     let currentIdx = 0;
-    let mode = 'radio_spots'; // 'radio_spots' (por defecto: radio 24/7 + spots periódicos), 'loop' (carrusel), 'reactive'
+    let mode = 'radio_spots'; // 'radio_spots' (por defecto: radio 24/7 + spots sincronizados), 'loop' (carrusel), 'reactive'
     let isPlaying = false;
     let isInSpot = false;
+    let _spotAdvanceAfter = false;
     let progressInterval = null;
-    const SPOT_DURATION_SECS = 30; // Duración base referencial
+    const SPOT_DURATION_SECS = 30;
+    const TP_FALLBACK_COVER = '/buenfin/logo_terrapesca_marine.png';
+
+    // Volumen maestro para usar /tv tanto en pantallas como en audio principal de Radio
+    let _tvMasterVol = parseInt(localStorage.getItem('tp_tv_vol') || '85', 10);
+    if (isNaN(_tvMasterVol) || _tvMasterVol < 0 || _tvMasterVol > 100) _tvMasterVol = 85;
+    let _tvPrevVol = _tvMasterVol || 85;
 
     // Sincronización en vivo con Radio Terrapesca (YouTube IFrame API + WebSocket)
-    const AUTO_WS = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host;
+    const AUTO_WS = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws';
     let ws = null;
+    let _wsConnected = false;
+    let _radioIsLive = false;
+    let _currentServerVer = null;
+    let _pendingReloadVer = false;
     let ytPlayer = null;
     let ytReady = false;
     let pendingYtTrack = null;
     let currentYtTrack = null;
     let currentYtPos = 0;
     let _lastLoadedYtId = null;
+    let _lastReportedErrYtId = '';
+    let _pausedForCommercialSpot = false;
 
-    // Reproducción de spots de audio remotos y locución de DJ Rodo
+    // Motor de audio en segundo plano para que NO se detenga al cambiar de pestaña en PC
+    let _tvAudioCtx = null;
+    let _tvSilentOsc = null;
+    function ensureTvBgAudio() {
+      try {
+        if (!_tvAudioCtx) {
+          const AC = window.AudioContext || window.webkitAudioContext;
+          if (AC) _tvAudioCtx = new AC();
+        }
+        if (_tvAudioCtx && _tvAudioCtx.state === 'suspended') {
+          _tvAudioCtx.resume();
+        }
+        if (_tvAudioCtx && !_tvSilentOsc) {
+          _tvSilentOsc = _tvAudioCtx.createOscillator();
+          _tvSilentOsc.type = 'sine';
+          _tvSilentOsc.frequency.setValueAtTime(38, _tvAudioCtx.currentTime);
+          const g = _tvAudioCtx.createGain();
+          g.gain.setValueAtTime(0.00001, _tvAudioCtx.currentTime);
+          _tvSilentOsc.connect(g);
+          g.connect(_tvAudioCtx.destination);
+          _tvSilentOsc.start();
+        }
+      } catch (_) {}
+    }
+    ['click', 'keydown', 'touchstart'].forEach(ev => {
+      window.addEventListener(ev, ensureTvBgAudio, { passive: true });
+    });
+    document.addEventListener('visibilitychange', () => {
+      if (_tvAudioCtx && _tvAudioCtx.state === 'suspended') {
+        try { _tvAudioCtx.resume(); } catch (_) {}
+      }
+      if (!isInSpot && !_pausedForCommercialSpot && _radioIsLive && ytPlayer && ytReady && currentYtTrack) {
+        try {
+          const st = ytPlayer.getPlayerState && ytPlayer.getPlayerState();
+          if (st === YT.PlayerState.PAUSED || st === YT.PlayerState.CUED) {
+            ytPlayer.playVideo();
+          }
+        } catch (_) {}
+      }
+    });
+
+    // Reproducción de spots de audio remotos (Cabina / personalizados) y locución de DJ Rodo
     let jingleB64 = null;
     let jingleAudio = null;
+    let spotBedAudio = null;
     let remoteSpotAudio = null;
+    let _remoteSpotWatchdog = null;
     let _isRemoteSpotPlaying = false;
+    let _isRemoteRodoActive = false;
     let _pendingPlayAfterRemoteSpot = null;
+    let _deferredRodoTrack = null;
+
+    function setTvVolume(v) {
+      const val = Math.max(0, Math.min(100, parseInt(v, 10) || 0));
+      _tvMasterVol = val;
+      if (val > 0) _tvPrevVol = val;
+      try { localStorage.setItem('tp_tv_vol', String(val)); } catch (_) {}
+      const sl = document.getElementById('tvVolSlider');
+      const lb = document.getElementById('tvVolLabel');
+      const ic = document.getElementById('tvVolIcon');
+      if (sl && +sl.value !== val) sl.value = val;
+      if (lb) lb.textContent = val + '%';
+      if (ic) ic.textContent = val === 0 ? '🔇' : (val < 50 ? '🔉' : '🔊');
+      if (ytPlayer && ytReady && !isInSpot && !_pausedForCommercialSpot) {
+        try {
+          ytPlayer.setVolume(_isRemoteRodoActive ? Math.max(10, Math.round(val * 0.18)) : val);
+        } catch (_) {}
+      }
+      if (audioEl) {
+        try { audioEl.volume = Math.min(1, val / 85); } catch (_) {}
+      }
+      if (remoteSpotAudio) {
+        try { remoteSpotAudio.volume = Math.min(1, (val / 85) * 0.96); } catch (_) {}
+      }
+    }
+
+    function toggleTvMute() {
+      if (_tvMasterVol > 0) setTvVolume(0);
+      else setTvVolume(_tvPrevVol || 85);
+    }
 
     function b64ToBlob(b64, mime = 'audio/mpeg') {
       const bin = atob(b64);
@@ -1198,6 +1294,34 @@
       const u8 = new Uint8Array(len);
       for (let i = 0; i < len; i++) u8[i] = bin.charCodeAt(i);
       return new Blob([u8], { type: mime });
+    }
+
+    function resolveAudioSrc(track) {
+      if (!track) return null;
+      if (track.b64) {
+        try {
+          const blob = b64ToBlob(track.b64, track.mime || 'audio/mpeg');
+          const objUrl = URL.createObjectURL(blob);
+          return { src: objUrl, isBlob: true };
+        } catch (_) {}
+      }
+      if (track.url) {
+        const u = track.url;
+        return { src: u, isBlob: false };
+      }
+      if (track.spot_id) {
+        return { src: '/buenfin/' + track.spot_id + '.mp3?v=' + Date.now(), isBlob: false };
+      }
+      return null;
+    }
+
+    function isRodoTrack(track) {
+      if (!track) return false;
+      if (track.isRodo === true) return true;
+      if (track.isRodo === false) return false;
+      if (track.url && track.url.startsWith('/rodo/')) return true;
+      if (track.name && /dj\s*rodo|rodo|locutor|hora|consejo|clima|mareas|estaci[oó]n/i.test(track.name)) return true;
+      return false;
     }
 
     function revokeAudio(a) {
@@ -1211,33 +1335,6 @@
       } catch (e) {}
     }
 
-    function playJingle(onComplete) {
-      if (!jingleB64) {
-        if (onComplete) onComplete();
-        return;
-      }
-      stopJingle();
-      try {
-        const blob = b64ToBlob(jingleB64, 'audio/mpeg');
-        const url = URL.createObjectURL(blob);
-        jingleAudio = new Audio(url);
-        jingleAudio._objUrl = url;
-        jingleAudio.volume = 0.85;
-        let ended = false;
-        const done = () => {
-          if (ended) return;
-          ended = true;
-          stopJingle();
-          if (onComplete) onComplete();
-        };
-        jingleAudio.addEventListener('ended', done);
-        jingleAudio.addEventListener('error', done);
-        jingleAudio.play().catch(done);
-      } catch (e) {
-        if (onComplete) onComplete();
-      }
-    }
-
     function stopJingle() {
       if (jingleAudio) {
         revokeAudio(jingleAudio);
@@ -1245,116 +1342,268 @@
       }
     }
 
+    function startSpotBed(bedName) {
+      stopSpotBed();
+      if (!bedName || bedName === 'none') return;
+      try {
+        const bedUrl = bedName === 'costakayaks' ? '/jingle-costakayaks.mp3' : '/jingle-terrapesca.mp3';
+        spotBedAudio = new Audio(bedUrl);
+        spotBedAudio.loop = true;
+        spotBedAudio.volume = Math.min(0.22, (_tvMasterVol / 100) * 0.22);
+        spotBedAudio.play().catch(() => {});
+      } catch (_) {}
+    }
+
+    function stopSpotBed() {
+      if (!spotBedAudio) return;
+      const b = spotBedAudio;
+      spotBedAudio = null;
+      let v = b.volume || 0.2;
+      const iv = setInterval(() => {
+        v = Math.max(0, v - 0.03);
+        try { b.volume = v; } catch (_) {}
+        if (v <= 0) {
+          clearInterval(iv);
+          try { b.pause(); } catch (_) {}
+        }
+      }, 45);
+    }
+
     function stopRemoteSpotAudio() {
+      clearTimeout(_remoteSpotWatchdog);
+      stopSpotBed();
       if (remoteSpotAudio) {
         revokeAudio(remoteSpotAudio);
         remoteSpotAudio = null;
       }
       _isRemoteSpotPlaying = false;
+      _isRemoteRodoActive = false;
+      _pausedForCommercialSpot = false;
     }
 
-    // Reproduce spot de solo audio o intervención de DJ Rodo / locutor en la TV
-    function playRemoteAudioSpot(track) {
-      if (!track || !track.b64) return;
-      console.log('[TV] Reproduciendo spot de audio / locutor:', track.name);
-
-      _isRemoteSpotPlaying = true;
-
-      // Si hay un video spot corriendo, lo pausamos momentáneamente
-      if (isInSpot) {
-        pauseSpot();
-      }
-
-      // Pausar radio de fondo
-      pauseRadioPlayback();
-
-      // Si estamos en Standby, actualizamos la carátula y el título al aire
+    function restoreStandbyVisuals() {
       const playerCard = document.getElementById('stPlayerCard');
       const badgeTextEl = document.getElementById('stBadgeText');
-      if (standbyScreen && standbyScreen.style.display !== 'none') {
-        const titleEl = document.getElementById('stTrackTitle');
-        const artistEl = document.getElementById('stTrackArtist');
-        if (titleEl) titleEl.textContent = track.name || '🎙️ Intervención Especial';
-        if (artistEl) artistEl.textContent = 'Locución en Vivo / Radio Terrapesca';
-        if (badgeTextEl) badgeTextEl.textContent = '🎙️ EN VIVO • LOCUCIÓN AL AIRE';
-        if (playerCard) {
-          playerCard.style.borderColor = '#ffbe1a';
-          playerCard.style.boxShadow = '0 0 50px rgba(255, 190, 26, 0.7)';
+      const bannerEl = document.getElementById('stInterventionBanner');
+      if (playerCard) {
+        playerCard.style.borderColor = 'rgba(56, 189, 248, 0.4)';
+        playerCard.style.boxShadow = '0 25px 60px rgba(0, 0, 0, 0.8), 0 0 35px rgba(56, 189, 248, 0.2)';
+      }
+      if (badgeTextEl) badgeTextEl.textContent = '🔴 EN VIVO • RADIO TERRAPESCA 24/7';
+      if (bannerEl) bannerEl.style.display = 'none';
+      if (currentYtTrack) updateStandbyCard(currentYtTrack);
+    }
+
+    // Punto central: recibe CUALQUIER Spot (Buen Fin Video, Spot Personalizado de Cabina o DJ Rodo)
+    function handleIncomingSpot(track) {
+      if (!track) return;
+      resetFallbackSpotTimer();
+
+      // 1) Si es un Spot Oficial del Buen Fin, lanzar el Escenario Completo con VIDEO + Precio + QR + Fade Suave
+      if (track.spot_id && SPOTS.length) {
+        const bfIdx = SPOTS.findIndex(x => x.spot_id === track.spot_id);
+        if (bfIdx >= 0) {
+          console.log('[TV] Lanzando Video Spot Buen Fin sincronizado con Radio:', track.spot_id);
+          launchNextSpotSequence(bfIdx, { advanceAfter: !!track.advanceAfter, remoteTrack: track });
+          return;
         }
       }
 
-      // Si el track incluye jingle propio o tenemos jingle global, reproducirlo
-      if (track.jingleB64) {
-        jingleB64 = track.jingleB64;
-      }
-
-      playJingle(() => {
-        executeAudioSpotPlay(track);
-      });
+      // 2) Intervención de DJ Rodo o Spot Comercial de Cabina (soporta URL o Base64)
+      playRemoteAudioSpot(track);
     }
 
-    function executeAudioSpotPlay(track) {
+    // Reproduce locución de DJ Rodo (con ducking suave SIN cortar canción) o Spot Comercial de Cabina (con fade-out y fade-in sobre la MISMA canción)
+    function playRemoteAudioSpot(track) {
+      const srcInfo = resolveAudioSrc(track);
+      if (!srcInfo) return;
+
+      const rodo = isRodoTrack(track);
+
+      // Si actualmente está corriendo un Video Spot en pantalla completa y entra DJ Rodo, diferirlo al terminar el video
+      if (isInSpot && rodo) {
+        console.log('[TV] DJ Rodo diferido hasta concluir el Video Spot actual');
+        _deferredRodoTrack = track;
+        return;
+      }
+
+      // Si hay un Video Spot corriendo y el operador lanza manualmente un Spot de Cabina, cerrar el video suavemente
+      if (isInSpot && !rodo) {
+        pauseSpot();
+        isInSpot = false;
+        tvStage.style.display = 'none';
+        standbyScreen.style.display = 'flex';
+        standbyScreen.style.opacity = '1';
+      }
+
+      stopRemoteSpotAudio();
+      _isRemoteSpotPlaying = true;
+      _isRemoteRodoActive = rodo;
+
+      const playerCard = document.getElementById('stPlayerCard');
+      const badgeTextEl = document.getElementById('stBadgeText');
+      const bannerEl = document.getElementById('stInterventionBanner');
+      const titleEl = document.getElementById('stTrackTitle');
+      const artistEl = document.getElementById('stTrackArtist');
+      const coverEl = document.getElementById('stTrackCover');
+
+      if (rodo) {
+        // 🎙️ DJ RODO: DUCKING FM SUAVE (La canción actual NUNCA se detiene ni se brinca; baja al 18% de cama musical)
+        duckYT(700, Math.max(12, Math.round(_tvMasterVol * 0.18)));
+        if (badgeTextEl) badgeTextEl.textContent = '🎙️ DJ RODO AL AIRE • EN VIVO';
+        if (bannerEl) {
+          bannerEl.textContent = (track.name && track.name.includes('🎙️')) ? track.name : ('🎙️ ' + (track.name || 'DJ Rodo en vivo'));
+          bannerEl.style.background = 'linear-gradient(90deg,rgba(255,190,26,0.26),rgba(249,115,22,0.18))';
+          bannerEl.style.borderColor = 'rgba(255,190,26,0.85)';
+          bannerEl.style.color = '#fde047';
+          bannerEl.style.display = 'block';
+        }
+        if (playerCard) {
+          playerCard.style.borderColor = '#ffbe1a';
+          playerCard.style.boxShadow = '0 0 55px rgba(255, 190, 26, 0.65)';
+        }
+        executeAudioSpotPlay(track, srcInfo, true);
+      } else {
+        // 📢 SPOT PERSONALIZADO DE CABINA: Misma entrada y salida suave de los videos de /tv
+        _pausedForCommercialSpot = true;
+        fadeOutYT(750, 0);
+        if (badgeTextEl) badgeTextEl.textContent = '📢 SPOT COMERCIAL • RADIO TERRAPESCA';
+        if (bannerEl) {
+          bannerEl.textContent = '📢 PROMOCIÓN OFICIAL EN TIENDA Y LÍNEA';
+          bannerEl.style.background = 'linear-gradient(90deg,rgba(16,185,129,0.25),rgba(56,189,248,0.2))';
+          bannerEl.style.borderColor = 'rgba(16,185,129,0.85)';
+          bannerEl.style.color = '#6ee7b7';
+          bannerEl.style.display = 'block';
+        }
+        if (titleEl) titleEl.textContent = (track.name || 'Spot Oficial Terrapesca').replace(/^📢\s*/, '');
+        if (artistEl) artistEl.textContent = 'Terrapesca Marine & Outdoors • Equipa tu aventura';
+        if (coverEl) coverEl.src = TP_FALLBACK_COVER;
+        if (playerCard) {
+          playerCard.style.borderColor = '#10b981';
+          playerCard.style.boxShadow = '0 0 55px rgba(16, 185, 129, 0.55)';
+        }
+        // Pequeño respiro de 320ms mientras baja la música (igual que en los Video Spots)
+        setTimeout(() => {
+          if (!_isRemoteSpotPlaying) return;
+          const isRawMp3 = (track.mime || 'audio/mpeg') === 'audio/mpeg';
+          if (isRawMp3 && track.bed && track.bed !== 'none') {
+            startSpotBed(track.bed);
+          }
+          executeAudioSpotPlay(track, srcInfo, false);
+        }, 320);
+      }
+    }
+
+    function executeAudioSpotPlay(track, srcInfo, rodo) {
       try {
-        stopRemoteSpotAudio();
-        _isRemoteSpotPlaying = true;
+        remoteSpotAudio = new Audio(srcInfo.src);
+        if (srcInfo.isBlob) remoteSpotAudio._objUrl = srcInfo.src;
+        const targetGain = Math.min(1, (_tvMasterVol / 85) * 0.96);
+        remoteSpotAudio.volume = 0;
 
-        const blob = b64ToBlob(track.b64, track.mime || 'audio/mpeg');
-        const url = URL.createObjectURL(blob);
-        remoteSpotAudio = new Audio(url);
-        remoteSpotAudio._objUrl = url;
-        remoteSpotAudio.volume = 0.95;
-
+        let finished = false;
         const onEnd = () => {
-          console.log('[TV] Spot de audio / DJ Rodo finalizado');
+          if (finished) return;
+          finished = true;
+          console.log('[TV] Intervención finalizada:', track.name);
+          const shouldAdvance = !!track.advanceAfter;
           stopRemoteSpotAudio();
 
-          // Restaurar visuales de la tarjeta
-          const playerCard = document.getElementById('stPlayerCard');
-          const badgeTextEl = document.getElementById('stBadgeText');
-          if (playerCard) {
-            playerCard.style.borderColor = 'rgba(56, 189, 248, 0.4)';
-            playerCard.style.boxShadow = '0 25px 60px rgba(0, 0, 0, 0.8), 0 0 35px rgba(56, 189, 248, 0.2)';
-          }
-          if (badgeTextEl) badgeTextEl.textContent = '🔴 EN VIVO • RADIO TERRAPESCA 24/7';
-
-          if (currentYtTrack) updateStandbyCard(currentYtTrack);
-
-          if (isInSpot) {
-            isInSpot = false;
-          }
-
-          // Si llegó un PLAY durante el spot de audio, aplicarlo
-          if (_pendingPlayAfterRemoteSpot) {
-            const p = _pendingPlayAfterRemoteSpot;
-            _pendingPlayAfterRemoteSpot = null;
-            syncYtTrack(p.track, p.position);
+          if (rodo) {
+            // Restaurar volumen de la MISMA canción suavemente desde 18% a _tvMasterVol (sin pausar ni recargar)
+            restoreStandbyVisuals();
+            if (_pendingPlayAfterRemoteSpot) {
+              const p = _pendingPlayAfterRemoteSpot;
+              _pendingPlayAfterRemoteSpot = null;
+              syncYtTrack(p.track, p.position);
+            } else {
+              unduckYT(1300, _tvMasterVol);
+            }
+            checkDeferredReload();
           } else {
-            resumeRadioPlayback();
+            // Pausa estética de salida (900ms) idéntica a la sensación suave de /tv antes de regresar la música
+            setTimeout(() => {
+              restoreStandbyVisuals();
+              if (_pendingPlayAfterRemoteSpot) {
+                const p = _pendingPlayAfterRemoteSpot;
+                _pendingPlayAfterRemoteSpot = null;
+                syncYtTrack(p.track, p.position);
+              } else if (shouldAdvance) {
+                // Spot de fin de canción en 24/7: esperar brevemente el PLAY de la nueva canción
+                setTimeout(() => {
+                  if (!_isRemoteSpotPlaying && !isInSpot && _radioIsLive && ytPlayer && ytReady) {
+                    const st = ytPlayer.getPlayerState && ytPlayer.getPlayerState();
+                    if (st !== YT.PlayerState.PLAYING && st !== YT.PlayerState.BUFFERING) {
+                      resumeRadioPlayback(true);
+                    }
+                  }
+                }, 1400);
+              } else {
+                // Reanudar EXACTAMENTE la misma canción donde se pausó con fade-in suave de 1.2s
+                resumeRadioPlayback(true);
+              }
+              scheduleNextSpot();
+              checkDeferredReload();
+            }, 900);
           }
         };
 
         remoteSpotAudio.addEventListener('ended', onEnd);
-        remoteSpotAudio.addEventListener('error', onEnd);
+        remoteSpotAudio.addEventListener('error', () => {
+          // Si falló URL pero trae respaldo b64, intentar con data URL antes de abortar
+          if (!srcInfo.isBlob && track.b64 && !remoteSpotAudio._retriedB64) {
+            remoteSpotAudio._retriedB64 = true;
+            remoteSpotAudio.src = 'data:' + (track.mime || 'audio/mpeg') + ';base64,' + track.b64;
+            remoteSpotAudio.play().catch(onEnd);
+            return;
+          }
+          onEnd();
+        });
 
-        remoteSpotAudio.play().catch(err => {
-          console.warn('[TV] Error reproduciendo spot de audio:', err);
+        // Watchdog de seguridad para nunca dejar la música abajo si el clip se traba
+        const maxMs = ((Number(track.duration) || 26) + 8) * 1000;
+        clearTimeout(_remoteSpotWatchdog);
+        _remoteSpotWatchdog = setTimeout(onEnd, maxMs);
+
+        remoteSpotAudio.play().then(() => {
+          // Entrada suave de la voz (280ms)
+          let s = 0;
+          const steps = 8;
+          const iv = setInterval(() => {
+            s++;
+            if (!remoteSpotAudio) { clearInterval(iv); return; }
+            try { remoteSpotAudio.volume = Math.min(targetGain, (s / steps) * targetGain); } catch (_) {}
+            if (s >= steps) clearInterval(iv);
+          }, 35);
+        }).catch(err => {
+          console.warn('[TV] Autoplay bloqueado en intervención:', err);
           showTapOverlay();
           onEnd();
         });
       } catch (e) {
-        console.error('[TV] Error decodificando audio:', e);
+        console.error('[TV] Error reproduciendo intervención:', e);
         stopRemoteSpotAudio();
-        resumeRadioPlayback();
+        restoreStandbyVisuals();
+        resumeRadioPlayback(true);
       }
     }
 
-    // Frecuencia e intervalos para spots
-    const INTERVALS = [150, 180, 300, 0, 120]; // 2.5m, 3m, 5m, cada canción, 2m
+    // Frecuencia e intervalos para spots:
+    // -1 = Sincronizado 100% con Radio 24/7 + respaldo automático cada 4 min si no llega spot remoto
+    const INTERVALS = [-1, 150, 180, 300, 0, 120];
     let intervalIdx = 0;
-    let spotIntervalSecs = 150;
+    let spotIntervalSecs = -1;
     let spotCountdownTimer = null;
-    let secondsUntilNextSpot = 150;
+    let secondsUntilNextSpot = 240;
     let nextSpotIdx = 0;
+
+    function resetFallbackSpotTimer() {
+      if (spotIntervalSecs === -1) {
+        secondsUntilNextSpot = 240;
+      } else if (spotIntervalSecs > 0) {
+        secondsUntilNextSpot = spotIntervalSecs;
+      }
+    }
 
     const audioEl = document.getElementById('spotAudio');
     const tvStage = document.getElementById('tvStage');
@@ -1365,19 +1614,21 @@
     // Inicialización del Reproductor de YouTube Iframe API
     window.onYouTubeIframeAPIReady = function() {
       ytPlayer = new YT.Player('yt-player', {
-        height: '1',
-        width: '1',
+        height: '200',
+        width: '200',
         playerVars: {
           autoplay: 1,
           controls: 0,
           modestbranding: 1,
           rel: 0,
-          playsinline: 1
+          playsinline: 1,
+          origin: location.origin
         },
         events: {
           onReady: () => {
             ytReady = true;
             console.log('[TV] Reproductor YouTube de Radio listo');
+            setTvVolume(_tvMasterVol);
             if (pendingYtTrack) {
               const p = pendingYtTrack;
               pendingYtTrack = null;
@@ -1387,28 +1638,53 @@
           onStateChange: (e) => {
             if (e.data === YT.PlayerState.PLAYING) {
               hideTapOverlay();
+              if (isInSpot || _pausedForCommercialSpot || !_radioIsLive) {
+                try { ytPlayer.pauseVideo(); } catch (_) {}
+              }
+            } else if (e.data === YT.PlayerState.PAUSED) {
+              // Si se pausó sola por cambio de pestaña en PC (y NO estamos en un spot comercial), reactivar
+              if (!isInSpot && !_pausedForCommercialSpot && _radioIsLive && document.hidden) {
+                try { ytPlayer.playVideo(); } catch (_) {}
+              }
             } else if (e.data === YT.PlayerState.ENDED) {
-              // Si la frecuencia está configurada a 'Cada Canción', lanzar el spot al terminar la canción
-              if (mode === 'radio_spots' && spotIntervalSecs === 0 && !isInSpot) {
+              if (mode === 'radio_spots' && spotIntervalSecs === 0 && !isInSpot && !_isRemoteSpotPlaying) {
                 launchNextSpotSequence();
               }
             }
           },
           onError: (err) => {
-            console.warn('[TV] Error en YT Player:', err);
+            console.warn('[TV] Error en YT Player:', err && err.data, _lastLoadedYtId);
+            if (_lastLoadedYtId && _lastReportedErrYtId !== _lastLoadedYtId) {
+              _lastReportedErrYtId = _lastLoadedYtId;
+              if (ws && ws.readyState === WebSocket.OPEN) {
+                try {
+                  ws.send(JSON.stringify({
+                    type: 'VIDEO_ERROR',
+                    ytId: _lastLoadedYtId,
+                    code: err && err.data,
+                    name: (currentYtTrack && currentYtTrack.name) || '',
+                    artist: (currentYtTrack && (currentYtTrack.channelTitle || currentYtTrack.artist)) || ''
+                  }));
+                } catch (_) {}
+              }
+            }
           }
         }
       });
     };
 
     function unmuteAll() {
+      ensureTvBgAudio();
       hideTapOverlay();
-      if (ytPlayer && ytReady) {
+      if (ytPlayer && ytReady && _radioIsLive && !isInSpot && !_pausedForCommercialSpot) {
         try {
           ytPlayer.unMute();
-          ytPlayer.setVolume(85);
+          ytPlayer.setVolume(_isRemoteRodoActive ? Math.max(12, Math.round(_tvMasterVol * 0.18)) : _tvMasterVol);
           ytPlayer.playVideo();
         } catch (_) {}
+      }
+      if (isInSpot && audioEl && audioEl.paused) {
+        audioEl.play().catch(() => {});
       }
     }
 
@@ -1424,13 +1700,17 @@
 
     function syncYtTrack(track, pos = 0) {
       if (!track || track.type !== 'yt' || !track.ytId) return;
+      _radioIsLive = true;
       currentYtTrack = track;
       currentYtPos = pos;
-      updateStandbyCard(track);
+      if (!_pausedForCommercialSpot) {
+        updateStandbyCard(track);
+      }
 
-      // Si actualmente se está transmitiendo un spot con su propio audio/video, no encender video de radio
-      if (isInSpot) {
-        console.log('[TV] Track recibido durante spot; guardado para reanudación');
+      // Si actualmente se está transmitiendo un Video Spot o un Spot Comercial de Cabina, guardar pista sin interrumpirlo
+      if (isInSpot || _pausedForCommercialSpot) {
+        console.log('[TV] Track recibido durante spot; guardado para entrar al terminar:', track.name);
+        _pendingPlayAfterRemoteSpot = { track, position: pos };
         return;
       }
 
@@ -1441,37 +1721,95 @@
 
       try {
         const isSameTrack = (_lastLoadedYtId === track.ytId);
-        ytPlayer.setVolume(85);
+        const targetVol = _isRemoteRodoActive ? Math.max(12, Math.round(_tvMasterVol * 0.18)) : _tvMasterVol;
+        ytPlayer.unMute();
         if (isSameTrack) {
-          if (pos > 2) {
+          let curT = 0;
+          try { curT = ytPlayer.getCurrentTime() || 0; } catch (_) {}
+          if (pos > 2 && Math.abs(curT - pos) > 6) {
             try { ytPlayer.seekTo(pos, true); } catch (_) {}
           }
-          ytPlayer.playVideo();
+          const st = ytPlayer.getPlayerState ? ytPlayer.getPlayerState() : -1;
+          if (st !== YT.PlayerState.PLAYING) {
+            fadeInYT(1000, targetVol);
+          } else {
+            ytPlayer.setVolume(targetVol);
+          }
         } else {
           _lastLoadedYtId = track.ytId;
+          ytPlayer.setVolume(0);
           ytPlayer.loadVideoById({
             videoId: track.ytId,
             startSeconds: pos > 2 ? pos : 0
           });
+          fadeInYT(1100, targetVol);
         }
 
         setTimeout(() => {
-          if (!isInSpot && ytPlayer && ytPlayer.getPlayerState && ytPlayer.getPlayerState() !== YT.PlayerState.PLAYING) {
-            showTapOverlay();
+          if (!isInSpot && !_pausedForCommercialSpot && _radioIsLive && ytPlayer && ytPlayer.getPlayerState) {
+            const st = ytPlayer.getPlayerState();
+            if (st !== YT.PlayerState.PLAYING && st !== YT.PlayerState.BUFFERING) {
+              showTapOverlay();
+            }
           }
-        }, 2500);
+        }, 2800);
       } catch (err) {
         console.warn('[TV] Error sincronizando YT:', err);
       }
     }
 
-    // ================= CROSSFADE SUAVE PARA SPOTS Y DJ RODO =================
+    // ================= CROSSFADE Y DUCKING SUAVE PARA VIDEOS, SPOTS Y DJ RODO =================
     let _ytFadeTimer = null;
-    function fadeOutYT(durationMs = 800, targetVol = 0, onComplete) {
+
+    // Ducking para DJ Rodo: baja el volumen suavemente SIN pausar jamás la canción
+    function duckYT(durationMs = 700, targetVol = 15, onComplete) {
       clearInterval(_ytFadeTimer);
       if (!ytPlayer || !ytReady) { if (onComplete) onComplete(); return; }
-      let curVol = 85;
-      try { curVol = ytPlayer.getVolume() || 85; } catch (_) {}
+      let curVol = _tvMasterVol;
+      try { curVol = ytPlayer.getVolume(); if (typeof curVol !== 'number') curVol = _tvMasterVol; } catch (_) {}
+      const steps = 16;
+      const stepTime = Math.max(15, durationMs / steps);
+      const diff = (curVol - targetVol) / steps;
+      let step = 0;
+      _ytFadeTimer = setInterval(() => {
+        step++;
+        curVol = Math.max(targetVol, curVol - diff);
+        try { ytPlayer.setVolume(Math.round(curVol)); } catch (_) {}
+        if (step >= steps || curVol <= targetVol) {
+          clearInterval(_ytFadeTimer);
+          try { ytPlayer.setVolume(targetVol); } catch (_) {}
+          if (onComplete) onComplete();
+        }
+      }, stepTime);
+    }
+
+    // Unducking para DJ Rodo: sube el volumen desde el nivel actual (~16%) hasta _tvMasterVol SIN reiniciar ni bajar a 0
+    function unduckYT(durationMs = 1300, targetVol = 85, onComplete) {
+      clearInterval(_ytFadeTimer);
+      if (!ytPlayer || !ytReady) { if (onComplete) onComplete(); return; }
+      let curVol = 15;
+      try { curVol = ytPlayer.getVolume(); if (typeof curVol !== 'number') curVol = 15; } catch (_) {}
+      const steps = 24;
+      const stepTime = Math.max(15, durationMs / steps);
+      const diff = (targetVol - curVol) / steps;
+      let step = 0;
+      _ytFadeTimer = setInterval(() => {
+        step++;
+        curVol = Math.min(targetVol, curVol + diff);
+        try { ytPlayer.setVolume(Math.round(curVol)); } catch (_) {}
+        if (step >= steps || curVol >= targetVol) {
+          clearInterval(_ytFadeTimer);
+          try { ytPlayer.setVolume(targetVol); } catch (_) {}
+          if (onComplete) onComplete();
+        }
+      }, stepTime);
+    }
+
+    function fadeOutYT(durationMs = 750, targetVol = 0, onComplete) {
+      clearInterval(_ytFadeTimer);
+      if (!ytPlayer || !ytReady) { if (onComplete) onComplete(); return; }
+      let curVol = _tvMasterVol;
+      try { curVol = ytPlayer.getVolume(); if (typeof curVol !== 'number') curVol = _tvMasterVol; } catch (_) {}
       const steps = 16;
       const stepTime = Math.max(15, durationMs / steps);
       const volStep = (curVol - targetVol) / steps;
@@ -1496,6 +1834,7 @@
       if (!ytPlayer || !ytReady) { if (onComplete) onComplete(); return; }
       let curVol = 0;
       try {
+        ytPlayer.unMute();
         ytPlayer.setVolume(0);
         ytPlayer.playVideo();
       } catch (_) {}
@@ -1526,16 +1865,17 @@
     }
 
     function resumeRadioPlayback(crossfade = true) {
+      if (!_radioIsLive || !currentYtTrack) return;
       if (!crossfade) {
-        if (ytPlayer && ytReady && currentYtTrack) {
+        if (ytPlayer && ytReady) {
           try {
-            ytPlayer.setVolume(85);
+            ytPlayer.setVolume(_tvMasterVol);
             ytPlayer.playVideo();
           } catch (_) {}
         }
         return;
       }
-      fadeInYT(1200, 85);
+      fadeInYT(1200, _tvMasterVol);
     }
 
     function updateStandbyCard(track) {
@@ -1546,23 +1886,56 @@
 
       if (titleEl && track.name) titleEl.textContent = track.name;
       if (artistEl) artistEl.textContent = (track.channelTitle || track.artist) ? ('por ' + (track.channelTitle || track.artist)) : 'Radio Terrapesca en vivo';
-      if (coverEl) {
+      if (coverEl && track.ytId) {
         const coverUrl = track.cover || ('https://img.youtube.com/vi/' + track.ytId + '/mqdefault.jpg');
         coverEl.src = coverUrl;
       }
     }
+
+    function _checkServerVersion(ver) {
+      if (!ver) return;
+      if (!_currentServerVer) {
+        _currentServerVer = ver;
+        return;
+      }
+      if (_currentServerVer !== ver) {
+        _currentServerVer = ver;
+        if (isInSpot || _isRemoteSpotPlaying) {
+          _pendingReloadVer = true;
+        } else {
+          setTimeout(() => location.reload(true), 900);
+        }
+      }
+    }
+
+    function checkDeferredReload() {
+      if (_pendingReloadVer && !isInSpot && !_isRemoteSpotPlaying) {
+        _pendingReloadVer = false;
+        setTimeout(() => location.reload(true), 800);
+      }
+    }
+
+    setInterval(() => {
+      fetch('/api/version')
+        .then(r => r.json())
+        .then(d => { if (d && d.version) _checkServerVersion(d.version); })
+        .catch(() => {});
+    }, 20000);
 
     function initWS() {
       try {
         const wsUrl = AUTO_WS + (AUTO_WS.includes('?') ? '&' : '?') + 'role=tv';
         ws = new WebSocket(wsUrl);
         ws.onopen = () => {
+          _wsConnected = true;
           console.log('[TV WS] Conectado a Radio Terrapesca');
           try { ws.send(JSON.stringify({ type: 'HELLO', role: 'tv' })); } catch (_) {}
+          updateNextSpotNotice();
         };
         ws.onclose = () => {
-          console.warn('[TV WS] Conexión cerrada. Reconectando en 4s...');
-          setTimeout(initWS, 4000);
+          _wsConnected = false;
+          console.warn('[TV WS] Conexión cerrada. Reconectando en 3s...');
+          setTimeout(initWS, 3000);
         };
         ws.onerror = (e) => console.error('[TV WS] Error en WebSocket:', e);
         ws.onmessage = (e) => {
@@ -1577,23 +1950,43 @@
     }
 
     function handleWsMsg(msg) {
+      if (msg.serverVer) _checkServerVersion(msg.serverVer);
       switch (msg.type) {
         case 'SYNC':
           if (msg.state) {
             if (msg.state.jingleB64) jingleB64 = msg.state.jingleB64;
+            _radioIsLive = !!msg.state.isPlaying;
             if (msg.state.currentTrack) {
-              if (msg.state.currentTrack.b64) {
-                playRemoteAudioSpot(msg.state.currentTrack);
-              } else if (msg.state.currentTrack.type === 'yt') {
-                syncYtTrack(msg.state.currentTrack, msg.state.position || 0);
+              const ct = msg.state.currentTrack;
+              if (ct.type === 'yt' && ct.ytId) {
+                const elapsed = msg.state.isPlaying && msg.state.lastUpdate
+                  ? (msg.state.position || 0) + Math.max(0, (Date.now() - msg.state.lastUpdate) / 1000)
+                  : (msg.state.position || 0);
+                if (msg.state.isPlaying) {
+                  syncYtTrack(ct, elapsed);
+                } else {
+                  currentYtTrack = ct;
+                  updateStandbyCard(ct);
+                  pauseRadioPlayback(false);
+                  const badgeTextEl = document.getElementById('stBadgeText');
+                  if (badgeTextEl) badgeTextEl.textContent = '⏸ RADIO EN PAUSA • STANDBY';
+                }
+              } else if (ct.type === 'spot' || ct.spot_id || ct.b64 || ct.url) {
+                if (msg.state.isPlaying) handleIncomingSpot(ct);
               }
+            }
+            if (msg.state.activeSpot && msg.state.isPlaying) {
+              handleIncomingSpot(msg.state.activeSpot);
             }
           }
           break;
         case 'PLAY':
           if (msg.track) {
-            if (_isRemoteSpotPlaying) {
-              console.log('[TV] PLAY diferido por spot de audio/Rodo activo');
+            _radioIsLive = true;
+            const badgeTextEl = document.getElementById('stBadgeText');
+            if (badgeTextEl && !_isRemoteSpotPlaying) badgeTextEl.textContent = '🔴 EN VIVO • RADIO TERRAPESCA 24/7';
+            if (isInSpot || _pausedForCommercialSpot) {
+              console.log('[TV] PLAY diferido hasta terminar el spot actual:', msg.track.name);
               _pendingPlayAfterRemoteSpot = { track: msg.track, position: msg.position || 0 };
             } else {
               syncYtTrack(msg.track, msg.position || 0);
@@ -1601,36 +1994,61 @@
           }
           break;
         case 'SPOT':
-          console.log('[TV] Recibido SPOT de audio/DJ Rodo:', msg.track && msg.track.name);
-          playRemoteAudioSpot(msg.track);
+          console.log('[TV] Recibido SPOT / Intervención DJ Rodo:', msg.track && msg.track.name);
+          handleIncomingSpot(msg.track);
+          break;
+        case 'SPOTS_LIBRARY_UPDATE':
+          if (Array.isArray(msg.spots)) {
+            CUSTOM_SPOTS = msg.spots;
+            renderNav();
+          }
           break;
         case 'MIC_SPOT':
           console.log('[TV] Recibido MIC_SPOT de locutor:', msg.nombre);
-          playRemoteAudioSpot({ b64: msg.b64, name: msg.nombre || '🎙️ Locutor en vivo', mime: 'audio/webm' });
+          playRemoteAudioSpot({ b64: msg.b64, name: msg.nombre || '🎙️ Locutor en vivo', mime: 'audio/webm', isRodo: true });
           break;
         case 'JINGLE_SET':
-          console.log('[TV] Jingle actualizado');
           jingleB64 = msg.b64;
           break;
         case 'MIC_ONAIR':
           if (msg.active) {
-            pauseRadioPlayback();
+            duckYT(450, Math.max(10, Math.round(_tvMasterVol * 0.15)));
             const badgeTextEl = document.getElementById('stBadgeText');
-            if (badgeTextEl) badgeTextEl.textContent = '🎙️ MICRÓFONO AL AIRE EN VIVO';
+            if (badgeTextEl) badgeTextEl.textContent = '🎙️ MICRÓFONO DE CABINA AL AIRE';
           } else {
             const badgeTextEl = document.getElementById('stBadgeText');
             if (badgeTextEl) badgeTextEl.textContent = '🔴 EN VIVO • RADIO TERRAPESCA 24/7';
-            if (!_isRemoteSpotPlaying) resumeRadioPlayback();
+            if (!_isRemoteSpotPlaying && !isInSpot) unduckYT(900, _tvMasterVol);
           }
           break;
         case 'PAUSE':
-          if (!isInSpot && !_isRemoteSpotPlaying) pauseRadioPlayback();
+          _radioIsLive = false;
+          if (!isInSpot && !_isRemoteSpotPlaying) {
+            pauseRadioPlayback(true);
+            const badgeTextEl = document.getElementById('stBadgeText');
+            if (badgeTextEl) badgeTextEl.textContent = '⏸ FUERA DE AIRE • STANDBY';
+          }
           break;
         case 'RESUME':
-          if (!isInSpot && !_isRemoteSpotPlaying) resumeRadioPlayback();
+          _radioIsLive = true;
+          if (!isInSpot && !_isRemoteSpotPlaying) {
+            const badgeTextEl = document.getElementById('stBadgeText');
+            if (badgeTextEl) badgeTextEl.textContent = '🔴 EN VIVO • RADIO TERRAPESCA 24/7';
+            resumeRadioPlayback(true);
+          }
+          break;
+        case 'AUTOPILOT':
+          if (!msg.on && !_radioIsLive && !isInSpot && !_isRemoteSpotPlaying) {
+            pauseRadioPlayback(true);
+          }
+          break;
+        case 'TRACK_HEALED':
+          if (msg.oldYtId && msg.newYtId && currentYtTrack && currentYtTrack.ytId === msg.oldYtId) {
+            currentYtTrack.ytId = msg.newYtId;
+          }
           break;
         case 'BUENFIN_TRIGGER':
-        case 'SPOT_TRIGGER':
+        case 'SPOT_TRIGGER': {
           const targetSpot = msg.spot_id;
           let targetIdx = 0;
           if (targetSpot && SPOTS.length) {
@@ -1639,10 +2057,11 @@
           }
           launchNextSpotSequence(targetIdx);
           break;
+        }
       }
     }
 
-    // Programador de cuenta regresiva para el siguiente spot
+    // Programador de cuenta regresiva para el siguiente spot (sincronizado con Radio)
     function scheduleNextSpot() {
       clearInterval(spotCountdownTimer);
       if (mode !== 'radio_spots') {
@@ -1655,7 +2074,9 @@
         return;
       }
 
-      secondsUntilNextSpot = spotIntervalSecs;
+      // En modo Sincronizado (-1): los spots y DJ Rodo entran directo desde la Radio 24/7 / Cabina;
+      // dejamos un reloj de respaldo de 240s por si la cabina está en manual sin disparar spots.
+      secondsUntilNextSpot = spotIntervalSecs === -1 ? 240 : spotIntervalSecs;
       updateNextSpotNotice(formatTimeRemaining(secondsUntilNextSpot));
 
       spotCountdownTimer = setInterval(() => {
@@ -1679,18 +2100,20 @@
     function updateNextSpotNotice(timeText) {
       const noticeEl = document.getElementById('stNextSpotNotice');
       if (!noticeEl) return;
-      if (!SPOTS.length) return;
-      const nextSpot = SPOTS[nextSpotIdx % SPOTS.length];
-      const spotName = nextSpot ? (nextSpot.titulo || nextSpot.categoria || 'Oferta Buen Fin') : 'Ofertas Buen Fin';
+      const nextSpot = SPOTS.length ? SPOTS[nextSpotIdx % SPOTS.length] : null;
+      const spotName = nextSpot ? (nextSpot.categoria || nextSpot.titulo || 'Oferta Buen Fin') : 'Ofertas Buen Fin';
 
       if (mode === 'loop') {
         noticeEl.innerHTML = `🔄 Modo: <strong>Carrusel Continuo de Videos</strong>`;
       } else if (mode === 'reactive') {
-        noticeEl.innerHTML = `📡 En espera: <strong>Spot Buen Fin bajo demanda</strong>`;
+        noticeEl.innerHTML = `📡 En espera: <strong>Spots Buen Fin + Cabina + DJ Rodo en vivo</strong>`;
+      } else if (spotIntervalSecs === -1) {
+        const customInfo = CUSTOM_SPOTS.length ? ` + ${CUSTOM_SPOTS.length} Spots Cabina` : '';
+        noticeEl.innerHTML = `📡 Sincronizado con Radio: <strong>Videos Buen Fin${customInfo} + 🎙️ DJ Rodo</strong>`;
       } else if (spotIntervalSecs === 0) {
-        noticeEl.innerHTML = `⏱ Próximo Spot Buen Fin: <strong>${spotName}</strong> (al terminar canción)`;
+        noticeEl.innerHTML = `⏱ Próximo Video Spot: <strong>${spotName}</strong> (al terminar canción)`;
       } else {
-        noticeEl.innerHTML = `⏱ Próximo Spot Buen Fin: <strong>${spotName}</strong> (en ${timeText || formatTimeRemaining(secondsUntilNextSpot)})`;
+        noticeEl.innerHTML = `⏱ Próximo Video Spot: <strong>${spotName}</strong> (en ${timeText || formatTimeRemaining(secondsUntilNextSpot)})`;
       }
     }
 
@@ -1699,34 +2122,65 @@
       spotIntervalSecs = INTERVALS[intervalIdx];
       const btn = document.getElementById('btnInterval');
       if (btn) {
-        if (spotIntervalSecs === 0) btn.textContent = '⏱ Frecuencia: Cada Canción';
+        if (spotIntervalSecs === -1) btn.textContent = '⏱ Frecuencia: Sincronizado Radio';
+        else if (spotIntervalSecs === 0) btn.textContent = '⏱ Frecuencia: Cada Canción';
         else btn.textContent = `⏱ Frecuencia: ${(spotIntervalSecs / 60).toFixed(1)} Min`;
       }
       scheduleNextSpot();
     }
 
-    function launchNextSpotSequence(specificIdx) {
+    function launchNextSpotSequence(specificIdx, opts = {}) {
       if (!SPOTS.length) return;
       clearInterval(spotCountdownTimer);
+      if (_isRemoteSpotPlaying && !_isRemoteRodoActive) {
+        stopRemoteSpotAudio();
+      }
       isInSpot = true;
+      _spotAdvanceAfter = !!opts.advanceAfter;
 
-      // 1. Pausar música de radio para que se escuche el spot
-      pauseRadioPlayback();
+      // 1. Pausar música de radio con el fade suave de 750ms para que la entrada se escuche limpia
+      pauseRadioPlayback(true);
 
       // 2. Determinar índice del spot
       const idxToLoad = (typeof specificIdx === 'number') ? specificIdx : nextSpotIdx;
       nextSpotIdx = (idxToLoad + 1) % SPOTS.length;
 
-      // 3. Cargar y reproducir el spot
-      loadSpot(idxToLoad, true);
+      // 3. Cargar y reproducir el Video Spot tras un suave respiro de 280ms
+      setTimeout(() => {
+        if (!isInSpot) return;
+        loadSpot(idxToLoad, true);
+      }, 280);
     }
 
-    // Cargar Spots locales de Buen Fin
+    function selectCustomSpot(cIdx) {
+      const cs = CUSTOM_SPOTS[cIdx];
+      if (!cs) return;
+      playRemoteAudioSpot({
+        type: 'spot',
+        isRodo: false,
+        advanceAfter: false,
+        bed: cs.bed || 'none',
+        name: '📢 ' + (cs.name || 'Spot Cabina'),
+        url: cs.url || '',
+        b64: cs.b64 || '',
+        mime: cs.mime || 'audio/mpeg',
+        duration: cs.duration || 22
+      });
+    }
+
+    // Cargar Spots Oficiales de Buen Fin + Spots Personalizados de Cabina
     async function loadSpots() {
       try {
-        const r = await fetch('/buenfin/spots.json?v=' + Date.now());
-        const data = await r.json();
+        setTvVolume(_tvMasterVol);
+        const [rBf, rCustom] = await Promise.all([
+          fetch('/buenfin/spots.json?v=' + Date.now()),
+          fetch('/api/spots?v=' + Date.now()).catch(() => null)
+        ]);
+        const data = await rBf.json();
         SPOTS = data.spots || data;
+        if (rCustom && rCustom.ok) {
+          try { CUSTOM_SPOTS = (await rCustom.json()) || []; } catch (_) { CUSTOM_SPOTS = []; }
+        }
         renderNav();
 
         // Conectar WebSocket con Radio Terrapesca
@@ -1755,7 +2209,7 @@
         } else if (mode === 'loop') {
           launchNextSpotSequence(0);
         } else {
-          // Por defecto: Iniciar en Pantalla Standby con Radio Terrapesca en vivo
+          // Por defecto: Iniciar en Pantalla Standby con Radio Terrapesca + Spots + DJ Rodo en vivo
           isInSpot = false;
           standbyScreen.style.display = 'flex';
           standbyScreen.style.opacity = '1';
@@ -1765,7 +2219,7 @@
 
         // Monitoreo de respaldo por REST
         pollCurrentRadioTrack();
-        setInterval(pollCurrentRadioTrack, 10000);
+        setInterval(pollCurrentRadioTrack, 12000);
 
       } catch (e) {
         console.error('Error cargando spots:', e);
@@ -1774,11 +2228,18 @@
 
     function renderNav() {
       const nav = document.getElementById('spotsNav');
-      nav.innerHTML = SPOTS.map((s, i) => `
-        <div class="nav-dot ${i === 0 ? 'active' : ''}" onclick="selectSpot(${i})">
-          ${i + 1}. ${s.categoria || s.spot_id.replace('spot_', '')}
+      if (!nav) return;
+      const bfHtml = SPOTS.map((s, i) => `
+        <div class="nav-dot ${i === currentIdx ? 'active' : ''}" onclick="selectSpot(${i})">
+          🎬 ${i + 1}. ${s.categoria || s.spot_id.replace('spot_', '')}
         </div>
       `).join('');
+      const customHtml = (CUSTOM_SPOTS || []).map((cs, j) => `
+        <div class="nav-dot" style="border-color:rgba(16,185,129,0.55);color:#a7f3d0;" onclick="selectCustomSpot(${j})" title="Spot de Cabina">
+          📢 ${(cs.name || ('Spot ' + (j + 1))).slice(0, 22)}
+        </div>
+      `).join('');
+      nav.innerHTML = bfHtml + customHtml;
     }
 
     async function loadSpot(idx, autoPlay = true) {
@@ -1944,8 +2405,9 @@
     function playSpot() {
       isPlaying = true;
       document.getElementById('btnPlayPause').textContent = '⏸ Pausar';
+      try { audioEl.volume = Math.min(1, _tvMasterVol / 85); } catch (_) {}
       if (audioEl.ended) audioEl.currentTime = 0;
-      audioEl.play().catch(() => {});
+      audioEl.play().catch(() => { showTapOverlay(); });
       if (spotVideoEl && spotVideoEl.style.display !== 'none') {
         spotVideoEl.play().catch(() => {});
       }
@@ -2039,6 +2501,8 @@
 
     function finishAndGoStandby() {
       pauseSpot();
+      const shouldAdvance = _spotAdvanceAfter;
+      _spotAdvanceAfter = false;
       isInSpot = false;
       tvStage.style.opacity = '0';
       setTimeout(() => {
@@ -2046,14 +2510,44 @@
         standbyScreen.style.display = 'flex';
         standbyScreen.style.opacity = '1';
 
+        const resumeSmart = () => {
+          if (_pendingPlayAfterRemoteSpot) {
+            const p = _pendingPlayAfterRemoteSpot;
+            _pendingPlayAfterRemoteSpot = null;
+            syncYtTrack(p.track, p.position);
+          } else if (shouldAdvance) {
+            // Si fue un spot entre canciones del 24/7, esperar brevemente el PLAY de la nueva canción para no reanudar 1s de la anterior
+            setTimeout(() => {
+              if (!isInSpot && !_isRemoteSpotPlaying && _radioIsLive && ytPlayer && ytReady) {
+                const st = ytPlayer.getPlayerState && ytPlayer.getPlayerState();
+                if (st !== YT.PlayerState.PLAYING && st !== YT.PlayerState.BUFFERING) {
+                  resumeRadioPlayback(true);
+                }
+              }
+            }, 1500);
+          } else {
+            // Spot manual o intermedio: reanuda EXACTAMENTE la misma canción donde se pausó con fade-in suave
+            resumeRadioPlayback(true);
+          }
+        };
+
         if (mode === 'radio_spots') {
-          // Reanudar música de Radio Terrapesca en vivo
-          resumeRadioPlayback();
-          // Programar el siguiente spot
+          resumeSmart();
           scheduleNextSpot();
         } else if (mode === 'reactive') {
-          resumeRadioPlayback();
+          resumeSmart();
           updateNextSpotNotice();
+        }
+
+        // Si había una intervención de DJ Rodo diferida durante el video, reproducirla tras 2.5s de música
+        if (_deferredRodoTrack) {
+          const def = _deferredRodoTrack;
+          _deferredRodoTrack = null;
+          setTimeout(() => {
+            if (!isInSpot && !_isRemoteSpotPlaying) playRemoteAudioSpot(def);
+          }, 2500);
+        } else {
+          checkDeferredReload();
         }
       }, 500);
     }

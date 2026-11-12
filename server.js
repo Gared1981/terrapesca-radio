@@ -1174,6 +1174,7 @@ const server = http.createServer((req, res) => {
 
   // ── API Versión y Estado del Servidor (para auto-recarga de oyentes y cabina) ──
   if (urlPath === '/api/version') {
+    const st = _horaExactaSinaloa();
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.writeHead(200, {
       'Content-Type': 'application/json',
@@ -1184,7 +1185,9 @@ const server = http.createServer((req, res) => {
       version: SERVER_VERSION,
       bootTime: SERVER_BOOT_TIME,
       autopilotOn: !!radioState.autopilotOn,
-      isPlaying: !!radioState.isPlaying
+      isPlaying: !!radioState.isPlaying,
+      sinaloaTime: st.display,
+      sinaloaPhrase: st.phrase
     }));
     return;
   }
@@ -1732,11 +1735,12 @@ const server = http.createServer((req, res) => {
         const stat = fs.statSync(rPath);
         const ext = path.extname(rPath).toLowerCase();
         const cType = ext === '.json' ? 'application/json' : 'audio/mpeg';
+        const isLiveHora = mRodo[1].startsWith('rodo_hora_live');
         res.writeHead(200, {
           'Content-Type': cType,
           'Content-Length': stat.size,
           'Accept-Ranges': 'bytes',
-          'Cache-Control': 'public, max-age=86400',
+          'Cache-Control': isLiveHora ? 'no-cache, no-store, must-revalidate' : 'public, max-age=86400',
           'Access-Control-Allow-Origin': '*'
         });
         fs.createReadStream(rPath).pipe(res);
@@ -2014,7 +2018,7 @@ const DEFAULT_AUTOPILOT_PLAYLIST = [
   { ytId: 'hT_nvWreIhg', name: 'Counting Stars', artist: 'OneRepublic', duration: 257 },
   { ytId: 'teprNzF6J1I', name: 'En el Muelle de San Blás', artist: 'Maná', duration: 352 }
 ];
-let autopilot = { on: false, list: [], idx: 0, timer: null };
+let autopilot = { on: false, list: [], idx: 0, timer: null, rodoIntroTimer: null, trackEndsAt: 0 };
 let _songsSinceIntervention = 1; // Arranca en 1 para que tras la 1ra canción tras deploy suene intervención inmediata
 let _interventionTurn = 0;
 let _apHistory = []; // Registro de canciones recientes para evitar repeticiones
@@ -2029,6 +2033,201 @@ try {
   const rFile = path.join(__dirname, 'public', 'rodo', 'rodo_manifest.json');
   if (fs.existsSync(rFile)) _rodoManifest = JSON.parse(fs.readFileSync(rFile, 'utf8')) || [];
 } catch (_) { _rodoManifest = []; }
+
+// ---- HORA EXACTA CON MINUTOS EN VIVO PARA DJ RODO (Sinaloa: America/Mazatlan) ----
+const SERVER_VK_KEY = (process.env.VK_KEY || 'r69mmhvwcmiqidkh5rcxg0j0d3r1ct4d').trim();
+const SERVER_VK_USER = (process.env.VK_USER || '390516e3-a4cf-4015-8498-35eda8fc5cf4').trim();
+const _NUM_LETRAS_59 = [
+  'cero','uno','dos','tres','cuatro','cinco','seis','siete','ocho','nueve','diez',
+  'once','doce','trece','catorce','quince','dieciséis','diecisiete','dieciocho','diecinueve','veinte',
+  'veintiuno','veintidós','veintitrés','veinticuatro','veinticinco','veintiséis','veintisiete','veintiocho','veintinueve',
+  'treinta','treinta y uno','treinta y dos','treinta y tres','treinta y cuatro','treinta y cinco',
+  'treinta y seis','treinta y siete','treinta y ocho','treinta y nueve',
+  'cuarenta','cuarenta y uno','cuarenta y dos','cuarenta y tres','cuarenta y cuatro','cuarenta y cinco',
+  'cuarenta y seis','cuarenta y siete','cuarenta y ocho','cuarenta y nueve',
+  'cincuenta','cincuenta y uno','cincuenta y dos','cincuenta y tres','cincuenta y cuatro','cincuenta y cinco',
+  'cincuenta y seis','cincuenta y siete','cincuenta y ocho','cincuenta y nueve'
+];
+const _HORAS_12 = ['', 'una', 'dos', 'tres', 'cuatro', 'cinco', 'seis', 'siete', 'ocho', 'nueve', 'diez', 'once', 'doce'];
+
+function _horaExactaSinaloa(dateObj) {
+  const d = dateObj || new Date();
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Mazatlan',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: false
+  }).formatToParts(d);
+  let h = 12, m = 0;
+  for (const x of parts) {
+    if (x.type === 'hour') h = (+x.value) % 24;
+    if (x.type === 'minute') m = +x.value;
+  }
+  const per = (h >= 5 && h <= 11) ? 'de la mañana'
+            : (h === 12) ? 'del mediodía'
+            : (h >= 13 && h <= 18) ? 'de la tarde'
+            : (h >= 19) ? 'de la noche'
+            : 'de la madrugada';
+  const h12 = h % 12 || 12;
+  const art = h12 === 1 ? 'la' : 'las';
+  const minPhrase = m === 0 ? ' en punto'
+                  : m === 1 ? ' con un minuto'
+                  : (' con ' + (_NUM_LETRAS_59[m] || String(m)));
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const hhmm = String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
+  const display = `${h12}:${String(m).padStart(2, '0')} ${ampm}`;
+  return {
+    hour24: h,
+    min: m,
+    hhmm,
+    display,
+    phrase: `${art} ${_HORAS_12[h12]}${minPhrase} ${per}`
+  };
+}
+
+let _rodoExactTimeCache = { hhmm: '', track: null };
+let _rodoTimeTemplateIdx = 0;
+
+function _synthesizeRodoExactTimeClip() {
+  return new Promise((resolve) => {
+    const info = _horaExactaSinaloa(new Date(Date.now() + 5000));
+    // Si es exactamente el minuto :00 y existe el clip pregrabado de esa hora cerrada, es 100% exacto
+    if (info.min === 0) {
+      const exactWhole = _rodoManifest.find(m => m.file === `rodo_hora_h${info.hour24}.mp3`);
+      if (exactWhole) {
+        let b64 = '';
+        try {
+          const pFile = path.join(__dirname, 'public', 'rodo', exactWhole.file);
+          if (fs.existsSync(pFile)) b64 = fs.readFileSync(pFile).toString('base64');
+        } catch (_) {}
+        if (b64) {
+          return resolve({
+            type: 'spot',
+            isRodo: true,
+            overMusic: true,
+            name: `🎙️ DJ Rodo — La Hora Exacta (${info.display})`,
+            url: exactWhole.url,
+            b64,
+            mime: 'audio/mpeg',
+            duration: 14
+          });
+        }
+      }
+    }
+
+    // Reusar caché si ya sintetizamos este mismo minuto HH:MM
+    if (_rodoExactTimeCache.hhmm === info.hhmm && _rodoExactTimeCache.track) {
+      return resolve(_rodoExactTimeCache.track);
+    }
+
+    if (!SERVER_VK_KEY || !SERVER_VK_USER) return resolve(null);
+
+    const templates = [
+      `Costa Kayaks te da la hora exacta en Radio Terrapesca: son ${info.phrase}. ¡Seguimos con más música!`,
+      `¡Qué tal amigos! Aquí Rodo en Radio Terrapesca: marcamos exactamente ${info.phrase} en Sinaloa, cortesía de Costa Kayaks.`,
+      `La hora exacta en Radio Terrapesca con Costa Kayaks: son ${info.phrase}. Todo para la pesca deportiva está en Terrapesca.`,
+      `Actualizamos el reloj en Radio Terrapesca: son exactamente ${info.phrase}. ¡Disfruta la música y equipa tu aventura!`,
+      `Con Costa Kayaks nos ponemos en hora: son exactamente ${info.phrase}. Saludos a quienes nos sintonizan en tienda y camino al agua.`
+    ];
+    const script = templates[(_rodoTimeTemplateIdx++) % templates.length];
+    const payload = JSON.stringify({
+      script,
+      voice_name: 'Podcaster 1 (es-419)',
+      instructions: 'Eres Rodo, locutor estrella de Radio Terrapesca en Sinaloa. Voz masculina cálida, natural, alegre y dinámica en español mexicano, diciendo la hora exacta con claridad y energía controlada.'
+    });
+
+    let settled = false;
+    const finish = (val) => { if (!settled) { settled = true; resolve(val); } };
+
+    const reqVk = https.request({
+      hostname: 'voicekiller.com',
+      path: '/api/generate-speech',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(payload),
+        'api-key': SERVER_VK_KEY,
+        'userid': SERVER_VK_USER
+      },
+      timeout: 15000
+    }, (vkRes) => {
+      const chunks = [];
+      vkRes.on('data', c => chunks.push(c));
+      vkRes.on('end', () => {
+        if (vkRes.statusCode !== 200) {
+          console.warn('[Rodo Hora Exacta] VoiceKiller HTTP', vkRes.statusCode);
+          return finish(null);
+        }
+        const buf = Buffer.concat(chunks);
+        if (!buf || buf.length < 2000) return finish(null);
+        let liveUrl = '';
+        try {
+          const rodoDir = path.join(__dirname, 'public', 'rodo');
+          if (!fs.existsSync(rodoDir)) fs.mkdirSync(rodoDir, { recursive: true });
+          fs.writeFileSync(path.join(rodoDir, 'rodo_hora_live.mp3'), buf);
+          liveUrl = `/rodo/rodo_hora_live.mp3?t=${Date.now()}`;
+        } catch (_) {}
+        const estSecs = Math.max(8, Math.min(20, Math.round(buf.length / 16000)));
+        const track = {
+          type: 'spot',
+          isRodo: true,
+          overMusic: true,
+          name: `🎙️ DJ Rodo — La Hora Exacta (${info.display})`,
+          script,
+          url: liveUrl,
+          b64: buf.toString('base64'),
+          mime: 'audio/mpeg',
+          duration: estSecs
+        };
+        _rodoExactTimeCache = { hhmm: info.hhmm, track };
+        console.log(`[Rodo Hora Exacta] Generada en vivo: ${info.display} ("${info.phrase}", ${estSecs}s)`);
+        finish(track);
+      });
+    });
+    reqVk.on('error', (e) => {
+      console.warn('[Rodo Hora Exacta] Error de red:', e.message);
+      finish(null);
+    });
+    reqVk.setTimeout(15000, () => {
+      reqVk.destroy();
+      console.warn('[Rodo Hora Exacta] Timeout generando TTS en vivo');
+      finish(null);
+    });
+    reqVk.write(payload);
+    reqVk.end();
+  });
+}
+
+async function _buildRodoInterventionTrack() {
+  try {
+    // 65% de las veces da la HORA EXACTA con minutos reales de Sinaloa; 35% da tips de pesca/kayak/identificación
+    if (Math.random() < 0.65) {
+      const liveHourTrack = await _synthesizeRodoExactTimeClip();
+      if (liveHourTrack) return liveHourTrack;
+    }
+    // Respaldo / rotación: consejos de pesca, kayak o identificación (NUNCA una hora cerrada incorrecta)
+    const tips = _rodoManifest.filter(m => m.type !== 'hora');
+    const clip = tips.length ? tips[Math.floor(Math.random() * tips.length)] : null;
+    if (clip) {
+      let b64 = '';
+      try {
+        const pFile = path.join(__dirname, 'public', 'rodo', clip.file);
+        if (fs.existsSync(pFile)) b64 = fs.readFileSync(pFile).toString('base64');
+      } catch (_) {}
+      return {
+        type: 'spot',
+        isRodo: true,
+        overMusic: true,
+        name: clip.title,
+        url: clip.url,
+        b64,
+        mime: 'audio/mpeg',
+        duration: 18
+      };
+    }
+  } catch (_) {}
+  return null;
+}
 
 function _apSave() {
   try { fs.writeFileSync(AP_FILE, JSON.stringify({ on: autopilot.on, list: autopilot.list, idx: autopilot.idx })); } catch (_) {}
@@ -2080,22 +2279,11 @@ function _apUpdatePreview() {
   broadcast({ type: 'QUEUE_PREVIEW', items: preview });
 }
 
-function _apBroadcast() {
-  const t = autopilot.list[autopilot.idx];
-  if (!t) { stopAutopilot(); return; }
-  radioState.currentTrack = { type: 'yt', ytId: t.ytId, name: t.name || '', channelTitle: t.artist || '', cover: _apCover(t.ytId), duration: t.duration || 0 };
-  radioState.isPlaying = true;
-  radioState.position = 0;
-  radioState.lastUpdate = Date.now();
-  broadcast({ type: 'PLAY', track: radioState.currentTrack, position: 0 });
-  if (streamClients.size > 0) startStreamTrack(radioState.currentTrack);
-
-  _apUpdatePreview();
-
-  // Programar el avance a la siguiente pista
-  const secs = (t.duration && t.duration > 0) ? t.duration : 210;
+function _scheduleAutopilotTrackEnd(delayMs) {
   clearTimeout(autopilot.timer);
+  autopilot.trackEndsAt = Date.now() + delayMs;
   autopilot.timer = setTimeout(() => {
+    if (!autopilot.on) return;
     _songsSinceIntervention++;
     // Cada 2 canciones, lanzar intervención (DJ Rodo / Spot Personalizado / Spot Buen Fin)
     if (_songsSinceIntervention >= 2) {
@@ -2104,77 +2292,63 @@ function _apBroadcast() {
     } else {
       _apAdvanceNextTrack();
     }
-  }, (secs + 1) * 1000);
+  }, delayMs);
+}
+
+function _apBroadcast(opts = {}) {
+  const t = autopilot.list[autopilot.idx];
+  if (!t) { stopAutopilot(); return; }
+  clearTimeout(autopilot.rodoIntroTimer);
+  radioState.currentTrack = { type: 'yt', ytId: t.ytId, name: t.name || '', channelTitle: t.artist || '', cover: _apCover(t.ytId), duration: t.duration || 0 };
+  radioState.musicTrack = radioState.currentTrack;
+  radioState.activeSpot = null;
+  radioState.isPlaying = true;
+  radioState.position = 0;
+  radioState.lastUpdate = Date.now();
+  broadcast({ type: 'PLAY', track: radioState.currentTrack, position: 0 });
+  if (streamClients.size > 0) startStreamTrack(radioState.currentTrack);
+
+  _apUpdatePreview();
+
+  // Si toca intervención de DJ Rodo, entra suavemente a los 4.5s sobre la intro de ESTA canción (ducking FM sin cortar ni brincar pista)
+  if (opts.rodoOverIntro) {
+    const rodoPromise = _buildRodoInterventionTrack();
+    autopilot.rodoIntroTimer = setTimeout(async () => {
+      if (!autopilot.on) return;
+      const rodoTrack = await rodoPromise;
+      if (!autopilot.on || !rodoTrack) return;
+      console.log('[24/7 DJ Rodo sobre intro] 🎙️ AL AIRE:', rodoTrack.name, '(' + (rodoTrack.duration || 14) + 's)');
+      broadcast({ type: 'SPOT', track: rodoTrack });
+    }, 4500);
+  }
+
+  // Programar el avance al finalizar la canción completa
+  const secs = (t.duration && t.duration > 0) ? t.duration : 210;
+  _scheduleAutopilotTrackEnd((secs + 1) * 1000);
   _apSave();
   console.log('[24/7 Aleatorio] ▶', t.name || t.ytId, '(' + secs + 's) [' + (autopilot.idx + 1) + '/' + autopilot.list.length + ']');
 }
 
-function _apAdvanceNextTrack() {
+function _apAdvanceNextTrack(opts = {}) {
   _apPickNextTrack();
   _apSave();
-  _apBroadcast();
+  _apBroadcast(opts);
 }
 
 function _apPlayInterventionThenAdvance() {
   _interventionTurn++;
   const turnType = _interventionTurn % 3; // 0 = DJ Rodo, 1 = Spot Personalizado, 2 = Spot Buen Fin
-  let trackToPlay = null;
 
-  // 1. TURNO DE DJ RODO (La hora oficial o consejos de pesca/kayak)
+  // 1. TURNO DE DJ RODO: avanza suavemente a la nueva canción y Rodo entra sobre la intro con la HORA EXACTA al minuto (0 cortes, 0 brincos)
   if (turnType === 0) {
-    try {
-      // Calcular hora local en Mazatlán / Sinaloa
-      const p = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Mazatlan', hour: 'numeric', hour12: false }).formatToParts(new Date());
-      let curHour = 12;
-      for (const x of p) if (x.type === 'hour') curHour = +x.value;
-
-      // Buscar clip de la hora si existe en el rango grabado (12 a 20)
-      let hourClip = _rodoManifest.find(m => m.file === `rodo_hora_h${curHour}.mp3`);
-      if (!hourClip && Math.random() < 0.6) {
-        hourClip = _rodoManifest.find(m => m.file === 'rodo_hora_costakayaks.mp3');
-      }
-
-      if (hourClip && Math.random() < 0.65) {
-        let b64 = '';
-        try {
-          const pFile = path.join(__dirname, 'public', 'rodo', hourClip.file);
-          if (fs.existsSync(pFile)) b64 = fs.readFileSync(pFile).toString('base64');
-        } catch (_) {}
-        trackToPlay = {
-          type: 'spot',
-          isRodo: true,
-          name: hourClip.title,
-          url: hourClip.url,
-          b64: b64,
-          mime: 'audio/mpeg',
-          duration: 16
-        };
-      } else {
-        // Consejos, tips y saludos variados de Rodo
-        const tips = _rodoManifest.filter(m => m.type !== 'hora');
-        const clip = tips.length ? tips[Math.floor(Math.random() * tips.length)] : null;
-        if (clip) {
-          let b64 = '';
-          try {
-            const pFile = path.join(__dirname, 'public', 'rodo', clip.file);
-            if (fs.existsSync(pFile)) b64 = fs.readFileSync(pFile).toString('base64');
-          } catch (_) {}
-          trackToPlay = {
-            type: 'spot',
-            isRodo: true,
-            name: clip.title,
-            url: clip.url,
-            b64: b64,
-            mime: 'audio/mpeg',
-            duration: 22
-          };
-        }
-      }
-    } catch (_) {}
+    _apAdvanceNextTrack({ rodoOverIntro: true });
+    return;
   }
 
+  let trackToPlay = null;
+
   // 2. TURNO DE SPOT PERSONALIZADO DE CABINA
-  else if (turnType === 1) {
+  if (turnType === 1) {
     if (customSpots && customSpots.length > 0) {
       const spIdx = Math.floor(Math.random() * customSpots.length);
       const cs = customSpots[spIdx];
@@ -2187,11 +2361,14 @@ function _apPlayInterventionThenAdvance() {
       }
       trackToPlay = {
         type: 'spot',
+        isRodo: false,
+        advanceAfter: true,
+        bed: cs.bed || 'none',
         name: '📢 ' + (cs.name || 'Spot Personalizado'),
         url: cs.url || '',
         b64: b64,
         mime: cs.mime || 'audio/mpeg',
-        duration: cs.duration || 18
+        duration: cs.duration || 20
       };
     }
   }
@@ -2215,6 +2392,8 @@ function _apPlayInterventionThenAdvance() {
     } catch (_) {}
     trackToPlay = {
       type: 'spot',
+      isRodo: false,
+      advanceAfter: true,
       name: sp.titulo,
       spot_id: sp.spot_id,
       url: `/buenfin/${sp.spot_id}.mp3`,
@@ -2224,21 +2403,21 @@ function _apPlayInterventionThenAdvance() {
     };
   }
 
-  radioState.currentTrack = trackToPlay;
+  radioState.activeSpot = trackToPlay;
   radioState.isPlaying = true;
-  radioState.position = 0;
-  radioState.lastUpdate = Date.now();
 
   const clipSecs = trackToPlay.duration || 22;
-  console.log('[24/7 Intervención] 🎙️ AL AIRE:', trackToPlay.name, '(' + clipSecs + 's)');
+  console.log('[24/7 Spot entre canciones] 📢 AL AIRE:', trackToPlay.name, '(' + clipSecs + 's)');
   broadcast({ type: 'SPOT', track: trackToPlay });
   if (streamClients.size > 0) startStreamTrack(trackToPlay);
 
-  // Programar avance a la siguiente canción tras finalizar el clip
+  // Al terminar el spot, arranca de inmediato la siguiente canción desde 0:00 (sin reanudar 2s de la anterior)
   clearTimeout(autopilot.timer);
+  autopilot.trackEndsAt = Date.now() + (clipSecs * 1000);
   autopilot.timer = setTimeout(() => {
+    radioState.activeSpot = null;
     _apAdvanceNextTrack();
-  }, (clipSecs + 2) * 1000);
+  }, clipSecs * 1000);
 }
 
 function startAutopilot(list, startIdx) {
@@ -2267,7 +2446,9 @@ function startAutopilot(list, startIdx) {
 function stopAutopilot() {
   autopilot.on = false;
   radioState.autopilotOn = false;
+  radioState.activeSpot = null;
   clearTimeout(autopilot.timer); autopilot.timer = null;
+  clearTimeout(autopilot.rodoIntroTimer); autopilot.rodoIntroTimer = null;
   _apSave();
   radioState.isPlaying = false;
   radioState.position = 0;
@@ -2419,14 +2600,32 @@ wss.on('connection', (ws, req) => {
           }
           break;
         }
-        case 'SPOT':
-          radioState.currentTrack = msg.track;
-          radioState.isPlaying = true;
-          radioState.position = 0;
-          radioState.lastUpdate = Date.now();
-          broadcast({ type: 'SPOT', track: msg.track }, ws);
-          if (streamClients.size > 0 && msg.track) startStreamTrack(msg.track);
+        case 'SPOT': {
+          // NO sobrescribir currentTrack si hay una canción YouTube activa, para que la misma canción continúe sin brincar
+          const spTrack = Object.assign({ type: 'spot' }, msg.track || {});
+          const isRodoManual = !!(spTrack.isRodo || (spTrack.url && spTrack.url.startsWith('/rodo/')) || (spTrack.name && /rodo|locutor|hora|clima|consejo/i.test(spTrack.name)));
+          spTrack.isRodo = isRodoManual;
+          spTrack.advanceAfter = false;
+          radioState.activeSpot = spTrack;
+          if (!radioState.currentTrack || radioState.currentTrack.type !== 'yt') {
+            radioState.isPlaying = true;
+          }
+          // Si Radio 24/7 está activa y se lanza un Spot comercial manual (que pausa la canción en TV/Listen),
+          // extender el reloj del 24/7 por la duración del spot para que al terminar reanude la MISMA canción sin brincar.
+          const spSecs = Math.max(8, Math.min(60, Number(spTrack.duration) || 22));
+          if (autopilot.on && !isRodoManual) {
+            const extraMs = (spSecs + 3) * 1000;
+            const remMs = Math.max(8000, (autopilot.trackEndsAt || (Date.now() + 30000)) - Date.now()) + extraMs;
+            radioState.lastUpdate = (radioState.lastUpdate || Date.now()) + extraMs;
+            _scheduleAutopilotTrackEnd(remMs);
+          }
+          setTimeout(() => {
+            if (radioState.activeSpot === spTrack) radioState.activeSpot = null;
+          }, spSecs * 1000);
+          broadcast({ type: 'SPOT', track: spTrack }, ws);
+          if (streamClients.size > 0 && !isRodoManual) startStreamTrack(spTrack);
           break;
+        }
         case 'JINGLE_SET':
           if (typeof msg.b64 === 'string' && msg.b64.length > MAX_JINGLE_B64) {
             console.warn('[ws] JINGLE_SET rechazado: demasiado grande (', msg.b64.length, 'bytes )');

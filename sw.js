@@ -1,7 +1,7 @@
 // Radio Terrapesca Service Worker - PWA & Background Audio Engine
 // Mantiene activos los recursos en segundo plano y caché inteligente
 
-const CACHE = 'terrapesca-radio-v8';
+const CACHE = 'terrapesca-radio-v9';
 const STATIC = [
   '/listen.html',
   '/manifest.json',
