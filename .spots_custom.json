@@ -1,1 +1,42 @@
-[]
+[
+  {
+    "id": "spot_sorteo_canaco_1",
+    "name": "🎉🚗 GRAN SORTEO CANACO 2026 — ¡Gánate un Chevrolet Aveo 2026!",
+    "bed": "none",
+    "mime": "audio/mpeg",
+    "url": "/spots/spot_sorteo_canaco_1.mp3",
+    "b64": "",
+    "duration": 38,
+    "script": "¡Participa en el Gran Sorteo CANACO dos mil veintiséis! ¡Podrías llevarte un automóvil nuevo! ¡CANACO Los Mochis y Terrapesca traen para ti un gran sorteo con increíbles premios! ¡Primer premio: un espectacular automóvil Chevrolet Aveo dos mil veintiséis! ¡Y más de treinta premios! ¡Premios en efectivo, artículos para el hogar y muchísimas sorpresas! ¡Equípate en cañas, kayaks, señuelos y pesca comercial, y recuerda solicitar tu boleto en cada compra! ¡Sorteo: dieciocho de febrero de dos mil veintisiete! ¡No te quedes fuera, participa y podrías ser el próximo ganador! Aplican restricciones."
+  },
+  {
+    "id": "spot_venta_nocturna_1",
+    "name": "🌙🔥 VENTA NOCTURNA TERRAPESCA — 18 de Diciembre (6 a 10 PM)",
+    "bed": "none",
+    "mime": "audio/mpeg",
+    "url": "/spots/spot_venta_nocturna_1.mp3",
+    "b64": "",
+    "duration": 40,
+    "script": "¡Atención pescadores y aventureros! ¡La noche más electrizante del año está por encenderse en Terrapesca! ¡Este dieciocho de diciembre, de seis de la tarde a diez de la noche, vive la espectacular Venta Nocturna Terrapesca! ¡Prepárate para lo mejor en cañas, kayaks, señuelos y pesca comercial en cuatro horas llenas de emoción y adrenalina! ¡Y en todas tus compras, recuerda solicitar tu boleto para el Gran Sorteo CANACO dos mil veintiséis, donde podrías llevarte un automóvil Chevrolet Aveo dos mil veintiséis! ¡Aparta la fecha: dieciocho de diciembre de seis a diez de la noche! ¡La espera valdrá totalmente la pena!"
+  },
+  {
+    "id": "spot_sorteo_canaco_2",
+    "name": "💥🏆 SORTEO CANACO 2026 — ¡Pide tu Boleto en Cada Compra!",
+    "bed": "none",
+    "mime": "audio/mpeg",
+    "url": "/spots/spot_sorteo_canaco_2.mp3",
+    "b64": "",
+    "duration": 39,
+    "script": "¡Que cada compra en Terrapesca te acerque a estrenar auto nuevo! ¡Participa ya en el Gran Sorteo CANACO dos mil veintiséis! ¡CANACO Los Mochis y Terrapesca traen para ti como primer premio un flamante automóvil Chevrolet Aveo dos mil veintiséis! ¡Además de más de treinta premios espectaculares: premios en efectivo, artículos para el hogar y grandes sorpresas! ¡Ven por tus cañas, kayaks, señuelos y todo en pesca comercial, y recuerda siempre solicitar tu boleto en cada compra! ¡Gran sorteo: dieciocho de febrero de dos mil veintisiete! ¡No te quedes fuera y conviértete en el próximo ganador! Aplican restricciones."
+  },
+  {
+    "id": "spot_venta_nocturna_2",
+    "name": "⚡🌊 CUENTA REGRESIVA VENTA NOCTURNA — 18 Dic · 6 a 10 PM",
+    "bed": "none",
+    "mime": "audio/mpeg",
+    "url": "/spots/spot_venta_nocturna_2.mp3",
+    "b64": "",
+    "duration": 40,
+    "script": "¡Arranca la cuenta regresiva! ¡Algo gigantesco se está preparando en Terrapesca para cerrar el año a máxima potencia! ¡Marca tu calendario para este dieciocho de diciembre, en punto de las seis de la tarde y hasta las diez de la noche, en nuestra gran Venta Nocturna! ¡Cañas, kayaks, señuelos y pesca comercial en una experiencia nocturna que ningún amante del mar o la presa se puede perder! ¡Y recuerda solicitar tu boleto en cada compra para participar en el Gran Sorteo CANACO dos mil veintiséis por un automóvil Chevrolet Aveo dos mil veintiséis y más de treinta premios! ¡Nos vemos este dieciocho de diciembre de seis a diez de la noche!"
+  }
+]

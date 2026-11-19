@@ -1005,22 +1005,22 @@
             <span id="stBadgeText">🔴 EN VIVO • RADIO TERRAPESCA 24/7</span>
           </div>
           <div id="stInterventionBanner" style="display:none;margin:6px 0 8px;padding:8px 16px;border-radius:12px;background:linear-gradient(90deg,rgba(255,190,26,0.24),rgba(249,115,22,0.18));border:1px solid rgba(255,190,26,0.75);color:#fde047;font-weight:800;font-size:clamp(14px,1.4vw,20px);letter-spacing:0.4px;box-shadow:0 0 24px rgba(255,190,26,0.28);">
-            🎙️ DJ RODO AL AIRE
+            ⚡ LOCUCIÓN OFICIAL • RADIO TERRAPESCA
           </div>
           <h1 class="standby-now-title" id="stTrackTitle">En el Muelle de San Blás</h1>
           <p class="standby-now-artist" id="stTrackArtist">por Maná</p>
           <div class="standby-next-pill" id="stNextSpotNotice">
-            📡 Transmisión 24/7 en vivo: <strong>Música Continua + 🎙️ DJ Rodo · Expectativa Venta Nocturna</strong>
+            📡 Transmisión 24/7: <strong>Cañas · Kayaks · Señuelos · Pesca Comercial · Sorteo CANACO 2026 · Venta Nocturna</strong>
           </div>
         </div>
       </div>
 
       <div class="standby-buenfin-banner">
-        <span>🌙 VENTA NOCTURNA TERRAPESCA</span>
+        <span>🌙 VENTA NOCTURNA: 18 DIC (6 A 10 PM)</span>
         <span>•</span>
-        <span style="color:#ffffff">ESTE 18 DE DICIEMBRE · DE 6:00 A 10:00 PM</span>
+        <span style="color:#ffffff">🚗 GRAN SORTEO CANACO 2026: CHEVROLET AVEO 2026</span>
         <span>•</span>
-        <span style="color:#38bdf8">¡APARTA LA FECHA, ALGO MUY ESPECIAL VIENE!</span>
+        <span style="color:#38bdf8">🎟️ ¡SOLICITA TU BOLETO EN CADA COMPRA!</span>
       </div>
     </div>
   </div>
@@ -1440,11 +1440,12 @@
       const coverEl = document.getElementById('stTrackCover');
 
       if (rodo) {
-        // 🎙️ DJ RODO: DUCKING FM SUAVE (La canción actual NUNCA se detiene ni se brinca; baja al 18% de cama musical)
+        // ⚡ LOCUCIÓN EN VIVO (HORA EXACTA): DUCKING FM SUAVE (La canción actual NUNCA se detiene ni se brinca; baja al 18% de cama musical)
         duckYT(700, Math.max(12, Math.round(_tvMasterVol * 0.18)));
-        if (badgeTextEl) badgeTextEl.textContent = '🎙️ DJ RODO AL AIRE • EN VIVO';
+        if (badgeTextEl) badgeTextEl.textContent = '⚡ HORA EXACTA • RADIO TERRAPESCA';
         if (bannerEl) {
-          bannerEl.textContent = (track.name && track.name.includes('🎙️')) ? track.name : ('🎙️ ' + (track.name || 'DJ Rodo en vivo'));
+          const cleanLabel = String(track.name || 'Radio Terrapesca en vivo').replace(/dj\s*rodo|rodo/ig, 'Radio Terrapesca');
+          bannerEl.textContent = cleanLabel.includes('⚡') ? cleanLabel : ('⚡ ' + cleanLabel);
           bannerEl.style.background = 'linear-gradient(90deg,rgba(255,190,26,0.26),rgba(249,115,22,0.18))';
           bannerEl.style.borderColor = 'rgba(255,190,26,0.85)';
           bannerEl.style.color = '#fde047';
@@ -1456,23 +1457,28 @@
         }
         executeAudioSpotPlay(track, srcInfo, true);
       } else {
-        // 📢 SPOT PERSONALIZADO DE CABINA: Misma entrada y salida suave de los videos de /tv
+        // 💥 SPOT OFICIAL EXPLOSIVO (SORTEO CANACO 2026 / VENTA NOCTURNA 18 DIC): Fade-out suave 750ms -> Spot al 100% -> Fade-in 1200ms
         _pausedForCommercialSpot = true;
         fadeOutYT(750, 0);
-        if (badgeTextEl) badgeTextEl.textContent = '📢 SPOT COMERCIAL • RADIO TERRAPESCA';
+        const isCanaco = /canaco|aveo|sorteo/i.test(track.name || '');
+        if (badgeTextEl) badgeTextEl.textContent = isCanaco ? '🎉🚗 GRAN SORTEO CANACO 2026 • EN VIVO' : '🌙🔥 VENTA NOCTURNA 18 DIC • 6 A 10 PM';
         if (bannerEl) {
-          bannerEl.textContent = '📢 PROMOCIÓN OFICIAL EN TIENDA Y LÍNEA';
-          bannerEl.style.background = 'linear-gradient(90deg,rgba(16,185,129,0.25),rgba(56,189,248,0.2))';
-          bannerEl.style.borderColor = 'rgba(16,185,129,0.85)';
-          bannerEl.style.color = '#6ee7b7';
+          bannerEl.textContent = isCanaco
+            ? '🚗 ¡SOLICITA TU BOLETO EN CADA COMPRA! • SORTEO 18 FEB 2027'
+            : '🌙 CAÑAS · KAYAKS · SEÑUELOS · PESCA COMERCIAL • ¡PIDE TU BOLETO CANACO!';
+          bannerEl.style.background = 'linear-gradient(90deg,rgba(255,190,26,0.28),rgba(16,185,129,0.22))';
+          bannerEl.style.borderColor = 'rgba(255,190,26,0.9)';
+          bannerEl.style.color = '#fef08a';
           bannerEl.style.display = 'block';
         }
         if (titleEl) titleEl.textContent = (track.name || 'Spot Oficial Terrapesca').replace(/^📢\s*/, '');
-        if (artistEl) artistEl.textContent = 'Terrapesca Marine & Outdoors • Equipa tu aventura';
+        if (artistEl) artistEl.textContent = isCanaco
+          ? '1er Premio: Automóvil Chevrolet Aveo 2026 + Más de 30 Premios • Equipa tu aventura'
+          : 'Este 18 de Diciembre de 6:00 a 10:00 PM • Terrapesca: Equipa tu aventura';
         if (coverEl) coverEl.src = TP_FALLBACK_COVER;
         if (playerCard) {
-          playerCard.style.borderColor = '#10b981';
-          playerCard.style.boxShadow = '0 0 55px rgba(16, 185, 129, 0.55)';
+          playerCard.style.borderColor = '#ffbe1a';
+          playerCard.style.boxShadow = '0 0 60px rgba(255, 190, 26, 0.65)';
         }
         // Pequeño respiro de 320ms mientras baja la música (igual que en los Video Spots)
         setTimeout(() => {
@@ -2068,7 +2074,7 @@
     function updateNextSpotNotice() {
       const noticeEl = document.getElementById('stNextSpotNotice');
       if (!noticeEl) return;
-      noticeEl.innerHTML = `📡 Transmisión 24/7 en vivo: <strong>Música Continua + 🎙️ DJ Rodo · Venta Nocturna 18 Dic (6 a 10 PM)</strong>`;
+      noticeEl.innerHTML = `📡 En vivo: <strong>Cañas · Kayaks · Señuelos · Pesca Comercial · 🚗 Sorteo CANACO 2026 · 🌙 Venta Nocturna 18 Dic</strong>`;
     }
 
     function toggleInterval() {
@@ -2114,12 +2120,18 @@
       });
     }
 
-    // Modo Radio 24/7 + Intervenciones DJ Rodo (Buen Fin retirado; campaña expectativa Venta Nocturna 18 Dic 6-10 PM)
+    const TV_EXPLOSIVE_SPOTS = [
+      { name: '🎉🚗 GRAN SORTEO CANACO 2026 — ¡Gánate un Chevrolet Aveo 2026!', label: '🚗 Sorteo CANACO #1', url: '/spots/spot_sorteo_canaco_1.mp3', duration: 38 },
+      { name: '🌙🔥 VENTA NOCTURNA TERRAPESCA — 18 de Diciembre (6 a 10 PM)', label: '🌙 Venta Nocturna #1', url: '/spots/spot_venta_nocturna_1.mp3', duration: 39 },
+      { name: '💥🏆 SORTEO CANACO 2026 — ¡Pide tu Boleto en Cada Compra!', label: '🏆 Sorteo CANACO #2', url: '/spots/spot_sorteo_canaco_2.mp3', duration: 39 },
+      { name: '⚡🌊 CUENTA REGRESIVA VENTA NOCTURNA — 18 Dic · 6 a 10 PM', label: '⚡ Venta Nocturna #2', url: '/spots/spot_venta_nocturna_2.mp3', duration: 40 }
+    ];
+
     async function loadSpots() {
       try {
         setTvVolume(_tvMasterVol);
         SPOTS = [];
-        CUSTOM_SPOTS = [];
+        CUSTOM_SPOTS = TV_EXPLOSIVE_SPOTS;
         renderNav();
 
         // Conectar WebSocket con Radio Terrapesca
@@ -2127,7 +2139,7 @@
 
         mode = 'radio_spots';
         const btnMode = document.getElementById('btnMode');
-        if (btnMode) btnMode.textContent = '📻 Modo: Radio + DJ Rodo (Venta Nocturna)';
+        if (btnMode) btnMode.textContent = '📻 Modo: Radio + Spots Oficiales';
 
         isInSpot = false;
         standbyScreen.style.display = 'flex';
@@ -2144,25 +2156,27 @@
       }
     }
 
-    function previewRodoVentaNocturna(n) {
-      const idx = n || (Math.floor(Math.random() * 5) + 1);
+    function launchTvOfficialSpot(idx) {
+      const sp = TV_EXPLOSIVE_SPOTS[idx];
+      if (!sp) return;
       playRemoteAudioSpot({
         type: 'spot',
-        isRodo: true,
-        overMusic: true,
-        name: `🎙️ DJ Rodo — Expectativa Venta Nocturna (18 Dic · 6 a 10 PM)`,
-        url: `/rodo/rodo_venta_nocturna_${idx}.mp3?v=${Date.now()}`,
+        isRodo: false,
+        advanceAfter: false,
+        bed: 'none',
+        name: sp.name,
+        url: sp.url + '?v=' + Date.now(),
         mime: 'audio/mpeg',
-        duration: 16
+        duration: sp.duration
       });
     }
 
     function renderNav() {
       const nav = document.getElementById('spotsNav');
       if (!nav) return;
-      nav.innerHTML = [1, 2, 3, 4, 5].map(i => `
-        <div class="nav-dot" style="border-color:rgba(255,190,26,0.65);color:#fde047;" onclick="previewRodoVentaNocturna(${i})" title="Probar intervención de DJ Rodo sobre la canción actual">
-          🎙️ Rodo Venta Nocturna #${i}
+      nav.innerHTML = TV_EXPLOSIVE_SPOTS.map((sp, i) => `
+        <div class="nav-dot" style="border-color:rgba(255,190,26,0.75);color:#fde047;" onclick="launchTvOfficialSpot(${i})" title="Disparar spot oficial con entrada y salida suave">
+          ${sp.label}
         </div>
       `).join('');
     }

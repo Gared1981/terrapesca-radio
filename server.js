@@ -2085,7 +2085,7 @@ let _apHistory = []; // Registro de canciones recientes para evitar repeticiones
 // Purga automática de cualquier spot antiguo del Buen Fin o con descuentos/promociones vencidas
 function _purgeBuenFinSpots(list) {
   if (!Array.isArray(list)) return [];
-  const bfRegex = /buen\s*fin|%\s*off|\d+\s*%|meses\s*sin\s*intereses|\bmsi\b|descuento|rebaja|alianza\s*shimano|se[ñn]uelos|termos\s*hieleras/i;
+  const bfRegex = /buen\s*fin|%\s*off|\d+\s*%|meses\s*sin\s*intereses|\bmsi\b|descuento|rebaja|alianza\s*shimano|termos\s*hieleras/i;
   return list.filter(s => {
     if (!s) return false;
     const label = `${s.id || ''} ${s.name || ''} ${s.url || ''}`;
@@ -2149,8 +2149,8 @@ function _synthesizeGoogleChirpMp3(script) {
     const doTts = (accessToken) => {
       const payload = Buffer.from(JSON.stringify({
         input: { text: script },
-        voice: { languageCode: 'es-US', name: 'es-US-Chirp3-HD-Puck' },
-        audioConfig: { audioEncoding: 'MP3', speakingRate: 1.03 }
+        voice: { languageCode: 'es-US', name: 'es-US-Chirp3-HD-Orus' },
+        audioConfig: { audioEncoding: 'MP3', speakingRate: 1.13 }
       }), 'utf8');
       const r = https.request({
         hostname: 'texttospeech.googleapis.com',
@@ -2315,13 +2315,11 @@ async function _synthesizeRodoExactTimeClip() {
     return _rodoExactTimeCache.track;
   }
 
-  // Guiones con HORA EXACTA al minuto + pura EXPECTATIVA de la Venta Nocturna (18 de diciembre de 6 a 10 PM, CERO promociones/descuentos)
+  // Locución comercial enérgica SIN mencionar "Rodo": Hora exacta + Cañas, Kayaks, Señuelos, Pesca Comercial + Boleto Sorteo CANACO 2026 + Expectativa Venta Nocturna 18 Dic (6 a 10 PM)
   const templates = [
-    `Costa Kayaks te da la hora exacta en Radio Terrapesca: son ${info.phrase}. Y ve apartando la fecha: este dieciocho de diciembre, de seis de la tarde a diez de la noche, llega nuestra esperada Venta Nocturna.`,
-    `¡Qué tal amigos! Aquí Rodo en Radio Terrapesca: marcamos exactamente ${info.phrase} en Sinaloa. Recuerda que este dieciocho de diciembre, de seis a diez de la noche, viviremos la gran Venta Nocturna de Terrapesca. ¡Mantente muy pendiente!`,
-    `La hora exacta en Radio Terrapesca con Costa Kayaks: son ${info.phrase}. Algo muy grande se prepara para este dieciocho de diciembre de seis de la tarde a diez de la noche en la Venta Nocturna. ¡Seguimos con más música!`,
-    `Actualizamos el reloj en Radio Terrapesca: son exactamente ${info.phrase}. Marca tu calendario para este dieciocho de diciembre, de seis a diez de la noche, porque se acerca la Venta Nocturna en Terrapesca.`,
-    `Con Costa Kayaks nos ponemos en hora: son exactamente ${info.phrase}. La cuenta regresiva ya comenzó para la Venta Nocturna de Terrapesca este dieciocho de diciembre de seis de la tarde a diez de la noche.`
+    `¡Costa Kayaks presenta la hora exacta en Radio Terrapesca: son ${info.phrase}! ¡Equípate en cañas, kayaks, señuelos y pesca comercial, y recuerda solicitar tu boleto en cada compra para el Gran Sorteo CANACO dos mil veintiséis por un Chevrolet Aveo dos mil veintiséis! ¡Terrapesca: equipa tu aventura!`,
+    `¡Marcamos la hora exacta en Radio Terrapesca: son ${info.phrase}! ¡Aparta la fecha para este dieciocho de diciembre, de seis de la tarde a diez de la noche, en nuestra espectacular Venta Nocturna, y pide siempre tu boleto en cada compra para el Gran Sorteo CANACO dos mil veintiséis! ¡Equipa tu aventura!`,
+    `¡La hora exacta con Costa Kayaks en Radio Terrapesca: son ${info.phrase}! ¡Ven por lo mejor en cañas, kayaks, señuelos y pesca comercial! ¡Participa en el Gran Sorteo CANACO dos mil veintiséis este dieciocho de febrero y prepárate para la Venta Nocturna este dieciocho de diciembre de seis a diez de la noche!`
   ];
   const script = templates[(_rodoTimeTemplateIdx++) % templates.length];
 
@@ -2336,13 +2334,12 @@ async function _synthesizeRodoExactTimeClip() {
     liveUrl = `/rodo/rodo_hora_live.mp3?t=${Date.now()}`;
   } catch (_) {}
 
-  // Estimar duración real según bitrate (~96 kbps = 12000 B/s en Edge, ~32-64 kbps en Chirp)
-  const estSecs = Math.max(10, Math.min(20, Math.round(script.split(/\s+/).length / 2.6)));
+  const estSecs = Math.max(12, Math.min(22, Math.round(script.split(/\s+/).length / 2.7)));
   const track = {
     type: 'spot',
     isRodo: true,
     overMusic: true,
-    name: `🎙️ DJ Rodo — Hora Exacta (${info.display}) · Venta Nocturna 18 Dic`,
+    name: `⚡ Radio Terrapesca — Hora Exacta (${info.display})`,
     script,
     url: liveUrl,
     b64: buf.toString('base64'),
@@ -2350,57 +2347,40 @@ async function _synthesizeRodoExactTimeClip() {
     duration: estSecs
   };
   _rodoExactTimeCache = { hhmm: info.hhmm, track };
-  console.log(`[Rodo Hora Exacta + Venta Nocturna] Generada en vivo: ${info.display} ("${info.phrase}", ~${estSecs}s)`);
+  console.log(`[Hora Exacta En Vivo] Generada: ${info.display} ("${info.phrase}", ~${estSecs}s)`);
   return track;
 }
 
+const OFFICIAL_CAMPAIGN_SPOTS = [
+  {
+    id: 'spot_sorteo_canaco_1',
+    name: '🎉🚗 GRAN SORTEO CANACO 2026 — ¡Gánate un Chevrolet Aveo 2026!',
+    url: '/spots/spot_sorteo_canaco_1.mp3',
+    duration: 38
+  },
+  {
+    id: 'spot_venta_nocturna_1',
+    name: '🌙🔥 VENTA NOCTURNA TERRAPESCA — 18 de Diciembre (6 a 10 PM)',
+    url: '/spots/spot_venta_nocturna_1.mp3',
+    duration: 39
+  },
+  {
+    id: 'spot_sorteo_canaco_2',
+    name: '💥🏆 SORTEO CANACO 2026 — ¡Solicita tu Boleto en Cada Compra!',
+    url: '/spots/spot_sorteo_canaco_2.mp3',
+    duration: 39
+  },
+  {
+    id: 'spot_venta_nocturna_2',
+    name: '⚡🌊 CUENTA REGRESIVA VENTA NOCTURNA — 18 Dic · 6 a 10 PM',
+    url: '/spots/spot_venta_nocturna_2.mp3',
+    duration: 40
+  }
+];
+let _campaignSpotIdx = 0;
+
 async function _buildRodoInterventionTrack() {
   try {
-    _rodoRotationStep++;
-    const mod = _rodoRotationStep % 3;
-    // mod === 1: Clip estelar de Expectativa Venta Nocturna (18 de diciembre de 6 a 10 PM, cero promociones)
-    // mod === 2: Hora Exacta en vivo con mención de Expectativa Venta Nocturna
-    // mod === 0: Alterna entre Expectativa Venta Nocturna y Consejos de Pesca / Identificación
-
-    if (mod === 2) {
-      const liveHourTrack = await _synthesizeRodoExactTimeClip();
-      if (liveHourTrack) return liveHourTrack;
-    }
-
-    const vnClips = _rodoManifest.filter(m => m.type === 'venta_nocturna');
-    const tipClips = _rodoManifest.filter(m => m.type !== 'hora' && m.type !== 'venta_nocturna');
-
-    let pool = [];
-    if (mod === 1 || !tipClips.length || Math.random() < 0.65) {
-      pool = vnClips.length ? vnClips : tipClips;
-    } else {
-      pool = tipClips;
-    }
-
-    const freshPool = pool.filter(m => m.file !== _lastRodoFilePicked);
-    const candidates = freshPool.length ? freshPool : pool;
-    const clip = candidates.length ? candidates[Math.floor(Math.random() * candidates.length)] : null;
-
-    if (clip) {
-      _lastRodoFilePicked = clip.file;
-      let b64 = '';
-      try {
-        const pFile = path.join(__dirname, 'public', 'rodo', clip.file);
-        if (fs.existsSync(pFile)) b64 = fs.readFileSync(pFile).toString('base64');
-      } catch (_) {}
-      return {
-        type: 'spot',
-        isRodo: true,
-        overMusic: true,
-        name: clip.title,
-        url: clip.url,
-        b64,
-        mime: 'audio/mpeg',
-        duration: 16
-      };
-    }
-
-    // Respaldo final en vivo si no hubiera clips en disco
     return await _synthesizeRodoExactTimeClip();
   } catch (_) {}
   return null;
@@ -2513,8 +2493,49 @@ function _apAdvanceNextTrack(opts = {}) {
 }
 
 function _apPlayInterventionThenAdvance() {
-  // SOLO intervenciones de DJ Rodo (Expectativa Venta Nocturna 18 Dic 6-10 PM + Hora Exacta + Consejos) — cero spots comerciales
-  _apAdvanceNextTrack({ rodoOverIntro: true });
+  _rodoRotationStep++;
+  // Cada 3er corte da la Hora Exacta enérgica sobre el intro; los otros 2 cortes lanzan los Spots Explosivos Oficiales (Sorteo CANACO 2026 + Venta Nocturna 18 Dic) con jingle masterizado entre canciones
+  if (_rodoRotationStep % 3 === 0) {
+    _apAdvanceNextTrack({ rodoOverIntro: true });
+    return;
+  }
+
+  const activePool = (customSpots && customSpots.length > 0) ? customSpots : OFFICIAL_CAMPAIGN_SPOTS;
+  const sp = activePool[(_campaignSpotIdx++) % activePool.length];
+  let b64 = sp.b64 || '';
+  if (!b64 && sp.url && sp.url.startsWith('/')) {
+    try {
+      const pFile = path.join(__dirname, 'public', sp.url);
+      if (fs.existsSync(pFile)) b64 = fs.readFileSync(pFile).toString('base64');
+    } catch (_) {}
+  }
+
+  const trackToPlay = {
+    type: 'spot',
+    isRodo: false,
+    advanceAfter: true,
+    bed: 'none', // Cama rítmica y remate "¡Equipa tu aventura con TERRA-PESCA!" ya masterizados en estéreo 192kbps
+    name: sp.name || '📢 Spot Oficial Terrapesca',
+    url: sp.url || '',
+    b64,
+    mime: sp.mime || 'audio/mpeg',
+    duration: sp.duration || 39
+  };
+
+  radioState.activeSpot = trackToPlay;
+  radioState.isPlaying = true;
+  const clipSecs = trackToPlay.duration || 39;
+  console.log('[24/7 Spot Estelar] 💥 AL AIRE:', trackToPlay.name, '(' + clipSecs + 's)');
+  broadcast({ type: 'SPOT', track: trackToPlay });
+  if (streamClients.size > 0) startStreamTrack(trackToPlay);
+
+  // Al terminar el spot, arranca de inmediato la siguiente canción desde 0:00 con entrada limpia
+  clearTimeout(autopilot.timer);
+  autopilot.trackEndsAt = Date.now() + (clipSecs * 1000);
+  autopilot.timer = setTimeout(() => {
+    radioState.activeSpot = null;
+    _apAdvanceNextTrack();
+  }, clipSecs * 1000);
 }
 
 function startAutopilot(list, startIdx) {
@@ -2703,7 +2724,9 @@ wss.on('connection', (ws, req) => {
           }
           // NO sobrescribir currentTrack si hay una canción YouTube activa, para que la misma canción continúe sin brincar
           const spTrack = Object.assign({ type: 'spot' }, msg.track || {});
-          const isRodoManual = !!(spTrack.isRodo || (spTrack.url && spTrack.url.startsWith('/rodo/')) || (spTrack.name && /rodo|locutor|hora|clima|consejo|venta\s*nocturna/i.test(spTrack.name)));
+          const isRodoManual = spTrack.isRodo === false
+            ? false
+            : !!(spTrack.isRodo || (spTrack.url && spTrack.url.startsWith('/rodo/')) || (!(spTrack.url && spTrack.url.startsWith('/spots/')) && spTrack.name && /rodo|locutor|hora|clima|consejo/i.test(spTrack.name)));
           spTrack.isRodo = isRodoManual;
           spTrack.advanceAfter = false;
           radioState.activeSpot = spTrack;

@@ -652,13 +652,13 @@ input[type=range]::-moz-range-thumb{width:18px;height:24px;border-radius:5px;bac
       <button onclick="importSpotUrl()" style="padding:8px 12px;border-radius:8px;border:1px solid #2a3a5a;background:#0a1828;color:#6ab4ff;font-size:11px;font-family:var(--mono);cursor:pointer;white-space:nowrap">📥 Importar</button>
     </div>
     <div style="display:flex;gap:8px;margin-bottom:6px;align-items:center">
-      <label style="font-size:10px;font-family:var(--mono);color:#fde047;font-weight:700;white-space:nowrap">🌙 GUIONES VENTA NOCTURNA:</label>
+      <label style="font-size:10px;font-family:var(--mono);color:#fde047;font-weight:700;white-space:nowrap">🔥 GUIONES OFICIALES:</label>
       <select id="buenFinPresetSel" onchange="applyBuenFinPreset(this.value)" style="flex:1;padding:6px 10px;border-radius:6px;border:1px solid #d69e2e;background:#1f1606;color:#fef9c3;font-size:11px;font-weight:600;cursor:pointer">
-        <option value="">-- Cargar guión de expectativa Venta Nocturna (sin promociones) --</option>
-        <option value="0">🌙 1. Aparta la Fecha — 18 de Diciembre de 6 a 10 PM</option>
-        <option value="1">⏳ 2. Cuenta Regresiva — Algo Grande Viene</option>
-        <option value="2">🎣 3. Velada para Apasionados del Mar y la Presa</option>
-        <option value="3">⚓ 4. Cierra el Año a lo Grande en Terrapesca</option>
+        <option value="">-- Cargar guión eufórico oficial (Sorteo CANACO 2026 / Venta Nocturna) --</option>
+        <option value="0">🎉🚗 1. GRAN SORTEO CANACO 2026 — Automóvil Chevrolet Aveo 2026 + 30 Premios</option>
+        <option value="1">🌙🔥 2. VENTA NOCTURNA 18 DIC (6 a 10 PM) — Cañas, Kayaks, Señuelos y Pesca Comercial</option>
+        <option value="2">💥🏆 3. BOLETO EN CADA COMPRA — Sorteo CANACO 2026 (18 Feb 2027)</option>
+        <option value="3">⚡🌊 4. CUENTA REGRESIVA VENTA NOCTURNA + SORTEO CANACO</option>
       </select>
     </div>
     <textarea id="spotScript" placeholder="El guión del spot aparecerá aquí. También puedes escribir uno manualmente."></textarea>
@@ -2444,16 +2444,17 @@ function djShouldFire(){
 let _lastDJType='';
 function nextDJItem(){
   if(!_djHoursOK()){
-    return _campaignActive() ? {kind:'dj',type:'VENTA_NOCTURNA'} : null;
+    return spots.length ? {kind:'spot'} : (_campaignActive() ? {kind:'dj',type:'VENTA_NOCTURNA'} : null);
   }
-  if(_highRainNow()!=null && Math.random()<0.6) return {kind:'dj',type:'WEATHER_REPORT'};
-  const pool=['VENTA_NOCTURNA','TIME_CHECK','VENTA_NOCTURNA','WEATHER_REPORT','FISHING_TIP','VENTA_NOCTURNA','RESERVOIR_UPDATE','GEAR_TIP','SAFETY_TIP','STATION_ID'];
+  if(_highRainNow()!=null && Math.random()<0.5) return {kind:'dj',type:'WEATHER_REPORT'};
+  const pool=['VENTA_NOCTURNA','TIME_CHECK','WEATHER_REPORT','FISHING_TIP'];
+  if(spots.length) pool.push('SPOT','SPOT','SPOT');
   if(_tidesAvailable) pool.push('TIDE_REPORT');
   const fresh=pool.filter(t=>t!==_lastDJType);
   const candidates=fresh.length?fresh:pool;
   const pick=candidates[Math.floor(Math.random()*candidates.length)];
   _lastDJType=pick;
-  return {kind:'dj',type:pick};
+  return pick==='SPOT' ? {kind:'spot'} : {kind:'dj',type:pick};
 }
 /* DJ talks over the tail (ducked) then crossfade — no silence, between songs */
 async function djBetweenThenCrossfade(){
@@ -2467,7 +2468,8 @@ async function djBetweenThenCrossfade(){
 
   const item=nextDJItem();
   if(item){
-    await playDJ(item.type||'VENTA_NOCTURNA');
+    if(item.kind==='spot') await playSpot();
+    else await playDJ(item.type||'VENTA_NOCTURNA');
   }
 
   if(_djNextSong>=0 && queue[_djNextSong]){
@@ -2483,13 +2485,12 @@ async function djBetweenThenCrossfade(){
 }
 function djInterveneNow(){
   if(djActive){return;}
-  // Botón manual: SOLO DJ Rodo (con alta prioridad en expectativa de Venta Nocturna 18 Dic 6-10 PM)
-  const pool=['VENTA_NOCTURNA','TIME_CHECK','VENTA_NOCTURNA','WEATHER_REPORT','FISHING_TIP','RESERVOIR_UPDATE','GEAR_TIP','SAFETY_TIP','STATION_ID'];
+  const pool=spots.length ? ['SPOT','SPOT','VENTA_NOCTURNA','TIME_CHECK'] : ['VENTA_NOCTURNA','TIME_CHECK','WEATHER_REPORT'];
   const fresh=pool.filter(t=>t!==_lastDJType);
   const candidates=fresh.length?fresh:pool;
   const pick=candidates[Math.floor(Math.random()*candidates.length)];
   _lastDJType=pick;
-  playDJ(pick);
+  if(pick==='SPOT') playSpot(); else playDJ(pick);
 }
 async function playDJ(type){
   if(djActive) return;
@@ -2907,7 +2908,7 @@ Entrega EXCLUSIVAMENTE las palabras que Rodo debe pronunciar, en un solo párraf
     SPOT_OUTRO:
       `${systemPrompt}\n\nSon ${hora}. Cierra brevemente después de un anuncio. Regresa la atención a la programación musical. 3 a 5 segundos.`,
     VENTA_NOCTURNA:
-      `${systemPrompt}\n\nSon ${hora}. Genera expectativa, intriga y emoción para la VENTA NOCTURNA de Terrapesca que será ESTE DIECIOCHO DE DICIEMBRE DE SEIS DE LA TARDE A DIEZ DE LA NOCHE (6 a 10 PM). PROHIBIDO ESTRICTAMENTE mencionar cualquier promoción, descuento, porcentaje, rebaja, meses sin intereses, precio o regalo. Habla ÚNICAMENTE de apartar la fecha y el horario, de que algo muy especial se está preparando y de que valdrá totalmente la pena. De 10 a 16 segundos.`,
+      `${systemPrompt}\n\nSon ${hora}. Con energía EUFÓRICA y MAGNÉTICA (SIN decir jamás el nombre Rodo), invita al cliente a apartar la fecha para la VENTA NOCTURNA de Terrapesca ESTE DIECIOCHO DE DICIEMBRE DE SEIS DE LA TARDE A DIEZ DE LA NOCHE, menciona las categorías CAÑAS, KAYAKS, SEÑUELOS y PESCA COMERCIAL, y recuérdale SOLICITAR SU BOLETO EN CADA COMPRA para el GRAN SORTEO CANACO DOS MIL VEINTISÉIS (primer premio: automóvil Chevrolet Aveo dos mil veintiséis y más de treinta premios, sorteo dieciocho de febrero de dos mil veintisiete, aplican restricciones). PROHIBIDO mencionar descuentos de la Venta Nocturna. Cierra con: "¡Terrapesca: equipa tu aventura!". De 14 a 20 segundos.`,
     VENTA_OPEN:
       `${systemPrompt}\n\nSon ${hora}. ¡Llegó el momento! Da la bienvenida con emoción al arranque de la Venta Nocturna de Terrapesca hoy dieciocho de diciembre de seis de la tarde a diez de la noche. PROHIBIDO mencionar descuentos o promociones específicas; celebra el ambiente y la experiencia en tienda. De 10 a 15 segundos.`,
   };
@@ -2952,11 +2953,11 @@ function genDynamicWeather(ctx){
   const windTxt=numEnLetras(wind)+' kilómetros por hora';
 
   const intros=[
-    `¡Qué tal mi gente pescadora! Rodo al micrófono en Radio Terrapesca con el tiempo en ${city}:`,
+    `¡Qué tal mi gente pescadora! En vivo desde Radio Terrapesca con el tiempo al momento en ${city}:`,
     `¡Atención a todos los que andan en el agua o alistando la lancha! Así pinta el clima en ${city}:`,
     `Actualizamos las condiciones meteorológicas desde la cabina de Radio Terrapesca para todo ${city}:`,
     `Para la plebada que pregunta cómo está el ambiente: aquí tienen el reporte oficial para ${city}:`,
-    `Rodo con ustedes para checar cómo está el ambiente hoy en ${city}:`,
+    `En vivo con ustedes en Radio Terrapesca para checar cómo está el ambiente hoy en ${city}:`,
     `Vámonos de volada con las condiciones del mar y la costa para nuestros amigos de ${city}:`,
     `¡Pónganse al tiro! Así se sienten la temperatura y los vientos en ${city} en este momento:`,
     `Radio Terrapesca te acompaña en la aventura; chequemos el termómetro al momento en ${city}:`,
@@ -3062,12 +3063,10 @@ function djFallback(type,ctx){
       `Recomendación para pesca en presa: siempre revisen su motor fuera de borda y lleven su troleador con buena carga. En las presas de Sinaloa el calor aprieta al mediodía, así que su hielera con hielo y bebidas de Terrapesca es obligatoria.`
     ],
     VENTA_NOCTURNA:[
-      `¡Marca la fecha en tu calendario! Este dieciocho de diciembre, de seis de la tarde a diez de la noche, llega la esperada Venta Nocturna de Terrapesca. Algo muy grande se está preparando para cerrar el año a lo grande. Mantente muy pendiente aquí en Radio Terrapesca.`,
-      `Se acerca una noche única para los apasionados del mar, la presa y la aventura. Este dieciocho de diciembre, de seis a diez de la noche, vive la gran Venta Nocturna en Terrapesca. Prepárate, porque la espera va a valer totalmente la pena.`,
-      `¿Ya apartaste tu tarde? Aquí Rodo para recordarte que este dieciocho de diciembre, en punto de las seis de la tarde y hasta las diez de la noche, encendemos la Venta Nocturna de Terrapesca. Muy pronto descubrirás todo lo que viene. ¡No faltes!`,
-      `La cuenta regresiva ya comenzó aquí en Radio Terrapesca: este dieciocho de diciembre, de seis de la tarde a diez de la noche, nos vemos en nuestra tradicional Venta Nocturna. Una experiencia pensada para verdaderos amantes de la pesca y la aventura.`,
-      `Atención amigos pescadores y aventureros: este dieciocho de diciembre, de seis a diez de la noche, las puertas de Terrapesca se visten de gala con la Venta Nocturna. Aparta la fecha y mantente en sintonía con Radio Terrapesca.`,
-      `Algo muy especial se está cocinando en Terrapesca para cerrar el año como se merece. Agenda desde hoy este dieciocho de diciembre, de seis de la tarde a diez de la noche: llega la gran Venta Nocturna. ¡No te la puedes perder!`
+      `¡Participa en el Gran Sorteo CANACO dos mil veintiséis y podrías llevarte un automóvil! CANACO Los Mochis y Terrapesca traen como primer premio un automóvil Chevrolet Aveo dos mil veintiséis y más de treinta premios. Equípate en cañas, kayaks, señuelos y pesca comercial y solicita tu boleto en cada compra. Sorteo: dieciocho de febrero de dos mil veintisiete. Aplican restricciones. ¡Terrapesca: equipa tu aventura!`,
+      `¡Atención pescadores y aventureros! ¡Este dieciocho de diciembre, de seis de la tarde a diez de la noche, vive la espectacular Venta Nocturna Terrapesca! Lo mejor en cañas, kayaks, señuelos y pesca comercial te espera en cuatro horas electrizantes. ¡Y recuerda solicitar tu boleto en cada compra para el Gran Sorteo CANACO dos mil veintiséis! ¡Terrapesca: equipa tu aventura!`,
+      `¡Que cada compra en Terrapesca te acerque a estrenar un automóvil Chevrolet Aveo dos mil veintiséis! Participa en el Gran Sorteo CANACO dos mil veintiséis con más de treinta premios en efectivo, artículos para el hogar y sorpresas. Ven por tus cañas, kayaks, señuelos y pesca comercial, pide tu boleto en cada compra y aparta el dieciocho de diciembre de seis a diez de la noche para nuestra Venta Nocturna. Aplican restricciones. ¡Terrapesca: equipa tu aventura!`,
+      `¡Arranca la cuenta regresiva! Este dieciocho de diciembre, de seis de la tarde a diez de la noche, se enciende la esperada Venta Nocturna en Terrapesca con todo el poder en cañas, kayaks, señuelos y pesca comercial. ¡Recuerda solicitar tu boleto en cada compra para el Gran Sorteo CANACO dos mil veintiséis este dieciocho de febrero! ¡Terrapesca: equipa tu aventura!`
     ],
     SAFETY_TIP:[
       `Consejo de seguridad en el agua: el chaleco salvavidas no salva vidas si se queda guardado en la bodega. Póntelo siempre antes de encender el motor o subirte al kayak, especialmente con viento o marejada.`,
@@ -4005,20 +4004,20 @@ GUION: [texto final del spot listo para narrar, sin etiquetas]`;
 
 const BUEN_FIN_PRESETS=[
   {
-    name:'Expectativa Venta Nocturna — Aparta la Fecha (18 Dic 6-10 PM)',
-    script:'¡Marca la fecha en tu calendario! Este dieciocho de diciembre, de seis de la tarde a diez de la noche, llega la esperada Venta Nocturna de Terrapesca. Algo muy grande se está preparando para cerrar el año a lo grande. Mantente muy pendiente aquí en Radio Terrapesca.'
+    name:'🎉🚗 GRAN SORTEO CANACO 2026 — ¡Gánate un Chevrolet Aveo 2026!',
+    script:'¡Participa en el Gran Sorteo CANACO dos mil veintiséis! ¡Podrías llevarte un automóvil nuevo! ¡CANACO Los Mochis y Terrapesca traen para ti un gran sorteo con increíbles premios! ¡Primer premio: un espectacular automóvil Chevrolet Aveo dos mil veintiséis! ¡Y más de treinta premios: premios en efectivo, artículos para el hogar y muchísimas sorpresas! ¡Equípate en cañas, kayaks, señuelos y pesca comercial, y recuerda solicitar tu boleto en cada compra! ¡Sorteo: dieciocho de febrero de dos mil veintisiete! ¡No te quedes fuera, participa y podrías ser el próximo ganador! Aplican restricciones. ¡Terrapesca: equipa tu aventura!'
   },
   {
-    name:'Expectativa Venta Nocturna — Cuenta Regresiva',
-    script:'La cuenta regresiva ya comenzó en Radio Terrapesca: este dieciocho de diciembre, de seis de la tarde a diez de la noche, nos vemos en nuestra tradicional Venta Nocturna. Una experiencia nocturna pensada para verdaderos amantes de la pesca y la aventura. ¡Aparta la fecha!'
+    name:'🌙🔥 VENTA NOCTURNA TERRAPESCA — 18 de Diciembre (6 a 10 PM)',
+    script:'¡Atención pescadores y aventureros! ¡La noche más electrizante del año está por encenderse en Terrapesca! ¡Este dieciocho de diciembre, de seis de la tarde a diez de la noche, vive la espectacular Venta Nocturna Terrapesca! ¡Prepárate para lo mejor en cañas, kayaks, señuelos y pesca comercial en cuatro horas llenas de emoción y adrenalina! ¡Y en todas tus compras, recuerda solicitar tu boleto para el Gran Sorteo CANACO dos mil veintiséis, donde podrías llevarte un automóvil Chevrolet Aveo dos mil veintiséis! ¡Aparta la fecha: dieciocho de diciembre de seis a diez de la noche! ¡Terrapesca: equipa tu aventura!'
   },
   {
-    name:'Expectativa Venta Nocturna — Noche de Pescadores',
-    script:'Se acerca una noche única para los apasionados del mar, la presa y la aventura. Este dieciocho de diciembre, de seis a diez de la noche, vive la gran Venta Nocturna en Terrapesca. Prepárate, porque la espera va a valer totalmente la pena.'
+    name:'💥🏆 SORTEO CANACO 2026 — ¡Solicita tu Boleto en Cada Compra!',
+    script:'¡Que cada compra en Terrapesca te acerque a estrenar auto nuevo! ¡Participa ya en el Gran Sorteo CANACO dos mil veintiséis! ¡CANACO Los Mochis y Terrapesca traen para ti como primer premio un flamante automóvil Chevrolet Aveo dos mil veintiséis, además de más de treinta premios espectaculares: premios en efectivo, artículos para el hogar y grandes sorpresas! ¡Ven por tus cañas, kayaks, señuelos y todo en pesca comercial, y recuerda siempre solicitar tu boleto en cada compra! ¡Gran sorteo: dieciocho de febrero de dos mil veintisiete! ¡No te quedes fuera! Aplican restricciones. ¡Terrapesca: equipa tu aventura!'
   },
   {
-    name:'Expectativa Venta Nocturna — Cierra el Año en Grande',
-    script:'¿Ya apartaste tu tarde? Este dieciocho de diciembre, en punto de las seis de la tarde y hasta las diez de la noche, las puertas de Terrapesca se encienden con nuestra Venta Nocturna. Muy pronto descubrirás todo lo que viene. ¡No faltes!'
+    name:'⚡🌊 CUENTA REGRESIVA VENTA NOCTURNA — 18 Dic · 6 a 10 PM',
+    script:'¡Arranca la cuenta regresiva! ¡Algo gigantesco se está preparando en Terrapesca para cerrar el año a máxima potencia! ¡Marca tu calendario para este dieciocho de diciembre, en punto de las seis de la tarde y hasta las diez de la noche, en nuestra gran Venta Nocturna! ¡Cañas, kayaks, señuelos y pesca comercial en una experiencia nocturna imperdible! ¡Y recuerda solicitar tu boleto en cada compra para participar en el Gran Sorteo CANACO dos mil veintiséis por un automóvil Chevrolet Aveo dos mil veintiséis y más de treinta premios! ¡Terrapesca: equipa tu aventura!'
   }
 ];
 
@@ -4125,7 +4124,7 @@ async function _saveSpotToIDB(name,b64,bed,mime){
       const items=(req.result?.items||[]);
       items.push({name,b64,bed:bed||'terrapesca',mime:mime||'audio/mpeg',ts:Date.now()});
       store.put({key:'spotsLibrary',items});
-      spots=items.filter(s=>s.b64).map(s=>({name:s.name,b64:s.b64,bed:s.bed||'terrapesca',mime:s.mime||'audio/mpeg'}));
+      spots=items.filter(s=>s.b64||s.url).map(s=>({id:s.id,name:s.name,url:s.url||'',b64:s.b64||'',bed:s.bed||'none',mime:s.mime||'audio/mpeg',duration:s.duration||38}));
       renderSpots();
       syncSpotsToServer();
       res();
@@ -4139,7 +4138,7 @@ function syncSpotsToServer(){
   clearTimeout(_syncSpotsTimer);
   _syncSpotsTimer=setTimeout(async()=>{
     try{
-      const list=spots.map(s=>({name:s.name,b64:s.b64,bed:s.bed||'none',mime:s.mime||'audio/mpeg'}));
+      const list=spots.map(s=>({id:s.id,name:s.name,url:s.url||'',b64:s.b64||'',bed:s.bed||'none',mime:s.mime||'audio/mpeg',duration:s.duration||38}));
       if(!list.length) return;
       await fetch('/api/spots', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({spots:list}) });
       _wsSend({ type:'SPOTS_UPDATE', spots:list });
@@ -4320,23 +4319,23 @@ async function loadShared(){
         }
       } catch (_) {}
     }
-    const _bfSpotFilter = s => s && !/buen\s*fin|%\s*off|\d+\s*%|meses\s*sin\s*intereses|\bmsi\b|descuento|rebaja|alianza\s*shimano|se[ñn]uelos|termos\s*hieleras/i.test(s.name || '');
+    const _bfSpotFilter = s => s && !/buen\s*fin|%\s*off|\d+\s*%|meses\s*sin\s*intereses|\bmsi\b|descuento|rebaja|alianza\s*shimano|termos\s*hieleras/i.test(s.name || '');
     const sp=await idbGet(db,'session','spotsLibrary');
     if(sp&&sp.items){
-      const cleanLocal = sp.items.filter(s=>s.b64 && _bfSpotFilter(s));
-      spots=cleanLocal.map(s=>({name:s.name,b64:s.b64,bed:s.bed||'terrapesca',mime:s.mime||'audio/mpeg'}));
+      const cleanLocal = sp.items.filter(s=>(s.b64||s.url) && _bfSpotFilter(s));
+      spots=cleanLocal.map(s=>({id:s.id,name:s.name,url:s.url||'',b64:s.b64||'',bed:s.bed||'none',mime:s.mime||'audio/mpeg',duration:s.duration||38}));
       if(cleanLocal.length !== sp.items.length){
         db.transaction('session','readwrite').objectStore('session').put({key:'spotsLibrary',items:spots});
       }
     }
-    // Sincronizar spots remotos compartidos del servidor (sin Buen Fin)
+    // Sincronizar spots oficiales compartidos del servidor (Sorteo CANACO 2026 + Venta Nocturna 18 Dic)
     try {
       const rsp = await fetch('/api/spots');
       const srvSpots = (await rsp.json() || []).filter(_bfSpotFilter);
       if (Array.isArray(srvSpots) && srvSpots.length) {
         let added = false;
         for (const s of srvSpots) {
-          if (!spots.some(x => x.name === s.name)) {
+          if (!spots.some(x => x.name === s.name || (s.url && x.url === s.url))) {
             spots.push(s);
             added = true;
           }
@@ -5254,8 +5253,8 @@ drawVU();
     const day=_isEventDay();
     b.style.display='block';
     b.innerHTML=day
-      ? '🌙 HOY ES LA VENTA NOCTURNA TERRAPESCA — De 6:00 PM a 10:00 PM · Solo intervenciones de DJ Rodo en vivo'
-      : `🌙 CAMPAÑA DE EXPECTATIVA ACTIVA — Venta Nocturna Terrapesca · Este ${CAMPAIGN.eventDate} de 6:00 a 10:00 PM · Solo intervenciones de DJ Rodo (sin mencionar promociones)`;
+      ? '🌙 HOY ES LA VENTA NOCTURNA TERRAPESCA — De 6:00 PM a 10:00 PM · Cañas, Kayaks, Señuelos, Pesca Comercial y Sorteo CANACO 2026'
+      : `🔥 CAMPAÑA ACTIVA — Venta Nocturna (${CAMPAIGN.eventDate} · 6 a 10 PM) + 🚗 Gran Sorteo CANACO 2026 (Chevrolet Aveo 2026 · Solicita tu boleto en cada compra)`;
   }
 })();
 // expose start on first deck play
