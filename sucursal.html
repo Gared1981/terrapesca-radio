@@ -685,17 +685,27 @@ setInterval(()=>{
   fetch('/api/version').then(r=>r.json()).then(d=>{ if(d&&d.version) _checkSucVersion(d.version); }).catch(()=>{});
 }, 30000);
 
+let _sucLiveAnchor = { ytId: '', pos: 0, monoAt: 0, playing: false };
+function _getSucLivePos(ytId, fallback = 0) {
+  if (!ytId || _sucLiveAnchor.ytId !== ytId) return Math.max(0, Number(fallback) || 0);
+  return _sucLiveAnchor.pos + (_sucLiveAnchor.playing ? Math.max(0, (performance.now() - _sucLiveAnchor.monoAt) / 1000) : 0);
+}
+
 function handleMsg(msg){
   if(msg.serverVer) _checkSucVersion(msg.serverVer);
   switch(msg.type){
     case 'SYNC':
-      // SYNC fires on connect — play immediately if something is live
+      // SYNC fires on connect — play immediately at the exact live elapsed second
       if(msg.state&&msg.state.currentTrack&&msg.state.isPlaying){
         if(msg.state.currentTrack.type==='spot'||msg.state.currentTrack.spot_id||msg.state.currentTrack.url)
           playSpot(msg.state.currentTrack);
-        else
-          playRemote(msg.state.currentTrack, msg.state.position||0);
+        else {
+          const srvPos = (typeof msg.state.livePosition === 'number') ? msg.state.livePosition : (msg.state.position||0);
+          _sucLiveAnchor = { ytId: msg.state.currentTrack.ytId || '', pos: srvPos, monoAt: performance.now(), playing: true };
+          playRemote(msg.state.currentTrack, srvPos);
+        }
       } else if(msg.state&&!msg.state.isPlaying){
+        _sucLiveAnchor.playing = false;
         pauseLocal();
         if(msg.state.currentTrack) updateNP(msg.state.currentTrack, false);
       } else if(msg.state&&msg.state.currentTrack){
@@ -706,6 +716,9 @@ function handleMsg(msg){
       console.log('[youtube-radio] play recibido');
       cancelResumeFallback();
       _clearPostSpotWatchdog();
+      if(msg.track&&msg.track.ytId){
+        _sucLiveAnchor = { ytId: msg.track.ytId, pos: msg.position||0, monoAt: performance.now(), playing: true };
+      }
       if(msg.track&&msg.track.type==='spot'){
         playSpot(msg.track);
       } else if(_spotActive){
@@ -736,10 +749,19 @@ function onYouTubeIframeAPIReady(){
     events:{
       onReady:()=>{
         ytReady=true;
-        if(_pendingPlay){ const p=_pendingPlay; _pendingPlay=null; playRemote(p.track,p.pos); }
+        if(_pendingPlay){ const p=_pendingPlay; _pendingPlay=null; playRemote(p.track, _getSucLivePos(p.track.ytId, p.pos)); }
       },
       onStateChange:(e)=>{
-        if(e.data===YT.PlayerState.PLAYING){setPlayUI(true,'yt');hideTapOverlay();}
+        if(e.data===YT.PlayerState.PLAYING){
+          setPlayUI(true,'yt');hideTapOverlay();
+          if(!_spotActive && _lastRemoteTrack && _lastRemoteTrack.ytId && _sucLiveAnchor.ytId===_lastRemoteTrack.ytId && _sucLiveAnchor.playing){
+            try{
+              const exp=_getSucLivePos(_lastRemoteTrack.ytId);
+              const act=ytPlayer.getCurrentTime()||0;
+              if(exp>1.5 && Math.abs(act-exp)>3.5) ytPlayer.seekTo(exp,true);
+            }catch(_){}
+          }
+        }
         if(e.data===YT.PlayerState.PAUSED)setPlayUI(false);
         if(e.data===YT.PlayerState.ENDED)setPlayUI(false);
       },

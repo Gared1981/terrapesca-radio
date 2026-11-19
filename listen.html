@@ -1512,8 +1512,8 @@ function onHeartbeatTick() {
 }
 
 function _liveNow() {
-  if (!_livePos.at) return 0;
-  return _livePos.pos + (_livePos.playing ? (Date.now() - _livePos.at) / 1000 : 0);
+  if (!_livePos.at) return _livePos.pos || 0;
+  return (_livePos.pos || 0) + (_livePos.playing ? Math.max(0, (performance.now() - _livePos.at) / 1000) : 0);
 }
 
 let _lastReportedErrYtId = '';
@@ -1583,6 +1583,18 @@ function onDeckStateChange(deckId, state) {
     setPlayUI(true);
     setStatus('● EN VIVO', 'live');
     hideTapOverlay();
+    // Garantía absoluta de sincronización: si YouTube inició en 0:00 o desfasado >3.5s respecto a la señal en vivo, saltar al segundo exacto
+    if (deckId === activeDeck && !_xfading && !spotAudio && _livePos.playing) {
+      try {
+        const expected = _liveNow();
+        const actual = d.player.getCurrentTime ? (d.player.getCurrentTime() || 0) : 0;
+        const dur = (d.player.getDuration && d.player.getDuration()) || (currentTrack && currentTrack.duration) || 0;
+        if (expected > 1.5 && (!dur || expected < dur - 2) && Math.abs(actual - expected) > 3.5) {
+          console.log(`[Listen Sync] Ajustando segundo exacto en vivo: ${actual.toFixed(1)}s → ${expected.toFixed(1)}s`);
+          d.player.seekTo(expected, true);
+        }
+      } catch (_) {}
+    }
   } else if (state === YT.PlayerState.PAUSED) {
     d.playing = false;
     // Solo rescatar pausa involuntaria (segundo plano/bloqueo) si es el deck ACTIVO,
@@ -1632,7 +1644,7 @@ function playRemote(track, pos) {
 
   const curVol = (parseInt(document.getElementById('volSlider').value, 10) || 85);
   _curVolMaster = curVol;
-  const startSecs = (pos || 0) > 2 ? pos : 0;
+  const startSecs = (pos || 0) > 0.5 ? pos : 0;
   const curDeck = decks[activeDeck];
   const nextDeckId = activeDeck === 0 ? 1 : 0;
   const nxtDeck = decks[nextDeckId];
@@ -1641,7 +1653,7 @@ function playRemote(track, pos) {
   if (_lastYtId === track.ytId && curDeck.ytId === track.ytId) {
     try {
       const curTime = (curDeck.player.getCurrentTime && curDeck.player.getCurrentTime()) || 0;
-      if (Math.abs(curTime - startSecs) > 6 && startSecs > 2) {
+      if (Math.abs(curTime - startSecs) > 3.5 && startSecs > 1) {
         curDeck.player.seekTo(startSecs, true);
       }
       curDeck.player.unMute();
@@ -2060,6 +2072,7 @@ function startListening(isAuto = false) {
 
   startBgAudioEngine();
   connectWS();
+  sendWS({ type: 'REQUEST_SYNC' });
   acquireWakeLock();
   setupMediaSession();
 
@@ -2103,6 +2116,7 @@ function togglePlay() {
   } else {
     userPaused = false;
     startBgAudioEngine();
+    sendWS({ type: 'REQUEST_SYNC' });
     if (curDeck && curDeck.ready) {
       try { curDeck.player.unMute(); curDeck.player.setVolume(parseInt(document.getElementById('volSlider').value, 10) || 85); } catch (_) {}
     }
@@ -2237,7 +2251,8 @@ function connectWS() {
           _isRadioPlaying = !!st.isPlaying;
           if (typeof st.autopilotOn === 'boolean') _serverAutopilot = st.autopilotOn;
           if (st.currentTrack) {
-            _livePos = { pos: st.position || 0, at: st.lastUpdate || Date.now(), playing: !!st.isPlaying };
+            const srvPos = (typeof st.livePosition === 'number') ? st.livePosition : (Number(st.position) || 0);
+            _livePos = { pos: srvPos, at: performance.now(), playing: !!st.isPlaying };
             currentTrack = st.currentTrack;
             updateNowPlayingUI(st.currentTrack);
             if (started && st.isPlaying) {
@@ -2271,7 +2286,7 @@ function connectWS() {
         case 'PLAY':
           if (m.track) {
             _isRadioPlaying = true;
-            _livePos = { pos: m.position || 0, at: Date.now(), playing: true };
+            _livePos = { pos: m.position || 0, at: performance.now(), playing: true };
             currentTrack = m.track;
             updateNowPlayingUI(m.track);
             if (started) {
@@ -2292,7 +2307,7 @@ function connectWS() {
           _isRadioPlaying = false;
           _xfading = false;
           clearTimeout(_xfadeWatchdogTimer);
-          _livePos = { pos: m.position || 0, at: Date.now(), playing: false };
+          _livePos = { pos: m.position || 0, at: performance.now(), playing: false };
           if (ytReady) { decks.forEach(dk => { try { dk.player.pauseVideo(); dk.playing = false; } catch (_) {} }); }
           stopSpotAudio();
           playing = false;
@@ -2301,7 +2316,7 @@ function connectWS() {
           break;
         case 'RESUME':
           _isRadioPlaying = true;
-          _livePos = { pos: m.position || 0, at: Date.now(), playing: true };
+          _livePos = { pos: m.position || 0, at: performance.now(), playing: true };
           if (started && currentTrack) {
             if (currentTrack.ytId) playRemote(currentTrack, m.position || 0);
             else if (currentTrack.type === 'spot') playSpotTrack(currentTrack);

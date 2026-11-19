@@ -912,7 +912,10 @@ try{
   if(!localStorage.getItem('tp_vk_user')) localStorage.setItem('tp_vk_user', DEFAULT_VK_USER);
   if(!localStorage.getItem('tp_engine')) localStorage.setItem('tp_engine', 'voicekiller');
   if(!localStorage.getItem('tp_vk_voice')) localStorage.setItem('tp_vk_voice', 'Podcaster 1 (es-419)');
-  if(!localStorage.getItem('tp_vk_voice_spot')) localStorage.setItem('tp_vk_voice_spot', 'Commercial Voiceover 1 (es-419)');
+  if(!localStorage.getItem('tp_vk_voice_spot') || !localStorage.getItem('tp_vk_spot_c4_v1')){
+    localStorage.setItem('tp_vk_voice_spot', 'Commercial Voiceover 4 (es-419)');
+    localStorage.setItem('tp_vk_spot_c4_v1', '1');
+  }
 }catch(_){}
 
 const cfg={
@@ -1088,7 +1091,8 @@ function _onRemoteCmd(ev){
           _renderAutopilotTrackInStudio(st.queuePreview[0], 0, st.queuePreview.slice(1));
         }
       } else {
-        _renderAutopilotTrackInStudio(st.currentTrack, st.position, st.queuePreview);
+        const liveSecs = (typeof st.livePosition === 'number') ? st.livePosition : (st.position || 0);
+        _renderAutopilotTrackInStudio(st.currentTrack, liveSecs, st.queuePreview);
       }
     } else if(!st.autopilotOn && decks.some(d=>d.playing)){
       // Solo si la cabina estaba reproduciendo manualmente tras una reconexión WS, reenviar estado
@@ -1422,25 +1426,21 @@ const OAI_TONE={
 // Matiz extra para spots publicitarios: arranque con gancho y cierre con llamado.
 const SPOT_TTS_STYLE='Es un spot publicitario de radio: engancha en los primeros segundos, transmite entusiasmo y confianza, y remata con un llamado a la acción claro.';
 // Instrucciones de voz para SPOTS — independientes de la persona de Rodo.
-const SPOT_BASE_INSTR='Eres un locutor comercial de radio mexicana grabando un ANUNCIO de Terrapesca, tienda de pesca y outdoors. '+
-  'Voz clara, cálida y con energía; español mexicano natural, sin acento gringo ni voz de tráiler cinematográfico. '+
-  'Suena como comercial de radio real: enganchas en los primeros segundos, resaltas el beneficio y cierras con un llamado a la acción. Sin gritar, sin modismos de barrio.';
-// Instrucciones para VoiceKiller (Locutor Perrón de Radio Comercial Mexicana)
-const VK_BASE_INSTR='Locutor estrella de radio comercial FM mexicana. Voz con presencia, cuerpo, resonancia y pegada. ' +
-  'Estilo enérgico, dinámico y con mucha actitud norteña y sinaloense. ' +
-  'Locución comercial de alto impacto: entusiasmo contagioso, articulación impecable, pausas dramáticas en los precios y descuentos, y remates contundentes y vibrantes. ' +
-  '¡Suena 100% como un locutor profesional en vivo, apasionado por la pesca, la aventura y las grandes ofertas!';
+const SPOT_BASE_INSTR='Eres un locutor comercial joven mexicano de 21 años grabando un anuncio cálido, empático y cercano para Terrapesca. '+
+  'Háblale directo a la persona como a un buen amigo o familia que visita la tienda: con sonrisa real en la voz, entusiasmo natural, cero palabras técnicas y cero frases robóticas o genéricas de IA.';
+const VK_BASE_INSTR='Locutor comercial mexicano joven (21 años), súper humano, empático, cercano y alegre. ' +
+  'Háblale directo al público con calidez genuina, ritmo comercial fluido y natural, sonrisa audible y cercanía real, sin sonar leído ni robótico.';
 
 // Matiz de voz por estilo del spot.
 const SPOT_ESTILO_VOZ={
-  'expectativa':'Tono carismático de EXPECTATIVA e intriga positiva para la Venta Nocturna de Terrapesca: cálido, emocionante, invitando a apartar la fecha sin revelar ni mencionar ninguna promoción o descuento.',
-  'eufórico':'Tono eufórico y muy enérgico.',
-  'dinámico':'Tono dinámico y ágil.',
-  'elegante':'Tono elegante, cálido y sobrio.',
-  'urgente':'Tono urgente y contundente.'
+  'expectativa':'Tono cálido, cercano y emocionante, platicando directo con el cliente para que aparte la fecha con gusto.',
+  'eufórico':'Tono alegre, entusiasta y contagioso, siempre humano y cercano.',
+  'dinámico':'Tono ágil, fresco y conversacional.',
+  'elegante':'Tono cálido, amable y confiable.',
+  'urgente':'Tono directo y entusiasta.'
 };
-// Voz de VoiceKiller para spots (independiente de la de Rodo).
-function _spotVkVoice(){ return localStorage.getItem('tp_vk_voice_spot')||'Commercial Voiceover 1 (es-419)'; }
+// Voz de VoiceKiller para spots: Commercial 4 (Locutor Reality/Comercial México 21a) por defecto.
+function _spotVkVoice(){ return localStorage.getItem('tp_vk_voice_spot')||'Commercial Voiceover 4 (es-419)'; }
 // Extra de voz para el spot según el estilo elegido en el panel.
 function _spotVoiceExtra(){ const e=document.getElementById('spotEstilo')?.value||''; return SPOT_TTS_STYLE+(SPOT_ESTILO_VOZ[e]?(' '+SPOT_ESTILO_VOZ[e]):''); }
 // Motor de voz activo: 'openai' o 'voicekiller' (VoiceKiller por defecto si hay llaves).
@@ -3063,10 +3063,9 @@ function djFallback(type,ctx){
       `Recomendación para pesca en presa: siempre revisen su motor fuera de borda y lleven su troleador con buena carga. En las presas de Sinaloa el calor aprieta al mediodía, así que su hielera con hielo y bebidas de Terrapesca es obligatoria.`
     ],
     VENTA_NOCTURNA:[
-      `¡Participa en el Gran Sorteo CANACO dos mil veintiséis y podrías llevarte un automóvil! CANACO Los Mochis y Terrapesca traen como primer premio un automóvil Chevrolet Aveo dos mil veintiséis y más de treinta premios. Equípate en cañas, kayaks, señuelos y pesca comercial y solicita tu boleto en cada compra. Sorteo: dieciocho de febrero de dos mil veintisiete. Aplican restricciones. ¡Terrapesca: equipa tu aventura!`,
-      `¡Atención pescadores y aventureros! ¡Este dieciocho de diciembre, de seis de la tarde a diez de la noche, vive la espectacular Venta Nocturna Terrapesca! Lo mejor en cañas, kayaks, señuelos y pesca comercial te espera en cuatro horas electrizantes. ¡Y recuerda solicitar tu boleto en cada compra para el Gran Sorteo CANACO dos mil veintiséis! ¡Terrapesca: equipa tu aventura!`,
-      `¡Que cada compra en Terrapesca te acerque a estrenar un automóvil Chevrolet Aveo dos mil veintiséis! Participa en el Gran Sorteo CANACO dos mil veintiséis con más de treinta premios en efectivo, artículos para el hogar y sorpresas. Ven por tus cañas, kayaks, señuelos y pesca comercial, pide tu boleto en cada compra y aparta el dieciocho de diciembre de seis a diez de la noche para nuestra Venta Nocturna. Aplican restricciones. ¡Terrapesca: equipa tu aventura!`,
-      `¡Arranca la cuenta regresiva! Este dieciocho de diciembre, de seis de la tarde a diez de la noche, se enciende la esperada Venta Nocturna en Terrapesca con todo el poder en cañas, kayaks, señuelos y pesca comercial. ¡Recuerda solicitar tu boleto en cada compra para el Gran Sorteo CANACO dos mil veintiséis este dieciocho de febrero! ¡Terrapesca: equipa tu aventura!`
+      `Oye, imagínate empezar el año manejando carro nuevo. CANACO Los Mochis y Terrapesca quieren agradecer tu preferencia en el Gran Sorteo CANACO dos mil veintiséis por un automóvil Chevrolet Aveo dos mil veintiséis y más de treinta premios. Cuando vengas por tus cañas, tu kayak, tus señuelos o pesca comercial, recuerda solicitar tu boleto en cada compra. Sorteo: dieciocho de febrero de dos mil veintisiete. Aplican restricciones. ¡Terrapesca: equipa tu aventura!`,
+      `Si disfrutas salir a pescar con la familia y los amigos, ve apartando en tu agenda este dieciocho de diciembre. De seis de la tarde a diez de la noche te esperamos con mucho gusto en la Venta Nocturna de Terrapesca con todo en cañas, kayaks, señuelos y pesca comercial. Y acuérdate de solicitar tu boleto en cada compra para el Gran Sorteo CANACO dos mil veintiséis. ¡Terrapesca: equipa tu aventura!`,
+      `En Terrapesca nos da mucho gusto acompañarte en cada salida al agua, y hoy tu compra te puede dar una gran alegría en el Gran Sorteo CANACO dos mil veintiséis por un Chevrolet Aveo dos mil veintiséis y más de treinta premios. Ven por cañas, kayaks, señuelos y pesca comercial, pide tu boleto en cada compra y acompáñanos este dieciocho de diciembre de seis a diez de la noche en nuestra Venta Nocturna. Aplican restricciones. ¡Equipa tu aventura!`
     ],
     SAFETY_TIP:[
       `Consejo de seguridad en el agua: el chaleco salvavidas no salva vidas si se queda guardado en la bodega. Póntelo siempre antes de encender el motor o subirte al kayak, especialmente con viento o marejada.`,
@@ -4004,20 +4003,20 @@ GUION: [texto final del spot listo para narrar, sin etiquetas]`;
 
 const BUEN_FIN_PRESETS=[
   {
-    name:'🎉🚗 GRAN SORTEO CANACO 2026 — ¡Gánate un Chevrolet Aveo 2026!',
-    script:'¡Participa en el Gran Sorteo CANACO dos mil veintiséis! ¡Podrías llevarte un automóvil nuevo! ¡CANACO Los Mochis y Terrapesca traen para ti un gran sorteo con increíbles premios! ¡Primer premio: un espectacular automóvil Chevrolet Aveo dos mil veintiséis! ¡Y más de treinta premios: premios en efectivo, artículos para el hogar y muchísimas sorpresas! ¡Equípate en cañas, kayaks, señuelos y pesca comercial, y recuerda solicitar tu boleto en cada compra! ¡Sorteo: dieciocho de febrero de dos mil veintisiete! ¡No te quedes fuera, participa y podrías ser el próximo ganador! Aplican restricciones. ¡Terrapesca: equipa tu aventura!'
+    name:'🚗🎉 Gran Sorteo CANACO 2026 — ¡Estrena un Chevrolet Aveo 2026!',
+    script:'Oye, imagínate empezar el año manejando carro nuevo. ¡Así como lo escuchas! CANACO Los Mochis y Terrapesca quieren agradecer tu preferencia en el Gran Sorteo CANACO dos mil veintiséis. Te puedes llevar de primer premio un automóvil Chevrolet Aveo dos mil veintiséis, además de más de treinta premios como dinero en efectivo, artículos para tu casa y muchísimas sorpresas. Cada vez que vengas por tus cañas, tu kayak, tus señuelos o lo que ocupes para pesca comercial, recuerda solicitar tu boleto en cada compra. El sorteo es este dieciocho de febrero de dos mil veintisiete. ¡Participa, porque ese carro puede ser para ti! Aplican restricciones. ¡Terrapesca: equipa tu aventura!'
   },
   {
-    name:'🌙🔥 VENTA NOCTURNA TERRAPESCA — 18 de Diciembre (6 a 10 PM)',
-    script:'¡Atención pescadores y aventureros! ¡La noche más electrizante del año está por encenderse en Terrapesca! ¡Este dieciocho de diciembre, de seis de la tarde a diez de la noche, vive la espectacular Venta Nocturna Terrapesca! ¡Prepárate para lo mejor en cañas, kayaks, señuelos y pesca comercial en cuatro horas llenas de emoción y adrenalina! ¡Y en todas tus compras, recuerda solicitar tu boleto para el Gran Sorteo CANACO dos mil veintiséis, donde podrías llevarte un automóvil Chevrolet Aveo dos mil veintiséis! ¡Aparta la fecha: dieciocho de diciembre de seis a diez de la noche! ¡Terrapesca: equipa tu aventura!'
+    name:'🌙🤝 Venta Nocturna Terrapesca — Este 18 de Diciembre (6 a 10 PM)',
+    script:'Si disfrutas salir a pescar o pasar un buen día en el agua con la familia y los amigos, ve apartando en tu agenda este dieciocho de diciembre. De seis de la tarde a diez de la noche te esperamos con mucho gusto en nuestra Venta Nocturna de Terrapesca. Date una vuelta saliendo del trabajo, ven a platicar con nosotros y conoce todo lo que tenemos para ti en cañas, kayaks, señuelos y pesca comercial. Estamos preparando una tarde muy especial pensada para ti. Y acuérdate siempre de solicitar tu boleto en cada compra para el Gran Sorteo CANACO dos mil veintiséis. ¡Nos vemos este dieciocho de diciembre, de seis a diez de la noche! ¡Terrapesca: equipa tu aventura!'
   },
   {
-    name:'💥🏆 SORTEO CANACO 2026 — ¡Solicita tu Boleto en Cada Compra!',
-    script:'¡Que cada compra en Terrapesca te acerque a estrenar auto nuevo! ¡Participa ya en el Gran Sorteo CANACO dos mil veintiséis! ¡CANACO Los Mochis y Terrapesca traen para ti como primer premio un flamante automóvil Chevrolet Aveo dos mil veintiséis, además de más de treinta premios espectaculares: premios en efectivo, artículos para el hogar y grandes sorpresas! ¡Ven por tus cañas, kayaks, señuelos y todo en pesca comercial, y recuerda siempre solicitar tu boleto en cada compra! ¡Gran sorteo: dieciocho de febrero de dos mil veintisiete! ¡No te quedes fuera! Aplican restricciones. ¡Terrapesca: equipa tu aventura!'
+    name:'🎁✨ Tu Compra Tiene Premio — Gran Sorteo CANACO 2026',
+    script:'En Terrapesca nos da mucho gusto acompañarte en cada salida al mar o a la presa, y hoy tu compra te puede dar una gran alegría. ¡Participa en el Gran Sorteo CANACO dos mil veintiséis! CANACO Los Mochis y Terrapesca traen para ti un automóvil Chevrolet Aveo dos mil veintiséis de primer premio, y más de treinta premios entre dinero en efectivo, artículos para el hogar y muchas sorpresas más. Ya sea que vengas por cañas, kayaks, señuelos o equipo de pesca comercial, no olvides solicitar tu boleto en cada compra. El sorteo es el dieciocho de febrero de dos mil veintisiete. ¡No te quedes fuera, nos encantaría que tú fueras el próximo ganador! Aplican restricciones. ¡Terrapesca: equipa tu aventura!'
   },
   {
-    name:'⚡🌊 CUENTA REGRESIVA VENTA NOCTURNA — 18 Dic · 6 a 10 PM',
-    script:'¡Arranca la cuenta regresiva! ¡Algo gigantesco se está preparando en Terrapesca para cerrar el año a máxima potencia! ¡Marca tu calendario para este dieciocho de diciembre, en punto de las seis de la tarde y hasta las diez de la noche, en nuestra gran Venta Nocturna! ¡Cañas, kayaks, señuelos y pesca comercial en una experiencia nocturna imperdible! ¡Y recuerda solicitar tu boleto en cada compra para participar en el Gran Sorteo CANACO dos mil veintiséis por un automóvil Chevrolet Aveo dos mil veintiséis y más de treinta premios! ¡Terrapesca: equipa tu aventura!'
+    name:'🌊🙌 Te Esperamos en la Venta Nocturna — 18 Dic de 6 a 10 PM',
+    script:'¿Ya tienes plan para este dieciocho de diciembre por la tarde? Invita a tu familia o a tus compañeros de pesca y acompáñanos en la Venta Nocturna de Terrapesca, de seis de la tarde a diez de la noche. Queremos cerrar el año cerca de ti, en un gran ambiente y con todo lo que te gusta en cañas, kayaks, señuelos y pesca comercial. Créeme, va a estar muy padre lo que estamos preparando. Y recuerda que hoy y en cada visita puedes solicitar tu boleto en cada compra para el Gran Sorteo CANACO dos mil veintiséis por un Chevrolet Aveo dos mil veintiséis. ¡Apártalo ya: dieciocho de diciembre, de seis a diez de la noche! ¡Terrapesca: equipa tu aventura!'
   }
 ];
 
@@ -4439,11 +4438,11 @@ const OAI_VOICE_OPTS=[['ash','Ash (masc. expresiva)'],['onyx','Onyx (masc. grave
 
 // Voces de VoiceKiller — Priorizadas con las voces mexicanas reales de locutor comercial y radio:
 const VK_VOICE_OPTS=[
-  ['Podcaster 1 (es-419)','🎙️ Podcaster 1 (Locutor Radio México 37a — ⭐ Recomendado DJ Rodo)'],
-  ['Commercial Voiceover 1 (es-419)','📢 Commercial 1 (Locutor Comercial México 24a — ⭐ Recomendado Spots)'],
+  ['Commercial Voiceover 4 (es-419)','📢 Commercial 4 (Locutor Reality/Comercial México 21a — ⭐ Voz Oficial Spots)'],
+  ['Podcaster 1 (es-419)','🎙️ Podcaster 1 (Locutor Radio México 37a)'],
+  ['Commercial Voiceover 1 (es-419)','📢 Commercial 1 (Locutor Comercial México 24a)'],
   ['Commercial Voiceover 11 (es-419)','📢 Commercial 11 (Locutor Comercial México 27a)'],
   ['Commercial Voiceover 12 (es-419)','📢 Commercial 12 (Locutor Comercial México 23a)'],
-  ['Commercial Voiceover 4 (es-419)','📢 Commercial 4 (Locutor Reality/Comercial México 21a)'],
   ['Podcaster 3 (es-419)','🎙️ Podcaster 3 (Entrevistador Radio México 37a)'],
   ['Podcaster 4 (es-419)','🎙️ Podcaster 4 (Entrevistador Podcast México 43a)'],
   ['Call Center Agent 4 (es-419)','🎧 Call Center 4 (Locución México 44a, Masc.)'],

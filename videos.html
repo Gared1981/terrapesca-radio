@@ -1007,8 +1007,8 @@
           <div id="stInterventionBanner" style="display:none;margin:6px 0 8px;padding:8px 16px;border-radius:12px;background:linear-gradient(90deg,rgba(255,190,26,0.24),rgba(249,115,22,0.18));border:1px solid rgba(255,190,26,0.75);color:#fde047;font-weight:800;font-size:clamp(14px,1.4vw,20px);letter-spacing:0.4px;box-shadow:0 0 24px rgba(255,190,26,0.28);">
             ⚡ LOCUCIÓN OFICIAL • RADIO TERRAPESCA
           </div>
-          <h1 class="standby-now-title" id="stTrackTitle">En el Muelle de San Blás</h1>
-          <p class="standby-now-artist" id="stTrackArtist">por Maná</p>
+          <h1 class="standby-now-title" id="stTrackTitle">Sintonizando Radio Terrapesca…</h1>
+          <p class="standby-now-artist" id="stTrackArtist">Señal en vivo 24/7</p>
           <div class="standby-next-pill" id="stNextSpotNotice">
             📡 Transmisión 24/7: <strong>Cañas · Kayaks · Señuelos · Pesca Comercial · Sorteo CANACO 2026 · Venta Nocturna</strong>
           </div>
@@ -1207,6 +1207,16 @@
     let _lastLoadedYtId = null;
     let _lastReportedErrYtId = '';
     let _pausedForCommercialSpot = false;
+    // Reloj monotónico inmune a desfases del reloj de Windows/TV para sincronizar siempre el segundo exacto en vivo
+    let _tvLiveAnchor = { ytId: '', pos: 0, monoAt: 0, playing: false };
+    function _setTvLiveAnchor(ytId, pos, playing) {
+      _tvLiveAnchor = { ytId: ytId || '', pos: Math.max(0, Number(pos) || 0), monoAt: performance.now(), playing: !!playing };
+    }
+    function _getTvLivePos(ytId, fallbackPos = 0) {
+      if (!ytId || _tvLiveAnchor.ytId !== ytId) return Math.max(0, Number(fallbackPos) || 0);
+      const extra = _tvLiveAnchor.playing ? Math.max(0, (performance.now() - _tvLiveAnchor.monoAt) / 1000) : 0;
+      return _tvLiveAnchor.pos + extra;
+    }
 
     // Motor de audio en segundo plano para que NO se detenga al cambiar de pestaña en PC
     let _tvAudioCtx = null;
@@ -1630,7 +1640,9 @@
             if (pendingYtTrack) {
               const p = pendingYtTrack;
               pendingYtTrack = null;
-              syncYtTrack(p.track, p.pos);
+              syncYtTrack(p.track, _getTvLivePos(p.track.ytId, p.pos));
+            } else if (ws && ws.readyState === WebSocket.OPEN) {
+              try { ws.send(JSON.stringify({ type: 'REQUEST_SYNC' })); } catch (_) {}
             }
           },
           onStateChange: (e) => {
@@ -1638,6 +1650,17 @@
               hideTapOverlay();
               if (isInSpot || _pausedForCommercialSpot || !_radioIsLive) {
                 try { ytPlayer.pauseVideo(); } catch (_) {}
+              } else if (currentYtTrack && currentYtTrack.ytId && _tvLiveAnchor.ytId === currentYtTrack.ytId && _tvLiveAnchor.playing) {
+                // Garantía absoluta de sincronización: si YouTube arrancó en 0:00 o desfasado >3.5s, saltar de inmediato al segundo exacto en vivo
+                try {
+                  const expectedPos = _getTvLivePos(currentYtTrack.ytId);
+                  const actualPos = ytPlayer.getCurrentTime ? (ytPlayer.getCurrentTime() || 0) : 0;
+                  const dur = (ytPlayer.getDuration && ytPlayer.getDuration()) || currentYtTrack.duration || 0;
+                  if (expectedPos > 1.5 && (!dur || expectedPos < dur - 2) && Math.abs(actualPos - expectedPos) > 3.5) {
+                    console.log(`[TV Sync] Ajustando segundo exacto en vivo: ${actualPos.toFixed(1)}s → ${expectedPos.toFixed(1)}s`);
+                    ytPlayer.seekTo(expectedPos, true);
+                  }
+                } catch (_) {}
               }
             } else if (e.data === YT.PlayerState.PAUSED) {
               // Si se pausó sola por cambio de pestaña en PC (y NO estamos en un spot comercial), reactivar
@@ -1674,10 +1697,19 @@
     function unmuteAll() {
       ensureTvBgAudio();
       hideTapOverlay();
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        try { ws.send(JSON.stringify({ type: 'REQUEST_SYNC' })); } catch (_) {}
+      }
       if (ytPlayer && ytReady && _radioIsLive && !isInSpot && !_pausedForCommercialSpot) {
         try {
           ytPlayer.unMute();
           ytPlayer.setVolume(_isRemoteRodoActive ? Math.max(12, Math.round(_tvMasterVol * 0.18)) : _tvMasterVol);
+          if (currentYtTrack && currentYtTrack.ytId) {
+            const liveSecs = _getTvLivePos(currentYtTrack.ytId, currentYtPos);
+            if (liveSecs > 1.5) {
+              try { ytPlayer.seekTo(liveSecs, true); } catch (_) {}
+            }
+          }
           ytPlayer.playVideo();
         } catch (_) {}
       }
@@ -1724,7 +1756,7 @@
         if (isSameTrack) {
           let curT = 0;
           try { curT = ytPlayer.getCurrentTime() || 0; } catch (_) {}
-          if (pos > 2 && Math.abs(curT - pos) > 6) {
+          if (pos > 1 && Math.abs(curT - pos) > 3.5) {
             try { ytPlayer.seekTo(pos, true); } catch (_) {}
           }
           const st = ytPlayer.getPlayerState ? ytPlayer.getPlayerState() : -1;
@@ -1738,7 +1770,7 @@
           ytPlayer.setVolume(0);
           ytPlayer.loadVideoById({
             videoId: track.ytId,
-            startSeconds: pos > 2 ? pos : 0
+            startSeconds: pos > 0.5 ? pos : 0
           });
           fadeInYT(1100, targetVol);
         }
@@ -1957,11 +1989,12 @@
             if (msg.state.currentTrack) {
               const ct = msg.state.currentTrack;
               if (ct.type === 'yt' && ct.ytId) {
-                const elapsed = msg.state.isPlaying && msg.state.lastUpdate
-                  ? (msg.state.position || 0) + Math.max(0, (Date.now() - msg.state.lastUpdate) / 1000)
-                  : (msg.state.position || 0);
+                const srvElapsed = (typeof msg.state.livePosition === 'number')
+                  ? msg.state.livePosition
+                  : (Number(msg.state.position) || 0);
+                _setTvLiveAnchor(ct.ytId, srvElapsed, !!msg.state.isPlaying);
                 if (msg.state.isPlaying) {
-                  syncYtTrack(ct, elapsed);
+                  syncYtTrack(ct, srvElapsed);
                 } else {
                   currentYtTrack = ct;
                   updateStandbyCard(ct);
@@ -1981,6 +2014,9 @@
         case 'PLAY':
           if (msg.track) {
             _radioIsLive = true;
+            if (msg.track.ytId) {
+              _setTvLiveAnchor(msg.track.ytId, msg.position || 0, true);
+            }
             const badgeTextEl = document.getElementById('stBadgeText');
             if (badgeTextEl && !_isRemoteSpotPlaying) badgeTextEl.textContent = '🔴 EN VIVO • RADIO TERRAPESCA 24/7';
             if (isInSpot || _pausedForCommercialSpot) {
@@ -2121,10 +2157,10 @@
     }
 
     const TV_EXPLOSIVE_SPOTS = [
-      { name: '🎉🚗 GRAN SORTEO CANACO 2026 — ¡Gánate un Chevrolet Aveo 2026!', label: '🚗 Sorteo CANACO #1', url: '/spots/spot_sorteo_canaco_1.mp3', duration: 38 },
-      { name: '🌙🔥 VENTA NOCTURNA TERRAPESCA — 18 de Diciembre (6 a 10 PM)', label: '🌙 Venta Nocturna #1', url: '/spots/spot_venta_nocturna_1.mp3', duration: 39 },
-      { name: '💥🏆 SORTEO CANACO 2026 — ¡Pide tu Boleto en Cada Compra!', label: '🏆 Sorteo CANACO #2', url: '/spots/spot_sorteo_canaco_2.mp3', duration: 39 },
-      { name: '⚡🌊 CUENTA REGRESIVA VENTA NOCTURNA — 18 Dic · 6 a 10 PM', label: '⚡ Venta Nocturna #2', url: '/spots/spot_venta_nocturna_2.mp3', duration: 40 }
+      { name: '🚗🎉 Gran Sorteo CANACO 2026 — ¡Estrena un Chevrolet Aveo 2026!', label: '🚗 Sorteo CANACO #1', url: '/spots/spot_sorteo_canaco_1.mp3', duration: 47 },
+      { name: '🌙🤝 Venta Nocturna Terrapesca — Este 18 de Diciembre (6 a 10 PM)', label: '🌙 Venta Nocturna #1', url: '/spots/spot_venta_nocturna_1.mp3', duration: 45 },
+      { name: '🎁✨ Tu Compra Tiene Premio — Gran Sorteo CANACO 2026', label: '🎁 Sorteo CANACO #2', url: '/spots/spot_sorteo_canaco_2.mp3', duration: 49 },
+      { name: '🌊🙌 Te Esperamos en la Venta Nocturna — 18 Dic de 6 a 10 PM', label: '🌊 Venta Nocturna #2', url: '/spots/spot_venta_nocturna_2.mp3', duration: 44 }
     ];
 
     async function loadSpots() {

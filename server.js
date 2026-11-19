@@ -1186,6 +1186,8 @@ const server = http.createServer((req, res) => {
       bootTime: SERVER_BOOT_TIME,
       autopilotOn: !!radioState.autopilotOn,
       isPlaying: !!radioState.isPlaying,
+      livePosition: Math.round(_getLivePositionSecs() * 100) / 100,
+      currentYtId: (radioState.currentTrack && radioState.currentTrack.ytId) || null,
       sinaloaTime: st.display,
       sinaloaPhrase: st.phrase
     }));
@@ -2149,8 +2151,8 @@ function _synthesizeGoogleChirpMp3(script) {
     const doTts = (accessToken) => {
       const payload = Buffer.from(JSON.stringify({
         input: { text: script },
-        voice: { languageCode: 'es-US', name: 'es-US-Chirp3-HD-Orus' },
-        audioConfig: { audioEncoding: 'MP3', speakingRate: 1.13 }
+        voice: { languageCode: 'es-US', name: 'es-US-Chirp3-HD-Puck' },
+        audioConfig: { audioEncoding: 'MP3', speakingRate: 1.04 }
       }), 'utf8');
       const r = https.request({
         hostname: 'texttospeech.googleapis.com',
@@ -2354,27 +2356,27 @@ async function _synthesizeRodoExactTimeClip() {
 const OFFICIAL_CAMPAIGN_SPOTS = [
   {
     id: 'spot_sorteo_canaco_1',
-    name: '🎉🚗 GRAN SORTEO CANACO 2026 — ¡Gánate un Chevrolet Aveo 2026!',
+    name: '🚗🎉 Gran Sorteo CANACO 2026 — ¡Estrena un Chevrolet Aveo 2026!',
     url: '/spots/spot_sorteo_canaco_1.mp3',
-    duration: 38
+    duration: 47
   },
   {
     id: 'spot_venta_nocturna_1',
-    name: '🌙🔥 VENTA NOCTURNA TERRAPESCA — 18 de Diciembre (6 a 10 PM)',
+    name: '🌙🤝 Venta Nocturna Terrapesca — Este 18 de Diciembre (6 a 10 PM)',
     url: '/spots/spot_venta_nocturna_1.mp3',
-    duration: 39
+    duration: 45
   },
   {
     id: 'spot_sorteo_canaco_2',
-    name: '💥🏆 SORTEO CANACO 2026 — ¡Solicita tu Boleto en Cada Compra!',
+    name: '🎁✨ Tu Compra Tiene Premio — Gran Sorteo CANACO 2026',
     url: '/spots/spot_sorteo_canaco_2.mp3',
-    duration: 39
+    duration: 49
   },
   {
     id: 'spot_venta_nocturna_2',
-    name: '⚡🌊 CUENTA REGRESIVA VENTA NOCTURNA — 18 Dic · 6 a 10 PM',
+    name: '🌊🙌 Te Esperamos en la Venta Nocturna — 18 Dic de 6 a 10 PM',
     url: '/spots/spot_venta_nocturna_2.mp3',
-    duration: 40
+    duration: 44
   }
 ];
 let _campaignSpotIdx = 0;
@@ -2538,6 +2540,38 @@ function _apPlayInterventionThenAdvance() {
   }, clipSecs * 1000);
 }
 
+function _cryptoShuffle(arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = crypto.randomInt(0, i + 1);
+    const tmp = a[i];
+    a[i] = a[j];
+    a[j] = tmp;
+  }
+  return a;
+}
+
+// Calcula el segundo exacto en vivo de la canción actual usando el reloj del servidor (inmune a desfase de reloj del cliente)
+function _getLivePositionSecs() {
+  if (!radioState.isPlaying || !radioState.currentTrack || radioState.currentTrack.type !== 'yt') {
+    return Number(radioState.position) || 0;
+  }
+  const base = Number(radioState.position) || 0;
+  const elapsed = radioState.lastUpdate ? Math.max(0, (Date.now() - radioState.lastUpdate) / 1000) : 0;
+  const total = base + elapsed;
+  const dur = Number(radioState.currentTrack.duration) || 0;
+  return dur > 5 ? Math.min(total, Math.max(0, dur - 1)) : total;
+}
+
+function _snapshotRadioState() {
+  const livePos = Math.round(_getLivePositionSecs() * 100) / 100;
+  return Object.assign({}, radioState, {
+    position: livePos,
+    livePosition: livePos,
+    serverNow: Date.now()
+  });
+}
+
 function startAutopilot(list, startIdx) {
   const srcList = (Array.isArray(list) && list.length)
     ? list
@@ -2546,18 +2580,24 @@ function startAutopilot(list, startIdx) {
       : (Array.isArray(radioState.playlist) && radioState.playlist.length)
         ? radioState.playlist
         : DEFAULT_AUTOPILOT_PLAYLIST;
-  const cleaned = srcList.filter(x => x && x.ytId).map(x => ({
+  let cleaned = srcList.filter(x => x && x.ytId).map(x => ({
     ytId: x.ytId,
     name: x.name || x.title || '',
     artist: x.artist || x.channelTitle || '',
     duration: +x.duration || 210
   }));
   if (!cleaned.length) return;
+  // Barajar aleatoriamente y arrancar en canción aleatoria siempre que no se fuerce un índice manual
+  const hasExplicitIdx = (typeof startIdx === 'number' && startIdx >= 0 && startIdx < cleaned.length);
+  if (!hasExplicitIdx && cleaned.length > 1) {
+    cleaned = _cryptoShuffle(cleaned);
+  }
   autopilot.on = true;
   radioState.autopilotOn = true;
   autopilot.list = cleaned;
-  autopilot.idx = (typeof startIdx === 'number' && startIdx >= 0 && startIdx < autopilot.list.length) ? startIdx : 0;
-  console.log('[24/7 Aleatorio] iniciando con', autopilot.list.length, 'canciones');
+  autopilot.idx = hasExplicitIdx ? startIdx : (cleaned.length > 1 ? crypto.randomInt(0, cleaned.length) : 0);
+  _apHistory = [autopilot.list[autopilot.idx].ytId];
+  console.log('[24/7 Aleatorio] iniciando en pista aleatoria #' + (autopilot.idx + 1) + '/' + autopilot.list.length + ':', autopilot.list[autopilot.idx].name);
   broadcast({ type: 'AUTOPILOT', on: true });
   _apBroadcast();
 }
@@ -2573,7 +2613,7 @@ function stopAutopilot() {
   if (currentStreamDestroy) { currentStreamDestroy(); currentStreamDestroy = null; }
   broadcast({ type: 'AUTOPILOT', on: false, serverVer: SERVER_VERSION });
   broadcast({ type: 'PAUSE', position: 0 });
-  broadcast({ type: 'SYNC', state: radioState, serverVer: SERVER_VERSION });
+  broadcast({ type: 'SYNC', state: _snapshotRadioState(), serverVer: SERVER_VERSION });
   console.log('[24/7] detenido');
 }
 function autopilotAdvance(dir) {
@@ -2634,13 +2674,16 @@ wss.on('connection', (ws, req) => {
   ws._ip = _clientIP(req);
   ws._isAuthed = isAuthed(req);
   ws.on('pong', () => { ws.isAlive = true; });
-  ws.send(JSON.stringify({ type: 'SYNC', state: radioState, serverVer: SERVER_VERSION }));
+  ws.send(JSON.stringify({ type: 'SYNC', state: _snapshotRadioState(), serverVer: SERVER_VERSION }));
   if (radioState.jingleB64) ws.send(JSON.stringify({ type: 'JINGLE_SET', b64: radioState.jingleB64 }));
 
   ws.on('message', (raw) => {
     try {
       const msg = JSON.parse(raw);
       switch (msg.type) {
+        case 'REQUEST_SYNC':
+          try { ws.send(JSON.stringify({ type: 'SYNC', state: _snapshotRadioState(), serverVer: SERVER_VERSION })); } catch (_) {}
+          break;
         case 'HELLO':
           // El cliente se identifica (listener/sucursal/tienda/studio/panel).
           const reqRole = String(msg.role || '').slice(0, 20);
@@ -2962,24 +3005,22 @@ server.listen(PORT, () => {
     }
   } catch (_) {}
 
-  // Reanudar Radio 24/7 si estaba activa antes de reiniciar, o arrancar con playlist disponible
+  // Reanudar Radio 24/7 barajando aleatoriamente para que NUNCA arranque con la misma canción
   let resumed = false;
   try {
     const saved = JSON.parse(fs.readFileSync(AP_FILE, 'utf8'));
     if (saved && saved.on && Array.isArray(saved.list) && saved.list.length) {
-      console.log('[24/7] reanudando desde el disco…');
+      console.log('[24/7] reanudando desde el disco con arranque aleatorio…');
       const startList = (loadedPl && loadedPl.length) ? loadedPl : saved.list;
-      const startIdx = (typeof saved.idx === 'number' && saved.idx >= 0 && saved.idx < startList.length) ? saved.idx : Math.floor(Math.random() * startList.length);
-      startAutopilot(startList, startIdx);
+      startAutopilot(startList); // Sin startIdx fijo → baraja criptográfica + canción inicial aleatoria
       resumed = true;
     }
   } catch (_) {}
 
   if (!resumed) {
-    console.log('[24/7] arrancando autopilot autónomo con rotación dinámica...');
+    console.log('[24/7] arrancando autopilot autónomo con rotación aleatoria...');
     const startList = (loadedPl && loadedPl.length) ? loadedPl : DEFAULT_AUTOPILOT_PLAYLIST;
-    const startIdx = Math.floor(Math.random() * startList.length);
-    startAutopilot(startList, startIdx);
+    startAutopilot(startList);
   }
 
   // Verificar y curar en segundo plano cualquier video con bloqueo de inserción web (Error 101/150)
