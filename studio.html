@@ -624,9 +624,9 @@ input[type=range]::-moz-range-thumb{width:18px;height:24px;border-radius:5px;bac
       <button onclick="previewSpotScript()">▶ Preview</button>
     </div>
     <div style="display:flex;gap:8px;margin-bottom:6px;align-items:center">
-      <input style="flex:1;padding:8px 10px;border-radius:8px;border:1px solid var(--line2);background:#060d0a;color:var(--txt);font-size:12px" id="spotTopic" placeholder="Tema del spot (ej: Ofertas de Buen Fin en cañas y carretes)…"/>
+      <input style="flex:1;padding:8px 10px;border-radius:8px;border:1px solid var(--line2);background:#060d0a;color:var(--txt);font-size:12px" id="spotTopic" placeholder="Tema de expectativa (ej: Venta Nocturna este 18 de diciembre de 6 a 10 PM)…"/>
       <select id="spotEstilo" style="padding:8px 10px;border-radius:8px;border:1px solid var(--line2);background:#060d0a;color:var(--txt);font-size:11px;font-family:var(--mono);cursor:pointer">
-        <option value="buen_fin" selected>🏷️ BUEN FIN (Locutor Perrón)</option>
+        <option value="expectativa" selected>🌙 EXPECTATIVA VENTA NOCTURNA</option>
         <option value="eufórico">⚡ Eufórico</option>
         <option value="dinámico">🚀 Dinámico</option>
         <option value="elegante">✨ Elegante</option>
@@ -635,13 +635,12 @@ input[type=range]::-moz-range-thumb{width:18px;height:24px;border-radius:5px;bac
       <select id="spotVoiceSel" title="Voz del spot (independiente de DJ Rodo)" onchange="_onSpotVoicePick(this.value)" style="padding:8px 10px;border-radius:8px;border:1px solid var(--line2);background:#060d0a;color:var(--txt);font-size:11px;font-family:var(--mono);cursor:pointer;max-width:150px"></select>
       <select id="spotBedSel" title="Fondo musical del spot" onchange="localStorage.setItem('tp_spot_bed',this.value)" style="padding:8px 10px;border-radius:8px;border:1px solid var(--line2);background:#060d0a;color:var(--txt);font-size:11px;font-family:var(--mono);cursor:pointer;max-width:140px"></select>
     </div>
-    <!-- Plantillas rápidas Buen Fin -->
+    <!-- Plantillas rápidas Expectativa Venta Nocturna (sin promociones) -->
     <div style="display:flex;gap:5px;margin-bottom:8px;flex-wrap:wrap;align-items:center">
-      <span style="font-size:10px;font-family:var(--mono);color:var(--txt3)">BUEN FIN RÁPIDO:</span>
-      <button type="button" onclick="setBuenFinTopic('Gran Venta del Buen Fin en toda la tienda Terrapesca: cañas, carretes, kayaks y equipo de pesca con descuentos exclusivos')" style="padding:3px 8px;border-radius:4px;border:1px solid #7b4dd6;background:#1a0a2e;color:#c9a2ff;font-size:10px;cursor:pointer">🏷️ Tienda Completa</button>
-      <button type="button" onclick="setBuenFinTopic('Combos especiales de Buen Fin: caña más carrete para agua dulce y salada con precio irresistible')" style="padding:3px 8px;border-radius:4px;border:1px solid #2a5a2e;background:#122016;color:#7dffaa;font-size:10px;cursor:pointer">🎣 Cañas + Carretes</button>
-      <button type="button" onclick="setBuenFinTopic('Kayaks de pesca y aventura con los mejores precios del año este Buen Fin en Terrapesca')" style="padding:3px 8px;border-radius:4px;border:1px solid #2a4a5a;background:#0d1d28;color:#7dd4ff;font-size:10px;cursor:pointer">🛶 Kayaks</button>
-      <button type="button" onclick="setBuenFinTopic('Hieleras de alto rendimiento, señuelos y equipo para tu próxima salida de pesca este Buen Fin')" style="padding:3px 8px;border-radius:4px;border:1px solid #5a4a2a;background:#281f0d;color:#ffd47d;font-size:10px;cursor:pointer">❄️ Hieleras y Señuelos</button>
+      <span style="font-size:10px;font-family:var(--mono);color:var(--txt3)">VENTA NOCTURNA (18 DIC · 6-10 PM):</span>
+      <button type="button" onclick="setBuenFinTopic('Expectativa pura para la Venta Nocturna de Terrapesca este 18 de diciembre de 6 de la tarde a 10 de la noche, sin mencionar ninguna promoción ni descuento')" style="padding:3px 8px;border-radius:4px;border:1px solid #d69e2e;background:#241a08;color:#fde047;font-size:10px;cursor:pointer">🌙 Aparta la Fecha</button>
+      <button type="button" onclick="setBuenFinTopic('Cuenta regresiva e intriga para la Venta Nocturna de Terrapesca este 18 de diciembre de 6 a 10 PM, solo emoción y expectativa sin promociones')" style="padding:3px 8px;border-radius:4px;border:1px solid #2a4a5a;background:#0d1d28;color:#7dd4ff;font-size:10px;cursor:pointer">⏳ Cuenta Regresiva</button>
+      <button type="button" onclick="setBuenFinTopic('Invitación especial de ambiente nocturno para pescadores y aventureros este 18 de diciembre de 6 a 10 de la noche en la Venta Nocturna Terrapesca, sin mencionar descuentos')" style="padding:3px 8px;border-radius:4px;border:1px solid #2a5a2e;background:#122016;color:#7dffaa;font-size:10px;cursor:pointer">🎣 Noche de Pescadores</button>
     </div>
     <div style="margin-bottom:6px;display:flex;gap:8px;align-items:center">
       <input style="flex:1;padding:8px 10px;border-radius:8px;border:1px solid var(--line2);background:#060d0a;color:var(--txt);font-size:12px" id="shopSearch" placeholder="🛒 Busca un producto de tu Shopify (ej: kayak, hielera, caña)…" onkeydown="if(event.key==='Enter')shopSearch()"/>
@@ -653,17 +652,13 @@ input[type=range]::-moz-range-thumb{width:18px;height:24px;border-radius:5px;bac
       <button onclick="importSpotUrl()" style="padding:8px 12px;border-radius:8px;border:1px solid #2a3a5a;background:#0a1828;color:#6ab4ff;font-size:11px;font-family:var(--mono);cursor:pointer;white-space:nowrap">📥 Importar</button>
     </div>
     <div style="display:flex;gap:8px;margin-bottom:6px;align-items:center">
-      <label style="font-size:10px;font-family:var(--mono);color:#c9a2ff;font-weight:700;white-space:nowrap">🔥 GUIONES BUEN FIN:</label>
-      <select id="buenFinPresetSel" onchange="applyBuenFinPreset(this.value)" style="flex:1;padding:6px 10px;border-radius:6px;border:1px solid #7b4dd6;background:#140824;color:#f0e6ff;font-size:11px;font-weight:600;cursor:pointer">
-        <option value="">-- Cargar guión perrón del Buen Fin ya redactado --</option>
-        <option value="0">🎣 1. Combo Vara + Carrete (20% Parejo / Especial Shimano)</option>
-        <option value="1">🏷️ 2. Gran Buen Fin Terrapesca (Toda la Tienda)</option>
-        <option value="2">🛶 3. Kayaks de Pesca (10% Descuento o 6 MSI)</option>
-        <option value="3">⚡ 4. Señuelos de Pesca (Hasta 40% de Descuento)</option>
-        <option value="4">🎣 5. Varas y Cañas (25% y 40% de Descuento)</option>
-        <option value="5">⚙️ 6. Carretes y Alianza Shimano (Hasta 20% Descuento)</option>
-        <option value="6">❄️ 7. Hieleras, Termos, Navajas y Camping (15% Descuento)</option>
-        <option value="7">🧢 8. Gorras (50%) y Ropa Técnica con Protección UV (30%)</option>
+      <label style="font-size:10px;font-family:var(--mono);color:#fde047;font-weight:700;white-space:nowrap">🌙 GUIONES VENTA NOCTURNA:</label>
+      <select id="buenFinPresetSel" onchange="applyBuenFinPreset(this.value)" style="flex:1;padding:6px 10px;border-radius:6px;border:1px solid #d69e2e;background:#1f1606;color:#fef9c3;font-size:11px;font-weight:600;cursor:pointer">
+        <option value="">-- Cargar guión de expectativa Venta Nocturna (sin promociones) --</option>
+        <option value="0">🌙 1. Aparta la Fecha — 18 de Diciembre de 6 a 10 PM</option>
+        <option value="1">⏳ 2. Cuenta Regresiva — Algo Grande Viene</option>
+        <option value="2">🎣 3. Velada para Apasionados del Mar y la Presa</option>
+        <option value="3">⚓ 4. Cierra el Año a lo Grande en Terrapesca</option>
       </select>
     </div>
     <textarea id="spotScript" placeholder="El guión del spot aparecerá aquí. También puedes escribir uno manualmente."></textarea>
@@ -1438,11 +1433,11 @@ const VK_BASE_INSTR='Locutor estrella de radio comercial FM mexicana. Voz con pr
 
 // Matiz de voz por estilo del spot.
 const SPOT_ESTILO_VOZ={
-  'buen_fin':'¡Tono explosivo de BUEN FIN! Voz de locutor perrón de radio comercial mexicana: potente, enérgico, anunciando grandes promociones con entusiasmo contagioso, ritmo ágil y remate de impacto.',
+  'expectativa':'Tono carismático de EXPECTATIVA e intriga positiva para la Venta Nocturna de Terrapesca: cálido, emocionante, invitando a apartar la fecha sin revelar ni mencionar ninguna promoción o descuento.',
   'eufórico':'Tono eufórico y muy enérgico.',
   'dinámico':'Tono dinámico y ágil.',
   'elegante':'Tono elegante, cálido y sobrio.',
-  'urgente':'Tono urgente y contundente, con sensación de oferta por tiempo limitado.'
+  'urgente':'Tono urgente y contundente.'
 };
 // Voz de VoiceKiller para spots (independiente de la de Rodo).
 function _spotVkVoice(){ return localStorage.getItem('tp_vk_voice_spot')||'Commercial Voiceover 1 (es-419)'; }
@@ -2403,92 +2398,68 @@ function _djHoursOK(){
   return false;                                // Domingo
 }
 
-/* ================= CAMPAÑA VENTA NOCTURNA ================= */
+/* ================= CAMPAÑA EXPECTATIVA VENTA NOCTURNA (18 DIC · 6 A 10 PM) ================= */
 const CAMPAIGN={
-  eventDate:'19 de junio',
-  endISO:'2026-06-19T18:00:00-07:00', // 6 PM hora Mazatlán
+  eventDate:'18 de diciembre',
+  horario:'6 de la tarde a 10 de la noche',
+  endISO:'2026-12-18T22:00:00-07:00', // 10 PM hora Mazatlán
   marca:'Terrapesca Marine & Outdoors',
   frase:'Equipa tu aventura',
-  restricciones:'Aplican restricciones. Hasta agotar existencias.',
-  horarios:{culiacan:'9 de la mañana a 5 de la tarde',mazatlan:'6 de la tarde a 10 de la noche',losMochis:'6 de la tarde a 10 de la noche'},
-  promos:[
-    '20% de descuento en kayaks',
-    '20% de descuento en combos de vara más carrete, no aplica Shimano',
-    '15% de descuento en varas, carretes y señuelos, no aplica Shimano',
-    '15% de descuento en líneas de pesca, no aplica Shimano',
-    '2x1 en zapato acuático',
-    '15% de descuento en hieleras',
-    '15% de descuento en Victorinox y navajas',
-    '15% de descuento en ropa y accesorios',
-    '15% en camisas Maja Sportswear, pregunta por existencias',
-    'Señuelo Sarda de Rapala 18 centímetros — presencia fuerte, movimiento natural, para ir por peces grandes',
-    'Chalecos salvavidas para lancha, pesca, kayak y actividades acuáticas',
-  ],
+  soloExpectativa:true,
+  promos:[], // CERO promociones, CERO descuentos — estrictamente solo expectativa
 };
 function _campaignActive(){return new Date()<new Date(CAMPAIGN.endISO);}
 function _isEventDay(){
   const mzt=new Date(new Date().toLocaleString('en-US',{timeZone:'America/Mazatlan'}));
-  return mzt.getMonth()===5&&mzt.getDate()===19;
+  return mzt.getMonth()===11&&mzt.getDate()===18;
 }
 function _isEventOpen(){
   const mzt=new Date(new Date().toLocaleString('en-US',{timeZone:'America/Mazatlan'}));
-  return mzt.getMonth()===5&&mzt.getDate()===19&&mzt.getHours()>=18;
+  return mzt.getMonth()===11&&mzt.getDate()===18&&mzt.getHours()>=18&&mzt.getHours()<22;
 }
 let _eventOpenFired=false;
 setInterval(async()=>{
   if(_eventOpenFired||!flags.dj) return;
   if(_isEventOpen()){
     _eventOpenFired=true;
-    // Interrupt music for grand opening announcement
-    const d=decks[activeDeck];
-    try{d.player.setVolume(15);}catch(_){}
     await playDJ('VENTA_OPEN');
-    try{d.player.setVolume(dvol(d));}catch(_){}
   }
 },30000);
 /* ================= /CAMPAÑA ================= */
 
-const DJ_ROTATION_NORMAL=['TIME_CHECK','SPOT','STATION_ID','WEATHER_REPORT','FISHING_TIP','SONG_BRIDGE','SPOT','PROMO_TEASER','FISHING_FORECAST','SPOT','STATION_ID','WEATHER_REPORT','SONG_BRIDGE','TIME_CHECK'];
-// En campaña: Rodo anuncia fecha/horarios de la venta (VENTA_NOCTURNA) en lugar de promos genéricas.
-const DJ_ROTATION_CAMPAIGN=['TIME_CHECK','SPOT','STATION_ID','WEATHER_REPORT','FISHING_TIP','SONG_BRIDGE','SPOT','VENTA_NOCTURNA','FISHING_FORECAST','SPOT','STATION_ID','WEATHER_REPORT','SONG_BRIDGE','VENTA_NOCTURNA'];
+// Rotación exclusiva de DJ Rodo (cero spots comerciales ni de Buen Fin; solo locución de Rodo con expectativa de Venta Nocturna)
+const DJ_ROTATION_NORMAL=['TIME_CHECK','VENTA_NOCTURNA','STATION_ID','WEATHER_REPORT','FISHING_TIP','VENTA_NOCTURNA','SONG_BRIDGE','FISHING_FORECAST','VENTA_NOCTURNA','STATION_ID','WEATHER_REPORT','TIME_CHECK'];
+const DJ_ROTATION_CAMPAIGN=['VENTA_NOCTURNA','TIME_CHECK','STATION_ID','WEATHER_REPORT','VENTA_NOCTURNA','FISHING_TIP','SONG_BRIDGE','VENTA_NOCTURNA','FISHING_FORECAST','TIME_CHECK','WEATHER_REPORT','VENTA_NOCTURNA'];
 function _djRotation(){return _campaignActive()?DJ_ROTATION_CAMPAIGN:DJ_ROTATION_NORMAL;}
 
 function setDJFreq(f){djFreq=f;document.querySelectorAll('#djFreqCtrl .s').forEach(s=>s.classList.toggle('on',s.dataset.f===f));refreshDJStatus();}
 function djShouldFire(){
   if(!flags.dj) return false;
-  // La cadencia corre siempre (entre canciones). Dentro del horario Rodo habla
-  // (clima/hora/consejo/spot); fuera del horario solo se cuelan spots.
   _djSongCount++;
   if(_djSongCount>=(DJ_SONGS_BETWEEN[djFreq]||5)){ _djSongCount=0; refreshDJStatus(); return true; }
   refreshDJStatus();
   return false;
 }
-// Dentro del horario de locución: tipo ALEATORIO entre spot, clima, hora y consejos.
-// Fuera del horario (noches, domingos, etc.): SOLO spots. Sin spots → nada.
+// SOLO intervenciones de DJ Rodo (sin spots comerciales; impulsa expectativa de Venta Nocturna 18 Dic 6-10 PM)
 let _lastDJType='';
 function nextDJItem(){
   if(!_djHoursOK()){
-    return spots.length ? {kind:'spot'} : null;
+    return _campaignActive() ? {kind:'dj',type:'VENTA_NOCTURNA'} : null;
   }
-  // Prioriza el clima cuando hay probabilidad alta de lluvia (aviso útil).
   if(_highRainNow()!=null && Math.random()<0.6) return {kind:'dj',type:'WEATHER_REPORT'};
-  const pool=['WEATHER_REPORT','TIME_CHECK','FISHING_TIP','BUEN_FIN_MINI','RESERVOIR_UPDATE','GEAR_TIP','SAFETY_TIP','STATION_ID'];
+  const pool=['VENTA_NOCTURNA','TIME_CHECK','VENTA_NOCTURNA','WEATHER_REPORT','FISHING_TIP','VENTA_NOCTURNA','RESERVOIR_UPDATE','GEAR_TIP','SAFETY_TIP','STATION_ID'];
   if(_tidesAvailable) pool.push('TIDE_REPORT');
-  if(spots.length) pool.push('SPOT');
-  // Anti-cíclico: jamás repetir el mismo tipo consecutivamente
   const fresh=pool.filter(t=>t!==_lastDJType);
   const candidates=fresh.length?fresh:pool;
   const pick=candidates[Math.floor(Math.random()*candidates.length)];
   _lastDJType=pick;
-  return pick==='SPOT' ? {kind:'spot'} : {kind:'dj',type:pick};
+  return {kind:'dj',type:pick};
 }
 /* DJ talks over the tail (ducked) then crossfade — no silence, between songs */
 async function djBetweenThenCrossfade(){
   _djNextSong=-1;
   const other=activeDeck===0?1:0;
 
-  // Pre-load the default next song NOW — before any API call — so if the
-  // current song ends during generation there is already audio ready on deck B.
   const defaultNext=nextQueueIndex(queuePos);
   if(queue[defaultNext] && (!decks[other].item || decks[other].item.ytId!==queue[defaultNext].ytId)){
     cueDeck(other, queue[defaultNext]);
@@ -2496,35 +2467,29 @@ async function djBetweenThenCrossfade(){
 
   const item=nextDJItem();
   if(item){
-    if(item.kind==='spot'){ await playSpot(); }
-    else { await playDJ(item.type); }
+    await playDJ(item.type||'VENTA_NOCTURNA');
   }
 
-  // If Rodo chose a different song via AI, swap it onto the inactive deck
   if(_djNextSong>=0 && queue[_djNextSong]){
     const chosen=queue[_djNextSong];
     if(!decks[other].item || decks[other].item.ytId!==chosen.ytId){
       loadDeck(other, chosen, false);
     }
   }
-  // Only crossfade if active deck is still playing; if it ended during DJ,
-  // _endedDuringDJ was set and playDJ's finally block already called advanceNoXfade
   if(!_xfading && decks[activeDeck].playing) doCrossfade();
   else if(!_xfading && !decks[activeDeck].playing && !decks[other].playing){
-    // Both stopped (e.g. very short song ended during API call) — force start next
     advanceQueueInto(other);
   }
 }
 function djInterveneNow(){
   if(djActive){return;}
-  // Botón manual: override — Rodo interviene ahora con tipo dinámico y sin repetir el anterior
-  const pool=['WEATHER_REPORT','TIME_CHECK','FISHING_TIP','BUEN_FIN_MINI','RESERVOIR_UPDATE','GEAR_TIP','SAFETY_TIP','STATION_ID'];
-  if(spots.length) pool.push('SPOT');
+  // Botón manual: SOLO DJ Rodo (con alta prioridad en expectativa de Venta Nocturna 18 Dic 6-10 PM)
+  const pool=['VENTA_NOCTURNA','TIME_CHECK','VENTA_NOCTURNA','WEATHER_REPORT','FISHING_TIP','RESERVOIR_UPDATE','GEAR_TIP','SAFETY_TIP','STATION_ID'];
   const fresh=pool.filter(t=>t!==_lastDJType);
   const candidates=fresh.length?fresh:pool;
   const pick=candidates[Math.floor(Math.random()*candidates.length)];
   _lastDJType=pick;
-  if(pick==='SPOT') playSpot(); else playDJ(pick);
+  playDJ(pick);
 }
 async function playDJ(type){
   if(djActive) return;
@@ -2942,9 +2907,9 @@ Entrega EXCLUSIVAMENTE las palabras que Rodo debe pronunciar, en un solo párraf
     SPOT_OUTRO:
       `${systemPrompt}\n\nSon ${hora}. Cierra brevemente después de un anuncio. Regresa la atención a la programación musical. 3 a 5 segundos.`,
     VENTA_NOCTURNA:
-      `${systemPrompt}\n\nSon ${hora}. Comenta brevemente sobre las actividades y novedades de Terrapesca. Tono natural de radio. 10 a 15 segundos.`,
+      `${systemPrompt}\n\nSon ${hora}. Genera expectativa, intriga y emoción para la VENTA NOCTURNA de Terrapesca que será ESTE DIECIOCHO DE DICIEMBRE DE SEIS DE LA TARDE A DIEZ DE LA NOCHE (6 a 10 PM). PROHIBIDO ESTRICTAMENTE mencionar cualquier promoción, descuento, porcentaje, rebaja, meses sin intereses, precio o regalo. Habla ÚNICAMENTE de apartar la fecha y el horario, de que algo muy especial se está preparando y de que valdrá totalmente la pena. De 10 a 16 segundos.`,
     VENTA_OPEN:
-      `${systemPrompt}\n\nSon ${hora}. Saluda brevemente a los clientes de Terrapesca. Menciona que hay buen surtido disponible. Tono festivo y breve. 10 a 15 segundos.`,
+      `${systemPrompt}\n\nSon ${hora}. ¡Llegó el momento! Da la bienvenida con emoción al arranque de la Venta Nocturna de Terrapesca hoy dieciocho de diciembre de seis de la tarde a diez de la noche. PROHIBIDO mencionar descuentos o promociones específicas; celebra el ambiente y la experiencia en tienda. De 10 a 15 segundos.`,
   };
 
   return typePrompts[type]||`${systemPrompt}\n\nSon ${hora}. Genera una intervención breve de 10 a 15 segundos sobre pesca, clima, seguridad o equipo para oyentes de Radio Terrapesca en Sinaloa.`;
@@ -3062,7 +3027,7 @@ function djFallback(type,ctx){
       `¡Plebada, son ${ctx.hora||'la hora de pescar'}! La hora exacta en Radio Terrapesca. Sigue disfrutando de la mejor música.`,
       `Tiempo de pescar, tiempo de buena música: son ${ctx.hora||'un excelente momento'} en toda la señal de Radio Terrapesca.`,
       `Actualizamos la hora oficial en Sinaloa: ${ctx.hora||'tiempo de aventura'}. Recuerda revisar tus equipos antes de salir.`,
-      `Costa Kayaks te da la hora en tu radio: ${ctx.hora||'el momento justo'}. Encuentra tu kayak en Terrapesca a seis meses sin intereses.`,
+      `Costa Kayaks te da la hora en tu radio: ${ctx.hora||'el momento justo'}. Todo el equipamiento para tu próxima travesía en kayak está en Terrapesca.`,
       `Son ${ctx.hora||'la hora'} en cabina. Saludos a toda la gente que nos escucha en el taller, en carretera o en altamar.`,
       `Radio Terrapesca te da la hora: ${ctx.hora||'en punto'}. Todo el equipo que necesitas para el mar o la presa está en Terrapesca.`
     ],
@@ -3096,13 +3061,13 @@ function djFallback(type,ctx){
       `En la presa Adolfo López Mateos, El Varejonal: excelente opción para lobina, tilapia y bagre. Salgan temprano, respeten los límites de navegación y dejen limpias las orillas para conservar nuestros ecosistemas.`,
       `Recomendación para pesca en presa: siempre revisen su motor fuera de borda y lleven su troleador con buena carga. En las presas de Sinaloa el calor aprieta al mediodía, así que su hielera con hielo y bebidas de Terrapesca es obligatoria.`
     ],
-    BUEN_FIN_MINI:[
-      `¡Recordatorio del Buen Fin en Terrapesca! Si te llevas una vara y un carrete en el mismo ticket, ¡ambos se van con veinte por ciento de descuento parejo! Aplica también en carretes Shimano. Arma tu combo hoy mismo en Terrapesca.`,
-      `¡Aprovecha el Gran Buen Fin en Terrapesca! Cincuenta por ciento de descuento en gorras seleccionadas y treinta por ciento en ropa técnica y jerseys con protección solar. Equípate con lo mejor al mejor precio.`,
-      `Atención kayakistas: en este Buen Fin tu próximo kayak de pesca te espera con diez por ciento de descuento directo o llévatelo a seis meses sin intereses en Terrapesca. ¡Conquista el agua con Costa Kayaks!`,
-      `Gran venta Buen Fin en Terrapesca: señuelos con hasta cuarenta por ciento de descuento y cañas de pesca con rebajas de hasta el cuarenta por ciento. Renueva tu caja con equipo ganador.`,
-      `¡Mantén el frío por días enteros! Este Buen Fin aprovecha quince por ciento de descuento en hieleras de alto rendimiento, termos térmicos, navajas y artículos de camping en Terrapesca. ¡Visítanos!`,
-      `No dejes pasar el combo estrella del Buen Fin en Terrapesca: carrete más vara con veinte por ciento parejo. El momento ideal para estrenar equipo de primera calidad.`
+    VENTA_NOCTURNA:[
+      `¡Marca la fecha en tu calendario! Este dieciocho de diciembre, de seis de la tarde a diez de la noche, llega la esperada Venta Nocturna de Terrapesca. Algo muy grande se está preparando para cerrar el año a lo grande. Mantente muy pendiente aquí en Radio Terrapesca.`,
+      `Se acerca una noche única para los apasionados del mar, la presa y la aventura. Este dieciocho de diciembre, de seis a diez de la noche, vive la gran Venta Nocturna en Terrapesca. Prepárate, porque la espera va a valer totalmente la pena.`,
+      `¿Ya apartaste tu tarde? Aquí Rodo para recordarte que este dieciocho de diciembre, en punto de las seis de la tarde y hasta las diez de la noche, encendemos la Venta Nocturna de Terrapesca. Muy pronto descubrirás todo lo que viene. ¡No faltes!`,
+      `La cuenta regresiva ya comenzó aquí en Radio Terrapesca: este dieciocho de diciembre, de seis de la tarde a diez de la noche, nos vemos en nuestra tradicional Venta Nocturna. Una experiencia pensada para verdaderos amantes de la pesca y la aventura.`,
+      `Atención amigos pescadores y aventureros: este dieciocho de diciembre, de seis a diez de la noche, las puertas de Terrapesca se visten de gala con la Venta Nocturna. Aparta la fecha y mantente en sintonía con Radio Terrapesca.`,
+      `Algo muy especial se está cocinando en Terrapesca para cerrar el año como se merece. Agenda desde hoy este dieciocho de diciembre, de seis de la tarde a diez de la noche: llega la gran Venta Nocturna. ¡No te la puedes perder!`
     ],
     SAFETY_TIP:[
       `Consejo de seguridad en el agua: el chaleco salvavidas no salva vidas si se queda guardado en la bodega. Póntelo siempre antes de encender el motor o subirte al kayak, especialmente con viento o marejada.`,
@@ -3990,13 +3955,13 @@ function _buildSpotPrompt(contenido, estilo){
   ];
   const apertura=aperturas[Math.floor(Math.random()*aperturas.length)];
   const estilosVenta={
-    'buen_fin':'BUEN FIN + LOCUTOR PERRÓN: máxima energía y emoción comercial mexicana, ofertas espectaculares de pesca y aventura en Terrapesca, urgencia positiva y llamado directo a aprovechar antes de que vuelen.',
+    'expectativa':'EXPECTATIVA PURA VENTA NOCTURNA (18 de diciembre de 6 a 10 PM): genera intriga, emoción y deseo de asistir sin mencionar JAMÁS descuentos, porcentajes, ofertas, meses sin intereses ni promociones.',
     'eufórico':'ENERGÍA + CONFIANZA: alta energía, frases cortas y directas, el producto es la decisión obvia.',
     'dinámico':'ACCIÓN + BENEFICIO: ritmo ágil, qué ganas con este producto, cierre contundente.',
     'elegante':'ASPIRACIÓN + CALIDAD: tono premium, el pescador profesional elige con criterio.',
     'urgente':'MOMENTO + DECISIÓN: las condiciones están ahora, el equipo correcto marca la diferencia hoy.',
   };
-  const estrategia=estilosVenta[estilo]||estilosVenta['buen_fin'];
+  const estrategia=estilosVenta[estilo]||estilosVenta['expectativa'];
   const slogan=cfg.slogan||'Terrapesca, todo para pescar';
 
   return `Eres el mejor guionista de radio comercial de México — nivel Cannes Lions. Creas spots modernos que suenan a marca premium, no a "anuncio de radio viejo": gancho inmediato, micro-historia sensorial y cierre que se queda en la cabeza.
@@ -4040,36 +4005,20 @@ GUION: [texto final del spot listo para narrar, sin etiquetas]`;
 
 const BUEN_FIN_PRESETS=[
   {
-    name:'Combo Vara y Carrete 20% Parejo',
-    script:'¡Ponte bien trucha este Buen Fin en Terrapesca con la jugada maestra! Si te llevas una vara y un carrete en el mismo ticket, ¡los dos califican automáticamente con el veinte por ciento de descuento parejo! Sí, escuchaste bien: aplica incluso para carretes Shimano, que solos tienen el quince, pero en combo suben directo al veinte por ciento. Arma la combinación perfecta para tu próxima salida. ¡Corre a Terrapesca o compra en terrapesca punto com! Terrapesca: ¡equipa tu aventura!'
+    name:'Expectativa Venta Nocturna — Aparta la Fecha (18 Dic 6-10 PM)',
+    script:'¡Marca la fecha en tu calendario! Este dieciocho de diciembre, de seis de la tarde a diez de la noche, llega la esperada Venta Nocturna de Terrapesca. Algo muy grande se está preparando para cerrar el año a lo grande. Mantente muy pendiente aquí en Radio Terrapesca.'
   },
   {
-    name:'Gran Buen Fin Terrapesca',
-    script:'¡Atención Sinaloa! Arrancó el Gran Buen Fin en Terrapesca y los descuentos están que arden. Cincuenta por ciento en gorras seleccionadas, treinta por ciento en ropa técnica y jerseys, quince por ciento en hieleras y termos, y rebajas de hasta el cuarenta por ciento en varas y señuelos. No te quedes fuera, porque las mejores piezas se van volando. ¡Visítanos hoy mismo en tu sucursal más cercana o en terrapesca punto com! Terrapesca: ¡equipa tu aventura!'
+    name:'Expectativa Venta Nocturna — Cuenta Regresiva',
+    script:'La cuenta regresiva ya comenzó en Radio Terrapesca: este dieciocho de diciembre, de seis de la tarde a diez de la noche, nos vemos en nuestra tradicional Venta Nocturna. Una experiencia nocturna pensada para verdaderos amantes de la pesca y la aventura. ¡Aparta la fecha!'
   },
   {
-    name:'Kayaks 10% o 6 Meses Sin Intereses',
-    script:'¿Listo para conquistar esteros, presas y mar abierto? En este Buen Fin, el kayak de tus sueños te espera en Terrapesca. Llévatelo con diez por ciento de descuento directo o págalo cómodamente a seis meses sin intereses. Estabilidad inigualable, resistencia marina y el mejor equipamiento para tus travesías. Haz de cada salida una expedición épica. ¡Elige tu kayak hoy en Terrapesca! Terrapesca: ¡equipa tu aventura!'
+    name:'Expectativa Venta Nocturna — Noche de Pescadores',
+    script:'Se acerca una noche única para los apasionados del mar, la presa y la aventura. Este dieciocho de diciembre, de seis a diez de la noche, vive la gran Venta Nocturna en Terrapesca. Prepárate, porque la espera va a valer totalmente la pena.'
   },
   {
-    name:'Señuelos de Pesca Hasta 40% Off',
-    script:'Si buscas ese pique violento que hace vibrar el agua y cantar el carrete, este Buen Fin tienes que surtir tu caja en Terrapesca. Señuelos de las mejores marcas mundiales con veinte, veinticinco y hasta cuarenta por ciento de descuento. Curricanes, plásticos, jigs y poppers listos para la acción en agua dulce o salada. Renueva tu arsenal al mejor precio. ¡Te esperamos en Terrapesca! Terrapesca: ¡equipa tu aventura!'
-  },
-  {
-    name:'Varas y Cañas 25% y 40% Off',
-    script:'Siente cada toque y domina la pelea con las mejores varas del mercado. Este Buen Fin en Terrapesca, aprovecha descuentos del veinticinco y hasta el cuarenta por ciento en cañas seleccionadas para troleo, casteo y spinning. Potencia, sensibilidad y la mejor tecnología en tus manos. ¡Ven y prueba tu próxima vara hoy mismo en Terrapesca! Terrapesca: ¡equipa tu aventura!'
-  },
-  {
-    name:'Carretes y Alianza Shimano 20%',
-    script:'La suavidad, el freno y la precisión que exigen los pescadores de verdad están en Terrapesca. En este Buen Fin, llévate carretes con hasta veinte por ciento de descuento. Y ojo: si armas tu combo de vara más carrete Shimano, ¡tu carrete sube automáticamente al veinte por ciento parejo! No compres a ciegas, invierte en equipo de campeonato. ¡Encuéntralo en Terrapesca! Terrapesca: ¡equipa tu aventura!'
-  },
-  {
-    name:'Hieleras, Camping y Navajas 15%',
-    script:'Para el sol bravo de Sinaloa y las jornadas pesadas en el monte, la presa o altamar, necesitas equipo que nunca te deje tirado. Este Buen Fin aprovecha quince por ciento de descuento en hieleras de alto rendimiento, termos térmicos indestructibles, navajas tácticas y artículos de campamento. Mantén tus capturas y bebidas heladas por días. ¡Equípate al cien en Terrapesca! Terrapesca: ¡equipa tu aventura!'
-  },
-  {
-    name:'Gorras 50% y Ropa Técnica 30%',
-    script:'¡Protégete del calor y luce el mejor estilo pescador! Este Buen Fin en Terrapesca, aprovecha un descuentazo del cincuenta por ciento en gorras seleccionadas y treinta por ciento en ropa técnica y jerseys de secado rápido con protección solar. Máxima frescura y durabilidad para tus días de sol. Viste como los profesionales. ¡Pasa hoy mismo a Terrapesca! Terrapesca: ¡equipa tu aventura!'
+    name:'Expectativa Venta Nocturna — Cierra el Año en Grande',
+    script:'¿Ya apartaste tu tarde? Este dieciocho de diciembre, en punto de las seis de la tarde y hasta las diez de la noche, las puertas de Terrapesca se encienden con nuestra Venta Nocturna. Muy pronto descubrirás todo lo que viene. ¡No faltes!'
   }
 ];
 
@@ -4079,7 +4028,7 @@ function applyBuenFinPreset(val){
   if(!p) return;
   document.getElementById('spotName').value=p.name;
   document.getElementById('spotScript').value=p.script;
-  document.getElementById('spotEstilo').value='buen_fin';
+  document.getElementById('spotEstilo').value='expectativa';
   toast('Guión cargado: '+p.name,'ok');
 }
 
@@ -4087,7 +4036,7 @@ function setBuenFinTopic(topic){
   const el=document.getElementById('spotTopic');
   if(el) el.value=topic;
   const es=document.getElementById('spotEstilo');
-  if(es) es.value='buen_fin';
+  if(es) es.value='expectativa';
   genSpotAI();
 }
 
@@ -4095,7 +4044,7 @@ async function genSpotAI(){
   const topic=document.getElementById('spotTopic').value.trim();
   if(!topic){_sgStatus('Escribe el tema del spot primero','var(--amber)');return;}
   if(!cfg.antKey && !cfg.oaiKey){_sgStatus('Configura tu clave de Anthropic u OpenAI en ⚙️ CONFIG','var(--red)');return;}
-  const estilo=document.getElementById('spotEstilo')?.value||'buen_fin';
+  const estilo=document.getElementById('spotEstilo')?.value||'expectativa';
   _sgStatus(`Generando guión (${estilo})…`,'var(--cyan)');
   const prompt=_buildSpotPrompt(topic,estilo);
   try{
@@ -4371,12 +4320,19 @@ async function loadShared(){
         }
       } catch (_) {}
     }
+    const _bfSpotFilter = s => s && !/buen\s*fin|%\s*off|\d+\s*%|meses\s*sin\s*intereses|\bmsi\b|descuento|rebaja|alianza\s*shimano|se[ñn]uelos|termos\s*hieleras/i.test(s.name || '');
     const sp=await idbGet(db,'session','spotsLibrary');
-    if(sp&&sp.items){ spots=sp.items.filter(s=>s.b64).map(s=>({name:s.name,b64:s.b64,bed:s.bed||'terrapesca',mime:s.mime||'audio/mpeg'})); }
-    // Sincronizar spots remotos compartidos del servidor
+    if(sp&&sp.items){
+      const cleanLocal = sp.items.filter(s=>s.b64 && _bfSpotFilter(s));
+      spots=cleanLocal.map(s=>({name:s.name,b64:s.b64,bed:s.bed||'terrapesca',mime:s.mime||'audio/mpeg'}));
+      if(cleanLocal.length !== sp.items.length){
+        db.transaction('session','readwrite').objectStore('session').put({key:'spotsLibrary',items:spots});
+      }
+    }
+    // Sincronizar spots remotos compartidos del servidor (sin Buen Fin)
     try {
       const rsp = await fetch('/api/spots');
-      const srvSpots = await rsp.json();
+      const srvSpots = (await rsp.json() || []).filter(_bfSpotFilter);
       if (Array.isArray(srvSpots) && srvSpots.length) {
         let added = false;
         for (const s of srvSpots) {
@@ -5298,8 +5254,8 @@ drawVU();
     const day=_isEventDay();
     b.style.display='block';
     b.innerHTML=day
-      ? '🔴 HOY ES LA VENTA NOCTURNA — Los Mochis y Mazatlán 6-10 PM · Culiacán 9 AM-5 PM · Rodo en modo campaña'
-      : `🟠 CAMPAÑA ACTIVA — Venta Nocturna Terrapesca · ${CAMPAIGN.eventDate} · Rodo menciona la venta entre canciones`;
+      ? '🌙 HOY ES LA VENTA NOCTURNA TERRAPESCA — De 6:00 PM a 10:00 PM · Solo intervenciones de DJ Rodo en vivo'
+      : `🌙 CAMPAÑA DE EXPECTATIVA ACTIVA — Venta Nocturna Terrapesca · Este ${CAMPAIGN.eventDate} de 6:00 a 10:00 PM · Solo intervenciones de DJ Rodo (sin mencionar promociones)`;
   }
 })();
 // expose start on first deck play

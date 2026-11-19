@@ -823,6 +823,7 @@ function pauseMainForSpot(){
 }
 function playSpot(track){
   if(!track) return;
+  if(track.spot_id && /^spot_(gorras|shadrap|vanford|kayak|maja|hieleras)/i.test(track.spot_id)) return;
   // Cancel any pending post-spot resume so it can't fire during this new spot
   cancelResumeFallback();
   _pendingPlayAfterSpot=null;

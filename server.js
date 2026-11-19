@@ -1254,7 +1254,7 @@ const server = http.createServer((req, res) => {
     }
   }
 
-  // ── Sincronización de spots de audio (personalizados de cabina y oficiales) ──
+  // ── Sincronización de spots de audio (purgado automático de Buen Fin / promociones vencidas) ──
   if (req.url.startsWith('/api/spots')) {
     const spFile = path.join(__dirname, '.spots_custom.json');
     if (req.method === 'GET') {
@@ -1262,6 +1262,7 @@ const server = http.createServer((req, res) => {
       try {
         if (fs.existsSync(spFile)) list = JSON.parse(fs.readFileSync(spFile, 'utf8')) || [];
       } catch (_) {}
+      list = _purgeBuenFinSpots(list);
       res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Access-Control-Allow-Origin': '*' });
       res.end(JSON.stringify(list));
       return;
@@ -1271,7 +1272,7 @@ const server = http.createServer((req, res) => {
       readLimitedBody(req, res, (body) => {
         try {
           const data = JSON.parse(body);
-          const rawList = Array.isArray(data) ? data : (data.spots || []);
+          const rawList = _purgeBuenFinSpots(Array.isArray(data) ? data : (data.spots || []));
           const spotsDir = path.join(__dirname, 'public', 'spots');
           if (!fs.existsSync(spotsDir)) fs.mkdirSync(spotsDir, { recursive: true });
 
@@ -1298,7 +1299,7 @@ const server = http.createServer((req, res) => {
 
           customSpots = savedList;
           try { fs.writeFileSync(spFile, JSON.stringify(customSpots, null, 2)); } catch (_) {}
-          console.log(`[API] Spots personalizados sincronizados (${customSpots.length} spots)`);
+          console.log(`[API] Spots personalizados sincronizados (${customSpots.length} spots, Buen Fin purgado)`);
           broadcast({ type: 'SPOTS_LIBRARY_UPDATE', spots: customSpots });
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ ok: true, count: customSpots.length }));
@@ -1361,17 +1362,74 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // ── Proxy VoiceKiller TTS (motor de voz alternativo) ──
-  // El cliente manda {script,voice_name,instructions} y sus credenciales por
-  // header (api-key + userid). El servidor no las guarda. Devuelve MP3 directo,
-  // que proxyPost detecta (audio/mpeg) y transmite tal cual.
+  // ── Proxy VoiceKiller TTS con respaldo automático Neural (Google Chirp3-HD / Edge es-MX) si se agotan minutos ──
   if (req.url === '/api/voicekiller/tts' && req.method === 'POST') {
-    readLimitedBody(req, res, (body) => {
-      proxyPost('voicekiller.com', '/api/generate-speech', {
-        'Content-Type': 'application/json',
-        'api-key': req.headers['api-key'] || '',
-        'userid': req.headers['userid'] || ''
-      }, body, res);
+    readLimitedBody(req, res, async (body) => {
+      let parsed = {};
+      try { parsed = JSON.parse(body || '{}'); } catch (_) {}
+      const scriptTxt = String(parsed.script || parsed.input || '').trim();
+      const vkKey = req.headers['api-key'] || '';
+      const vkUser = req.headers['userid'] || '';
+
+      const tryFallbackTts = async () => {
+        if (!scriptTxt) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Guion vacío' }));
+          return;
+        }
+        const mp3Buf = await _synthesizeNeuralMp3(scriptTxt);
+        if (mp3Buf && mp3Buf.length > 1000) {
+          res.writeHead(200, {
+            'Content-Type': 'audio/mpeg',
+            'Content-Length': mp3Buf.length,
+            'Access-Control-Allow-Origin': '*'
+          });
+          res.end(mp3Buf);
+        } else {
+          res.writeHead(502, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'No se pudo sintetizar audio neural de respaldo' }));
+        }
+      };
+
+      if (!vkKey || !vkUser) {
+        await tryFallbackTts();
+        return;
+      }
+
+      const bodyBuf = Buffer.from(body, 'utf8');
+      const upReq = https.request({
+        hostname: 'voicekiller.com',
+        path: '/api/generate-speech',
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json; charset=utf-8',
+          'Content-Length': bodyBuf.length,
+          'api-key': vkKey,
+          'userid': vkUser
+        },
+        timeout: 15000
+      }, (upRes) => {
+        const chunks = [];
+        upRes.on('data', c => chunks.push(c));
+        upRes.on('end', async () => {
+          const buf = Buffer.concat(chunks);
+          if (upRes.statusCode === 200 && buf.length > 2000) {
+            res.writeHead(200, {
+              'Content-Type': 'audio/mpeg',
+              'Content-Length': buf.length,
+              'Access-Control-Allow-Origin': '*'
+            });
+            res.end(buf);
+          } else {
+            console.warn('[TTS] VoiceKiller HTTP', upRes.statusCode, '→ activando voz neural de respaldo');
+            await tryFallbackTts();
+          }
+        });
+      });
+      upReq.on('error', async () => { await tryFallbackTts(); });
+      upReq.setTimeout(15000, () => { upReq.destroy(); });
+      upReq.write(bodyBuf);
+      upReq.end();
     });
     return;
   }
@@ -2019,24 +2077,187 @@ const DEFAULT_AUTOPILOT_PLAYLIST = [
   { ytId: 'teprNzF6J1I', name: 'En el Muelle de San Blás', artist: 'Maná', duration: 352 }
 ];
 let autopilot = { on: false, list: [], idx: 0, timer: null, rodoIntroTimer: null, trackEndsAt: 0 };
-let _songsSinceIntervention = 1; // Arranca en 1 para que tras la 1ra canción tras deploy suene intervención inmediata
-let _interventionTurn = 0;
+let _songsSinceIntervention = 1; // Arranca en 1 para que tras la 1ra canción tras deploy suene intervención inmediata de DJ Rodo
+let _rodoRotationStep = 0;
+let _lastRodoFilePicked = '';
 let _apHistory = []; // Registro de canciones recientes para evitar repeticiones
+
+// Purga automática de cualquier spot antiguo del Buen Fin o con descuentos/promociones vencidas
+function _purgeBuenFinSpots(list) {
+  if (!Array.isArray(list)) return [];
+  const bfRegex = /buen\s*fin|%\s*off|\d+\s*%|meses\s*sin\s*intereses|\bmsi\b|descuento|rebaja|alianza\s*shimano|se[ñn]uelos|termos\s*hieleras/i;
+  return list.filter(s => {
+    if (!s) return false;
+    const label = `${s.id || ''} ${s.name || ''} ${s.url || ''}`;
+    return !bfRegex.test(label);
+  });
+}
+
 let customSpots = [];
 try {
   const spFile = path.join(__dirname, '.spots_custom.json');
-  if (fs.existsSync(spFile)) customSpots = JSON.parse(fs.readFileSync(spFile, 'utf8')) || [];
+  if (fs.existsSync(spFile)) {
+    const rawSpots = JSON.parse(fs.readFileSync(spFile, 'utf8')) || [];
+    customSpots = _purgeBuenFinSpots(rawSpots);
+    if (customSpots.length !== rawSpots.length) {
+      fs.writeFileSync(spFile, JSON.stringify(customSpots, null, 2));
+      console.log(`[Init] Purgados ${rawSpots.length - customSpots.length} spots antiguos de Buen Fin / promociones`);
+    }
+  }
 } catch (_) { customSpots = []; }
 
 let _rodoManifest = [];
 try {
   const rFile = path.join(__dirname, 'public', 'rodo', 'rodo_manifest.json');
-  if (fs.existsSync(rFile)) _rodoManifest = JSON.parse(fs.readFileSync(rFile, 'utf8')) || [];
+  if (fs.existsSync(rFile)) {
+    _rodoManifest = (JSON.parse(fs.readFileSync(rFile, 'utf8')) || []).filter(
+      m => m && !/buenfin|buen_fin/i.test(m.file || '') && !/buen\s*fin/i.test(m.title || '')
+    );
+  }
 } catch (_) { _rodoManifest = []; }
 
-// ---- HORA EXACTA CON MINUTOS EN VIVO PARA DJ RODO (Sinaloa: America/Mazatlan) ----
-const SERVER_VK_KEY = (process.env.VK_KEY || 'r69mmhvwcmiqidkh5rcxg0j0d3r1ct4d').trim();
-const SERVER_VK_USER = (process.env.VK_USER || '390516e3-a4cf-4015-8498-35eda8fc5cf4').trim();
+// ---- MOTOR DE VOZ NEURAL PARA DJ RODO (Google Chirp3-HD + MsEdgeTTS es-MX + VoiceKiller) ----
+const SERVER_VK_KEY = (process.env.VK_KEY || '').trim();
+const SERVER_VK_USER = (process.env.VK_USER || '').trim();
+let _MsEdgeTTS = null, _EDGE_FORMAT = null;
+try {
+  const edgeMod = require('msedge-tts');
+  _MsEdgeTTS = edgeMod.MsEdgeTTS;
+  _EDGE_FORMAT = edgeMod.OUTPUT_FORMAT;
+} catch (_) {}
+
+let _googleTokenCache = { token: '', expMs: 0 };
+function _getGoogleServiceAccount() {
+  if (process.env.GOOGLE_TTS_CLIENT_EMAIL && process.env.GOOGLE_TTS_PRIVATE_KEY) {
+    return {
+      client_email: process.env.GOOGLE_TTS_CLIENT_EMAIL.trim(),
+      private_key: process.env.GOOGLE_TTS_PRIVATE_KEY.replace(/\\n/g, '\n')
+    };
+  }
+  try {
+    const credFile = path.join(__dirname, 'credentials', 'google-tts.json');
+    if (fs.existsSync(credFile)) return JSON.parse(fs.readFileSync(credFile, 'utf8'));
+  } catch (_) {}
+  return null;
+}
+
+function _synthesizeGoogleChirpMp3(script) {
+  return new Promise((resolve) => {
+    const sa = _getGoogleServiceAccount();
+    if (!sa || !sa.client_email || !sa.private_key) return resolve(null);
+
+    const doTts = (accessToken) => {
+      const payload = Buffer.from(JSON.stringify({
+        input: { text: script },
+        voice: { languageCode: 'es-US', name: 'es-US-Chirp3-HD-Puck' },
+        audioConfig: { audioEncoding: 'MP3', speakingRate: 1.03 }
+      }), 'utf8');
+      const r = https.request({
+        hostname: 'texttospeech.googleapis.com',
+        path: '/v1/text:synthesize',
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + accessToken,
+          'Content-Type': 'application/json; charset=utf-8',
+          'Content-Length': payload.length
+        },
+        timeout: 12000
+      }, resp => {
+        let raw = '';
+        resp.on('data', c => raw += c);
+        resp.on('end', () => {
+          try {
+            const j = JSON.parse(raw);
+            if (j && j.audioContent) return resolve(Buffer.from(j.audioContent, 'base64'));
+          } catch (_) {}
+          resolve(null);
+        });
+      });
+      r.on('error', () => resolve(null));
+      r.setTimeout(12000, () => { r.destroy(); resolve(null); });
+      r.write(payload);
+      r.end();
+    };
+
+    if (_googleTokenCache.token && Date.now() < _googleTokenCache.expMs) {
+      return doTts(_googleTokenCache.token);
+    }
+
+    try {
+      const now = Math.floor(Date.now() / 1000);
+      const b64u = o => Buffer.from(JSON.stringify(o)).toString('base64url');
+      const hdr = b64u({ alg: 'RS256', typ: 'JWT' });
+      const clm = b64u({
+        iss: sa.client_email,
+        scope: 'https://www.googleapis.com/auth/cloud-platform',
+        aud: 'https://oauth2.googleapis.com/token',
+        iat: now,
+        exp: now + 3600
+      });
+      const sig = crypto.createSign('RSA-SHA256').update(hdr + '.' + clm).sign(sa.private_key, 'base64url');
+      const tokBody = 'grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=' + hdr + '.' + clm + '.' + sig;
+      const tr = https.request({
+        hostname: 'oauth2.googleapis.com',
+        path: '/token',
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Content-Length': Buffer.byteLength(tokBody) },
+        timeout: 8000
+      }, resp => {
+        let raw = '';
+        resp.on('data', c => raw += c);
+        resp.on('end', () => {
+          try {
+            const j = JSON.parse(raw);
+            if (j && j.access_token) {
+              _googleTokenCache = { token: j.access_token, expMs: Date.now() + 3300 * 1000 };
+              return doTts(j.access_token);
+            }
+          } catch (_) {}
+          resolve(null);
+        });
+      });
+      tr.on('error', () => resolve(null));
+      tr.setTimeout(8000, () => { tr.destroy(); resolve(null); });
+      tr.write(tokBody);
+      tr.end();
+    } catch (_) {
+      resolve(null);
+    }
+  });
+}
+
+async function _synthesizeEdgeMxMp3(script) {
+  if (!_MsEdgeTTS || !_EDGE_FORMAT) return null;
+  try {
+    const tts = new _MsEdgeTTS();
+    await tts.setMetadata('es-MX-JorgeNeural', _EDGE_FORMAT.AUDIO_24KHZ_96KBITRATE_MONO_MP3);
+    const { audioStream } = tts.toStream(script);
+    const chunks = [];
+    await new Promise((resolve, reject) => {
+      const t = setTimeout(() => reject(new Error('EdgeTTS timeout')), 12000);
+      audioStream.on('data', c => chunks.push(c));
+      audioStream.on('end', () => { clearTimeout(t); resolve(); });
+      audioStream.on('error', e => { clearTimeout(t); reject(e); });
+    });
+    const buf = Buffer.concat(chunks);
+    return buf.length > 2000 ? buf : null;
+  } catch (e) {
+    console.warn('[EdgeTTS] fallo:', e && e.message || e);
+    return null;
+  }
+}
+
+async function _synthesizeNeuralMp3(script) {
+  if (!script) return null;
+  // 1) Google Cloud Chirp3-HD si hay credenciales configuradas
+  const gBuf = await _synthesizeGoogleChirpMp3(script);
+  if (gBuf && gBuf.length > 2000) return gBuf;
+  // 2) Microsoft Edge Neural Mexican Spanish (es-MX-JorgeNeural, ilimitado y sin cuota)
+  const eBuf = await _synthesizeEdgeMxMp3(script);
+  if (eBuf && eBuf.length > 2000) return eBuf;
+  return null;
+}
+
 const _NUM_LETRAS_59 = [
   'cero','uno','dos','tres','cuatro','cinco','seis','siete','ocho','nueve','diez',
   'once','doce','trece','catorce','quince','dieciséis','diecisiete','dieciocho','diecinueve','veinte',
@@ -2088,127 +2309,80 @@ function _horaExactaSinaloa(dateObj) {
 let _rodoExactTimeCache = { hhmm: '', track: null };
 let _rodoTimeTemplateIdx = 0;
 
-function _synthesizeRodoExactTimeClip() {
-  return new Promise((resolve) => {
-    const info = _horaExactaSinaloa(new Date(Date.now() + 5000));
-    // Si es exactamente el minuto :00 y existe el clip pregrabado de esa hora cerrada, es 100% exacto
-    if (info.min === 0) {
-      const exactWhole = _rodoManifest.find(m => m.file === `rodo_hora_h${info.hour24}.mp3`);
-      if (exactWhole) {
-        let b64 = '';
-        try {
-          const pFile = path.join(__dirname, 'public', 'rodo', exactWhole.file);
-          if (fs.existsSync(pFile)) b64 = fs.readFileSync(pFile).toString('base64');
-        } catch (_) {}
-        if (b64) {
-          return resolve({
-            type: 'spot',
-            isRodo: true,
-            overMusic: true,
-            name: `🎙️ DJ Rodo — La Hora Exacta (${info.display})`,
-            url: exactWhole.url,
-            b64,
-            mime: 'audio/mpeg',
-            duration: 14
-          });
-        }
-      }
-    }
+async function _synthesizeRodoExactTimeClip() {
+  const info = _horaExactaSinaloa(new Date(Date.now() + 4000));
+  if (_rodoExactTimeCache.hhmm === info.hhmm && _rodoExactTimeCache.track) {
+    return _rodoExactTimeCache.track;
+  }
 
-    // Reusar caché si ya sintetizamos este mismo minuto HH:MM
-    if (_rodoExactTimeCache.hhmm === info.hhmm && _rodoExactTimeCache.track) {
-      return resolve(_rodoExactTimeCache.track);
-    }
+  // Guiones con HORA EXACTA al minuto + pura EXPECTATIVA de la Venta Nocturna (18 de diciembre de 6 a 10 PM, CERO promociones/descuentos)
+  const templates = [
+    `Costa Kayaks te da la hora exacta en Radio Terrapesca: son ${info.phrase}. Y ve apartando la fecha: este dieciocho de diciembre, de seis de la tarde a diez de la noche, llega nuestra esperada Venta Nocturna.`,
+    `¡Qué tal amigos! Aquí Rodo en Radio Terrapesca: marcamos exactamente ${info.phrase} en Sinaloa. Recuerda que este dieciocho de diciembre, de seis a diez de la noche, viviremos la gran Venta Nocturna de Terrapesca. ¡Mantente muy pendiente!`,
+    `La hora exacta en Radio Terrapesca con Costa Kayaks: son ${info.phrase}. Algo muy grande se prepara para este dieciocho de diciembre de seis de la tarde a diez de la noche en la Venta Nocturna. ¡Seguimos con más música!`,
+    `Actualizamos el reloj en Radio Terrapesca: son exactamente ${info.phrase}. Marca tu calendario para este dieciocho de diciembre, de seis a diez de la noche, porque se acerca la Venta Nocturna en Terrapesca.`,
+    `Con Costa Kayaks nos ponemos en hora: son exactamente ${info.phrase}. La cuenta regresiva ya comenzó para la Venta Nocturna de Terrapesca este dieciocho de diciembre de seis de la tarde a diez de la noche.`
+  ];
+  const script = templates[(_rodoTimeTemplateIdx++) % templates.length];
 
-    if (!SERVER_VK_KEY || !SERVER_VK_USER) return resolve(null);
+  const buf = await _synthesizeNeuralMp3(script);
+  if (!buf || buf.length < 2000) return null;
 
-    const templates = [
-      `Costa Kayaks te da la hora exacta en Radio Terrapesca: son ${info.phrase}. ¡Seguimos con más música!`,
-      `¡Qué tal amigos! Aquí Rodo en Radio Terrapesca: marcamos exactamente ${info.phrase} en Sinaloa, cortesía de Costa Kayaks.`,
-      `La hora exacta en Radio Terrapesca con Costa Kayaks: son ${info.phrase}. Todo para la pesca deportiva está en Terrapesca.`,
-      `Actualizamos el reloj en Radio Terrapesca: son exactamente ${info.phrase}. ¡Disfruta la música y equipa tu aventura!`,
-      `Con Costa Kayaks nos ponemos en hora: son exactamente ${info.phrase}. Saludos a quienes nos sintonizan en tienda y camino al agua.`
-    ];
-    const script = templates[(_rodoTimeTemplateIdx++) % templates.length];
-    const payload = JSON.stringify({
-      script,
-      voice_name: 'Podcaster 1 (es-419)',
-      instructions: 'Eres Rodo, locutor estrella de Radio Terrapesca en Sinaloa. Voz masculina cálida, natural, alegre y dinámica en español mexicano, diciendo la hora exacta con claridad y energía controlada.'
-    });
+  let liveUrl = '';
+  try {
+    const rodoDir = path.join(__dirname, 'public', 'rodo');
+    if (!fs.existsSync(rodoDir)) fs.mkdirSync(rodoDir, { recursive: true });
+    fs.writeFileSync(path.join(rodoDir, 'rodo_hora_live.mp3'), buf);
+    liveUrl = `/rodo/rodo_hora_live.mp3?t=${Date.now()}`;
+  } catch (_) {}
 
-    let settled = false;
-    const finish = (val) => { if (!settled) { settled = true; resolve(val); } };
-
-    const reqVk = https.request({
-      hostname: 'voicekiller.com',
-      path: '/api/generate-speech',
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(payload),
-        'api-key': SERVER_VK_KEY,
-        'userid': SERVER_VK_USER
-      },
-      timeout: 15000
-    }, (vkRes) => {
-      const chunks = [];
-      vkRes.on('data', c => chunks.push(c));
-      vkRes.on('end', () => {
-        if (vkRes.statusCode !== 200) {
-          console.warn('[Rodo Hora Exacta] VoiceKiller HTTP', vkRes.statusCode);
-          return finish(null);
-        }
-        const buf = Buffer.concat(chunks);
-        if (!buf || buf.length < 2000) return finish(null);
-        let liveUrl = '';
-        try {
-          const rodoDir = path.join(__dirname, 'public', 'rodo');
-          if (!fs.existsSync(rodoDir)) fs.mkdirSync(rodoDir, { recursive: true });
-          fs.writeFileSync(path.join(rodoDir, 'rodo_hora_live.mp3'), buf);
-          liveUrl = `/rodo/rodo_hora_live.mp3?t=${Date.now()}`;
-        } catch (_) {}
-        const estSecs = Math.max(8, Math.min(20, Math.round(buf.length / 16000)));
-        const track = {
-          type: 'spot',
-          isRodo: true,
-          overMusic: true,
-          name: `🎙️ DJ Rodo — La Hora Exacta (${info.display})`,
-          script,
-          url: liveUrl,
-          b64: buf.toString('base64'),
-          mime: 'audio/mpeg',
-          duration: estSecs
-        };
-        _rodoExactTimeCache = { hhmm: info.hhmm, track };
-        console.log(`[Rodo Hora Exacta] Generada en vivo: ${info.display} ("${info.phrase}", ${estSecs}s)`);
-        finish(track);
-      });
-    });
-    reqVk.on('error', (e) => {
-      console.warn('[Rodo Hora Exacta] Error de red:', e.message);
-      finish(null);
-    });
-    reqVk.setTimeout(15000, () => {
-      reqVk.destroy();
-      console.warn('[Rodo Hora Exacta] Timeout generando TTS en vivo');
-      finish(null);
-    });
-    reqVk.write(payload);
-    reqVk.end();
-  });
+  // Estimar duración real según bitrate (~96 kbps = 12000 B/s en Edge, ~32-64 kbps en Chirp)
+  const estSecs = Math.max(10, Math.min(20, Math.round(script.split(/\s+/).length / 2.6)));
+  const track = {
+    type: 'spot',
+    isRodo: true,
+    overMusic: true,
+    name: `🎙️ DJ Rodo — Hora Exacta (${info.display}) · Venta Nocturna 18 Dic`,
+    script,
+    url: liveUrl,
+    b64: buf.toString('base64'),
+    mime: 'audio/mpeg',
+    duration: estSecs
+  };
+  _rodoExactTimeCache = { hhmm: info.hhmm, track };
+  console.log(`[Rodo Hora Exacta + Venta Nocturna] Generada en vivo: ${info.display} ("${info.phrase}", ~${estSecs}s)`);
+  return track;
 }
 
 async function _buildRodoInterventionTrack() {
   try {
-    // 65% de las veces da la HORA EXACTA con minutos reales de Sinaloa; 35% da tips de pesca/kayak/identificación
-    if (Math.random() < 0.65) {
+    _rodoRotationStep++;
+    const mod = _rodoRotationStep % 3;
+    // mod === 1: Clip estelar de Expectativa Venta Nocturna (18 de diciembre de 6 a 10 PM, cero promociones)
+    // mod === 2: Hora Exacta en vivo con mención de Expectativa Venta Nocturna
+    // mod === 0: Alterna entre Expectativa Venta Nocturna y Consejos de Pesca / Identificación
+
+    if (mod === 2) {
       const liveHourTrack = await _synthesizeRodoExactTimeClip();
       if (liveHourTrack) return liveHourTrack;
     }
-    // Respaldo / rotación: consejos de pesca, kayak o identificación (NUNCA una hora cerrada incorrecta)
-    const tips = _rodoManifest.filter(m => m.type !== 'hora');
-    const clip = tips.length ? tips[Math.floor(Math.random() * tips.length)] : null;
+
+    const vnClips = _rodoManifest.filter(m => m.type === 'venta_nocturna');
+    const tipClips = _rodoManifest.filter(m => m.type !== 'hora' && m.type !== 'venta_nocturna');
+
+    let pool = [];
+    if (mod === 1 || !tipClips.length || Math.random() < 0.65) {
+      pool = vnClips.length ? vnClips : tipClips;
+    } else {
+      pool = tipClips;
+    }
+
+    const freshPool = pool.filter(m => m.file !== _lastRodoFilePicked);
+    const candidates = freshPool.length ? freshPool : pool;
+    const clip = candidates.length ? candidates[Math.floor(Math.random() * candidates.length)] : null;
+
     if (clip) {
+      _lastRodoFilePicked = clip.file;
       let b64 = '';
       try {
         const pFile = path.join(__dirname, 'public', 'rodo', clip.file);
@@ -2222,9 +2396,12 @@ async function _buildRodoInterventionTrack() {
         url: clip.url,
         b64,
         mime: 'audio/mpeg',
-        duration: 18
+        duration: 16
       };
     }
+
+    // Respaldo final en vivo si no hubiera clips en disco
+    return await _synthesizeRodoExactTimeClip();
   } catch (_) {}
   return null;
 }
@@ -2285,7 +2462,7 @@ function _scheduleAutopilotTrackEnd(delayMs) {
   autopilot.timer = setTimeout(() => {
     if (!autopilot.on) return;
     _songsSinceIntervention++;
-    // Cada 2 canciones, lanzar intervención (DJ Rodo / Spot Personalizado / Spot Buen Fin)
+    // Cada 2 canciones entra EXCLUSIVAMENTE DJ Rodo (cero spots comerciales ni Buen Fin)
     if (_songsSinceIntervention >= 2) {
       _songsSinceIntervention = 0;
       _apPlayInterventionThenAdvance();
@@ -2310,14 +2487,14 @@ function _apBroadcast(opts = {}) {
 
   _apUpdatePreview();
 
-  // Si toca intervención de DJ Rodo, entra suavemente a los 4.5s sobre la intro de ESTA canción (ducking FM sin cortar ni brincar pista)
+  // Intervención de DJ Rodo: entra suavemente a los 4.5s sobre la intro de ESTA canción (ducking FM sin cortar ni brincar pista)
   if (opts.rodoOverIntro) {
     const rodoPromise = _buildRodoInterventionTrack();
     autopilot.rodoIntroTimer = setTimeout(async () => {
       if (!autopilot.on) return;
       const rodoTrack = await rodoPromise;
       if (!autopilot.on || !rodoTrack) return;
-      console.log('[24/7 DJ Rodo sobre intro] 🎙️ AL AIRE:', rodoTrack.name, '(' + (rodoTrack.duration || 14) + 's)');
+      console.log('[24/7 DJ Rodo sobre intro] 🎙️ AL AIRE:', rodoTrack.name, '(' + (rodoTrack.duration || 15) + 's)');
       broadcast({ type: 'SPOT', track: rodoTrack });
     }, 4500);
   }
@@ -2336,88 +2513,8 @@ function _apAdvanceNextTrack(opts = {}) {
 }
 
 function _apPlayInterventionThenAdvance() {
-  _interventionTurn++;
-  const turnType = _interventionTurn % 3; // 0 = DJ Rodo, 1 = Spot Personalizado, 2 = Spot Buen Fin
-
-  // 1. TURNO DE DJ RODO: avanza suavemente a la nueva canción y Rodo entra sobre la intro con la HORA EXACTA al minuto (0 cortes, 0 brincos)
-  if (turnType === 0) {
-    _apAdvanceNextTrack({ rodoOverIntro: true });
-    return;
-  }
-
-  let trackToPlay = null;
-
-  // 2. TURNO DE SPOT PERSONALIZADO DE CABINA
-  if (turnType === 1) {
-    if (customSpots && customSpots.length > 0) {
-      const spIdx = Math.floor(Math.random() * customSpots.length);
-      const cs = customSpots[spIdx];
-      let b64 = cs.b64 || '';
-      if (!b64 && cs.url && cs.url.startsWith('/')) {
-        try {
-          const pFile = path.join(__dirname, 'public', cs.url);
-          if (fs.existsSync(pFile)) b64 = fs.readFileSync(pFile).toString('base64');
-        } catch (_) {}
-      }
-      trackToPlay = {
-        type: 'spot',
-        isRodo: false,
-        advanceAfter: true,
-        bed: cs.bed || 'none',
-        name: '📢 ' + (cs.name || 'Spot Personalizado'),
-        url: cs.url || '',
-        b64: b64,
-        mime: cs.mime || 'audio/mpeg',
-        duration: cs.duration || 20
-      };
-    }
-  }
-
-  // 3. TURNO DE SPOT OFICIAL DEL BUEN FIN (o fallback si no hubo personalizado)
-  if (!trackToPlay) {
-    const BF_SPOTS = [
-      { spot_id: 'spot_gorras_50', titulo: '¡EXPLOSIÓN 50% OFF! GORRAS TRUCKER TERRAPESCA', dur: 23 },
-      { spot_id: 'spot_shadrap_40', titulo: '¡ADRENALINA PURA! SEÑUELOS DEL 20% AL 40% OFF', dur: 22 },
-      { spot_id: 'spot_vanford_15', titulo: '¡PRECISIÓN JAPONESA! CARRETES SHIMANO (15% / 20% EN COMBO)', dur: 24 },
-      { spot_id: 'spot_kayak_tilapia', titulo: '¡EL MONSTRUO AZUL! COSTA KAYAK BIG MERO (10% + 6 MSI • PRECIO CONGELADO)', dur: 22 },
-      { spot_id: 'spot_maja_30', titulo: 'ROPA TÉCNICA PESCA 20% Y MARCA MAJA 30% OFF (13 AL 17 NOV)', dur: 24 },
-      { spot_id: 'spot_hieleras_15', titulo: '¡FRÍO EXTREMO 15% OFF! HIELERAS TERRAPESCA', dur: 20 }
-    ];
-    const bfIdx = Math.floor(Math.random() * BF_SPOTS.length);
-    const sp = BF_SPOTS[bfIdx];
-    let b64 = '';
-    try {
-      const p = path.join(__dirname, 'public', 'buenfin', `${sp.spot_id}.mp3`);
-      if (fs.existsSync(p)) b64 = fs.readFileSync(p).toString('base64');
-    } catch (_) {}
-    trackToPlay = {
-      type: 'spot',
-      isRodo: false,
-      advanceAfter: true,
-      name: sp.titulo,
-      spot_id: sp.spot_id,
-      url: `/buenfin/${sp.spot_id}.mp3`,
-      b64: b64,
-      mime: 'audio/mpeg',
-      duration: sp.dur || 22
-    };
-  }
-
-  radioState.activeSpot = trackToPlay;
-  radioState.isPlaying = true;
-
-  const clipSecs = trackToPlay.duration || 22;
-  console.log('[24/7 Spot entre canciones] 📢 AL AIRE:', trackToPlay.name, '(' + clipSecs + 's)');
-  broadcast({ type: 'SPOT', track: trackToPlay });
-  if (streamClients.size > 0) startStreamTrack(trackToPlay);
-
-  // Al terminar el spot, arranca de inmediato la siguiente canción desde 0:00 (sin reanudar 2s de la anterior)
-  clearTimeout(autopilot.timer);
-  autopilot.trackEndsAt = Date.now() + (clipSecs * 1000);
-  autopilot.timer = setTimeout(() => {
-    radioState.activeSpot = null;
-    _apAdvanceNextTrack();
-  }, clipSecs * 1000);
+  // SOLO intervenciones de DJ Rodo (Expectativa Venta Nocturna 18 Dic 6-10 PM + Hora Exacta + Consejos) — cero spots comerciales
+  _apAdvanceNextTrack({ rodoOverIntro: true });
 }
 
 function startAutopilot(list, startIdx) {
@@ -2590,20 +2687,23 @@ wss.on('connection', (ws, req) => {
           break;
         }
         case 'SPOTS_UPDATE': {
-          const list = Array.isArray(msg.spots) ? msg.spots : [];
-          if (list.length) {
-            customSpots = list;
-            const spFile = path.join(__dirname, '.spots_custom.json');
-            try { fs.writeFileSync(spFile, JSON.stringify(list, null, 2)); } catch (_) {}
-            console.log(`[WS] Biblioteca de spots sincronizada (${list.length} spots)`);
-            broadcast({ type: 'SPOTS_LIBRARY_UPDATE', spots: list }, ws);
-          }
+          const list = _purgeBuenFinSpots(Array.isArray(msg.spots) ? msg.spots : []);
+          customSpots = list;
+          const spFile = path.join(__dirname, '.spots_custom.json');
+          try { fs.writeFileSync(spFile, JSON.stringify(list, null, 2)); } catch (_) {}
+          console.log(`[WS] Biblioteca de spots sincronizada (${list.length} spots, Buen Fin purgado)`);
+          broadcast({ type: 'SPOTS_LIBRARY_UPDATE', spots: list }, ws);
           break;
         }
         case 'SPOT': {
+          // Ignorar cualquier spot rezagado del Buen Fin
+          if (msg.track && msg.track.spot_id && /^spot_(gorras|shadrap|vanford|kayak|maja|hieleras)/i.test(msg.track.spot_id)) {
+            console.log('[WS] Spot de Buen Fin bloqueado:', msg.track.spot_id);
+            break;
+          }
           // NO sobrescribir currentTrack si hay una canción YouTube activa, para que la misma canción continúe sin brincar
           const spTrack = Object.assign({ type: 'spot' }, msg.track || {});
-          const isRodoManual = !!(spTrack.isRodo || (spTrack.url && spTrack.url.startsWith('/rodo/')) || (spTrack.name && /rodo|locutor|hora|clima|consejo/i.test(spTrack.name)));
+          const isRodoManual = !!(spTrack.isRodo || (spTrack.url && spTrack.url.startsWith('/rodo/')) || (spTrack.name && /rodo|locutor|hora|clima|consejo|venta\s*nocturna/i.test(spTrack.name)));
           spTrack.isRodo = isRodoManual;
           spTrack.advanceAfter = false;
           radioState.activeSpot = spTrack;

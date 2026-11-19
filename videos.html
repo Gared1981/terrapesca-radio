@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TERRAPESCA TV — Video Spots Buen Fin 2026</title>
+  <title>TERRAPESCA TV &amp; RADIO 24/7 — Venta Nocturna 18 de Diciembre</title>
   <link rel="icon" type="image/png" href="https://cdn.shopify.com/s/files/1/0205/5752/9188/files/Logo-Terrapesca-01_205270e5-d546-4e33-a8d1-db0a91f1e554.png?v=1700262873">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -849,14 +849,15 @@
       display: flex;
       align-items: center;
       gap: 15px;
-      background: rgba(255, 42, 42, 0.15);
-      border: 1px solid var(--red);
+      background: linear-gradient(90deg, rgba(15, 23, 42, 0.92), rgba(30, 41, 59, 0.92));
+      border: 1px solid var(--gold);
       padding: 12px 28px;
       border-radius: 50px;
-      color: #fff;
+      color: #fef08a;
       font-size: 1.8vh;
-      font-weight: 700;
-      box-shadow: 0 0 25px rgba(255, 42, 42, 0.35);
+      font-weight: 800;
+      letter-spacing: 0.5px;
+      box-shadow: 0 0 28px rgba(255, 190, 26, 0.35);
     }
 
     /* Barra Flotante de Control (se oculta en modo TV para display limpio) */
@@ -1009,29 +1010,29 @@
           <h1 class="standby-now-title" id="stTrackTitle">En el Muelle de San Blás</h1>
           <p class="standby-now-artist" id="stTrackArtist">por Maná</p>
           <div class="standby-next-pill" id="stNextSpotNotice">
-            📡 Sincronizado en vivo: <strong>Música + Videos Buen Fin + Spots Cabina + DJ Rodo</strong>
+            📡 Transmisión 24/7 en vivo: <strong>Música Continua + 🎙️ DJ Rodo · Expectativa Venta Nocturna</strong>
           </div>
         </div>
       </div>
 
       <div class="standby-buenfin-banner">
-        <span>🔥 GRAN BUEN FIN TERRAPESCA 2026</span>
+        <span>🌙 VENTA NOCTURNA TERRAPESCA</span>
         <span>•</span>
-        <span>6 MESES SIN INTERESES Y HASTA 50% DE DESCUENTO</span>
+        <span style="color:#ffffff">ESTE 18 DE DICIEMBRE · DE 6:00 A 10:00 PM</span>
         <span>•</span>
-        <span>ESCANEA EL QR AL SONAR EL SPOT</span>
+        <span style="color:#38bdf8">¡APARTA LA FECHA, ALGO MUY ESPECIAL VIENE!</span>
       </div>
     </div>
   </div>
 
-  <!-- ESCENARIO TV PRINCIPAL (VIDEO SPOT DEL PRODUCTO) -->
+  <!-- ESCENARIO TV PRINCIPAL -->
   <div class="tv-stage" id="tvStage">
     
     <!-- Barra Superior -->
     <header class="top-bar">
       <div class="brand-box">
         <img class="brand-logo" src="https://cdn.shopify.com/s/files/1/0205/5752/9188/files/Logo-Terrapesca-01_205270e5-d546-4e33-a8d1-db0a91f1e554.png?v=1700262873" alt="Terrapesca">
-        <div class="campaign-badge">🔥 GRAN BUEN FIN TERRAPESCA 2026</div>
+        <div class="campaign-badge">🌙 VENTA NOCTURNA • 18 DE DICIEMBRE (6 A 10 PM)</div>
       </div>
       <div class="store-tag">
         <div class="live-dot"></div>
@@ -1320,7 +1321,7 @@
       if (track.isRodo === true) return true;
       if (track.isRodo === false) return false;
       if (track.url && track.url.startsWith('/rodo/')) return true;
-      if (track.name && /dj\s*rodo|rodo|locutor|hora|consejo|clima|mareas|estaci[oó]n/i.test(track.name)) return true;
+      if (track.name && /dj\s*rodo|rodo|locutor|hora|consejo|clima|mareas|estaci[oó]n|venta\s*nocturna/i.test(track.name)) return true;
       return false;
     }
 
@@ -1394,22 +1395,13 @@
       if (currentYtTrack) updateStandbyCard(currentYtTrack);
     }
 
-    // Punto central: recibe CUALQUIER Spot (Buen Fin Video, Spot Personalizado de Cabina o DJ Rodo)
+    // Punto central: recibe intervenciones de DJ Rodo en vivo (Buen Fin retirado)
     function handleIncomingSpot(track) {
       if (!track) return;
-      resetFallbackSpotTimer();
-
-      // 1) Si es un Spot Oficial del Buen Fin, lanzar el Escenario Completo con VIDEO + Precio + QR + Fade Suave
-      if (track.spot_id && SPOTS.length) {
-        const bfIdx = SPOTS.findIndex(x => x.spot_id === track.spot_id);
-        if (bfIdx >= 0) {
-          console.log('[TV] Lanzando Video Spot Buen Fin sincronizado con Radio:', track.spot_id);
-          launchNextSpotSequence(bfIdx, { advanceAfter: !!track.advanceAfter, remoteTrack: track });
-          return;
-        }
+      if (track.spot_id && /^spot_(gorras|shadrap|vanford|kayak|maja|hieleras)/i.test(track.spot_id)) {
+        return; // Ignorar cualquier spot antiguo del Buen Fin
       }
-
-      // 2) Intervención de DJ Rodo o Spot Comercial de Cabina (soporta URL o Base64)
+      resetFallbackSpotTimer();
       playRemoteAudioSpot(track);
     }
 
@@ -2061,34 +2053,10 @@
       }
     }
 
-    // Programador de cuenta regresiva para el siguiente spot (sincronizado con Radio)
+    // Programador: Modo Radio + DJ Rodo (sin spots comerciales ni de Buen Fin; solo intervenciones en vivo de DJ Rodo)
     function scheduleNextSpot() {
       clearInterval(spotCountdownTimer);
-      if (mode !== 'radio_spots') {
-        updateNextSpotNotice();
-        return;
-      }
-
-      if (spotIntervalSecs === 0) {
-        updateNextSpotNotice('al terminar la canción');
-        return;
-      }
-
-      // En modo Sincronizado (-1): los spots y DJ Rodo entran directo desde la Radio 24/7 / Cabina;
-      // dejamos un reloj de respaldo de 240s por si la cabina está en manual sin disparar spots.
-      secondsUntilNextSpot = spotIntervalSecs === -1 ? 240 : spotIntervalSecs;
-      updateNextSpotNotice(formatTimeRemaining(secondsUntilNextSpot));
-
-      spotCountdownTimer = setInterval(() => {
-        if (isInSpot || _isRemoteSpotPlaying) return;
-        secondsUntilNextSpot--;
-        if (secondsUntilNextSpot <= 0) {
-          clearInterval(spotCountdownTimer);
-          launchNextSpotSequence();
-        } else {
-          updateNextSpotNotice(formatTimeRemaining(secondsUntilNextSpot));
-        }
-      }, 1000);
+      updateNextSpotNotice();
     }
 
     function formatTimeRemaining(secs) {
@@ -2097,36 +2065,14 @@
       return `${m}:${s < 10 ? '0' : ''}${s}`;
     }
 
-    function updateNextSpotNotice(timeText) {
+    function updateNextSpotNotice() {
       const noticeEl = document.getElementById('stNextSpotNotice');
       if (!noticeEl) return;
-      const nextSpot = SPOTS.length ? SPOTS[nextSpotIdx % SPOTS.length] : null;
-      const spotName = nextSpot ? (nextSpot.categoria || nextSpot.titulo || 'Oferta Buen Fin') : 'Ofertas Buen Fin';
-
-      if (mode === 'loop') {
-        noticeEl.innerHTML = `🔄 Modo: <strong>Carrusel Continuo de Videos</strong>`;
-      } else if (mode === 'reactive') {
-        noticeEl.innerHTML = `📡 En espera: <strong>Spots Buen Fin + Cabina + DJ Rodo en vivo</strong>`;
-      } else if (spotIntervalSecs === -1) {
-        const customInfo = CUSTOM_SPOTS.length ? ` + ${CUSTOM_SPOTS.length} Spots Cabina` : '';
-        noticeEl.innerHTML = `📡 Sincronizado con Radio: <strong>Videos Buen Fin${customInfo} + 🎙️ DJ Rodo</strong>`;
-      } else if (spotIntervalSecs === 0) {
-        noticeEl.innerHTML = `⏱ Próximo Video Spot: <strong>${spotName}</strong> (al terminar canción)`;
-      } else {
-        noticeEl.innerHTML = `⏱ Próximo Video Spot: <strong>${spotName}</strong> (en ${timeText || formatTimeRemaining(secondsUntilNextSpot)})`;
-      }
+      noticeEl.innerHTML = `📡 Transmisión 24/7 en vivo: <strong>Música Continua + 🎙️ DJ Rodo · Venta Nocturna 18 Dic (6 a 10 PM)</strong>`;
     }
 
     function toggleInterval() {
-      intervalIdx = (intervalIdx + 1) % INTERVALS.length;
-      spotIntervalSecs = INTERVALS[intervalIdx];
-      const btn = document.getElementById('btnInterval');
-      if (btn) {
-        if (spotIntervalSecs === -1) btn.textContent = '⏱ Frecuencia: Sincronizado Radio';
-        else if (spotIntervalSecs === 0) btn.textContent = '⏱ Frecuencia: Cada Canción';
-        else btn.textContent = `⏱ Frecuencia: ${(spotIntervalSecs / 60).toFixed(1)} Min`;
-      }
-      scheduleNextSpot();
+      updateNextSpotNotice();
     }
 
     function launchNextSpotSequence(specificIdx, opts = {}) {
@@ -2168,78 +2114,57 @@
       });
     }
 
-    // Cargar Spots Oficiales de Buen Fin + Spots Personalizados de Cabina
+    // Modo Radio 24/7 + Intervenciones DJ Rodo (Buen Fin retirado; campaña expectativa Venta Nocturna 18 Dic 6-10 PM)
     async function loadSpots() {
       try {
         setTvVolume(_tvMasterVol);
-        const [rBf, rCustom] = await Promise.all([
-          fetch('/buenfin/spots.json?v=' + Date.now()),
-          fetch('/api/spots?v=' + Date.now()).catch(() => null)
-        ]);
-        const data = await rBf.json();
-        SPOTS = data.spots || data;
-        if (rCustom && rCustom.ok) {
-          try { CUSTOM_SPOTS = (await rCustom.json()) || []; } catch (_) { CUSTOM_SPOTS = []; }
-        }
+        SPOTS = [];
+        CUSTOM_SPOTS = [];
         renderNav();
 
         // Conectar WebSocket con Radio Terrapesca
         initWS();
 
-        // Parámetros URL (ej. ?spot_id=... o ?mode=loop)
-        const params = new URLSearchParams(window.location.search);
-        const trigSpot = params.get('spot_id');
-        const isReactiveParam = params.get('trigger') === 'true';
-        const isLoopParam = params.get('mode') === 'loop';
+        mode = 'radio_spots';
+        const btnMode = document.getElementById('btnMode');
+        if (btnMode) btnMode.textContent = '📻 Modo: Radio + DJ Rodo (Venta Nocturna)';
 
-        if (isReactiveParam) {
-          mode = 'reactive';
-          document.getElementById('btnMode').textContent = '📡 Modo: Reactivo Radio';
-        } else if (isLoopParam) {
-          mode = 'loop';
-          document.getElementById('btnMode').textContent = '🔄 Modo: Carrusel Videos';
-        } else {
-          mode = 'radio_spots';
-          document.getElementById('btnMode').textContent = '📻 Modo: Radio + Video Spots';
-        }
-
-        if (trigSpot) {
-          const idx = SPOTS.findIndex(x => x.spot_id === trigSpot);
-          launchNextSpotSequence(idx >= 0 ? idx : 0);
-        } else if (mode === 'loop') {
-          launchNextSpotSequence(0);
-        } else {
-          // Por defecto: Iniciar en Pantalla Standby con Radio Terrapesca + Spots + DJ Rodo en vivo
-          isInSpot = false;
-          standbyScreen.style.display = 'flex';
-          standbyScreen.style.opacity = '1';
-          tvStage.style.display = 'none';
-          scheduleNextSpot();
-        }
+        isInSpot = false;
+        standbyScreen.style.display = 'flex';
+        standbyScreen.style.opacity = '1';
+        tvStage.style.display = 'none';
+        scheduleNextSpot();
 
         // Monitoreo de respaldo por REST
         pollCurrentRadioTrack();
         setInterval(pollCurrentRadioTrack, 12000);
 
       } catch (e) {
-        console.error('Error cargando spots:', e);
+        console.error('Error iniciando pantalla TV/Radio:', e);
       }
+    }
+
+    function previewRodoVentaNocturna(n) {
+      const idx = n || (Math.floor(Math.random() * 5) + 1);
+      playRemoteAudioSpot({
+        type: 'spot',
+        isRodo: true,
+        overMusic: true,
+        name: `🎙️ DJ Rodo — Expectativa Venta Nocturna (18 Dic · 6 a 10 PM)`,
+        url: `/rodo/rodo_venta_nocturna_${idx}.mp3?v=${Date.now()}`,
+        mime: 'audio/mpeg',
+        duration: 16
+      });
     }
 
     function renderNav() {
       const nav = document.getElementById('spotsNav');
       if (!nav) return;
-      const bfHtml = SPOTS.map((s, i) => `
-        <div class="nav-dot ${i === currentIdx ? 'active' : ''}" onclick="selectSpot(${i})">
-          🎬 ${i + 1}. ${s.categoria || s.spot_id.replace('spot_', '')}
+      nav.innerHTML = [1, 2, 3, 4, 5].map(i => `
+        <div class="nav-dot" style="border-color:rgba(255,190,26,0.65);color:#fde047;" onclick="previewRodoVentaNocturna(${i})" title="Probar intervención de DJ Rodo sobre la canción actual">
+          🎙️ Rodo Venta Nocturna #${i}
         </div>
       `).join('');
-      const customHtml = (CUSTOM_SPOTS || []).map((cs, j) => `
-        <div class="nav-dot" style="border-color:rgba(16,185,129,0.55);color:#a7f3d0;" onclick="selectCustomSpot(${j})" title="Spot de Cabina">
-          📢 ${(cs.name || ('Spot ' + (j + 1))).slice(0, 22)}
-        </div>
-      `).join('');
-      nav.innerHTML = bfHtml + customHtml;
     }
 
     async function loadSpot(idx, autoPlay = true) {

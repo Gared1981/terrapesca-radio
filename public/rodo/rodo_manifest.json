@@ -1,10 +1,38 @@
 [
   {
-    "file": "rodo_buenfin_anuncio.mp3",
-    "url": "/rodo/rodo_buenfin_anuncio.mp3",
-    "type": "promo",
-    "title": "🎙️ DJ Rodo — Gran Venta Buen Fin 2026",
-    "size": 358652
+    "file": "rodo_venta_nocturna_5.mp3",
+    "url": "/rodo/rodo_venta_nocturna_5.mp3",
+    "type": "venta_nocturna",
+    "title": "🎙️ DJ Rodo — Noche Especial en Terrapesca (18 Dic · 6 a 10 PM)",
+    "size": 62208
+  },
+  {
+    "file": "rodo_venta_nocturna_4.mp3",
+    "url": "/rodo/rodo_venta_nocturna_4.mp3",
+    "type": "venta_nocturna",
+    "title": "🎙️ DJ Rodo — Cuenta Regresiva Venta Nocturna (18 Dic · 6 a 10 PM)",
+    "size": 67968
+  },
+  {
+    "file": "rodo_venta_nocturna_3.mp3",
+    "url": "/rodo/rodo_venta_nocturna_3.mp3",
+    "type": "venta_nocturna",
+    "title": "🎙️ DJ Rodo — Aparta la Fecha: Venta Nocturna (18 Dic · 6 a 10 PM)",
+    "size": 63360
+  },
+  {
+    "file": "rodo_venta_nocturna_2.mp3",
+    "url": "/rodo/rodo_venta_nocturna_2.mp3",
+    "type": "venta_nocturna",
+    "title": "🎙️ DJ Rodo — Se acerca la Venta Nocturna (18 Dic · 6 a 10 PM)",
+    "size": 60096
+  },
+  {
+    "file": "rodo_venta_nocturna_1.mp3",
+    "url": "/rodo/rodo_venta_nocturna_1.mp3",
+    "type": "venta_nocturna",
+    "title": "🎙️ DJ Rodo — Expectativa Venta Nocturna (18 Dic · 6 a 10 PM)",
+    "size": 64128
   },
   {
     "file": "rodo_consejo_mar.mp3",
